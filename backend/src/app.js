@@ -1,0 +1,121 @@
+import express from 'express';
+import helmet from 'helmet';
+import cors from 'cors';
+import hpp from 'hpp';
+import cookieParser from 'cookie-parser';
+import { pinoHttp } from 'pino-http';
+import { config } from './config/index.js';
+import { requestId } from './shared/middleware/requestId.js';
+import { csrfProtection } from './shared/middleware/csrf.js';
+import { notFound } from './shared/middleware/notFound.js';
+import { errorHandler } from './shared/errors/errorHandler.js';
+import authRoutes from './modules/auth/auth.routes.js';
+import teachersRoutes from './modules/teachers/teachers.routes.js';
+import academicRoutes from './modules/academic/academic.routes.js';
+import studentsRoutes from './modules/people/students.routes.js';
+import parentsRoutes from './modules/people/parents.routes.js';
+import timetableRoutes from './modules/timetable/timetable.routes.js';
+import zoomRoutes from './modules/zoom/zoom.routes.js';
+import attendanceRoutes from './modules/attendance/attendance.routes.js';
+import tasksRoutes from './modules/tasks/tasks.routes.js';
+import uploadsRoutes from './modules/uploads/uploads.routes.js';
+import feesRoutes from './modules/fees/fees.routes.js';
+import payrollRoutes from './modules/payroll/payroll.routes.js';
+import noticesRoutes from './modules/notices/notices.routes.js';
+import auditRoutes from './modules/audit/audit.routes.js';
+import reportsRoutes from './modules/reports/reports.routes.js';
+
+export function createApp() {
+  const app = express();
+
+  // Trust proxy for rate limiting and accurate client IP behind reverse proxy / Nginx
+  app.set('trust proxy', 1);
+
+  // 1. Request ID middleware
+  app.use(requestId);
+
+  // 2. Structured logging (Pino)
+  if (!config.isTest) {
+    app.use(
+      pinoHttp({
+        genReqId: (req) => req.id,
+        redact: ['req.headers.cookie', 'req.headers.authorization']
+      })
+    );
+  }
+
+  // 3. Security headers (Helmet) & HTTP Parameter Pollution (HPP)
+  app.use(
+    helmet({
+      contentSecurityPolicy: config.isProduction ? undefined : false,
+      crossOriginResourcePolicy: { policy: 'same-site' }
+    })
+  );
+  app.use(hpp());
+
+  // 4. CORS configuration
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        // Allow requests with no origin (e.g. mobile apps, curl, same-origin)
+        if (!origin || config.allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+        return callback(new Error('Blocked by CORS'));
+      },
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+      allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'X-Request-Id']
+    })
+  );
+
+  // 5. Body and Cookie parsers
+  app.use(cookieParser());
+  app.use(express.json({ limit: '100kb' }));
+  app.use(express.urlencoded({ extended: true, limit: '100kb' }));
+
+  // 6. CSRF verification for state-changing requests
+  app.use(
+    csrfProtection({
+      exemptPaths: [
+        '/api/v1/auth/login',
+        '/api/v1/auth/refresh',
+        '/api/v1/auth/forgot-password',
+        '/api/v1/auth/reset-password',
+        '/api/v1/parents/register',
+        /^\/api\/v1\/zoom\/webhook/,
+        /^\/api\/v1\/webhooks\//
+      ]
+    })
+  );
+
+  // 7. Base health check endpoint
+  app.get('/api/v1/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
+  // 8. Module Routes mounting
+  app.use('/api/v1/auth', authRoutes);
+  app.use('/api/v1/teachers', teachersRoutes);
+  app.use('/api/v1', academicRoutes);
+  app.use('/api/v1/students', studentsRoutes);
+  app.use('/api/v1/parents', parentsRoutes);
+  app.use('/api/v1/timetable', timetableRoutes);
+  app.use('/api/v1/zoom', zoomRoutes);
+  app.use('/api/v1/attendance', attendanceRoutes);
+  app.use('/api/v1/tasks', tasksRoutes);
+  app.use('/api/v1/uploads', uploadsRoutes);
+  app.use('/api/v1/fees', feesRoutes);
+  app.use('/api/v1/payroll', payrollRoutes);
+  app.use('/api/v1/notices', noticesRoutes);
+  app.use('/api/v1/audit', auditRoutes);
+  app.use('/api/v1/reports', reportsRoutes);
+
+  // 9. 404 Handler
+  app.use(notFound);
+
+  // 10. Central Error Handler
+  app.use(errorHandler);
+
+  return app;
+}

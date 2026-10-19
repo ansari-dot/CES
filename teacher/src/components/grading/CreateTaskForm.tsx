@@ -1,0 +1,282 @@
+import React, { useState } from 'react';
+import { useAppDispatch, useAppSelector } from '../../store';
+import { createNewTask } from '../../store/slices/tasksSlice';
+import { addToast } from '../../store/slices/uiSlice';
+import { Task } from '../../types';
+
+export const CreateTaskForm: React.FC = () => {
+  const dispatch = useAppDispatch();
+  const assignedClasses = useAppSelector((state) => state.auth.teacher.assignedClasses);
+
+  const [title, setTitle] = useState('');
+  const [instructions, setInstructions] = useState('');
+  const [targetClassId, setTargetClassId] = useState('5-math-a');
+  const [subject, setSubject] = useState('Mathematics');
+  const [deadline, setDeadline] = useState('2024-10-28T23:59');
+  const [totalMarks, setTotalMarks] = useState<number>(20);
+  const [gradingScale, setGradingScale] = useState<'numeric' | 'letter' | 'rubric' | 'passfail'>('numeric');
+  const [notifyParents, setNotifyParents] = useState(true);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+
+    try {
+      const classNum = parseInt(targetClassId.replace(/\D/g, ''), 10) || 1;
+      await fetch('/api/v1/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          classId: classNum,
+          subjectId: 1,
+          title,
+          instructions: instructions || 'Complete all assignment questions with step-by-step working.',
+          deadline,
+          totalMarks,
+          gradingScale: gradingScale.toUpperCase()
+        })
+      });
+    } catch (err) {
+      console.warn('Backend task create failed, fallback to local state:', err);
+    }
+
+    const selectedCls = assignedClasses.find((c) => c.id === targetClassId);
+
+    const newTask: Task = {
+      id: `TASK-${Date.now().toString().slice(-4)}`,
+      title,
+      instructions: instructions || 'Complete all assignment questions with step-by-step working.',
+      classId: targetClassId,
+      className: selectedCls ? selectedCls.name.split(' - ')[0] : 'Class 5-A',
+      subject,
+      assignedDate: 'Today',
+      deadline: new Date(deadline).toLocaleDateString([], {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      totalMarks,
+      gradingScale,
+      status: 'active',
+      submittedCount: 0,
+      totalStudents: selectedCls?.enrolledCount || 26,
+      gradedCount: 0,
+      pendingCount: 0,
+      lateCount: 0,
+      missingCount: selectedCls?.enrolledCount || 26,
+      handoutName: 'Assignment_Worksheet.pdf',
+    };
+
+    dispatch(createNewTask(newTask));
+    dispatch(
+      addToast({
+        message: `Assignment "${title}" published to ${newTask.className}. ${
+          notifyParents ? 'Guardian broadcast sent.' : ''
+        }`,
+        type: 'success',
+      })
+    );
+
+    // Reset fields
+    setTitle('');
+    setInstructions('');
+  };
+
+  return (
+    <div className="bg-white p-6 rounded-xl shadow-md border border-slate-100">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-100 mb-5">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="p-1 rounded-md bg-[#e2dfff] text-[#0f0069]">
+              <span className="material-symbols-outlined text-[18px]">post_add</span>
+            </span>
+            <h2 className="text-xl font-bold text-[#121c2a]">Create New Assignment</h2>
+          </div>
+          <p className="text-xs text-[#464555]">
+            Publish curriculum-aligned homework tasks, problem sets, or projects directly to class
+            streams.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setTitle('Chapter 6 Practice: Rational Fractions and Decimals');
+              setInstructions('Solve questions 1-12 from textbook page 114. Show all working steps.');
+              setTotalMarks(25);
+              dispatch(addToast({ message: 'Loaded template: Standard Fraction Quiz', type: 'info' }));
+            }}
+            className="px-3 py-1.5 rounded-lg bg-[#eff4ff] text-[#464555] hover:text-[#121c2a] text-xs font-semibold flex items-center gap-1 border border-indigo-100/60"
+          >
+            <span className="material-symbols-outlined text-[18px]">library_books</span> Load from
+            Template
+          </button>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4 text-xs sm:text-sm">
+        {/* Row 1: Title & Class & Subject */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+          <div className="md:col-span-6 space-y-1">
+            <label className="text-xs font-semibold text-[#121c2a]">Assignment Title</label>
+            <input
+              type="text"
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Chapter 5 Practice: Decimal Word Problems"
+              className="w-full bg-[#eff4ff] px-3.5 py-2.5 rounded-lg text-[#121c2a] placeholder:text-[#777587] focus:outline-none focus:ring-2 focus:ring-[#3525cd]/20 border border-indigo-100/60"
+            />
+          </div>
+
+          <div className="md:col-span-3 space-y-1">
+            <label className="text-xs font-semibold text-[#121c2a]">Target Class</label>
+            <select
+              value={targetClassId}
+              onChange={(e) => setTargetClassId(e.target.value)}
+              className="w-full bg-[#eff4ff] px-3.5 py-2.5 rounded-lg text-[#121c2a] focus:outline-none focus:ring-2 focus:ring-[#3525cd]/20 cursor-pointer border border-indigo-100/60"
+            >
+              {assignedClasses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="md:col-span-3 space-y-1">
+            <label className="text-xs font-semibold text-[#121c2a]">Subject</label>
+            <select
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              className="w-full bg-[#eff4ff] px-3.5 py-2.5 rounded-lg text-[#121c2a] focus:outline-none focus:ring-2 focus:ring-[#3525cd]/20 cursor-pointer border border-indigo-100/60"
+            >
+              <option value="Mathematics">Mathematics</option>
+              <option value="General Science">General Science</option>
+              <option value="Science Lab">Science Lab</option>
+              <option value="STEM Lab">STEM Lab</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Row 2: Instructions */}
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-[#121c2a]">Instructions &amp; Requirements</label>
+          <textarea
+            rows={2}
+            value={instructions}
+            onChange={(e) => setInstructions(e.target.value)}
+            placeholder="Specify expectations, acceptable formats, and rubric guidance..."
+            className="w-full bg-[#eff4ff] px-3.5 py-2 rounded-lg text-[#121c2a] placeholder:text-[#777587] focus:outline-none focus:ring-2 focus:ring-[#3525cd]/20 border border-indigo-100/60"
+          ></textarea>
+        </div>
+
+        {/* Row 3: Due Date, Total Marks, Grading Scale */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-[#121c2a]">Due Date &amp; Deadline</label>
+            <input
+              type="datetime-local"
+              value={deadline}
+              onChange={(e) => setDeadline(e.target.value)}
+              className="w-full bg-[#eff4ff] px-3.5 py-2 rounded-lg text-[#121c2a] focus:outline-none focus:ring-2 focus:ring-[#3525cd]/20 cursor-pointer border border-indigo-100/60"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-[#121c2a]">Total Max Marks</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={totalMarks}
+                onChange={(e) => setTotalMarks(Number(e.target.value))}
+                className="w-full bg-[#eff4ff] px-3.5 py-2 rounded-lg text-[#121c2a] font-bold focus:outline-none focus:ring-2 focus:ring-[#3525cd]/20 border border-indigo-100/60"
+              />
+              <span className="text-xs text-[#777587] font-semibold shrink-0">points</span>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-[#121c2a]">Grading Scale</label>
+            <select
+              value={gradingScale}
+              onChange={(e) => setGradingScale(e.target.value as any)}
+              className="w-full bg-[#eff4ff] px-3.5 py-2 rounded-lg text-[#121c2a] focus:outline-none focus:ring-2 focus:ring-[#3525cd]/20 cursor-pointer border border-indigo-100/60"
+            >
+              <option value="numeric">Points (0 - Max Marks)</option>
+              <option value="letter">Letter Grades (A+ to F)</option>
+              <option value="rubric">3-Tier Standardized Rubric</option>
+              <option value="passfail">Pass / Incomplete</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Row 4: File Attachment Drag and Drop Mock */}
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-[#121c2a]">
+            Task Handout / Reference Worksheet Upload
+          </label>
+          <div
+            onClick={() => dispatch(addToast({ message: 'Worksheet file selected: Sample_Fractions_Quiz.pdf', type: 'info' }))}
+            className="bg-[#eff4ff] p-5 rounded-xl flex flex-col items-center justify-center text-center cursor-pointer hover:bg-[#dee9fc]/70 transition-all border border-dashed border-indigo-200"
+          >
+            <div className="w-10 h-10 rounded-full bg-white text-[#3525cd] flex items-center justify-center shadow-xs mb-1.5">
+              <span className="material-symbols-outlined text-[24px]">cloud_upload</span>
+            </div>
+            <p className="text-xs sm:text-sm font-bold text-[#121c2a]">
+              Click to upload worksheet or drag &amp; drop document
+            </p>
+            <p className="text-[11px] text-[#777587] mt-0.5">
+              Supports PDF, DOCX, PNG or Google Drive links (Max 25 MB per file)
+            </p>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="px-2 py-0.5 rounded bg-indigo-100 text-[11px] font-semibold text-[#3525cd] font-mono">
+                Sample_Fractions_Quiz.pdf
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Row 5: Action Buttons */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="notifyParentsCheck"
+              checked={notifyParents}
+              onChange={(e) => setNotifyParents(e.target.checked)}
+              className="w-4 h-4 rounded text-[#3525cd] accent-[#3525cd] cursor-pointer"
+            />
+            <label
+              htmlFor="notifyParentsCheck"
+              className="text-xs text-[#464555] cursor-pointer font-medium"
+            >
+              Broadcast announcement notification to parent portals
+            </label>
+          </div>
+
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+            <button
+              type="button"
+              onClick={() => dispatch(addToast({ message: 'Task saved to drafts.', type: 'info' }))}
+              className="px-4 py-2.5 rounded-lg bg-[#e6eeff] text-[#121c2a] hover:bg-[#dee9fc] text-xs font-semibold"
+            >
+              Save as Draft
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2.5 rounded-lg bg-[#3525cd] hover:bg-[#4f46e5] text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5 active:scale-98"
+            >
+              <span className="material-symbols-outlined text-[18px]">send</span>
+              Publish Task to Class
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  );
+};

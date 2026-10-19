@@ -1,0 +1,6 @@
+{
+  "name": "EduPulse Teacher Portal",
+  "description": "Production Teacher Portal for school management, online Zoom lessons, attendance, grading, timetable, and duty tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

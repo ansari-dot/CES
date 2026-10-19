@@ -1,0 +1,6 @@
+{
+  "name": "Principal Portal - Online School Management System",
+  "description": "Comprehensive Principal Portal for Classes 1–8 with daily operations, academic scheduling, Zoom link management, attendance oversight, fee structures, challans, payment verification, teacher payroll preparation, and audit trails.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
