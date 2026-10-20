@@ -11,62 +11,7 @@ interface TimetableState {
   isLoading: boolean;
 }
 
-const initialLessons: TimetableLesson[] = [
-  {
-    id: 'LES-163',
-    classId: '5-math-a',
-    className: 'Class 5',
-    subject: 'Mathematics',
-    topic: 'Fraction Division & Word Problems',
-    date: '2026-10-19',
-    dayOfWeek: 'Monday',
-    startTime: '09:00 AM',
-    endTime: '09:45 AM',
-    periodNumber: 1,
-    room: 'Online Classroom (Grade 5)',
-    status: 'scheduled',
-    zoomRoomId: '90050005',
-    zoomPasscode: 'CLASS5#',
-    deliveryLogged: false,
-    attendanceSubmitted: false,
-  },
-  {
-    id: 'LES-164',
-    classId: '5-sci-a',
-    className: 'Class 5',
-    subject: 'General Science',
-    topic: 'Solar & Wind Energy Systems',
-    date: '2026-10-19',
-    dayOfWeek: 'Monday',
-    startTime: '10:30 AM',
-    endTime: '11:15 AM',
-    periodNumber: 2,
-    room: 'Online Classroom (Grade 5)',
-    status: 'scheduled',
-    zoomRoomId: '90050005',
-    zoomPasscode: 'CLASS5#',
-    deliveryLogged: false,
-    attendanceSubmitted: false,
-  },
-  {
-    id: 'LES-165',
-    classId: '6-sci-a',
-    className: 'Class 6',
-    subject: 'General Science',
-    topic: 'Kinetic & Potential Energy Conversions',
-    date: '2026-10-19',
-    dayOfWeek: 'Monday',
-    startTime: '01:00 PM',
-    endTime: '01:45 PM',
-    periodNumber: 3,
-    room: 'Online Classroom (Grade 6)',
-    status: 'scheduled',
-    zoomRoomId: '90060006',
-    zoomPasscode: 'CLASS6#',
-    deliveryLogged: false,
-    attendanceSubmitted: false,
-  }
-];
+const initialLessons: TimetableLesson[] = [];
 
 export const fetchTeacherLessonsThunk = createAsyncThunk(
   'timetable/fetchTeacherLessons',
@@ -172,7 +117,7 @@ export const timetableSlice = createSlice({
       })
       .addCase(fetchTeacherLessonsThunk.fulfilled, (state, action) => {
         state.isLoading = false;
-        if (Array.isArray(action.payload) && action.payload.length > 0) {
+        if (Array.isArray(action.payload)) {
           state.lessons = action.payload;
         }
       })

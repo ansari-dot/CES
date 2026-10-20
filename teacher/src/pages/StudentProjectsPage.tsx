@@ -56,8 +56,16 @@ export const StudentProjectsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredProjects.map((project) => {
-                const isExpanded = expandedProjectId === project.id;
+              {filteredProjects.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-[#777587]">
+                    <span className="material-symbols-outlined text-3xl mb-1 text-slate-300">folder_special</span>
+                    <p className="font-medium text-xs">No active student projects found.</p>
+                  </td>
+                </tr>
+              ) : (
+                filteredProjects.map((project) => {
+                  const isExpanded = expandedProjectId === project.id;
 
                 return (
                   <React.Fragment key={project.id}>
@@ -175,7 +183,8 @@ export const StudentProjectsPage: React.FC = () => {
                     )}
                   </React.Fragment>
                 );
-              })}
+              })
+              )}
             </tbody>
           </table>
         </div>

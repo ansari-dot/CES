@@ -14,6 +14,7 @@ export const DashboardPage: React.FC = () => {
   const notices = useAppSelector((state) => state.notices.notices);
 
   const todayLessons = lessons.slice(0, 4);
+  const nextLesson = lessons.find((l) => l.status === 'scheduled' || l.status === 'live') || lessons[0];
 
   const handleClockToggle = () => {
     dispatch(toggleClockInOut());
@@ -136,45 +137,69 @@ export const DashboardPage: React.FC = () => {
       </div>
 
       {/* Hero Banner: Up Next */}
-      <div className="bg-white rounded-xl p-4 border border-indigo-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 bg-gradient-to-r from-indigo-50/50 to-white">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#4f46e5] text-white flex items-center justify-center shrink-0">
-            <span className="material-symbols-outlined text-[22px]">videocam</span>
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold px-2 py-0.2 rounded bg-indigo-100 text-[#3525cd]">
-                NEXT CLASS • 10:30 AM
-              </span>
-              <span className="text-xs font-bold text-[#121c2a]">Class 6-B (Science)</span>
+      {nextLesson ? (
+        <div className="bg-white rounded-xl p-4 border border-indigo-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 bg-gradient-to-r from-indigo-50/50 to-white">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#4f46e5] text-white flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-[22px]">videocam</span>
             </div>
-            <p className="text-xs text-[#464555] mt-0.5">Solar &amp; Wind Energy Systems • Room ID: 849 2039 1102</p>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold px-2 py-0.2 rounded bg-indigo-100 text-[#3525cd]">
+                  NEXT CLASS • {nextLesson.startTime}
+                </span>
+                <span className="text-xs font-bold text-[#121c2a]">
+                  {nextLesson.className} ({nextLesson.subject})
+                </span>
+              </div>
+              <p className="text-xs text-[#464555] mt-0.5">
+                {nextLesson.topic} • Room ID: {nextLesson.zoomRoomId}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end md:self-auto">
+            <button
+              onClick={() =>
+                dispatch(
+                  addToast({
+                    message: `Launching Zoom meeting for ${nextLesson.className}...`,
+                    type: 'success',
+                  })
+                )
+              }
+              className="px-4 py-2 bg-[#4f46e5] hover:bg-[#3525cd] text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-[16px]">videocam</span>
+              <span>Join Zoom</span>
+            </button>
+            <button
+              onClick={() => dispatch(setCurrentTab('student-attendance'))}
+              className="px-3 py-2 bg-white hover:bg-slate-50 text-[#121c2a] text-xs font-semibold rounded-lg border border-slate-200"
+            >
+              Attendance
+            </button>
           </div>
         </div>
-
-        <div className="flex items-center gap-2 self-end md:self-auto">
+      ) : (
+        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-[22px]">event_available</span>
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-[#121c2a]">No upcoming classes scheduled</h3>
+              <p className="text-xs text-[#777587] mt-0.5">All scheduled periods for today are concluded or no classes currently assigned.</p>
+            </div>
+          </div>
           <button
-            onClick={() =>
-              dispatch(
-                addToast({
-                  message: 'Launching Zoom meeting for Class 6-B...',
-                  type: 'success',
-                })
-              )
-            }
-            className="px-4 py-2 bg-[#4f46e5] hover:bg-[#3525cd] text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5"
+            onClick={() => dispatch(setCurrentTab('timetable'))}
+            className="px-3 py-1.5 bg-[#eff4ff] hover:bg-[#dee9fc] text-[#3525cd] text-xs font-bold rounded-lg transition-colors"
           >
-            <span className="material-symbols-outlined text-[16px]">videocam</span>
-            <span>Join Zoom</span>
-          </button>
-          <button
-            onClick={() => dispatch(setCurrentTab('student-attendance'))}
-            className="px-3 py-2 bg-white hover:bg-slate-50 text-[#121c2a] text-xs font-semibold rounded-lg border border-slate-200"
-          >
-            Attendance
+            Timetable
           </button>
         </div>
-      </div>
+      )}
 
       {/* Main Section: Today's Schedule Table (Rows) */}
       <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
@@ -205,46 +230,48 @@ export const DashboardPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {todayLessons.map((l) => (
-                <tr key={l.id} className="hover:bg-slate-50 h-12 transition-colors">
-                  <td className="px-3 font-mono font-bold text-[#121c2a]">
-                    {l.startTime.split(' ')[0]} - {l.endTime.split(' ')[0]}
+              {todayLessons.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-8 text-slate-400">
+                    <div className="flex flex-col items-center justify-center gap-1.5">
+                      <span className="material-symbols-outlined text-[24px] text-slate-300">event_busy</span>
+                      <p className="text-xs font-semibold text-slate-500">No scheduled classes found today</p>
+                    </div>
                   </td>
-                  <td className="px-3">
-                    <span className="px-2 py-0.5 rounded bg-[#eff4ff] text-[#3525cd] font-bold text-[11px] border border-indigo-100">
-                      {l.className}
-                    </span>
-                  </td>
-                  <td className="px-3">
-                    <span className="font-bold text-[#121c2a] block">{l.subject}</span>
-                    <span className="text-[11px] text-[#777587] truncate block max-w-[220px]">{l.topic}</span>
-                  </td>
-                  <td className="px-3 text-[#464555] font-semibold">{l.room}</td>
-                  <td className="px-3 text-center">
-                    {l.status === 'completed' ? (
-                      <span className="px-2 py-0.5 rounded-full bg-slate-100 text-[#065f46] font-bold text-[10px]">
-                        Delivered
+                </tr>
+              ) : (
+                todayLessons.map((l) => (
+                  <tr key={l.id} className="hover:bg-slate-50 h-12 transition-colors">
+                    <td className="px-3 font-mono font-bold text-[#121c2a]">
+                      {l.startTime.split(' ')[0]} - {l.endTime.split(' ')[0]}
+                    </td>
+                    <td className="px-3">
+                      <span className="px-2 py-0.5 rounded bg-[#eff4ff] text-[#3525cd] font-bold text-[11px] border border-indigo-100">
+                        {l.className}
                       </span>
-                    ) : l.id === 'LES-02' ? (
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-[#065f46] font-bold text-[10px] animate-pulse">
-                        Live Now
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded-full bg-slate-100 text-[#777587] font-semibold text-[10px]">
-                        Scheduled
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      {l.id === 'LES-01' ? (
-                        <button
-                          onClick={() => dispatch(setCurrentTab('student-attendance'))}
-                          className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-[#92400e] text-[11px] font-bold"
-                        >
-                          Attendance
-                        </button>
+                    </td>
+                    <td className="px-3">
+                      <span className="font-bold text-[#121c2a] block">{l.subject}</span>
+                      <span className="text-[11px] text-[#777587] truncate block max-w-[220px]">{l.topic}</span>
+                    </td>
+                    <td className="px-3 text-[#464555] font-semibold">{l.room}</td>
+                    <td className="px-3 text-center">
+                      {l.status === 'completed' ? (
+                        <span className="px-2 py-0.5 rounded-full bg-slate-100 text-[#065f46] font-bold text-[10px]">
+                          Delivered
+                        </span>
+                      ) : l.status === 'live' ? (
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-[#065f46] font-bold text-[10px] animate-pulse">
+                          Live Now
+                        </span>
                       ) : (
+                        <span className="px-2 py-0.5 rounded-full bg-slate-100 text-[#777587] font-semibold text-[10px]">
+                          Scheduled
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() =>
                             dispatch(
@@ -259,17 +286,17 @@ export const DashboardPage: React.FC = () => {
                           <span className="material-symbols-outlined text-[14px]">videocam</span>
                           Zoom
                         </button>
-                      )}
-                      <button
-                        onClick={() => dispatch(openLessonModal(l))}
-                        className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[#121c2a] text-[11px] font-semibold"
-                      >
-                        Log
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        <button
+                          onClick={() => dispatch(openLessonModal(l))}
+                          className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[#121c2a] text-[11px] font-semibold"
+                        >
+                          Log
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -304,26 +331,37 @@ export const DashboardPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {tasks.map((task) => (
-                  <tr key={task.id} className="hover:bg-slate-50 h-11 transition-colors">
-                    <td className="px-3 font-semibold text-[#121c2a] truncate max-w-[180px]">
-                      {task.title}
-                    </td>
-                    <td className="px-3 font-bold text-[#3525cd]">{task.className}</td>
-                    <td className="px-3 font-medium text-[#ba1a1a]">{task.deadline.split(',')[0]}</td>
-                    <td className="px-3 text-center font-bold text-[#121c2a]">
-                      {task.submittedCount}/{task.totalStudents}
-                    </td>
-                    <td className="px-3 text-right">
-                      <button
-                        onClick={() => dispatch(setCurrentTab('submissions-grading'))}
-                        className="px-2.5 py-1 rounded-lg bg-[#4f46e5] text-white hover:bg-[#3525cd] text-[11px] font-bold shadow-xs"
-                      >
-                        Grade
-                      </button>
+                {tasks.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="text-center py-8 text-slate-400">
+                      <div className="flex flex-col items-center justify-center gap-1.5">
+                        <span className="material-symbols-outlined text-[24px] text-slate-300">task_alt</span>
+                        <p className="text-xs font-semibold text-slate-500">No active assignments</p>
+                      </div>
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  tasks.map((task) => (
+                    <tr key={task.id} className="hover:bg-slate-50 h-11 transition-colors">
+                      <td className="px-3 font-semibold text-[#121c2a] truncate max-w-[180px]">
+                        {task.title}
+                      </td>
+                      <td className="px-3 font-bold text-[#3525cd]">{task.className}</td>
+                      <td className="px-3 font-medium text-[#ba1a1a]">{task.deadline.split(',')[0]}</td>
+                      <td className="px-3 text-center font-bold text-[#121c2a]">
+                        {task.submittedCount}/{task.totalStudents}
+                      </td>
+                      <td className="px-3 text-right">
+                        <button
+                          onClick={() => dispatch(setCurrentTab('submissions-grading'))}
+                          className="px-2.5 py-1 rounded-lg bg-[#4f46e5] text-white hover:bg-[#3525cd] text-[11px] font-bold shadow-xs"
+                        >
+                          Grade
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -345,16 +383,23 @@ export const DashboardPage: React.FC = () => {
           </div>
 
           <div className="divide-y divide-slate-100">
-            {notices.slice(0, 3).map((n) => (
-              <div key={n.id} className="p-3 hover:bg-slate-50 transition-colors">
-                <div className="flex items-center justify-between text-[11px] text-[#777587] mb-0.5">
-                  <span className="font-bold text-[#3525cd]">{n.category}</span>
-                  <span>{n.date}</span>
-                </div>
-                <h4 className="text-xs font-bold text-[#121c2a] leading-tight truncate">{n.title}</h4>
-                <p className="text-[11px] text-[#464555] line-clamp-1 mt-0.5">{n.content}</p>
+            {notices.length === 0 ? (
+              <div className="p-8 text-center text-slate-400">
+                <span className="material-symbols-outlined text-[24px] text-slate-300">campaign</span>
+                <p className="text-xs font-semibold text-slate-500 mt-1">No notices published</p>
               </div>
-            ))}
+            ) : (
+              notices.slice(0, 3).map((n) => (
+                <div key={n.id} className="p-3 hover:bg-slate-50 transition-colors">
+                  <div className="flex items-center justify-between text-[11px] text-[#777587] mb-0.5">
+                    <span className="font-bold text-[#3525cd]">{n.category}</span>
+                    <span>{n.date}</span>
+                  </div>
+                  <h4 className="text-xs font-bold text-[#121c2a] leading-tight truncate">{n.title}</h4>
+                  <p className="text-[11px] text-[#464555] line-clamp-1 mt-0.5">{n.content}</p>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

@@ -12,80 +12,9 @@ interface TasksState {
   error: string | null;
 }
 
-const initialTasks: Task[] = [
-  {
-    id: '13',
-    title: 'Assignment 4: Dividing Fractions Practice',
-    instructions:
-      'Solve 10 problems on fraction division with step-by-step simplification. Invert divisor, multiply numerators and denominators, and express answers in lowest reduced terms.',
-    classId: '5',
-    className: 'Class 5',
-    subject: 'Mathematics',
-    assignedDate: 'Oct 18, 2026',
-    deadline: 'Oct 24, 11:59 PM',
-    totalMarks: 20,
-    gradingScale: 'numeric',
-    status: 'active',
-    submittedCount: 2,
-    totalStudents: 5,
-    gradedCount: 1,
-    pendingCount: 1,
-    lateCount: 0,
-    missingCount: 3,
-    handoutName: 'Fractions_Assignment_4.pdf',
-  },
-];
+const initialTasks: Task[] = [];
 
-const initialSubmissions: Submission[] = [
-  {
-    id: '1',
-    taskId: '13',
-    taskTitle: 'Assignment 4: Dividing Fractions Practice',
-    studentId: '36',
-    studentName: 'Bella Chen',
-    studentRoll: '#02',
-    studentAdmissionId: 'ADM-2026-002',
-    studentAvatar:
-      'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=120',
-    submittedAt: 'Oct 19, 04:15 PM',
-    status: 'pending',
-    maxMarks: 20,
-    marksAwarded: undefined,
-    fileName: 'Bella_Chen_Math_Fractions_Homework.pdf',
-    fileSize: '1.4 MB • 2 Pages',
-    feedback: '',
-    rubricScores: {
-      accuracy: 9,
-      steps: 5,
-      simplification: 4,
-    },
-    attemptNumber: 1,
-  },
-  {
-    id: '2',
-    taskId: '13',
-    taskTitle: 'Assignment 4: Dividing Fractions Practice',
-    studentId: '35',
-    studentName: 'Aiden Cooper',
-    studentRoll: '#01',
-    studentAdmissionId: 'ADM-2026-001',
-    studentAvatar:
-      'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=120',
-    submittedAt: 'Oct 19, 02:40 PM',
-    status: 'graded',
-    marksAwarded: 19,
-    maxMarks: 20,
-    fileName: 'Aiden_Cooper_HW4_Fractions.pdf',
-    fileSize: '2.1 MB • 3 Pages',
-    feedback: 'Splendid mastery of reciprocal operations and neat cross-simplifications!',
-    rubricScores: {
-      accuracy: 10,
-      steps: 5,
-      simplification: 4,
-    },
-    attemptNumber: 1,
-  },
-];
+const initialSubmissions: Submission[] = [];
 
 export const fetchTasksThunk = createAsyncThunk(
   'tasks/fetchTasks',
@@ -169,9 +98,9 @@ export const createTaskThunk = createAsyncThunk(
 );
 
 const initialState: TasksState = {
-  currentSubTab: 'pending_grading',
-  selectedTaskId: '13',
-  selectedSubmissionId: '1',
+  currentSubTab: 'active',
+  selectedTaskId: '',
+  selectedSubmissionId: '',
   tasks: initialTasks,
   submissions: initialSubmissions,
   loading: false,
@@ -242,7 +171,7 @@ export const tasksSlice = createSlice({
       })
       .addCase(fetchTasksThunk.fulfilled, (state, action) => {
         state.loading = false;
-        if (Array.isArray(action.payload) && action.payload.length > 0) {
+        if (Array.isArray(action.payload)) {
           state.tasks = action.payload.map((t: any) => ({
             id: String(t.id),
             title: t.title,
@@ -256,7 +185,7 @@ export const tasksSlice = createSlice({
             gradingScale: (t.gradingScale ? t.gradingScale.toLowerCase() : 'numeric') as any,
             status: (t.status ? t.status.toLowerCase() : 'active') as any,
             submittedCount: Number(t.submittedCount) || 0,
-            totalStudents: Number(t.totalStudents) || 5,
+            totalStudents: Number(t.totalStudents) || 0,
             gradedCount: Number(t.gradedCount) || 0,
             pendingCount: Number(t.pendingCount) || 0,
             lateCount: Number(t.lateCount) || 0,
@@ -264,8 +193,12 @@ export const tasksSlice = createSlice({
             handoutName: t.handoutName || undefined,
           }));
 
-          if (!state.selectedTaskId || !state.tasks.find((task) => task.id === state.selectedTaskId)) {
-            state.selectedTaskId = state.tasks[0].id;
+          if (state.tasks.length > 0) {
+            if (!state.selectedTaskId || !state.tasks.find((task) => task.id === state.selectedTaskId)) {
+              state.selectedTaskId = state.tasks[0].id;
+            }
+          } else {
+            state.selectedTaskId = '';
           }
         }
       })
@@ -275,7 +208,7 @@ export const tasksSlice = createSlice({
       })
       // Fetch Submissions
       .addCase(fetchSubmissionsThunk.fulfilled, (state, action) => {
-        if (Array.isArray(action.payload) && action.payload.length > 0) {
+        if (Array.isArray(action.payload)) {
           state.submissions = action.payload.map((s: any) => {
             let parsedRubric = s.rubricScores;
             if (typeof parsedRubric === 'string') {
@@ -307,8 +240,12 @@ export const tasksSlice = createSlice({
             };
           });
 
-          if (!state.selectedSubmissionId || !state.submissions.find((sub) => sub.id === state.selectedSubmissionId)) {
-            state.selectedSubmissionId = state.submissions[0].id;
+          if (state.submissions.length > 0) {
+            if (!state.selectedSubmissionId || !state.submissions.find((sub) => sub.id === state.selectedSubmissionId)) {
+              state.selectedSubmissionId = state.submissions[0].id;
+            }
+          } else {
+            state.selectedSubmissionId = '';
           }
         }
       })

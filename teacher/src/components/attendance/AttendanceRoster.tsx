@@ -47,7 +47,15 @@ export const AttendanceRoster: React.FC<AttendanceRosterProps> = ({ filterQuery 
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-xs sm:text-sm text-[#121c2a]">
-            {filteredRoster.map((student) => (
+            {filteredRoster.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="py-12 text-center text-[#777587]">
+                  <span className="material-symbols-outlined text-3xl mb-1 text-slate-300">group_off</span>
+                  <p className="font-medium text-xs">No students enrolled in this roster.</p>
+                </td>
+              </tr>
+            ) : (
+              filteredRoster.map((student) => (
               <tr
                 key={student.studentId}
                 className={`transition-colors h-14 ${getRowBg(student.status)}`}
@@ -205,7 +213,8 @@ export const AttendanceRoster: React.FC<AttendanceRosterProps> = ({ filterQuery 
                   {student.attendanceRate}%
                 </td>
               </tr>
-            ))}
+            ))
+            )}
           </tbody>
         </table>
       </div>

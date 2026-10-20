@@ -10,8 +10,12 @@ export const CorrectionDrawer: React.FC = () => {
   const dispatch = useAppDispatch();
   const isOpen = useAppSelector((state) => state.attendance.isCorrectionDrawerOpen);
   const targetLogId = useAppSelector((state) => state.attendance.selectedCorrectionLogId);
+  const roster = useAppSelector((state) => state.attendance.roster);
+  const teacher = useAppSelector((state) => state.auth.teacher);
 
-  const [studentChoice, setStudentChoice] = useState('#03 Caleb Davis (ADM-5024)');
+  const [studentChoice, setStudentChoice] = useState(
+    roster[0] ? `#${roster[0].rollNumber} ${roster[0].studentName} (${roster[0].admissionId})` : ''
+  );
   const [correctionType, setCorrectionType] = useState('Absent to Excused');
   const [reason, setReason] = useState('');
 
@@ -41,9 +45,9 @@ export const CorrectionDrawer: React.FC = () => {
 
     dispatch(
       submitCorrectionVoucher({
-        targetLogId: targetLogId || 'SUB-20241022-5A',
-        studentId: 'STU-03',
-        studentName: studentChoice,
+        targetLogId: targetLogId || 'GENERAL',
+        studentId: 'STU-01',
+        studentName: studentChoice || 'Student',
         correctionType,
         reason,
       })
@@ -103,10 +107,15 @@ export const CorrectionDrawer: React.FC = () => {
                 onChange={(e) => setStudentChoice(e.target.value)}
                 className="w-full bg-[#eff4ff] rounded-lg px-3 py-2 text-[#121c2a] font-medium focus:outline-none border border-indigo-100/60"
               >
-                <option value="#03 Caleb Davis (ADM-5024)">#03 Caleb Davis (ADM-5024)</option>
-                <option value="#04 Daniel Evans (ADM-5031)">#04 Daniel Evans (ADM-5031)</option>
-                <option value="#01 Aiden Cooper (ADM-5012)">#01 Aiden Cooper (ADM-5012)</option>
-                <option value="#02 Bella Chen (ADM-5019)">#02 Bella Chen (ADM-5019)</option>
+                {roster.length === 0 ? (
+                  <option value="" disabled>No students enrolled</option>
+                ) : (
+                  roster.map((s) => (
+                    <option key={s.studentId} value={`#${s.rollNumber} ${s.studentName} (${s.admissionId})`}>
+                      #{s.rollNumber} {s.studentName} ({s.admissionId})
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 
@@ -170,7 +179,7 @@ export const CorrectionDrawer: React.FC = () => {
               </span>
               <span>
                 All correction requests appear in official audit registers with your teacher ID:
-                TCH-2024-042. SLA for Academic Operations review is ~45 minutes.
+                {teacher.employeeId}. SLA for Academic Operations review is ~45 minutes.
               </span>
             </div>
           </form>

@@ -11,54 +11,20 @@ interface AuthState {
   loginError: string | null;
 }
 
-export const initialAssignedClasses = [
-  {
-    id: '5-math-a',
-    name: 'Class 5 - Mathematics',
-    grade: 5,
-    section: 'A',
-    subject: 'Mathematics',
-    enrolledCount: 5,
-    zoomRoomId: '90050005',
-    zoomPasscode: 'CLASS5#',
-    roomName: 'Online Classroom (Grade 5)',
-  },
-  {
-    id: '5-sci-a',
-    name: 'Class 5 - General Science',
-    grade: 5,
-    section: 'A',
-    subject: 'General Science',
-    enrolledCount: 5,
-    zoomRoomId: '90050005',
-    zoomPasscode: 'CLASS5#',
-    roomName: 'Online Classroom (Grade 5)',
-  },
-  {
-    id: '6-sci-a',
-    name: 'Class 6 - General Science',
-    grade: 6,
-    section: 'A',
-    subject: 'General Science',
-    enrolledCount: 5,
-    zoomRoomId: '90060006',
-    zoomPasscode: 'CLASS6#',
-    roomName: 'Online Classroom (Grade 6)',
-  },
-];
+export const initialAssignedClasses: any[] = [];
 
 export const DEFAULT_LIVE_TEACHER: TeacherProfile = {
-  id: 'TCH-045',
-  name: 'Ms. Sarah Jenkins, M.Ed.',
-  employeeId: 'TCH-2024-042',
-  email: 'teacher@school.pk',
-  phone: '+92 300 1234567',
-  designation: 'Senior Faculty • STEM Division',
-  avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDTrQl2B4wg4lWgPYqqgevaiCo3-9mQxTR4xfWpaJ3I-8i_atux_OqKZjYe4HL_Dor2EDf10hA1R87akVqx4w_HH-KIcmrPBJwnSN8Qqb01Gyba-PUya9Sv331n-YSrRPwu2yp6Eb8Hs-HyOb6M9ITT9zvamMBVnnMhe2sZ501gxVmj3PDoFGfQmSkkGHu-mpJW3Z_GyjAkRad8U0514qk38wWGHKw-sySFmFh_JiL-c72s1XvnsJHd',
+  id: '',
+  name: 'Faculty Member',
+  employeeId: '',
+  email: '',
+  phone: '',
+  designation: 'Faculty',
+  avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120',
   term: 'Academic Year 2026–2027',
   timezone: 'PKT (UTC+5)',
-  isDutyClockedIn: true,
-  assignedClasses: initialAssignedClasses,
+  isDutyClockedIn: false,
+  assignedClasses: [],
 };
 
 // Check if user was previously remembered
@@ -75,7 +41,7 @@ if (savedAuth) {
 const initialState: AuthState = {
   isAuthenticated: !!parsedAuth?.isAuthenticated,
   teacher: DEFAULT_LIVE_TEACHER,
-  selectedClassId: '5-math-a',
+  selectedClassId: '',
   rememberMe: !!parsedAuth?.isAuthenticated,
   activeRole: 'teacher',
   loginError: null,
@@ -153,25 +119,21 @@ export const authSlice = createSlice({
         state.isAuthenticated = true;
         state.loginError = null;
         state.rememberMe = !!action.payload.rememberMe;
-        const classes = Array.isArray(user.assignedClasses) && user.assignedClasses.length > 0
-          ? user.assignedClasses
-          : initialAssignedClasses;
+        const classes = Array.isArray(user.assignedClasses) ? user.assignedClasses : [];
         state.teacher = {
-          id: user.teacherProfile?.id || `TCH-${String(user.id).padStart(3, '0')}`,
-          name: user.fullName || user.username,
-          employeeId: user.teacherProfile?.employeeId || user.username,
-          email: user.email || `${user.username}@school.pk`,
-          phone: user.phone || '+92 300 1234567',
-          designation: user.teacherProfile?.designation || 'Senior Faculty • STEM Division',
+          id: user.teacherProfile?.id || (user.id ? `TCH-${String(user.id).padStart(3, '0')}` : ''),
+          name: user.fullName || user.username || 'Faculty Member',
+          employeeId: user.teacherProfile?.employeeId || user.username || '',
+          email: user.email || '',
+          phone: user.phone || '',
+          designation: user.teacherProfile?.designation || 'Faculty Member',
           avatar: DEFAULT_LIVE_TEACHER.avatar,
           term: 'Academic Year 2026–2027',
           timezone: 'PKT (UTC+5)',
-          isDutyClockedIn: true,
+          isDutyClockedIn: false,
           assignedClasses: classes
         };
-        if (classes.length > 0) {
-          state.selectedClassId = classes[0].id;
-        }
+        state.selectedClassId = classes.length > 0 ? classes[0].id : '';
         if (action.payload.rememberMe && typeof window !== 'undefined') {
           localStorage.setItem('edupulse_auth_state', JSON.stringify({ isAuthenticated: true, email: user.email }));
         }
@@ -184,25 +146,21 @@ export const authSlice = createSlice({
         const user = action.payload;
         if (user && user.id) {
           state.isAuthenticated = true;
-          const classes = Array.isArray(user.assignedClasses) && user.assignedClasses.length > 0
-            ? user.assignedClasses
-            : initialAssignedClasses;
+          const classes = Array.isArray(user.assignedClasses) ? user.assignedClasses : [];
           state.teacher = {
             id: user.teacherProfile?.id || `TCH-${String(user.id).padStart(3, '0')}`,
-            name: user.fullName || user.username,
-            employeeId: user.teacherProfile?.employeeId || user.username,
-            email: user.email || `${user.username}@school.pk`,
-            phone: user.phone || '+92 300 1234567',
-            designation: user.teacherProfile?.designation || 'Senior Faculty • STEM Division',
+            name: user.fullName || user.username || 'Faculty Member',
+            employeeId: user.teacherProfile?.employeeId || user.username || '',
+            email: user.email || '',
+            phone: user.phone || '',
+            designation: user.teacherProfile?.designation || 'Faculty Member',
             avatar: DEFAULT_LIVE_TEACHER.avatar,
             term: 'Academic Year 2026–2027',
             timezone: 'PKT (UTC+5)',
-            isDutyClockedIn: true,
+            isDutyClockedIn: false,
             assignedClasses: classes
           };
-          if (classes.length > 0) {
-            state.selectedClassId = classes[0].id;
-          }
+          state.selectedClassId = classes.length > 0 ? classes[0].id : '';
         }
       })
       .addCase(logoutTeacherThunk.fulfilled, (state) => {

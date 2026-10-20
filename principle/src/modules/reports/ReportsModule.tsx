@@ -241,17 +241,25 @@ export const ReportsModule: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-mono bg-white">
-                {reportRows.map((row, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-4 py-3 whitespace-nowrap text-slate-900 font-semibold">{row.col1}</td>
-                    <td className="px-4 py-3 whitespace-nowrap text-slate-700">{row.col2}</td>
-                    <td className="px-4 py-3 whitespace-nowrap text-slate-700">{row.col3}</td>
-                    <td className="px-4 py-3 whitespace-nowrap text-slate-700">{row.col4}</td>
-                    <td className="px-4 py-3 whitespace-nowrap text-slate-700">{row.col5}</td>
-                    <td className="px-4 py-3 whitespace-nowrap text-slate-700">{row.col6}</td>
-                    <td className="px-4 py-3 whitespace-nowrap text-slate-700">{row.col7}</td>
+                {reportRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={headers.length} className="px-4 py-8 text-center text-slate-400">
+                      No records available for this report.
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  reportRows.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-4 py-3 whitespace-nowrap text-slate-900 font-semibold">{row.col1}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-slate-700">{row.col2}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-slate-700">{row.col3}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-slate-700">{row.col4}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-slate-700">{row.col5}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-slate-700">{row.col6}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-slate-700">{row.col7}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

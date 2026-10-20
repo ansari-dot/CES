@@ -45,16 +45,20 @@ export const WeeklyGrid: React.FC = () => {
           <thead>
             <tr className="bg-[#eff4ff] text-[#464555] text-xs font-bold uppercase tracking-wider select-none border-b border-slate-100">
               <th className="p-3 w-36 border-r border-slate-100 text-center">Period / Time</th>
-              {days.map((day) => (
-                <th
-                  key={day}
-                  className={`p-3 text-center border-r border-slate-100 ${
-                    day === 'Wednesday' ? 'bg-indigo-100/60 text-[#3525cd]' : ''
-                  }`}
-                >
-                  {day} {day === 'Wednesday' ? '(Today)' : ''}
-                </th>
-              ))}
+              {days.map((day) => {
+                const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+                const isToday = day.toLowerCase() === todayName.toLowerCase();
+                return (
+                  <th
+                    key={day}
+                    className={`p-3 text-center border-r border-slate-100 ${
+                      isToday ? 'bg-indigo-100/60 text-[#3525cd]' : ''
+                    }`}
+                  >
+                    {day} {isToday ? '(Today)' : ''}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-xs">
@@ -66,7 +70,8 @@ export const WeeklyGrid: React.FC = () => {
                 </td>
                 {days.map((day) => {
                   const lesson = getLessonForSlot(day, p.period);
-                  const isToday = day === 'Wednesday';
+                  const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+                  const isToday = day.toLowerCase() === todayName.toLowerCase();
 
                   return (
                     <td

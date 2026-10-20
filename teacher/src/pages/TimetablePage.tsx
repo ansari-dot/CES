@@ -45,7 +45,7 @@ export const TimetablePage: React.FC = () => {
               <span className="text-[10px] text-[#777587] font-bold uppercase block">
                 Today&apos;s Load
               </span>
-              <span className="text-sm font-extrabold text-[#121c2a]">4 Sessions</span>
+              <span className="text-sm font-extrabold text-[#121c2a]">{lessons.length} Sessions</span>
             </div>
           </div>
 
@@ -55,7 +55,9 @@ export const TimetablePage: React.FC = () => {
             </div>
             <div>
               <span className="text-[10px] text-[#777587] font-bold uppercase block">Delivered</span>
-              <span className="text-sm font-extrabold text-[#006c49]">1 Done</span>
+              <span className="text-sm font-extrabold text-[#006c49]">
+                {lessons.filter((l) => l.deliveryLogged || l.status === 'completed').length} Done
+              </span>
             </div>
           </div>
 
@@ -83,7 +85,7 @@ export const TimetablePage: React.FC = () => {
             <span className="material-symbols-outlined text-[#3525cd] text-[20px]">grid_view</span>
             <h2 className="text-base font-bold text-[#121c2a]">Full Weekly Class Matrix</h2>
           </div>
-          <span className="text-xs text-[#777587]">All Assigned Classes (Grades 4–7)</span>
+          <span className="text-xs text-[#777587]">All Assigned Classes</span>
         </div>
         <WeeklyGrid />
       </div>

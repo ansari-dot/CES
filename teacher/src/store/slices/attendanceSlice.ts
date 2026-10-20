@@ -21,84 +21,9 @@ interface AttendanceState {
   error: string | null;
 }
 
-const initialRoster: AttendanceRecord[] = [
-  {
-    studentId: '35',
-    rollNumber: '01',
-    studentName: 'Aiden Cooper',
-    admissionId: 'ADM-2026-001',
-    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=120',
-    status: 'present',
-    remark: 'On time, active',
-    streak: 'Perfect Attendance Streak',
-    attendanceRate: 98,
-  },
-  {
-    studentId: '36',
-    rollNumber: '02',
-    studentName: 'Bella Chen',
-    admissionId: 'ADM-2026-002',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=120',
-    status: 'present',
-    remark: '',
-    streak: 'Class Representative',
-    attendanceRate: 100,
-    isRepresentative: true,
-  },
-  {
-    studentId: '37',
-    rollNumber: '03',
-    studentName: 'Caleb Davis',
-    admissionId: 'ADM-2026-003',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=120',
-    status: 'absent',
-    remark: 'Parent emailed re: dentist appt',
-    streak: 'Unexcused Check',
-    attendanceRate: 91,
-  },
-  {
-    studentId: '38',
-    rollNumber: '04',
-    studentName: 'Daniel Evans',
-    admissionId: 'ADM-2026-004',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=120',
-    status: 'late',
-    remark: 'Joined 12 min late',
-    streak: 'Arrived 09:12 AM',
-    attendanceRate: 94,
-  },
-  {
-    studentId: '39',
-    rollNumber: '05',
-    studentName: 'Zainab Fatima',
-    admissionId: 'ADM-2026-005',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=120',
-    status: 'present',
-    remark: '',
-    streak: 'General',
-    attendanceRate: 97,
-  },
-];
+const initialRoster: AttendanceRecord[] = [];
 
-const initialSubmittedLogs: AttendanceSubmissionLog[] = [
-  {
-    id: 'SUB-20261019-5A',
-    lessonId: '1',
-    className: 'Class 5',
-    subject: 'Mathematics',
-    topic: 'Fraction Division & Reciprocal Logic',
-    date: 'Oct 19, 2026',
-    time: '09:45 AM',
-    teacherName: 'Ms. Sarah Jenkins, M.Ed.',
-    teacherId: 'TCH-2024-042',
-    presentCount: 4,
-    absentCount: 1,
-    lateCount: 0,
-    leaveCount: 0,
-    totalStudents: 5,
-    isLocked: true,
-  },
-];
+const initialSubmittedLogs: AttendanceSubmissionLog[] = [];
 
 export const fetchLessonRosterThunk = createAsyncThunk(
   'attendance/fetchLessonRoster',
@@ -199,7 +124,7 @@ export const submitCorrectionVoucherThunk = createAsyncThunk(
 );
 
 const initialState: AttendanceState = {
-  currentLessonId: '1',
+  currentLessonId: '',
   isLocked: false,
   remarksExpanded: false,
   roster: initialRoster,
@@ -207,7 +132,7 @@ const initialState: AttendanceState = {
   correctionVouchers: [],
   isSubmitModalOpen: false,
   isCorrectionDrawerOpen: false,
-  selectedCorrectionLogId: 'SUB-20261019-5A',
+  selectedCorrectionLogId: '',
   loading: false,
   error: null,
 };
@@ -248,7 +173,10 @@ export const attendanceSlice = createSlice({
     closeSubmitModal: (state) => {
       state.isSubmitModalOpen = false;
     },
-    confirmFinalAttendance: (state) => {
+    confirmFinalAttendance: (
+      state,
+      action: PayloadAction<{ className?: string; subject?: string; topic?: string; teacherName?: string; teacherId?: string } | undefined>
+    ) => {
       state.isLocked = true;
       state.isSubmitModalOpen = false;
 
@@ -258,15 +186,15 @@ export const attendanceSlice = createSlice({
       const leaveCount = state.roster.filter((r) => r.status === 'leave').length;
 
       const newLog: AttendanceSubmissionLog = {
-        id: `SUB-${Date.now().toString().slice(-6)}-5A`,
+        id: `SUB-${Date.now().toString().slice(-6)}`,
         lessonId: state.currentLessonId,
-        className: 'Class 5',
-        subject: 'Mathematics',
-        topic: 'Fraction Division & Reciprocal Logic',
+        className: action.payload?.className || 'Class Session',
+        subject: action.payload?.subject || 'General Subject',
+        topic: action.payload?.topic || 'Class Attendance',
         date: 'Today',
-        time: 'Just now',
-        teacherName: 'Ms. Sarah Jenkins, M.Ed.',
-        teacherId: 'TCH-2024-042',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        teacherName: action.payload?.teacherName || 'Faculty',
+        teacherId: action.payload?.teacherId || '',
         presentCount,
         absentCount,
         lateCount,
@@ -322,7 +250,7 @@ export const attendanceSlice = createSlice({
           if (action.payload.lesson?.lessonId) {
             state.currentLessonId = String(action.payload.lesson.lessonId);
           }
-          if (Array.isArray(action.payload.students) && action.payload.students.length > 0) {
+          if (Array.isArray(action.payload.students)) {
             state.roster = action.payload.students.map((s: any) => ({
               studentId: String(s.studentId),
               rollNumber: s.rollNumber || '01',
@@ -353,13 +281,13 @@ export const attendanceSlice = createSlice({
         const newLog: AttendanceSubmissionLog = {
           id: `SUB-${action.payload.lessonId}-${Date.now().toString().slice(-4)}`,
           lessonId: action.payload.lessonId,
-          className: 'Class 5',
-          subject: 'Mathematics',
-          topic: 'Fraction Division & Reciprocal Logic',
+          className: 'Class Session',
+          subject: 'General Subject',
+          topic: 'Class Attendance',
           date: 'Today',
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          teacherName: 'Ms. Sarah Jenkins, M.Ed.',
-          teacherId: 'TCH-2024-042',
+          teacherName: 'Faculty',
+          teacherId: '',
           presentCount,
           absentCount,
           lateCount,

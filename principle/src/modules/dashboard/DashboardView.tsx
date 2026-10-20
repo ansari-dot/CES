@@ -238,28 +238,36 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
-                  {todayLessons.map((lesson) => (
-                    <tr key={lesson.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="px-4 py-3 font-mono tabular-nums text-slate-500 whitespace-nowrap font-medium">
-                        {lesson.startTime} – {lesson.endTime}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="font-semibold text-slate-900">Class {lesson.classNumber}</span> · {lesson.subjectName}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-slate-600">
-                        {lesson.teacherName}
-                      </td>
-                      <td className="px-4 py-3 font-mono text-[11px] text-slate-500 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200/70 text-slate-700 font-medium">
-                          <Video className="w-3 h-3 text-sky-600" strokeWidth={1.75} />
-                          <span>{lesson.zoomMeetingId}</span>
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap">
-                        <StatusBadge status={lesson.lessonStatus} />
+                  {todayLessons.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                        No scheduled lessons for today.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    todayLessons.map((lesson) => (
+                      <tr key={lesson.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="px-4 py-3 font-mono tabular-nums text-slate-500 whitespace-nowrap font-medium">
+                          {lesson.startTime} – {lesson.endTime}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="font-semibold text-slate-900">Class {lesson.classNumber}</span> · {lesson.subjectName}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-slate-600">
+                          {lesson.teacherName}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-[11px] text-slate-500 whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200/70 text-slate-700 font-medium">
+                            <Video className="w-3 h-3 text-sky-600" strokeWidth={1.75} />
+                            <span>{lesson.zoomMeetingId}</span>
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right whitespace-nowrap">
+                          <StatusBadge status={lesson.lessonStatus} />
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -319,22 +327,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
           </div>
 
           <div className="space-y-3">
-            {recentNotices.map((notice) => (
-              <div
-                key={notice.id}
-                onClick={() => onNavigate('notices')}
-                className="p-4 rounded-xl bg-white border border-slate-200/90 hover:border-slate-300 hover:shadow-xs cursor-pointer transition-all shadow-2xs"
-              >
-                <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
-                  <span className="font-semibold text-amber-700">{notice.audience}</span>
-                  <span className="font-mono text-[10px] text-slate-400">{notice.publishDate}</span>
-                </div>
-                <h5 className="text-xs font-semibold text-slate-900 leading-snug">{notice.title}</h5>
-                <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">
-                  {notice.content}
-                </p>
+            {recentNotices.length === 0 ? (
+              <div className="p-4 rounded-xl bg-white border border-slate-200/90 text-xs text-slate-400 text-center">
+                No active notices published yet.
               </div>
-            ))}
+            ) : (
+              recentNotices.map((notice) => (
+                <div
+                  key={notice.id}
+                  onClick={() => onNavigate('notices')}
+                  className="p-4 rounded-xl bg-white border border-slate-200/90 hover:border-slate-300 hover:shadow-xs cursor-pointer transition-all shadow-2xs"
+                >
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
+                    <span className="font-semibold text-amber-700">{notice.audience}</span>
+                    <span className="font-mono text-[10px] text-slate-400">{notice.publishDate}</span>
+                  </div>
+                  <h5 className="text-xs font-semibold text-slate-900 leading-snug">{notice.title}</h5>
+                  <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                    {notice.content}
+                  </p>
+                </div>
+              ))
+            )}
           </div>
 
           {/* Quick Principal System Operations Links */}

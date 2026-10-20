@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api';
 import { OperationalNotification } from '../../types';
 import { StatusBadge } from '../../components/common/StatusBadge';
-import { LoadingState, ErrorState } from '../../components/common/StateViews';
+import { LoadingState, ErrorState, EmptyState } from '../../components/common/StateViews';
 import { useToast } from '../../context/ToastContext';
 import { ActiveModule } from '../../components/common/Sidebar';
 import {
@@ -87,7 +87,13 @@ export const NotificationsModule: React.FC<NotificationsModuleProps> = ({ onNavi
       </div>
 
       <div className="space-y-2.5">
-        {notifications.map((notif) => (
+        {notifications.length === 0 ? (
+          <EmptyState
+            title="No Operational Notifications"
+            description="All systems are operating normally. No pending administrative alerts or urgent notifications."
+          />
+        ) : (
+          notifications.map((notif) => (
           <div
             key={notif.id}
             className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
@@ -136,7 +142,8 @@ export const NotificationsModule: React.FC<NotificationsModuleProps> = ({ onNavi
               )}
             </div>
           </div>
-        ))}
+        ))
+        )}
       </div>
     </div>
   );

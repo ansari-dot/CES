@@ -51,7 +51,9 @@ export const QuickActionsFloating: React.FC<QuickActionsFloatingProps> = ({
 
   // 2. Create Challan Form State
   const [challanStudentId, setChallanStudentId] = useState<string>('');
-  const [challanMonth, setChallanMonth] = useState<string>('November 2024');
+  const [challanMonth, setChallanMonth] = useState<string>(
+    new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' })
+  );
   const [challanDueDate, setChallanDueDate] = useState<string>(
     new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   );

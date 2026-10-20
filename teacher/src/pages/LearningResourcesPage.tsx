@@ -107,30 +107,38 @@ export const LearningResourcesPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredResources.map((res) => (
-                <tr key={res.id} className="hover:bg-slate-50 h-12 transition-colors">
-                  <td className="px-3 text-center">
-                    <span className="material-symbols-outlined text-[18px] text-[#3525cd]">
-                      {getTypeIcon(res.type)}
-                    </span>
+              {filteredResources.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-[#777587]">
+                    <span className="material-symbols-outlined text-3xl mb-1 text-slate-300">folder_open</span>
+                    <p className="font-medium text-xs">No learning resources found.</p>
                   </td>
+                </tr>
+              ) : (
+                filteredResources.map((res) => (
+                  <tr key={res.id} className="hover:bg-slate-50 h-12 transition-colors">
+                    <td className="px-3 text-center">
+                      <span className="material-symbols-outlined text-[18px] text-[#3525cd]">
+                        {getTypeIcon(res.type)}
+                      </span>
+                    </td>
 
-                  <td className="px-3">
-                    <span className="font-bold text-[#121c2a] block">{res.title}</span>
-                    <span className="text-[11px] text-[#777587] truncate block max-w-[280px]">
-                      {res.description}
-                    </span>
-                  </td>
+                    <td className="px-3">
+                      <span className="font-bold text-[#121c2a] block">{res.title}</span>
+                      <span className="text-[11px] text-[#777587] truncate block max-w-[280px]">
+                        {res.description}
+                      </span>
+                    </td>
 
-                  <td className="px-3 font-bold text-[#3525cd]">
-                    <span className="px-2 py-0.5 rounded bg-[#eff4ff] border border-indigo-100">
-                      {res.className}
-                    </span>
-                  </td>
+                    <td className="px-3 font-bold text-[#3525cd]">
+                      <span className="px-2 py-0.5 rounded bg-[#eff4ff] border border-indigo-100">
+                        {res.className}
+                      </span>
+                    </td>
 
-                  <td className="px-3 text-[#464555] font-semibold">{res.subject}</td>
+                    <td className="px-3 text-[#464555] font-semibold">{res.subject}</td>
 
-                  <td className="px-3 font-mono text-[#777587]">{res.fileSize || '2.4 MB'}</td>
+                    <td className="px-3 font-mono text-[#777587]">{res.fileSize || '—'}</td>
 
                   <td className="px-3 text-[#777587]">{res.uploadDate}</td>
 
@@ -177,7 +185,8 @@ export const LearningResourcesPage: React.FC = () => {
                     </div>
                   </td>
                 </tr>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
         </div>

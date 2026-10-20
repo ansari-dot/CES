@@ -116,7 +116,12 @@ export const ZoomLinksModule: React.FC = () => {
 
       {/* Grid of 8 Class Rooms in Clean White Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {meetings.map((m) => {
+        {meetings.length === 0 ? (
+          <div className="col-span-full p-10 text-center text-xs text-slate-400 bg-white border border-slate-200/90 rounded-2xl">
+            No persistent Zoom classrooms configured yet.
+          </div>
+        ) : (
+          meetings.map((m) => {
           const isDegraded = m.status === 'Requires Renewal' || m.healthCheckStatus === 'Degraded';
 
           return (
@@ -208,7 +213,7 @@ export const ZoomLinksModule: React.FC = () => {
               </div>
             </div>
           );
-        })}
+        }))}
       </div>
 
       {/* Renew / Replace Zoom Meeting Modal */}

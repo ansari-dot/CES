@@ -10,11 +10,20 @@ export const SubmissionsGradingPage: React.FC = () => {
   const dispatch = useAppDispatch();
   const currentSubTab = useAppSelector((state) => state.tasks.currentSubTab);
   const tasks = useAppSelector((state) => state.tasks.tasks);
+  const submissions = useAppSelector((state) => state.tasks.submissions);
   const selectedTaskId = useAppSelector((state) => state.tasks.selectedTaskId);
+  const teacher = useAppSelector((state) => state.auth.teacher);
   const currentTask = tasks.find((t) => t.id === selectedTaskId) || tasks[0];
 
-  const [classFilter, setClassFilter] = useState('5-a');
-  const [subjectFilter, setSubjectFilter] = useState('math');
+  const pendingGradingCount = submissions.filter((s) => s.status === 'pending' || s.status === 'late').length;
+  const gradedCount = submissions.filter((s) => s.status === 'graded').length;
+  const gradedSubs = submissions.filter((s) => s.status === 'graded' && s.marksAwarded != null);
+  const classAvg = gradedSubs.length > 0
+    ? (gradedSubs.reduce((acc, s) => acc + (s.marksAwarded! / s.maxMarks) * 100, 0) / gradedSubs.length).toFixed(1) + '%'
+    : '—';
+
+  const [classFilter, setClassFilter] = useState('all');
+  const [subjectFilter, setSubjectFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchFilter, setSearchFilter] = useState('');
 
@@ -53,12 +62,12 @@ export const SubmissionsGradingPage: React.FC = () => {
           <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-xs border border-slate-100">
             <span className="w-2.5 h-2.5 rounded-full bg-[#006c49]"></span>
             <span className="text-xs text-[#777587]">Class Avg:</span>
-            <span className="text-xs font-bold text-[#121c2a]">88.4%</span>
+            <span className="text-xs font-bold text-[#121c2a]">{classAvg}</span>
           </div>
           <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-xs border border-slate-100">
             <span className="w-2.5 h-2.5 rounded-full bg-[#684000]"></span>
             <span className="text-xs text-[#777587]">To Grade:</span>
-            <span className="text-xs font-bold text-[#684000]">14 papers</span>
+            <span className="text-xs font-bold text-[#684000]">{pendingGradingCount} papers</span>
           </div>
         </div>
       </div>
@@ -87,7 +96,7 @@ export const SubmissionsGradingPage: React.FC = () => {
             }`}
           >
             <span className="material-symbols-outlined text-[18px]">rate_review</span>
-            Submissions Awaiting Grading (14)
+            Submissions Awaiting Grading ({pendingGradingCount})
           </button>
 
           <button
@@ -99,7 +108,7 @@ export const SubmissionsGradingPage: React.FC = () => {
             }`}
           >
             <span className="material-symbols-outlined text-[18px]">inventory_2</span>
-            Graded Archive (48)
+            Graded Archive ({gradedCount})
           </button>
 
           <button
@@ -136,10 +145,12 @@ export const SubmissionsGradingPage: React.FC = () => {
                 onChange={(e) => setClassFilter(e.target.value)}
                 className="bg-transparent text-xs font-bold text-[#121c2a] focus:outline-none cursor-pointer truncate"
               >
-                <option value="5-a">Class 5-A (Mathematics)</option>
                 <option value="all">All Assigned Classes</option>
-                <option value="6-b">Class 6-B (Science)</option>
-                <option value="7-c">Class 7-C (Mathematics)</option>
+                {teacher.assignedClasses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.subject})
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -217,73 +228,122 @@ export const SubmissionsGradingPage: React.FC = () => {
           {/* LEFT PANEL: Submissions Queue & Current Assignment Context (5 cols) */}
           <div className="xl:col-span-5 flex flex-col gap-4">
             {/* Current Assignment Brief Card */}
-            <div className="bg-white p-5 rounded-xl shadow-xs border border-slate-100 relative overflow-hidden">
-              <div className="absolute right-0 top-0 w-32 h-32 bg-indigo-50 rounded-full blur-2xl pointer-events-none"></div>
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#eff4ff] text-[#3525cd] text-xs font-bold border border-indigo-100">
-                  {currentTask.className} • Module 3
-                </span>
-                <div className="flex items-center gap-1 text-xs text-[#777587]">
-                  <span className="material-symbols-outlined text-[16px] text-[#684000]">
-                    calendar_clock
+            {currentTask ? (
+              <div className="bg-white p-5 rounded-xl shadow-xs border border-slate-100 relative overflow-hidden">
+                <div className="absolute right-0 top-0 w-32 h-32 bg-indigo-50 rounded-full blur-2xl pointer-events-none"></div>
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#eff4ff] text-[#3525cd] text-xs font-bold border border-indigo-100">
+                    {currentTask.className}
                   </span>
-                  Due: {currentTask.deadline}
+                  <div className="flex items-center gap-1 text-xs text-[#777587]">
+                    <span className="material-symbols-outlined text-[16px] text-[#684000]">
+                      calendar_clock
+                    </span>
+                    Due: {currentTask.deadline}
+                  </div>
                 </div>
-              </div>
-              <h2 className="text-base font-bold text-[#121c2a] mb-1 leading-snug">
-                {currentTask.title}
-              </h2>
-              <div className="flex items-center gap-3 text-xs text-[#777587] mb-4">
-                <span className="flex items-center gap-1 font-semibold text-[#121c2a]">
-                  <span className="material-symbols-outlined text-[16px] text-[#3525cd]">
-                    military_tech
+                <h2 className="text-base font-bold text-[#121c2a] mb-1 leading-snug">
+                  {currentTask.title}
+                </h2>
+                <div className="flex items-center gap-3 text-xs text-[#777587] mb-4">
+                  <span className="flex items-center gap-1 font-semibold text-[#121c2a]">
+                    <span className="material-symbols-outlined text-[16px] text-[#3525cd]">
+                      military_tech
+                    </span>
+                    Max Marks: <strong>{currentTask.totalMarks}</strong>
                   </span>
-                  Max Marks: <strong>{currentTask.totalMarks}</strong>
-                </span>
-                <span>•</span>
-                <span className="flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[16px] text-[#006c49]">group</span>
-                  {currentTask.totalStudents} Enrolled Students
-                </span>
-              </div>
+                  <span>•</span>
+                  <span className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[16px] text-[#006c49]">group</span>
+                    {currentTask.totalStudents} Enrolled Students
+                  </span>
+                </div>
 
-              {/* Submission Progress Bar */}
-              <div className="space-y-1.5 bg-[#eff4ff] p-3 rounded-xl border border-indigo-100/60">
-                <div className="flex justify-between items-center text-xs font-medium">
-                  <span className="text-[#464555]">
-                    Class Turnout: {currentTask.submittedCount} / {currentTask.totalStudents}
-                  </span>
-                  <span className="font-bold text-[#121c2a]">
-                    {Math.round((currentTask.submittedCount / currentTask.totalStudents) * 100)}%
-                  </span>
-                </div>
-                <div className="w-full h-2 bg-[#dee9fc] rounded-full overflow-hidden flex">
-                  <div className="h-full bg-[#006c49]" style={{ width: '65%' }} title="Graded"></div>
-                  <div
-                    className="h-full bg-[#4f46e5]"
-                    style={{ width: '25%' }}
-                    title="Pending Review"
-                  ></div>
-                  <div className="h-full bg-[#ffb95f]" style={{ width: '6%' }} title="Late"></div>
-                  <div className="h-full bg-[#ba1a1a]" style={{ width: '4%' }} title="Missing"></div>
-                </div>
-                <div className="flex items-center justify-between text-[11px] text-[#777587] pt-0.5">
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-[#006c49] inline-block"></span>
-                    18 Graded
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-[#4f46e5] inline-block"></span>7 Pending
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-[#ffb95f] inline-block"></span>2 Late
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-[#ba1a1a] inline-block"></span>1 Missing
-                  </span>
+                {/* Submission Progress Bar */}
+                <div className="space-y-1.5 bg-[#eff4ff] p-3 rounded-xl border border-indigo-100/60">
+                  <div className="flex justify-between items-center text-xs font-medium">
+                    <span className="text-[#464555]">
+                      Class Turnout: {currentTask.submittedCount} / {currentTask.totalStudents}
+                    </span>
+                    <span className="font-bold text-[#121c2a]">
+                      {currentTask.totalStudents > 0
+                        ? Math.round((currentTask.submittedCount / currentTask.totalStudents) * 100)
+                        : 0}%
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-[#dee9fc] rounded-full overflow-hidden flex">
+                    <div
+                      className="h-full bg-[#006c49]"
+                      style={{
+                        width: `${
+                          currentTask.totalStudents > 0
+                            ? (currentTask.gradedCount / currentTask.totalStudents) * 100
+                            : 0
+                        }%`,
+                      }}
+                      title="Graded"
+                    ></div>
+                    <div
+                      className="h-full bg-[#4f46e5]"
+                      style={{
+                        width: `${
+                          currentTask.totalStudents > 0
+                            ? (currentTask.pendingCount / currentTask.totalStudents) * 100
+                            : 0
+                        }%`,
+                      }}
+                      title="Pending Review"
+                    ></div>
+                    <div
+                      className="h-full bg-[#ffb95f]"
+                      style={{
+                        width: `${
+                          currentTask.totalStudents > 0
+                            ? (currentTask.lateCount / currentTask.totalStudents) * 100
+                            : 0
+                        }%`,
+                      }}
+                      title="Late"
+                    ></div>
+                    <div
+                      className="h-full bg-[#ba1a1a]"
+                      style={{
+                        width: `${
+                          currentTask.totalStudents > 0
+                            ? (currentTask.missingCount / currentTask.totalStudents) * 100
+                            : 0
+                        }%`,
+                      }}
+                      title="Missing"
+                    ></div>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-[#777587] pt-0.5">
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-[#006c49] inline-block"></span>
+                      {currentTask.gradedCount} Graded
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-[#4f46e5] inline-block"></span>
+                      {currentTask.pendingCount} Pending
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-[#ffb95f] inline-block"></span>
+                      {currentTask.lateCount} Late
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-[#ba1a1a] inline-block"></span>
+                      {currentTask.missingCount} Missing
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="bg-white p-6 rounded-xl shadow-xs border border-slate-100 text-center text-[#777587]">
+                <span className="material-symbols-outlined text-3xl mb-1 text-slate-300">assignment</span>
+                <p className="font-semibold text-xs text-[#121c2a]">No Assignment Selected</p>
+                <p className="text-[11px] text-[#777587] mt-0.5">Create or select a task to view submission telemetry.</p>
+              </div>
+            )}
 
             {/* Student Submissions Roster List */}
             <SubmissionQueue statusFilter={statusFilter} searchFilter={searchFilter} />

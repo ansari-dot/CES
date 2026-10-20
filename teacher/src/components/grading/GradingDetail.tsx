@@ -16,30 +16,29 @@ export const GradingDetail: React.FC = () => {
   const currentTask = tasks.find((t) => t.id === selectedTaskId) || tasks[0];
   const submission = submissions.find((s) => s.id === selectedSubmissionId) || submissions[0];
 
-  const [score, setScore] = useState<number>(18);
-  const [accuracy, setAccuracy] = useState<number>(9);
-  const [steps, setSteps] = useState<number>(5);
-  const [simplification, setSimplification] = useState<number>(4);
-  const [feedback, setFeedback] = useState<string>('');
+  const [score, setScore] = useState<number>(submission?.marksAwarded ?? 0);
+  const [accuracy, setAccuracy] = useState<number>(submission?.rubricScores?.accuracy ?? 0);
+  const [steps, setSteps] = useState<number>(submission?.rubricScores?.steps ?? 0);
+  const [simplification, setSimplification] = useState<number>(submission?.rubricScores?.simplification ?? 0);
+  const [feedback, setFeedback] = useState<string>(submission?.feedback || '');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   useEffect(() => {
     if (submission) {
-      setScore(submission.marksAwarded ?? 18);
-      setAccuracy(submission.rubricScores?.accuracy ?? 9);
-      setSteps(submission.rubricScores?.steps ?? 5);
-      setSimplification(submission.rubricScores?.simplification ?? 4);
-      setFeedback(
-        submission.feedback ||
-          'Excellent work! All steps were clearly presented. Make sure to double check problem #7 where you inverted the dividend instead of divisor.'
-      );
+      setScore(submission.marksAwarded ?? 0);
+      setAccuracy(submission.rubricScores?.accuracy ?? 0);
+      setSteps(submission.rubricScores?.steps ?? 0);
+      setSimplification(submission.rubricScores?.simplification ?? 0);
+      setFeedback(submission.feedback || '');
     }
   }, [submission]);
 
   if (!submission) {
     return (
-      <div className="bg-white p-8 rounded-xl text-center text-[#777587]">
-        Select a student submission to evaluate.
+      <div className="bg-white p-12 rounded-xl text-center text-[#777587] border border-slate-100 shadow-xs">
+        <span className="material-symbols-outlined text-4xl mb-2 text-slate-300">rate_review</span>
+        <p className="font-semibold text-sm text-[#121c2a]">No Submission Selected</p>
+        <p className="text-xs text-[#777587] mt-1">Select a student from the queue on the left to grade their submission.</p>
       </div>
     );
   }
@@ -143,18 +142,20 @@ export const GradingDetail: React.FC = () => {
       </div>
 
       {/* Task Assignment Prompt Mini-Card */}
-      <div className="bg-[#eff4ff] p-4 rounded-xl space-y-1 border border-indigo-100/60">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wide text-[#464555] flex items-center gap-1">
-            <span className="material-symbols-outlined text-[16px] text-[#3525cd]">info</span>{' '}
-            Assignment Instructions
-          </span>
-          <span className="text-xs text-[#3525cd] font-bold">10 Division Items</span>
+      {currentTask && (
+        <div className="bg-[#eff4ff] p-4 rounded-xl space-y-1 border border-indigo-100/60">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wide text-[#464555] flex items-center gap-1">
+              <span className="material-symbols-outlined text-[16px] text-[#3525cd]">info</span>{' '}
+              Assignment Instructions
+            </span>
+            <span className="text-xs text-[#3525cd] font-bold">{currentTask.title}</span>
+          </div>
+          <p className="text-xs text-[#121c2a] leading-relaxed">
+            &quot;{currentTask.instructions}&quot;
+          </p>
         </div>
-        <p className="text-xs text-[#121c2a] leading-relaxed">
-          &quot;{currentTask.instructions}&quot;
-        </p>
-      </div>
+      )}
 
       {/* Submitted Files Artifact Box */}
       <div className="space-y-2">
@@ -164,70 +165,47 @@ export const GradingDetail: React.FC = () => {
           </span>
           <span className="text-[11px] text-[#006c49] font-semibold flex items-center gap-1">
             <span className="material-symbols-outlined text-[14px]">verified_user</span>
-            Verified Clean File Scan
+            Verified File Scan
           </span>
         </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-[#e6eeff]/60 rounded-xl border border-indigo-100/60">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-lg bg-[#fee2e2] text-[#ba1a1a] flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[24px]">picture_as_pdf</span>
+        {submission.fileName || submission.fileUrl ? (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-[#e6eeff]/60 rounded-xl border border-indigo-100/60">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-lg bg-[#fee2e2] text-[#ba1a1a] flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[24px]">picture_as_pdf</span>
+              </div>
+              <div className="truncate">
+                <p className="text-xs sm:text-sm font-bold text-[#121c2a] truncate">
+                  {submission.fileName || 'Document.pdf'}
+                </p>
+                <p className="text-xs text-[#777587]">
+                  {submission.fileSize || 'Uploaded PDF document'}
+                </p>
+              </div>
             </div>
-            <div className="truncate">
-              <p className="text-xs sm:text-sm font-bold text-[#121c2a] truncate">
-                {submission.fileName || `${submission.studentName.replace(' ', '_')}_Homework.pdf`}
-              </p>
-              <p className="text-xs text-[#777587]">
-                {submission.fileSize || '1.4 MB • Uploaded PDF document • 2 Pages'}
-              </p>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => dispatch(addToast({ message: 'Opening interactive PDF annotator viewer...', type: 'info' }))}
+                className="px-3 py-1.5 rounded-lg bg-white text-[#3525cd] text-xs font-bold hover:bg-[#dee9fc] shadow-xs flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-[16px]">visibility</span> Preview
+              </button>
+              <button
+                type="button"
+                onClick={() => dispatch(addToast({ message: 'Downloading PDF document...', type: 'info' }))}
+                className="px-3 py-1.5 rounded-lg bg-white text-[#464555] text-xs font-bold hover:text-[#121c2a] hover:bg-[#dee9fc] shadow-xs flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-[16px]">download</span> Download
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => dispatch(addToast({ message: 'Opening interactive PDF annotator viewer...', type: 'info' }))}
-              className="px-3 py-1.5 rounded-lg bg-white text-[#3525cd] text-xs font-bold hover:bg-[#dee9fc] shadow-xs flex items-center gap-1"
-            >
-              <span className="material-symbols-outlined text-[16px]">visibility</span> Preview
-            </button>
-            <button
-              type="button"
-              onClick={() => dispatch(addToast({ message: 'Downloading PDF document...', type: 'info' }))}
-              className="px-3 py-1.5 rounded-lg bg-white text-[#464555] text-xs font-bold hover:text-[#121c2a] hover:bg-[#dee9fc] shadow-xs flex items-center gap-1"
-            >
-              <span className="material-symbols-outlined text-[16px]">download</span> Download
-            </button>
+        ) : (
+          <div className="p-4 bg-[#eff4ff] rounded-xl text-center text-xs text-[#777587] border border-indigo-100/60">
+            No attached document for this submission.
           </div>
-        </div>
-      </div>
-
-      {/* Interactive PDF Quick Viewer Mockup */}
-      <div className="bg-[#eff4ff] p-4 rounded-xl space-y-2 border border-indigo-100/60">
-        <div className="flex items-center justify-between text-[#464555] text-xs font-medium">
-          <span className="flex items-center gap-1">
-            <span className="material-symbols-outlined text-[16px] text-[#3525cd]">draw</span>{' '}
-            Document Annotations Enabled
-          </span>
-          <span>Page 1 of 2 (100% Zoom)</span>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-inner min-h-[110px] flex flex-col justify-between font-mono text-xs border border-slate-200">
-          <div className="space-y-1.5">
-            <p className="text-[#121c2a] font-semibold">
-              1. (3/4) ÷ (2/5) = 3/4 × 5/2 = 15/8 = 1 7/8 [Correct ✓]
-            </p>
-            <p className="text-[#121c2a] font-semibold">
-              2. (5/6) ÷ (1/3) = 5/6 × 3/1 = 15/6 = 5/2 = 2 1/2 [Correct ✓]
-            </p>
-            <p className="text-[#ba1a1a] font-semibold">
-              7. (7/9) ÷ (2/3) = inverted dividend 9/7 × 2/3 = 18/21 [Error: Inverted wrong fraction ✗]
-            </p>
-          </div>
-          <div className="pt-2 flex justify-end">
-            <span className="px-2 py-0.5 rounded bg-[#dee9fc] text-[#3525cd] text-[11px] font-bold">
-              Teacher Note: Watch reciprocal divisor rule
-            </span>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Grading Rubric & Marks Section */}

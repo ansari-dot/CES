@@ -9,7 +9,7 @@ export const AchievementsFeedbackPage: React.FC = () => {
   const achievements = useAppSelector((state) => state.performance.achievements);
   const metrics = useAppSelector((state) => state.performance.metrics);
 
-  const [studentId, setStudentId] = useState(metrics[0]?.studentId || 'STU-02');
+  const [studentId, setStudentId] = useState(metrics[0]?.studentId || '');
   const [badgeType, setBadgeType] = useState<'star' | 'medal' | 'trophy' | 'certificate'>('star');
   const [title, setTitle] = useState('');
   const [reason, setReason] = useState('');
@@ -23,10 +23,10 @@ export const AchievementsFeedbackPage: React.FC = () => {
 
     const newAch: AchievementItem = {
       id: `ACH-${Date.now().toString().slice(-4)}`,
-      studentId,
-      studentName: student ? student.name : 'Bella Chen',
-      classId: student ? student.classId : '5-math-a',
-      className: student ? student.className : 'Class 5-A',
+      studentId: student ? student.studentId : studentId,
+      studentName: student ? student.name : 'Student',
+      classId: student ? student.classId : '',
+      className: student ? student.className : '',
       badgeType,
       title,
       reason,
@@ -88,11 +88,15 @@ export const AchievementsFeedbackPage: React.FC = () => {
                 onChange={(e) => setStudentId(e.target.value)}
                 className="w-full h-10 px-3 bg-[#eff4ff] border border-indigo-100/60 rounded-lg text-[#121c2a] focus:outline-none"
               >
-                {metrics.map((m) => (
-                  <option key={m.studentId} value={m.studentId}>
-                    {m.name} ({m.className} • Roll {m.rollNumber})
-                  </option>
-                ))}
+                {metrics.length === 0 ? (
+                  <option value="" disabled>No students enrolled</option>
+                ) : (
+                  metrics.map((m) => (
+                    <option key={m.studentId} value={m.studentId}>
+                      {m.name} ({m.className} • Roll {m.rollNumber})
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 
@@ -172,38 +176,46 @@ export const AchievementsFeedbackPage: React.FC = () => {
           </div>
 
           <div className="space-y-3">
-            {achievements.map((ach) => (
-              <div
-                key={ach.id}
-                className="p-4 bg-[#eff4ff]/60 rounded-xl border border-indigo-100/50 flex items-start gap-4"
-              >
-                <div className="w-12 h-12 rounded-2xl bg-amber-100 text-[#92400e] flex items-center justify-center text-2xl shrink-0 shadow-xs">
-                  {ach.badgeType === 'medal'
-                    ? '🏅'
-                    : ach.badgeType === 'trophy'
-                    ? '🏆'
-                    : ach.badgeType === 'certificate'
-                    ? '📜'
-                    : '⭐'}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <h4 className="text-sm font-bold text-[#121c2a] truncate">{ach.title}</h4>
-                    <span className="text-[11px] text-[#777587] shrink-0 font-medium">
-                      {ach.awardedDate}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-[#3525cd] font-bold mt-0.5">
-                    <span>{ach.studentName}</span>
-                    <span>•</span>
-                    <span>{ach.className}</span>
-                    <span>•</span>
-                    <span className="text-[#92400e]">+{ach.starsCount} Stars</span>
-                  </div>
-                  <p className="text-xs text-[#464555] mt-1 leading-relaxed">{ach.reason}</p>
-                </div>
+            {achievements.length === 0 ? (
+              <div className="py-12 text-center text-[#777587]">
+                <span className="material-symbols-outlined text-4xl mb-2 text-slate-300">military_tech</span>
+                <p className="font-semibold text-sm text-[#121c2a]">No Honors Awarded Yet</p>
+                <p className="text-xs text-[#777587] mt-1">Use the award form on the left to commend student achievements.</p>
               </div>
-            ))}
+            ) : (
+              achievements.map((ach) => (
+                <div
+                  key={ach.id}
+                  className="p-4 bg-[#eff4ff]/60 rounded-xl border border-indigo-100/50 flex items-start gap-4"
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-amber-100 text-[#92400e] flex items-center justify-center text-2xl shrink-0 shadow-xs">
+                    {ach.badgeType === 'medal'
+                      ? '🏅'
+                      : ach.badgeType === 'trophy'
+                      ? '🏆'
+                      : ach.badgeType === 'certificate'
+                      ? '📜'
+                      : '⭐'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="text-sm font-bold text-[#121c2a] truncate">{ach.title}</h4>
+                      <span className="text-[11px] text-[#777587] shrink-0 font-medium">
+                        {ach.awardedDate}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-[#3525cd] font-bold mt-0.5">
+                      <span>{ach.studentName}</span>
+                      <span>•</span>
+                      <span>{ach.className}</span>
+                      <span>•</span>
+                      <span className="text-[#92400e]">+{ach.starsCount} Stars</span>
+                    </div>
+                    <p className="text-xs text-[#464555] mt-1 leading-relaxed">{ach.reason}</p>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

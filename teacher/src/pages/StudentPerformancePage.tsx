@@ -14,8 +14,23 @@ export const StudentPerformancePage: React.FC = () => {
       ? metrics
       : metrics.filter((m) => m.classId === selectedClassId);
 
+  const totalStudents = filteredMetrics.length;
+  const classAvg =
+    totalStudents > 0
+      ? (filteredMetrics.reduce((acc, m) => acc + m.averageQuizScore, 0) / totalStudents).toFixed(1)
+      : '0.0';
+  const avgAttendance =
+    totalStudents > 0
+      ? (filteredMetrics.reduce((acc, m) => acc + m.attendanceRate, 0) / totalStudents).toFixed(1)
+      : '0.0';
+  const avgTasks =
+    totalStudents > 0
+      ? (filteredMetrics.reduce((acc, m) => acc + m.taskCompletionRate, 0) / totalStudents).toFixed(1)
+      : '0.0';
+  const streakCount = filteredMetrics.filter((m) => m.attendanceRate >= 90).length;
+
   const selectedStudent =
-    metrics.find((m) => m.studentId === selectedStudentId) || metrics[0];
+    filteredMetrics.find((m) => m.studentId === selectedStudentId) || filteredMetrics[0];
 
   return (
     <div className="flex flex-col w-full pb-10">
@@ -59,8 +74,10 @@ export const StudentPerformancePage: React.FC = () => {
         <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 flex items-center justify-between">
           <div>
             <span className="text-[11px] uppercase font-bold text-[#777587]">Class Average</span>
-            <h3 className="text-2xl font-black text-[#121c2a] mt-0.5">88.4%</h3>
-            <span className="text-[11px] text-[#006c49] font-semibold">+2.1% from Mid-Term 1</span>
+            <h3 className="text-2xl font-black text-[#121c2a] mt-0.5">{classAvg}%</h3>
+            <span className="text-[11px] text-[#006c49] font-semibold">
+              {totalStudents > 0 ? 'Active Term Average' : 'No graded evaluations'}
+            </span>
           </div>
           <div className="w-11 h-11 rounded-xl bg-emerald-50 text-[#006c49] flex items-center justify-center">
             <span className="material-symbols-outlined text-[24px]">trending_up</span>
@@ -72,8 +89,10 @@ export const StudentPerformancePage: React.FC = () => {
             <span className="text-[11px] uppercase font-bold text-[#777587]">
               Avg. Attendance Rate
             </span>
-            <h3 className="text-2xl font-black text-[#121c2a] mt-0.5">96.0%</h3>
-            <span className="text-[11px] text-[#006c49] font-semibold">23 of 26 on-streak</span>
+            <h3 className="text-2xl font-black text-[#121c2a] mt-0.5">{avgAttendance}%</h3>
+            <span className="text-[11px] text-[#006c49] font-semibold">
+              {totalStudents > 0 ? `${streakCount} of ${totalStudents} with >=90%` : 'No attendance logged'}
+            </span>
           </div>
           <div className="w-11 h-11 rounded-xl bg-indigo-50 text-[#3525cd] flex items-center justify-center">
             <span className="material-symbols-outlined text-[24px]">fact_check</span>
@@ -85,9 +104,9 @@ export const StudentPerformancePage: React.FC = () => {
             <span className="text-[11px] uppercase font-bold text-[#777587]">
               Task Completion Rate
             </span>
-            <h3 className="text-2xl font-black text-[#121c2a] mt-0.5">93.2%</h3>
+            <h3 className="text-2xl font-black text-[#121c2a] mt-0.5">{avgTasks}%</h3>
             <span className="text-[11px] text-[#92400e] font-semibold">
-              3 overdue reminders sent
+              {totalStudents > 0 ? 'Curriculum Completion' : 'No tasks assigned'}
             </span>
           </div>
           <div className="w-11 h-11 rounded-xl bg-amber-50 text-[#92400e] flex items-center justify-center">
@@ -120,114 +139,131 @@ export const StudentPerformancePage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredMetrics.map((stu) => {
-                  const isSelected = stu.studentId === selectedStudent.studentId;
+                {filteredMetrics.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-[#777587]">
+                      <span className="material-symbols-outlined text-3xl mb-1 text-slate-300">analytics</span>
+                      <p className="font-medium text-xs">No student performance records found.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredMetrics.map((stu) => {
+                    const isSelected = selectedStudent && stu.studentId === selectedStudent.studentId;
 
-                  return (
-                    <tr
-                      key={stu.studentId}
-                      onClick={() => dispatch(setSelectedStudentId(stu.studentId))}
-                      className={`cursor-pointer transition-colors ${
-                        isSelected ? 'bg-indigo-50/70 font-semibold' : 'hover:bg-[#eff4ff]/40'
-                      }`}
-                    >
-                      <td className="p-3 text-center font-mono font-medium text-[#777587]">
-                        {stu.rollNumber}
-                      </td>
-                      <td className="p-3">
-                        <div className="flex items-center gap-2.5">
-                          <img
-                            src={stu.avatar}
-                            alt={stu.name}
-                            className="w-8 h-8 rounded-full object-cover shadow-xs"
-                          />
-                          <div>
-                            <span className="font-bold text-[#121c2a] block">{stu.name}</span>
-                            <span className="text-[11px] text-[#777587]">
-                              {stu.streakStatus}
-                            </span>
+                    return (
+                      <tr
+                        key={stu.studentId}
+                        onClick={() => dispatch(setSelectedStudentId(stu.studentId))}
+                        className={`cursor-pointer transition-colors ${
+                          isSelected ? 'bg-indigo-50/70 font-semibold' : 'hover:bg-[#eff4ff]/40'
+                        }`}
+                      >
+                        <td className="p-3 text-center font-mono font-medium text-[#777587]">
+                          {stu.rollNumber}
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-2.5">
+                            <img
+                              src={stu.avatar}
+                              alt={stu.name}
+                              className="w-8 h-8 rounded-full object-cover shadow-xs"
+                            />
+                            <div>
+                              <span className="font-bold text-[#121c2a] block">{stu.name}</span>
+                              <span className="text-[11px] text-[#777587]">
+                                {stu.streakStatus}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="p-3 text-center font-bold text-[#006c49]">
-                        {stu.attendanceRate}%
-                      </td>
-                      <td className="p-3 text-center font-bold text-[#121c2a]">
-                        {stu.taskCompletionRate}%
-                      </td>
-                      <td className="p-3 text-center font-bold text-[#3525cd]">
-                        {stu.averageQuizScore}%
-                      </td>
-                      <td className="p-3 text-right font-bold text-[#684000]">
-                        ⭐ {stu.starsCount}
-                      </td>
-                    </tr>
-                  );
-                })}
+                        </td>
+                        <td className="p-3 text-center font-bold text-[#006c49]">
+                          {stu.attendanceRate}%
+                        </td>
+                        <td className="p-3 text-center font-bold text-[#121c2a]">
+                          {stu.taskCompletionRate}%
+                        </td>
+                        <td className="p-3 text-center font-bold text-[#3525cd]">
+                          {stu.averageQuizScore}%
+                        </td>
+                        <td className="p-3 text-right font-bold text-[#684000]">
+                          ⭐ {stu.starsCount}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
         </div>
 
         {/* Selected Student Deep Dive Card */}
-        <div className="lg:col-span-4 bg-white rounded-2xl p-6 shadow-sm border border-slate-100 space-y-4">
-          <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
-            <img
-              src={selectedStudent.avatar}
-              alt={selectedStudent.name}
-              className="w-14 h-14 rounded-full object-cover ring-2 ring-indigo-100 shadow-sm"
-            />
-            <div>
-              <h4 className="text-base font-bold text-[#121c2a]">{selectedStudent.name}</h4>
-              <p className="text-xs text-[#777587]">
-                {selectedStudent.admissionId} • Roll {selectedStudent.rollNumber}
-              </p>
-              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#006c49] mt-0.5">
-                <span className="material-symbols-outlined text-[13px]">verified</span>
-                {selectedStudent.streakStatus}
-              </span>
-            </div>
-          </div>
-
-          <div className="space-y-3 text-xs">
-            <div className="p-3 bg-[#eff4ff] rounded-xl space-y-1 border border-indigo-100/60">
-              <span className="text-[#777587] font-semibold block">Target Improvement Area:</span>
-              <p className="font-bold text-[#121c2a]">{selectedStudent.improvementArea}</p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 text-center">
-              <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-                <span className="text-[11px] text-[#777587] block">Term Attendance</span>
-                <span className="text-lg font-bold text-[#006c49]">
-                  {selectedStudent.attendanceRate}%
-                </span>
-              </div>
-              <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-                <span className="text-[11px] text-[#777587] block">Average Score</span>
-                <span className="text-lg font-bold text-[#3525cd]">
-                  {selectedStudent.averageQuizScore}%
+        {selectedStudent ? (
+          <div className="lg:col-span-4 bg-white rounded-2xl p-6 shadow-sm border border-slate-100 space-y-4">
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+              <img
+                src={selectedStudent.avatar}
+                alt={selectedStudent.name}
+                className="w-14 h-14 rounded-full object-cover ring-2 ring-indigo-100 shadow-sm"
+              />
+              <div>
+                <h4 className="text-base font-bold text-[#121c2a]">{selectedStudent.name}</h4>
+                <p className="text-xs text-[#777587]">
+                  {selectedStudent.admissionId} • Roll {selectedStudent.rollNumber}
+                </p>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#006c49] mt-0.5">
+                  <span className="material-symbols-outlined text-[13px]">verified</span>
+                  {selectedStudent.streakStatus}
                 </span>
               </div>
             </div>
 
-            <div className="pt-2">
-              <button
-                onClick={() =>
-                  dispatch(
-                    addToast({
-                      message: `Opened parent communication channel for ${selectedStudent.name}`,
-                      type: 'info',
-                    })
-                  )
-                }
-                className="w-full py-2 rounded-xl bg-[#4f46e5] hover:bg-[#3525cd] text-white font-bold text-xs shadow-xs transition-colors flex items-center justify-center gap-1.5"
-              >
-                <span className="material-symbols-outlined text-[16px]">forward_to_inbox</span>
-                Contact Guardian
-              </button>
+            <div className="space-y-3 text-xs">
+              <div className="p-3 bg-[#eff4ff] rounded-xl space-y-1 border border-indigo-100/60">
+                <span className="text-[#777587] font-semibold block">Target Improvement Area:</span>
+                <p className="font-bold text-[#121c2a]">{selectedStudent.improvementArea}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-center">
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <span className="text-[11px] text-[#777587] block">Term Attendance</span>
+                  <span className="text-lg font-bold text-[#006c49]">
+                    {selectedStudent.attendanceRate}%
+                  </span>
+                </div>
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <span className="text-[11px] text-[#777587] block">Average Score</span>
+                  <span className="text-lg font-bold text-[#3525cd]">
+                    {selectedStudent.averageQuizScore}%
+                  </span>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  onClick={() =>
+                    dispatch(
+                      addToast({
+                        message: `Opened parent communication channel for ${selectedStudent.name}`,
+                        type: 'info',
+                      })
+                    )
+                  }
+                  className="w-full py-2 rounded-xl bg-[#4f46e5] hover:bg-[#3525cd] text-white font-bold text-xs shadow-xs transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-[16px]">forward_to_inbox</span>
+                  Contact Guardian
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="lg:col-span-4 bg-white rounded-2xl p-6 shadow-sm border border-slate-100 text-center py-12 text-[#777587]">
+            <span className="material-symbols-outlined text-4xl mb-2 text-slate-300">person_search</span>
+            <p className="font-semibold text-sm text-[#121c2a]">No Student Selected</p>
+            <p className="text-xs text-[#777587] mt-1">Select a student from the roster to view in-depth performance analytics.</p>
+          </div>
+        )}
       </div>
     </div>
   );

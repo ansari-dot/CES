@@ -31,8 +31,12 @@ export const ChallansModule: React.FC = () => {
 
   // Generate Challans Modal
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
-  const [billingMonth, setBillingMonth] = useState('June 2024');
-  const [dueDate, setDueDate] = useState('2024-06-05');
+  const [billingMonth, setBillingMonth] = useState(
+    new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' })
+  );
+  const [dueDate, setDueDate] = useState(
+    new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  );
   const [lateFee, setLateFee] = useState(500);
   const [graceDays, setGraceDays] = useState(5);
   const [generating, setGenerating] = useState(false);

@@ -24,47 +24,16 @@ interface DutyState {
 }
 
 const initialSummary: DutySummary = {
-  payrollPeriod: 'October 2026 Cycle',
-  scheduledLessonsCount: 42,
-  completedLessonsCount: 31,
-  totalDutyHours: 24.5,
-  targetDutyHours: 35.0,
-  payrollStatus: 'On Track',
-  hourlyRate: 'Rs. 2,500 / hr (Senior Faculty)',
+  payrollPeriod: 'Current Cycle',
+  scheduledLessonsCount: 0,
+  completedLessonsCount: 0,
+  totalDutyHours: 0,
+  targetDutyHours: 0,
+  payrollStatus: 'Pending Review',
+  hourlyRate: 'Standard Faculty',
 };
 
-const initialLogs: DutyLogItem[] = [
-  {
-    id: 'DUTY-01',
-    date: 'Oct 19, 2026',
-    lessonId: '1',
-    className: 'Class 5',
-    subject: 'Mathematics',
-    scheduledTime: '09:00 AM – 09:45 AM',
-    durationMinutes: 45,
-    status: 'verified',
-  },
-  {
-    id: 'DUTY-02',
-    date: 'Oct 19, 2026',
-    lessonId: '2',
-    className: 'Class 5',
-    subject: 'General Science',
-    scheduledTime: '10:00 AM – 10:45 AM',
-    durationMinutes: 45,
-    status: 'verified',
-  },
-  {
-    id: 'DUTY-03',
-    date: 'Oct 18, 2026',
-    lessonId: '3',
-    className: 'Class 6',
-    subject: 'General Science',
-    scheduledTime: '11:00 AM – 11:45 AM',
-    durationMinutes: 45,
-    status: 'verified',
-  },
-];
+const initialLogs: DutyLogItem[] = [];
 
 export const fetchDutySummaryThunk = createAsyncThunk(
   'duty/fetchSummary',
@@ -143,13 +112,13 @@ export const dutySlice = createSlice({
 
         if (duty) {
           state.summary = {
-            payrollPeriod: duty.payrollMonth || 'October 2026 Cycle',
-            scheduledLessonsCount: Number(duty.scheduledLessons) || 42,
-            completedLessonsCount: Number(duty.completedLessons) || 31,
-            totalDutyHours: Number(duty.verifiedTeachingHours) || 24.5,
-            targetDutyHours: 35.0,
-            payrollStatus: 'On Track',
-            hourlyRate: 'Rs. 2,500 / hr (Senior Faculty)',
+            payrollPeriod: duty.payrollMonth || 'Current Cycle',
+            scheduledLessonsCount: Number(duty.scheduledLessons) || 0,
+            completedLessonsCount: Number(duty.completedLessons) || 0,
+            totalDutyHours: Number(duty.verifiedTeachingHours) || 0,
+            targetDutyHours: Number(duty.targetDutyHours) || 0,
+            payrollStatus: (duty.completedLessons > 0 ? 'On Track' : 'No Records') as any,
+            hourlyRate: duty.hourlyRate || 'Standard Faculty',
           };
         }
 

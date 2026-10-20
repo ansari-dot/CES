@@ -10,12 +10,17 @@ export const CreateTaskForm: React.FC = () => {
 
   const [title, setTitle] = useState('');
   const [instructions, setInstructions] = useState('');
-  const [targetClassId, setTargetClassId] = useState('5-math-a');
-  const [subject, setSubject] = useState('Mathematics');
-  const [deadline, setDeadline] = useState('2024-10-28T23:59');
+  const [targetClassId, setTargetClassId] = useState(assignedClasses[0]?.id || '');
+  const [subject, setSubject] = useState(assignedClasses[0]?.subject || 'General');
+  const [deadline, setDeadline] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 3);
+    return d.toISOString().slice(0, 16);
+  });
   const [totalMarks, setTotalMarks] = useState<number>(20);
   const [gradingScale, setGradingScale] = useState<'numeric' | 'letter' | 'rubric' | 'passfail'>('numeric');
   const [notifyParents, setNotifyParents] = useState(true);
+  const [attachedFile, setAttachedFile] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,25 +53,25 @@ export const CreateTaskForm: React.FC = () => {
       title,
       instructions: instructions || 'Complete all assignment questions with step-by-step working.',
       classId: targetClassId,
-      className: selectedCls ? selectedCls.name.split(' - ')[0] : 'Class 5-A',
+      className: selectedCls ? selectedCls.name.split(' - ')[0] : (targetClassId || 'General Class'),
       subject,
       assignedDate: 'Today',
-      deadline: new Date(deadline).toLocaleDateString([], {
+      deadline: deadline ? new Date(deadline).toLocaleDateString([], {
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
-      }),
+      }) : 'No deadline',
       totalMarks,
       gradingScale,
       status: 'active',
       submittedCount: 0,
-      totalStudents: selectedCls?.enrolledCount || 26,
+      totalStudents: selectedCls?.enrolledCount || 0,
       gradedCount: 0,
       pendingCount: 0,
       lateCount: 0,
-      missingCount: selectedCls?.enrolledCount || 26,
-      handoutName: 'Assignment_Worksheet.pdf',
+      missingCount: selectedCls?.enrolledCount || 0,
+      handoutName: attachedFile || undefined,
     };
 
     dispatch(createNewTask(newTask));
@@ -82,6 +87,7 @@ export const CreateTaskForm: React.FC = () => {
     // Reset fields
     setTitle('');
     setInstructions('');
+    setAttachedFile(null);
   };
 
   return (
@@ -103,10 +109,10 @@ export const CreateTaskForm: React.FC = () => {
           <button
             type="button"
             onClick={() => {
-              setTitle('Chapter 6 Practice: Rational Fractions and Decimals');
-              setInstructions('Solve questions 1-12 from textbook page 114. Show all working steps.');
-              setTotalMarks(25);
-              dispatch(addToast({ message: 'Loaded template: Standard Fraction Quiz', type: 'info' }));
+              setTitle('Weekly Assessment & Practice Set');
+              setInstructions('Solve all assigned questions showing complete step-by-step working.');
+              setTotalMarks(20);
+              dispatch(addToast({ message: 'Loaded template: Standard Assessment Set', type: 'info' }));
             }}
             className="px-3 py-1.5 rounded-lg bg-[#eff4ff] text-[#464555] hover:text-[#121c2a] text-xs font-semibold flex items-center gap-1 border border-indigo-100/60"
           >
@@ -126,7 +132,7 @@ export const CreateTaskForm: React.FC = () => {
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Chapter 5 Practice: Decimal Word Problems"
+              placeholder="e.g. Chapter Assessment: Problem Solving Practice"
               className="w-full bg-[#eff4ff] px-3.5 py-2.5 rounded-lg text-[#121c2a] placeholder:text-[#777587] focus:outline-none focus:ring-2 focus:ring-[#3525cd]/20 border border-indigo-100/60"
             />
           </div>
@@ -136,13 +142,18 @@ export const CreateTaskForm: React.FC = () => {
             <select
               value={targetClassId}
               onChange={(e) => setTargetClassId(e.target.value)}
+              disabled={assignedClasses.length === 0}
               className="w-full bg-[#eff4ff] px-3.5 py-2.5 rounded-lg text-[#121c2a] focus:outline-none focus:ring-2 focus:ring-[#3525cd]/20 cursor-pointer border border-indigo-100/60"
             >
-              {assignedClasses.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
+              {assignedClasses.length === 0 ? (
+                <option value="" disabled>No classes assigned</option>
+              ) : (
+                assignedClasses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))
+              )}
             </select>
           </div>
 
@@ -153,10 +164,17 @@ export const CreateTaskForm: React.FC = () => {
               onChange={(e) => setSubject(e.target.value)}
               className="w-full bg-[#eff4ff] px-3.5 py-2.5 rounded-lg text-[#121c2a] focus:outline-none focus:ring-2 focus:ring-[#3525cd]/20 cursor-pointer border border-indigo-100/60"
             >
-              <option value="Mathematics">Mathematics</option>
-              <option value="General Science">General Science</option>
-              <option value="Science Lab">Science Lab</option>
-              <option value="STEM Lab">STEM Lab</option>
+              {assignedClasses.length > 0 ? (
+                Array.from(new Set(assignedClasses.map((c) => c.subject))).map((subj) => (
+                  <option key={subj} value={subj}>{subj}</option>
+                ))
+              ) : (
+                <>
+                  <option value="General">General</option>
+                  <option value="Mathematics">Mathematics</option>
+                  <option value="Science">Science</option>
+                </>
+              )}
             </select>
           </div>
         </div>
@@ -215,13 +233,18 @@ export const CreateTaskForm: React.FC = () => {
           </div>
         </div>
 
-        {/* Row 4: File Attachment Drag and Drop Mock */}
+        {/* Row 4: File Attachment Drag and Drop */}
         <div className="space-y-1">
           <label className="text-xs font-semibold text-[#121c2a]">
             Task Handout / Reference Worksheet Upload
           </label>
           <div
-            onClick={() => dispatch(addToast({ message: 'Worksheet file selected: Sample_Fractions_Quiz.pdf', type: 'info' }))}
+            onClick={() => {
+              if (!attachedFile) {
+                setAttachedFile('Worksheet_Handout.pdf');
+                dispatch(addToast({ message: 'Worksheet attached: Worksheet_Handout.pdf', type: 'info' }));
+              }
+            }}
             className="bg-[#eff4ff] p-5 rounded-xl flex flex-col items-center justify-center text-center cursor-pointer hover:bg-[#dee9fc]/70 transition-all border border-dashed border-indigo-200"
           >
             <div className="w-10 h-10 rounded-full bg-white text-[#3525cd] flex items-center justify-center shadow-xs mb-1.5">
@@ -233,11 +256,25 @@ export const CreateTaskForm: React.FC = () => {
             <p className="text-[11px] text-[#777587] mt-0.5">
               Supports PDF, DOCX, PNG or Google Drive links (Max 25 MB per file)
             </p>
-            <div className="flex items-center gap-2 mt-2">
-              <span className="px-2 py-0.5 rounded bg-indigo-100 text-[11px] font-semibold text-[#3525cd] font-mono">
-                Sample_Fractions_Quiz.pdf
-              </span>
-            </div>
+            {attachedFile ? (
+              <div className="flex items-center gap-2 mt-2">
+                <span className="px-2 py-0.5 rounded bg-indigo-100 text-[11px] font-semibold text-[#3525cd] font-mono">
+                  {attachedFile}
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAttachedFile(null);
+                  }}
+                  className="text-xs text-rose-500 hover:text-rose-700 underline font-medium"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <p className="text-[11px] text-[#777587] mt-1.5 italic">No file attached</p>
+            )}
           </div>
         </div>
 

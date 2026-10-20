@@ -57,8 +57,15 @@ export const SubmissionQueue: React.FC<SubmissionQueueProps> = ({
       </div>
 
       <div className="p-2 space-y-1">
-        {filteredSubmissions.map((sub) => {
-          const isSelected = sub.id === selectedSubmissionId;
+        {filteredSubmissions.length === 0 ? (
+          <div className="py-10 text-center text-[#777587]">
+            <span className="material-symbols-outlined text-3xl mb-1 text-slate-300">inbox</span>
+            <p className="font-semibold text-xs text-[#121c2a]">No Submissions in Queue</p>
+            <p className="text-[11px] text-[#777587] mt-0.5">There are no student submissions matching the filter criteria.</p>
+          </div>
+        ) : (
+          filteredSubmissions.map((sub) => {
+            const isSelected = sub.id === selectedSubmissionId;
 
           return (
             <div
@@ -139,7 +146,8 @@ export const SubmissionQueue: React.FC<SubmissionQueueProps> = ({
               </div>
             </div>
           );
-        })}
+        })
+        )}
       </div>
     </div>
   );

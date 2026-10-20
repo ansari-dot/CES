@@ -63,11 +63,12 @@ export interface TimetableLesson {
   endTime: string;   // e.g. "09:45 AM"
   periodNumber: number;
   room: string;
-  status: 'scheduled' | 'started' | 'completed' | 'cancelled' | 'rescheduled';
+  status: 'scheduled' | 'started' | 'live' | 'completed' | 'cancelled' | 'rescheduled';
   zoomRoomId: string;
   zoomPasscode: string;
   deliveryLogged: boolean;
   attendanceSubmitted: boolean;
+  isCompleted?: boolean;
   actualStartTime?: string;
   actualEndTime?: string;
   notes?: string;
@@ -222,6 +223,7 @@ export interface Submission {
   maxMarks: number;
   fileName?: string;
   fileSize?: string;
+  fileUrl?: string;
   feedback?: string;
   rubricScores?: {
     accuracy: number;

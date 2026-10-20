@@ -173,7 +173,11 @@ export const FeeStructureModule: React.FC = () => {
       </div>
 
       {/* Active Class Fee Structure Box in Clean White */}
-      {activeStruct && (
+      {!activeStruct ? (
+        <div className="p-8 rounded-2xl bg-white border border-slate-200/90 shadow-xs text-xs text-slate-400 text-center">
+          No fee structure configured for Class {selectedClassNum}.
+        </div>
+      ) : (
         <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
@@ -250,21 +254,29 @@ export const FeeStructureModule: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {concessions.map((c) => (
-                <tr key={c.id} className="hover:bg-slate-50/70 transition-colors">
-                  <td className="px-3.5 py-2.5 font-semibold text-slate-900">{c.studentName}</td>
-                  <td className="px-3.5 py-2.5 text-slate-600">Class {c.classNumber}</td>
-                  <td className="px-3.5 py-2.5 text-amber-700 font-medium">{c.concessionType}</td>
-                  <td className="px-3.5 py-2.5 font-mono text-right text-emerald-700 font-bold">
-                    - Rs. {c.value.toLocaleString()}
-                  </td>
-                  <td className="px-3.5 py-2.5 text-slate-500 max-w-xs truncate">{c.reason}</td>
-                  <td className="px-3.5 py-2.5 text-slate-400">{c.approvedBy}</td>
-                  <td className="px-3.5 py-2.5 text-center">
-                    <StatusBadge status={c.status} />
+              {concessions.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-3.5 py-6 text-center text-slate-400">
+                    No authorized fee concessions or scholarships on record.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                concessions.map((c) => (
+                  <tr key={c.id} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="px-3.5 py-2.5 font-semibold text-slate-900">{c.studentName}</td>
+                    <td className="px-3.5 py-2.5 text-slate-600">Class {c.classNumber}</td>
+                    <td className="px-3.5 py-2.5 text-amber-700 font-medium">{c.concessionType}</td>
+                    <td className="px-3.5 py-2.5 font-mono text-right text-emerald-700 font-bold">
+                      - Rs. {c.value.toLocaleString()}
+                    </td>
+                    <td className="px-3.5 py-2.5 text-slate-500 max-w-xs truncate">{c.reason}</td>
+                    <td className="px-3.5 py-2.5 text-slate-400">{c.approvedBy}</td>
+                    <td className="px-3.5 py-2.5 text-center">
+                      <StatusBadge status={c.status} />
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

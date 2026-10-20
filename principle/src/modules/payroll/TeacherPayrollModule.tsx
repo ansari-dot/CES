@@ -149,60 +149,68 @@ export const TeacherPayrollModule: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {drafts.map((d) => (
-                <tr key={d.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <div className="font-semibold text-slate-900">{d.teacherName}</div>
-                    <div className="font-mono text-[10px] text-slate-400">{d.staffIdentifier} · {d.payrollMonth}</div>
-                  </td>
-
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="font-mono text-amber-700 font-medium text-[11px]">{d.salaryModel}</span>
-                  </td>
-
-                  <td className="px-4 py-3 whitespace-nowrap text-center font-mono">
-                    <div className="flex items-center justify-center gap-1.5 text-[11px]">
-                      <span className="text-emerald-700 font-semibold">{d.completedLessons} Comp</span>
-                      <span className="text-slate-400">/</span>
-                      <span className="text-slate-500">{d.scheduledLessons} Sched</span>
-                      {d.missedLessons > 0 && <span className="text-rose-600 font-semibold">({d.missedLessons} Missed)</span>}
-                    </div>
-                    <div className="text-[10px] text-slate-400 font-mono">
-                      {d.verifiedHours} verified teaching hrs
-                    </div>
-                  </td>
-
-                  <td className="px-4 py-3 whitespace-nowrap font-mono text-right text-slate-600">
-                    Rs. {d.grossAmount.toLocaleString()}
-                  </td>
-
-                  <td className="px-4 py-3 whitespace-nowrap font-mono text-right font-bold text-emerald-700 text-sm">
-                    Rs. {d.netPayable.toLocaleString()}
-                  </td>
-
-                  <td className="px-4 py-3 whitespace-nowrap text-center">
-                    <StatusBadge status={d.status} />
-                  </td>
-
-                  <td className="px-4 py-3 whitespace-nowrap text-right">
-                    <button
-                      onClick={() => {
-                        setSelectedDraft(d);
-                        setReviewRemarks(
-                          d.status === 'Submitted for Approval'
-                            ? 'All duty logs and Zoom attendance verified. Approved.'
-                            : ''
-                        );
-                        setIsDetailsModalOpen(true);
-                      }}
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-600 hover:bg-amber-500 text-white transition-colors inline-flex items-center gap-1.5 shadow-xs"
-                    >
-                      <Eye className="w-3.5 h-3.5" strokeWidth={1.75} />
-                      <span>Audit & Approve</span>
-                    </button>
+              {drafts.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                    No teacher salary drafts found.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                drafts.map((d) => (
+                  <tr key={d.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="font-semibold text-slate-900">{d.teacherName}</div>
+                      <div className="font-mono text-[10px] text-slate-400">{d.staffIdentifier} · {d.payrollMonth}</div>
+                    </td>
+
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="font-mono text-amber-700 font-medium text-[11px]">{d.salaryModel}</span>
+                    </td>
+
+                    <td className="px-4 py-3 whitespace-nowrap text-center font-mono">
+                      <div className="flex items-center justify-center gap-1.5 text-[11px]">
+                        <span className="text-emerald-700 font-semibold">{d.completedLessons} Comp</span>
+                        <span className="text-slate-400">/</span>
+                        <span className="text-slate-500">{d.scheduledLessons} Sched</span>
+                        {d.missedLessons > 0 && <span className="text-rose-600 font-semibold">({d.missedLessons} Missed)</span>}
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-mono">
+                        {d.verifiedHours} verified teaching hrs
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-3 whitespace-nowrap font-mono text-right text-slate-600">
+                      Rs. {d.grossAmount.toLocaleString()}
+                    </td>
+
+                    <td className="px-4 py-3 whitespace-nowrap font-mono text-right font-bold text-emerald-700 text-sm">
+                      Rs. {d.netPayable.toLocaleString()}
+                    </td>
+
+                    <td className="px-4 py-3 whitespace-nowrap text-center">
+                      <StatusBadge status={d.status} />
+                    </td>
+
+                    <td className="px-4 py-3 whitespace-nowrap text-right">
+                      <button
+                        onClick={() => {
+                          setSelectedDraft(d);
+                          setReviewRemarks(
+                            d.status === 'Submitted for Approval'
+                              ? 'All duty logs and Zoom attendance verified. Approved.'
+                              : ''
+                          );
+                          setIsDetailsModalOpen(true);
+                        }}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-600 hover:bg-amber-500 text-white transition-colors inline-flex items-center gap-1.5 shadow-xs"
+                      >
+                        <Eye className="w-3.5 h-3.5" strokeWidth={1.75} />
+                        <span>Audit & Approve</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

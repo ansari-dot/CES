@@ -70,7 +70,7 @@ export const LiveLessonsPage: React.FC = () => {
               Zoom Pro Enterprise
             </span>
             <span className="text-[#c7c4d8]">•</span>
-            <span className="text-xs text-[#464555]">Persistent Class Rooms 1–8</span>
+            <span className="text-xs text-[#464555]">Persistent Class Rooms</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-[#121c2a] tracking-tight">
             Live Lessons &amp; Zoom Rooms
@@ -97,7 +97,14 @@ export const LiveLessonsPage: React.FC = () => {
 
       {/* Persistent Rooms Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
-        {assignedClasses.map((cls) => (
+        {assignedClasses.length === 0 ? (
+          <div className="col-span-full bg-white rounded-2xl p-12 text-center border border-slate-100 shadow-sm text-[#777587]">
+            <span className="material-symbols-outlined text-4xl mb-2 text-slate-300">videocam_off</span>
+            <p className="font-semibold text-sm text-[#121c2a]">No Zoom Rooms Assigned</p>
+            <p className="text-xs text-[#777587] mt-1">No active classrooms or live sessions are assigned to your faculty profile.</p>
+          </div>
+        ) : (
+          assignedClasses.map((cls) => (
           <div
             key={cls.id}
             className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md transition-all"
@@ -152,7 +159,8 @@ export const LiveLessonsPage: React.FC = () => {
               </button>
             </div>
           </div>
-        ))}
+        ))
+        )}
       </div>
 
       {/* Audio / Video Hardware Pre-Flight Check Console */}
@@ -174,7 +182,7 @@ export const LiveLessonsPage: React.FC = () => {
               <span className="text-xs font-bold text-[#121c2a]">Microphone</span>
               <span className="material-symbols-outlined text-[#006c49] text-[20px]">mic</span>
             </div>
-            <p className="text-[11px] text-[#464555] mb-3">MacBook Pro Built-In Microphone</p>
+            <p className="text-[11px] text-[#464555] mb-3">Default System Microphone</p>
             <button
               onClick={handleTestMic}
               disabled={testingMic}
@@ -189,7 +197,7 @@ export const LiveLessonsPage: React.FC = () => {
               <span className="text-xs font-bold text-[#121c2a]">Camera &amp; Video</span>
               <span className="material-symbols-outlined text-[#006c49] text-[20px]">videocam</span>
             </div>
-            <p className="text-[11px] text-[#464555] mb-3">FaceTime HD 1080p Stream</p>
+            <p className="text-[11px] text-[#464555] mb-3">Default System Camera</p>
             <button
               onClick={handleTestCam}
               disabled={testingCam}

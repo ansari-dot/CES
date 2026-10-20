@@ -176,61 +176,69 @@ export const AttendanceModule: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {filteredSummaries.map((summary) => {
-                  const presentCount = summary.records.filter((r) => r.status === 'Present').length;
-                  const absentCount = summary.records.filter((r) => r.status === 'Absent').length;
-                  const lateCount = summary.records.filter((r) => r.status === 'Late').length;
+                {filteredSummaries.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                      No attendance logs found for the selected criteria.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredSummaries.map((summary) => {
+                    const presentCount = summary.records.filter((r) => r.status === 'Present').length;
+                    const absentCount = summary.records.filter((r) => r.status === 'Absent').length;
+                    const lateCount = summary.records.filter((r) => r.status === 'Late').length;
 
-                  return (
-                    <tr key={summary.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="px-4 py-3 whitespace-nowrap font-mono">
-                        <div className="font-semibold text-slate-900">{summary.date}</div>
-                        <div className="text-[11px] text-slate-500">
-                          {summary.startTime} – {summary.endTime}
-                        </div>
-                      </td>
-
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="font-semibold text-slate-900">Class {summary.classNumber}</div>
-                        <div className="text-[11px] text-amber-700 font-medium">{summary.subjectName}</div>
-                      </td>
-
-                      <td className="px-4 py-3 whitespace-nowrap text-slate-700 font-medium">
-                        {summary.teacherName}
-                      </td>
-
-                      <td className="px-4 py-3 whitespace-nowrap text-center font-mono font-semibold text-slate-800">
-                        {summary.enrolledStudentsCount}
-                      </td>
-
-                      <td className="px-4 py-3 whitespace-nowrap text-center font-mono">
-                        {summary.submissionStatus === 'Missing' ? (
-                          <span className="text-slate-400 italic">—</span>
-                        ) : (
-                          <div className="flex items-center justify-center gap-2">
-                            <span className="text-emerald-700 font-semibold">{presentCount} P</span>
-                            <span className="text-rose-600 font-semibold">{absentCount} A</span>
-                            {lateCount > 0 && <span className="text-amber-700 font-semibold">{lateCount} L</span>}
+                    return (
+                      <tr key={summary.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="px-4 py-3 whitespace-nowrap font-mono">
+                          <div className="font-semibold text-slate-900">{summary.date}</div>
+                          <div className="text-[11px] text-slate-500">
+                            {summary.startTime} – {summary.endTime}
                           </div>
-                        )}
-                      </td>
+                        </td>
 
-                      <td className="px-4 py-3 whitespace-nowrap text-center">
-                        <StatusBadge status={summary.submissionStatus} />
-                      </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="font-semibold text-slate-900">Class {summary.classNumber}</div>
+                          <div className="text-[11px] text-amber-700 font-medium">{summary.subjectName}</div>
+                        </td>
 
-                      <td className="px-4 py-3 whitespace-nowrap text-right">
-                        <button
-                          onClick={() => setSelectedSummary(summary)}
-                          title="Inspect Student Attendance Roster"
-                          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors shadow-2xs ml-auto inline-flex items-center"
-                        >
-                          <Eye className="w-3.5 h-3.5" strokeWidth={1.75} />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        <td className="px-4 py-3 whitespace-nowrap text-slate-700 font-medium">
+                          {summary.teacherName}
+                        </td>
+
+                        <td className="px-4 py-3 whitespace-nowrap text-center font-mono font-semibold text-slate-800">
+                          {summary.enrolledStudentsCount}
+                        </td>
+
+                        <td className="px-4 py-3 whitespace-nowrap text-center font-mono">
+                          {summary.submissionStatus === 'Missing' ? (
+                            <span className="text-slate-400 italic">—</span>
+                          ) : (
+                            <div className="flex items-center justify-center gap-2">
+                              <span className="text-emerald-700 font-semibold">{presentCount} P</span>
+                              <span className="text-rose-600 font-semibold">{absentCount} A</span>
+                              {lateCount > 0 && <span className="text-amber-700 font-semibold">{lateCount} L</span>}
+                            </div>
+                          )}
+                        </td>
+
+                        <td className="px-4 py-3 whitespace-nowrap text-center">
+                          <StatusBadge status={summary.submissionStatus} />
+                        </td>
+
+                        <td className="px-4 py-3 whitespace-nowrap text-right">
+                          <button
+                            onClick={() => setSelectedSummary(summary)}
+                            title="Inspect Student Attendance Roster"
+                            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors shadow-2xs ml-auto inline-flex items-center"
+                          >
+                            <Eye className="w-3.5 h-3.5" strokeWidth={1.75} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>

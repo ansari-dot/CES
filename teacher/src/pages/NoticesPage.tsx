@@ -42,9 +42,16 @@ export const NoticesPage: React.FC = () => {
 
       {/* Notices Stream */}
       <div className="space-y-4">
-        {notices.map((notice) => (
-          <div
-            key={notice.id}
+        {notices.length === 0 ? (
+          <div className="bg-white rounded-2xl p-12 text-center border border-slate-100 shadow-sm text-[#777587]">
+            <span className="material-symbols-outlined text-4xl mb-2 text-slate-300">campaign</span>
+            <p className="font-semibold text-sm text-[#121c2a]">No Notices Published</p>
+            <p className="text-xs text-[#777587] mt-1">There are no academic bulletins or announcements at this time.</p>
+          </div>
+        ) : (
+          notices.map((notice) => (
+            <div
+              key={notice.id}
             className={`p-6 rounded-2xl shadow-sm border transition-all ${
               notice.isUrgent
                 ? 'bg-red-50/40 border-red-200'
@@ -94,7 +101,8 @@ export const NoticesPage: React.FC = () => {
               </span>
             </div>
           </div>
-        ))}
+        ))
+        )}
       </div>
 
       <CreateNoticeModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />

@@ -37,7 +37,15 @@ export const SubmitAttendanceModal: React.FC = () => {
     } catch {
       // Fallback
     }
-    dispatch(confirmFinalAttendance());
+    dispatch(
+      confirmFinalAttendance({
+        className: teacher.assignedClasses?.[0]?.name.split(' - ')[0] || 'Class Session',
+        subject: teacher.assignedClasses?.[0]?.subject || 'Subject',
+        topic: 'Daily Attendance',
+        teacherName: teacher.name,
+        teacherId: teacher.employeeId,
+      })
+    );
     dispatch(
       addToast({
         message: 'Attendance finalized & dispatched to school administration.',
@@ -58,8 +66,12 @@ export const SubmitAttendanceModal: React.FC = () => {
       <div className="space-y-4">
         <p className="text-sm text-[#464555]">
           You are about to sign off and submit verified attendance for{' '}
-          <strong className="text-[#121c2a]">Class 5-A • Mathematics</strong> (Oct 23, 09:00 AM –
-          09:45 AM).
+          <strong className="text-[#121c2a]">
+            {teacher.assignedClasses?.[0]
+              ? `${teacher.assignedClasses[0].name} • ${teacher.assignedClasses[0].subject}`
+              : 'Current Active Session'}
+          </strong>{' '}
+          (Period 1).
         </p>
 
         {/* Breakdown summary */}

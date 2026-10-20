@@ -119,35 +119,43 @@ export const Header: React.FC = () => {
               </div>
 
               <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
-                {notifications.map((notif) => (
-                  <div
-                    key={notif.id}
-                    onClick={() => {
-                      dispatch(markNotificationAsRead(notif.id));
-                      if (notif.targetTab) {
-                        dispatch(setCurrentTab(notif.targetTab));
-                        dispatch(closeNotifications());
-                      }
-                    }}
-                    className={`p-3 text-left transition-colors cursor-pointer hover:bg-[#f8f9ff] ${
-                      !notif.read ? 'bg-indigo-50/40' : ''
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <h4
-                        className={`text-xs ${
-                          !notif.read ? 'font-bold text-[#121c2a]' : 'font-medium text-slate-700'
-                        }`}
-                      >
-                        {notif.title}
-                      </h4>
-                      <span className="text-[10px] text-[#777587] shrink-0">{notif.timestamp}</span>
-                    </div>
-                    <p className="text-[11px] text-[#464555] mt-1 leading-relaxed">
-                      {notif.message}
-                    </p>
+                {notifications.length === 0 ? (
+                  <div className="p-6 text-center text-[#777587]">
+                    <span className="material-symbols-outlined text-3xl mb-1 text-slate-300">notifications_none</span>
+                    <p className="text-xs font-semibold text-[#121c2a]">No notifications</p>
+                    <p className="text-[11px] text-[#777587] mt-0.5">You are all caught up!</p>
                   </div>
-                ))}
+                ) : (
+                  notifications.map((notif) => (
+                    <div
+                      key={notif.id}
+                      onClick={() => {
+                        dispatch(markNotificationAsRead(notif.id));
+                        if (notif.targetTab) {
+                          dispatch(setCurrentTab(notif.targetTab));
+                          dispatch(closeNotifications());
+                        }
+                      }}
+                      className={`p-3 text-left transition-colors cursor-pointer hover:bg-[#f8f9ff] ${
+                        !notif.read ? 'bg-indigo-50/40' : ''
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <h4
+                          className={`text-xs ${
+                            !notif.read ? 'font-bold text-[#121c2a]' : 'font-medium text-slate-700'
+                          }`}
+                        >
+                          {notif.title}
+                        </h4>
+                        <span className="text-[10px] text-[#777587] shrink-0">{notif.timestamp}</span>
+                      </div>
+                      <p className="text-[11px] text-[#464555] mt-1 leading-relaxed">
+                        {notif.message}
+                      </p>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}

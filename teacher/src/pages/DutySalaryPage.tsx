@@ -55,7 +55,13 @@ export const DutySalaryPage: React.FC = () => {
           <div className="w-full bg-[#dee9fc] h-1.5 rounded-full overflow-hidden mt-2">
             <div
               className="bg-[#3525cd] h-full"
-              style={{ width: `${(summary.totalDutyHours / summary.targetDutyHours) * 100}%` }}
+              style={{
+                width: `${
+                  summary.targetDutyHours > 0
+                    ? Math.min(100, (summary.totalDutyHours / summary.targetDutyHours) * 100)
+                    : 0
+                }%`,
+              }}
             ></div>
           </div>
         </div>
@@ -87,7 +93,7 @@ export const DutySalaryPage: React.FC = () => {
             </span>
             <h3 className="text-sm font-bold text-[#121c2a]">Verified Teaching Sessions</h3>
           </div>
-          <span className="text-xs text-[#777587]">Showing latest 5 sessions</span>
+          <span className="text-xs text-[#777587]">Showing {logs.length} sessions</span>
         </div>
 
         <div className="overflow-x-auto">
@@ -103,32 +109,41 @@ export const DutySalaryPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {logs.map((log: DutyLogItem) => (
-                <tr key={log.id} className="hover:bg-slate-50/60">
-                  <td className="p-3 font-semibold text-[#121c2a]">{log.date}</td>
-                  <td className="p-3">
-                    <span className="font-bold text-[#121c2a] block">{log.className}</span>
-                    <span className="text-xs text-[#777587]">{log.subject}</span>
-                  </td>
-                  <td className="p-3 font-mono text-xs text-[#464555]">{log.scheduledTime}</td>
-                  <td className="p-3 text-center font-bold text-[#006c49]">
-                    {log.durationMinutes} mins
-                  </td>
-                  <td className="p-3 text-center">
-                    <span className="px-2 py-0.5 rounded-full bg-[#d1fae5] text-[#065f46] text-[10px] font-bold">
-                      {log.status}
-                    </span>
-                  </td>
-                  <td className="p-3 text-right">
-                    <button
-                      onClick={() => dispatch(openAdjustmentModal(log))}
-                      className="px-2.5 py-1 rounded-lg bg-[#eff4ff] hover:bg-[#dee9fc] text-[#3525cd] text-xs font-bold transition-colors"
-                    >
-                      Request Correction
-                    </button>
+              {logs.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-[#777587]">
+                    <span className="material-symbols-outlined text-3xl mb-1 text-slate-300">history_toggle_off</span>
+                    <p className="font-medium text-xs">No teaching session duty logs found for this payroll cycle.</p>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                logs.map((log: DutyLogItem) => (
+                  <tr key={log.id} className="hover:bg-slate-50/60">
+                    <td className="p-3 font-semibold text-[#121c2a]">{log.date}</td>
+                    <td className="p-3">
+                      <span className="font-bold text-[#121c2a] block">{log.className}</span>
+                      <span className="text-xs text-[#777587]">{log.subject}</span>
+                    </td>
+                    <td className="p-3 font-mono text-xs text-[#464555]">{log.scheduledTime}</td>
+                    <td className="p-3 text-center font-bold text-[#006c49]">
+                      {log.durationMinutes} mins
+                    </td>
+                    <td className="p-3 text-center">
+                      <span className="px-2 py-0.5 rounded-full bg-[#d1fae5] text-[#065f46] text-[10px] font-bold">
+                        {log.status}
+                      </span>
+                    </td>
+                    <td className="p-3 text-right">
+                      <button
+                        onClick={() => dispatch(openAdjustmentModal(log))}
+                        className="px-2.5 py-1 rounded-lg bg-[#eff4ff] hover:bg-[#dee9fc] text-[#3525cd] text-xs font-bold transition-colors"
+                      >
+                        Request Correction
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

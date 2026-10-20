@@ -26,110 +26,9 @@ interface PerformanceState {
   error: string | null;
 }
 
-const initialMetrics: StudentPerformanceMetric[] = [
-  {
-    studentId: '35',
-    name: 'Aiden Cooper',
-    rollNumber: '#01',
-    admissionId: 'ADM-2026-001',
-    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=120',
-    classId: '5',
-    className: 'Class 5',
-    attendanceRate: 98,
-    taskCompletionRate: 100,
-    averageQuizScore: 95,
-    streakStatus: 'High Performer',
-    improvementArea: 'Word Problem speed',
-    starsCount: 14,
-  },
-  {
-    studentId: '36',
-    name: 'Bella Chen',
-    rollNumber: '#02',
-    admissionId: 'ADM-2026-002',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=120',
-    classId: '5',
-    className: 'Class 5',
-    attendanceRate: 100,
-    taskCompletionRate: 98,
-    averageQuizScore: 92,
-    streakStatus: 'Consistent Leader',
-    improvementArea: 'Reciprocal fractions double-checking',
-    starsCount: 18,
-  },
-  {
-    studentId: '37',
-    name: 'Caleb Davis',
-    rollNumber: '#03',
-    admissionId: 'ADM-2026-003',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=120',
-    classId: '5',
-    className: 'Class 5',
-    attendanceRate: 91,
-    taskCompletionRate: 85,
-    averageQuizScore: 80,
-    streakStatus: 'Needs Monitoring',
-    improvementArea: 'On-time homework submission',
-    starsCount: 6,
-  },
-  {
-    studentId: '38',
-    name: 'Daniel Evans',
-    rollNumber: '#04',
-    admissionId: 'ADM-2026-004',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=120',
-    classId: '5',
-    className: 'Class 5',
-    attendanceRate: 94,
-    taskCompletionRate: 90,
-    averageQuizScore: 84,
-    streakStatus: 'Steady Growth',
-    improvementArea: 'Punctuality to morning periods',
-    starsCount: 8,
-  },
-  {
-    studentId: '39',
-    name: 'Zainab Fatima',
-    rollNumber: '#05',
-    admissionId: 'ADM-2026-005',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=120',
-    classId: '5',
-    className: 'Class 5',
-    attendanceRate: 97,
-    taskCompletionRate: 95,
-    averageQuizScore: 89,
-    streakStatus: 'Group Captain',
-    improvementArea: 'Advanced fraction reductions',
-    starsCount: 12,
-  },
-];
+const initialMetrics: StudentPerformanceMetric[] = [];
 
-const initialAchievements: AchievementItem[] = [
-  {
-    id: '1',
-    studentId: '36',
-    studentName: 'Bella Chen',
-    classId: '5',
-    className: 'Class 5',
-    badgeType: 'star',
-    title: 'Excellence in Fraction Logic',
-    reason: 'Demonstrated superb step-by-step problem presentation in peer study group.',
-    awardedDate: 'Oct 19, 2026',
-    starsCount: 5,
-  },
-  {
-    id: '2',
-    studentId: '35',
-    studentName: 'Aiden Cooper',
-    classId: '5',
-    className: 'Class 5',
-    badgeType: 'medal',
-    title: 'Math Marathon Streak',
-    reason: 'Maintained 100% quiz completion and highest accuracy on Module 3 check-in.',
-    awardedDate: 'Oct 18, 2026',
-    starsCount: 3,
-  },
-];
+const initialAchievements: AchievementItem[] = [];
 
 export const fetchPerformanceDataThunk = createAsyncThunk(
   'performance/fetchData',
@@ -203,7 +102,7 @@ export const awardAchievementThunk = createAsyncThunk(
 const initialState: PerformanceState = {
   metrics: initialMetrics,
   achievements: initialAchievements,
-  selectedStudentId: '36',
+  selectedStudentId: null,
   loading: false,
   error: null,
 };
@@ -233,7 +132,7 @@ export const performanceSlice = createSlice({
         state.loading = false;
         const { achievements, students } = action.payload;
 
-        if (Array.isArray(achievements) && achievements.length > 0) {
+        if (Array.isArray(achievements)) {
           state.achievements = achievements.map((a: any) => ({
             id: String(a.id),
             studentId: String(a.studentId),
@@ -248,10 +147,10 @@ export const performanceSlice = createSlice({
           }));
         }
 
-        if (Array.isArray(students) && students.length > 0) {
+        if (Array.isArray(students)) {
           state.metrics = students.map((s: any) => {
             const studentAchievements = state.achievements.filter((a) => a.studentId === String(s.id));
-            const totalStars = studentAchievements.reduce((sum, a) => sum + a.starsCount, 10);
+            const totalStars = studentAchievements.reduce((sum, a) => sum + a.starsCount, 0);
 
             return {
               studentId: String(s.id),
@@ -264,14 +163,18 @@ export const performanceSlice = createSlice({
               attendanceRate: 96,
               taskCompletionRate: 95,
               averageQuizScore: 90,
-              streakStatus: 'High Performer',
+              streakStatus: 'Consistent',
               improvementArea: 'Consistent practice',
               starsCount: totalStars,
             };
           });
 
-          if (!state.selectedStudentId || !state.metrics.find((m) => m.studentId === state.selectedStudentId)) {
-            state.selectedStudentId = state.metrics[0].studentId;
+          if (state.metrics.length > 0) {
+            if (!state.selectedStudentId || !state.metrics.find((m) => m.studentId === state.selectedStudentId)) {
+              state.selectedStudentId = state.metrics[0].studentId;
+            }
+          } else {
+            state.selectedStudentId = null;
           }
         }
       })

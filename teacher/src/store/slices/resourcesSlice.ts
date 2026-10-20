@@ -9,47 +9,7 @@ interface ResourcesState {
   error: string | null;
 }
 
-const initialResources: LearningResource[] = [
-  {
-    id: '1',
-    title: 'Reciprocal Rules & Fraction Division Lecture Deck',
-    description: 'Illustrated guide covering keep-change-flip mechanics, cross-cancellation, and common pitfalls.',
-    classId: '5',
-    className: 'Class 5',
-    subject: 'Mathematics',
-    type: 'slides',
-    fileUrl: 'https://resources.edupulse.org/decks/fractions-reciprocals-ch4.pptx',
-    fileSize: '4.2 MB',
-    uploadDate: 'Oct 21, 2026',
-    isPublished: true,
-  },
-  {
-    id: '2',
-    title: 'Sample Fraction Word Problems Worksheet #4',
-    description: '10 practical real-world scenario problems with step-by-step answer key outline.',
-    classId: '5',
-    className: 'Class 5',
-    subject: 'Mathematics',
-    type: 'pdf',
-    fileUrl: 'https://resources.edupulse.org/worksheets/fraction_quiz_sample.pdf',
-    fileSize: '1.1 MB',
-    uploadDate: 'Oct 20, 2026',
-    isPublished: true,
-  },
-  {
-    id: '3',
-    title: 'Solar & Wind Energy Systems Lab Protocol',
-    description: 'Class 6 STEM lab instructions: photovoltaic measurement and turbine rpm logging.',
-    classId: '6',
-    className: 'Class 6',
-    subject: 'General Science',
-    type: 'pdf',
-    fileUrl: 'https://resources.edupulse.org/labs/solar_wind_lab_protocol.pdf',
-    fileSize: '2.8 MB',
-    uploadDate: 'Oct 19, 2026',
-    isPublished: true,
-  },
-];
+const initialResources: LearningResource[] = [];
 
 export const fetchResourcesThunk = createAsyncThunk(
   'resources/fetchResources',
@@ -148,7 +108,7 @@ export const resourcesSlice = createSlice({
       })
       .addCase(fetchResourcesThunk.fulfilled, (state, action) => {
         state.loading = false;
-        if (Array.isArray(action.payload) && action.payload.length > 0) {
+        if (Array.isArray(action.payload)) {
           state.resources = action.payload.map((r: any) => ({
             id: String(r.id),
             title: r.title,

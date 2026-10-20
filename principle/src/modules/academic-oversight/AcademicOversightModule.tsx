@@ -3,7 +3,7 @@ import { api } from '../../services/api';
 import { AcademicClassPerformance } from '../../types';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { Modal } from '../../components/common/Modal';
-import { LoadingState, ErrorState } from '../../components/common/StateViews';
+import { LoadingState, ErrorState, EmptyState } from '../../components/common/StateViews';
 import { useToast } from '../../context/ToastContext';
 import {
   GraduationCap,
@@ -74,7 +74,13 @@ export const AcademicOversightModule: React.FC = () => {
       </div>
 
       {/* Grid of Classes 1–8 Performance Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {performances.length === 0 ? (
+        <EmptyState
+          title="No Academic Performance Records"
+          description="No evaluation, assessment, or exam records have been recorded for Classes 1 to 8 yet."
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {performances.map((perf) => (
           <div
             key={perf.classNumber}
@@ -158,7 +164,8 @@ export const AcademicOversightModule: React.FC = () => {
             </div>
           </div>
         ))}
-      </div>
+        </div>
+      )}
 
       {/* Subject Performance Breakdown Modal */}
       {selectedClass && (

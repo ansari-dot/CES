@@ -153,8 +153,16 @@ export const VisualTimetableHub: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredSessions.map((s) => {
-                  const isLive = s.status === 'live';
+                {filteredSessions.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-[#777587]">
+                      <span className="material-symbols-outlined text-3xl mb-1 text-slate-300">event_busy</span>
+                      <p className="font-medium text-xs">No class sessions scheduled for {activeDay}.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredSessions.map((s) => {
+                    const isLive = s.status === 'live';
                   const isDone = s.status === 'completed';
 
                   return (
@@ -272,7 +280,8 @@ export const VisualTimetableHub: React.FC = () => {
                       </td>
                     </tr>
                   );
-                })}
+                })
+                )}
               </tbody>
             </table>
           </div>
@@ -295,8 +304,16 @@ export const VisualTimetableHub: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredDuties.map((d) => {
-                  const isCheckedIn = d.status === 'checked_in';
+                {filteredDuties.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-[#777587]">
+                      <span className="material-symbols-outlined text-3xl mb-1 text-slate-300">shield_person</span>
+                      <p className="font-medium text-xs">No faculty duties scheduled for {activeDay}.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredDuties.map((d) => {
+                    const isCheckedIn = d.status === 'checked_in';
                   const isDone = d.status === 'completed';
 
                   return (
@@ -364,7 +381,8 @@ export const VisualTimetableHub: React.FC = () => {
                       </td>
                     </tr>
                   );
-                })}
+                })
+                )}
               </tbody>
             </table>
           </div>
@@ -386,40 +404,49 @@ export const VisualTimetableHub: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {periods.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50 h-12 transition-colors">
-                    <td className="px-3 text-center font-bold text-[#777587]">
-                      {p.periodNumber > 0 ? `P${p.periodNumber}` : '—'}
-                    </td>
-                    <td className="px-3">
-                      <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-[17px]" style={{ color: p.color }}>
-                          {p.icon}
-                        </span>
-                        <span className="font-bold text-[#121c2a]">{p.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-3 font-mono font-semibold text-[#121c2a]">
-                      {p.startTime} – {p.endTime}
-                    </td>
-                    <td className="px-3 text-center font-semibold text-[#464555]">
-                      {p.durationMinutes} min
-                    </td>
-                    <td className="px-3 text-right">
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                          p.type === 'break'
-                            ? 'bg-amber-100 text-[#92400e]'
-                            : p.type === 'duty'
-                            ? 'bg-blue-100 text-[#0284c7]'
-                            : 'bg-indigo-100 text-[#3525cd]'
-                        }`}
-                      >
-                        {p.type}
-                      </span>
+                {periods.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-12 text-center text-[#777587]">
+                      <span className="material-symbols-outlined text-3xl mb-1 text-slate-300">notifications_off</span>
+                      <p className="font-medium text-xs">No bell schedule periods configured.</p>
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  periods.map((p) => (
+                    <tr key={p.id} className="hover:bg-slate-50 h-12 transition-colors">
+                      <td className="px-3 text-center font-bold text-[#777587]">
+                        {p.periodNumber > 0 ? `P${p.periodNumber}` : '—'}
+                      </td>
+                      <td className="px-3">
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-[17px]" style={{ color: p.color }}>
+                            {p.icon}
+                          </span>
+                          <span className="font-bold text-[#121c2a]">{p.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 font-mono font-semibold text-[#121c2a]">
+                        {p.startTime} – {p.endTime}
+                      </td>
+                      <td className="px-3 text-center font-semibold text-[#464555]">
+                        {p.durationMinutes} min
+                      </td>
+                      <td className="px-3 text-right">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                            p.type === 'break'
+                              ? 'bg-amber-100 text-[#92400e]'
+                              : p.type === 'duty'
+                              ? 'bg-blue-100 text-[#0284c7]'
+                              : 'bg-indigo-100 text-[#3525cd]'
+                          }`}
+                        >
+                          {p.type}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

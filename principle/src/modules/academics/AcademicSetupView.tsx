@@ -97,24 +97,30 @@ export const AcademicSetupView: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {sessions.map((ses) => (
-            <div
-              key={ses.id}
-              className={`p-3.5 rounded-xl border flex items-center justify-between transition-all ${
-                ses.status === 'Active'
-                  ? 'bg-amber-50/60 border-amber-200/90 shadow-2xs'
-                  : 'bg-slate-50/70 border-slate-200/80'
-              }`}
-            >
-              <div>
-                <span className="text-xs font-semibold text-slate-900">{ses.name}</span>
-                <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                  {ses.startDate} to {ses.endDate}
-                </div>
-              </div>
-              <StatusBadge status={ses.status} />
+          {sessions.length === 0 ? (
+            <div className="col-span-full p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-400 text-center">
+              No academic sessions configured in the system.
             </div>
-          ))}
+          ) : (
+            sessions.map((ses) => (
+              <div
+                key={ses.id}
+                className={`p-3.5 rounded-xl border flex items-center justify-between transition-all ${
+                  ses.status === 'Active'
+                    ? 'bg-amber-50/60 border-amber-200/90 shadow-2xs'
+                    : 'bg-slate-50/70 border-slate-200/80'
+                }`}
+              >
+                <div>
+                  <span className="text-xs font-semibold text-slate-900">{ses.name}</span>
+                  <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                    {ses.startDate} to {ses.endDate}
+                  </div>
+                </div>
+                <StatusBadge status={ses.status} />
+              </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -169,41 +175,47 @@ export const AcademicSetupView: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-              {activeClass.subjects.map((sub) => {
-                const assignedFaculty = teachers.filter((t) =>
-                  sub.assignedTeacherIds.includes(t.id)
-                );
+              {activeClass.subjects.length === 0 ? (
+                <div className="col-span-full p-8 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-400 text-center">
+                  No curriculum subjects assigned to Class {activeClass.classNumber} yet.
+                </div>
+              ) : (
+                activeClass.subjects.map((sub) => {
+                  const assignedFaculty = teachers.filter((t) =>
+                    sub.assignedTeacherIds.includes(t.id)
+                  );
 
-                return (
-                  <div
-                    key={sub.id}
-                    className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/80 flex flex-col justify-between gap-3 shadow-2xs hover:bg-slate-50 transition-colors"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <BookOpen className="w-3.5 h-3.5 text-amber-600" />
-                          <span className="font-semibold text-slate-900 text-xs">{sub.name}</span>
+                  return (
+                    <div
+                      key={sub.id}
+                      className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/80 flex flex-col justify-between gap-3 shadow-2xs hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <BookOpen className="w-3.5 h-3.5 text-amber-600" />
+                            <span className="font-semibold text-slate-900 text-xs">{sub.name}</span>
+                          </div>
+                          <span className="text-[10px] font-mono text-slate-500 mt-0.5 block">
+                            Code: {sub.code} · {sub.weeklyLessons} lessons / week
+                          </span>
                         </div>
-                        <span className="text-[10px] font-mono text-slate-500 mt-0.5 block">
-                          Code: {sub.code} · {sub.weeklyLessons} lessons / week
-                        </span>
+                      </div>
+
+                      <div className="pt-2.5 border-t border-slate-200/70 flex items-center justify-between text-[11px]">
+                        <span className="text-slate-500">Assigned Faculty:</span>
+                        {assignedFaculty.length > 0 ? (
+                          <span className="font-medium text-emerald-700">
+                            {assignedFaculty.map((f) => f.name).join(', ')}
+                          </span>
+                        ) : (
+                          <span className="text-rose-600 italic font-medium">Unassigned</span>
+                        )}
                       </div>
                     </div>
-
-                    <div className="pt-2.5 border-t border-slate-200/70 flex items-center justify-between text-[11px]">
-                      <span className="text-slate-500">Assigned Faculty:</span>
-                      {assignedFaculty.length > 0 ? (
-                        <span className="font-medium text-emerald-700">
-                          {assignedFaculty.map((f) => f.name).join(', ')}
-                        </span>
-                      ) : (
-                        <span className="text-rose-600 italic font-medium">Unassigned</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
         )}

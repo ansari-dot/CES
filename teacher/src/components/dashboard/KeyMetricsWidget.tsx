@@ -20,12 +20,12 @@ export const KeyMetricsWidget: React.FC = () => {
   const directPendingCount = submissions.filter(
     (s) => s.status === 'pending' || s.status === 'late'
   ).length;
-  const pendingAssignmentsCount = taskPendingSum > 0 ? taskPendingSum : (directPendingCount || 7);
+  const pendingAssignmentsCount = taskPendingSum > 0 ? taskPendingSum : directPendingCount;
 
   // 2. Upcoming lessons count (scheduled or live sessions)
   const upcomingLessonsCount = lessons.filter(
     (l) => l.status === 'scheduled' || l.status === 'started'
-  ).length || (schoolSessions.filter((s) => s.status === 'scheduled' || s.status === 'live').length || 3);
+  ).length || schoolSessions.filter((s) => s.status === 'scheduled' || s.status === 'live').length;
 
   // 3. Student notifications count (unread alerts in the notification center)
   const studentNotificationsCount = notifications.filter((n) => !n.read).length;
@@ -53,7 +53,7 @@ export const KeyMetricsWidget: React.FC = () => {
       badgeText: 'Live Zoom Hub',
       badgeColor: 'bg-indigo-100 text-indigo-800',
       targetTab: 'timetable' as const,
-      subtext: 'Next: 10:30 AM (Class 6-B)',
+      subtext: upcomingLessonsCount > 0 ? `${upcomingLessonsCount} classes scheduled` : 'No upcoming classes',
     },
     {
       id: 'student-notifications',

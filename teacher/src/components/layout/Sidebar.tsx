@@ -8,17 +8,16 @@ interface NavItem {
   id: NavTab;
   label: string;
   icon: string;
-  badge?: number;
 }
 
 const navItems: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
   { id: 'timetable', label: 'Timetable', icon: 'calendar_today' },
   { id: 'live-lessons', label: 'Live Lessons & Zoom', icon: 'videocam' },
-  { id: 'student-attendance', label: 'Student Attendance', icon: 'fact_check', badge: 1 },
+  { id: 'student-attendance', label: 'Student Attendance', icon: 'fact_check' },
   { id: 'learning-resources', label: 'Learning Resources', icon: 'menu_book' },
   { id: 'tasks-assignments', label: 'Tasks & Assignments', icon: 'assignment' },
-  { id: 'submissions-grading', label: 'Submissions & Grading', icon: 'rule', badge: 14 },
+  { id: 'submissions-grading', label: 'Submissions & Grading', icon: 'rule' },
   { id: 'student-projects', label: 'Student Projects', icon: 'folder_shared' },
   { id: 'student-performance', label: 'Student Performance', icon: 'school' },
   { id: 'achievements-feedback', label: 'Achievements & Feedback', icon: 'emoji_events' },
@@ -32,6 +31,16 @@ export const Sidebar: React.FC = () => {
   const currentTab = useAppSelector((state) => state.ui.currentTab);
   const isMobileSidebarOpen = useAppSelector((state) => state.ui.isMobileSidebarOpen);
   const teacher = useAppSelector((state) => state.auth.teacher);
+  const submissions = useAppSelector((state) => state.tasks.submissions);
+  const isAttendanceLocked = useAppSelector((state) => state.attendance.isLocked);
+
+  const pendingGradingCount = submissions.filter((s) => s.status === 'pending' || s.status === 'late').length;
+
+  const getBadgeCount = (tabId: NavTab) => {
+    if (tabId === 'submissions-grading') return pendingGradingCount;
+    if (tabId === 'student-attendance' && !isAttendanceLocked) return 1;
+    return 0;
+  };
 
   return (
     <>
@@ -85,6 +94,7 @@ export const Sidebar: React.FC = () => {
         <nav className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
           {navItems.map((item) => {
             const isActive = currentTab === item.id;
+            const badge = getBadgeCount(item.id);
             return (
               <button
                 key={item.id}
@@ -108,9 +118,9 @@ export const Sidebar: React.FC = () => {
                   </span>
                   <span className="truncate">{item.label}</span>
                 </div>
-                {item.badge && !isActive && (
+                {badge > 0 && !isActive && (
                   <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-[#ffddb8] text-[#92400e]">
-                    {item.badge}
+                    {badge}
                   </span>
                 )}
               </button>

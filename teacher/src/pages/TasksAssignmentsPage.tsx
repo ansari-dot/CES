@@ -93,67 +93,82 @@ export const TasksAssignmentsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredTasks.map((task) => (
-                <tr key={task.id} className="hover:bg-slate-50 h-13 transition-colors">
-                  <td className="px-3">
-                    <span className="font-bold text-[#121c2a] block">{task.title}</span>
-                    <span className="text-[11px] text-[#777587] truncate max-w-[280px] block">
-                      {task.instructions}
-                    </span>
-                  </td>
-
-                  <td className="px-3 font-bold text-[#3525cd]">
-                    <span className="px-2 py-0.5 rounded bg-[#eff4ff] border border-indigo-100">
-                      {task.className}
-                    </span>
-                  </td>
-
-                  <td className="px-3 text-[#464555] font-semibold">{task.subject}</td>
-
-                  <td className="px-3 font-medium text-[#ba1a1a]">
-                    <span className="inline-flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[14px]">event</span>
-                      {task.deadline}
-                    </span>
-                  </td>
-
-                  <td className="px-3 text-center font-bold text-[#121c2a]">
-                    {task.totalMarks} pts
-                  </td>
-
-                  <td className="px-3 text-center">
-                    <span className="font-bold text-[#006c49]">
-                      {task.submittedCount} / {task.totalStudents}
-                    </span>
-                    <div className="w-16 bg-slate-100 h-1 rounded-full overflow-hidden mx-auto mt-1">
-                      <div
-                        className="bg-[#006c49] h-full"
-                        style={{ width: `${(task.submittedCount / task.totalStudents) * 100}%` }}
-                      ></div>
-                    </div>
-                  </td>
-
-                  <td className="px-3 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        onClick={() =>
-                          dispatch(addToast({ message: `Downloaded ${task.handoutName}`, type: 'info' }))
-                        }
-                        className="p-1 text-[#464555] hover:text-[#121c2a] hover:bg-[#eff4ff] rounded transition-colors"
-                        title="Download Handout"
-                      >
-                        <span className="material-symbols-outlined text-[17px]">attachment</span>
-                      </button>
-                      <button
-                        onClick={() => handleOpenGrading(task.id)}
-                        className="px-3 py-1 rounded-lg bg-[#4f46e5] hover:bg-[#3525cd] text-white font-bold text-[11px] shadow-xs"
-                      >
-                        Grade
-                      </button>
-                    </div>
+              {filteredTasks.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-[#777587]">
+                    <span className="material-symbols-outlined text-3xl mb-1 text-slate-300">assignment_late</span>
+                    <p className="font-medium text-xs">No assignments or tasks found.</p>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredTasks.map((task) => (
+                  <tr key={task.id} className="hover:bg-slate-50 h-13 transition-colors">
+                    <td className="px-3">
+                      <span className="font-bold text-[#121c2a] block">{task.title}</span>
+                      <span className="text-[11px] text-[#777587] truncate max-w-[280px] block">
+                        {task.instructions}
+                      </span>
+                    </td>
+
+                    <td className="px-3 font-bold text-[#3525cd]">
+                      <span className="px-2 py-0.5 rounded bg-[#eff4ff] border border-indigo-100">
+                        {task.className}
+                      </span>
+                    </td>
+
+                    <td className="px-3 text-[#464555] font-semibold">{task.subject}</td>
+
+                    <td className="px-3 font-medium text-[#ba1a1a]">
+                      <span className="inline-flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">event</span>
+                        {task.deadline}
+                      </span>
+                    </td>
+
+                    <td className="px-3 text-center font-bold text-[#121c2a]">
+                      {task.totalMarks} pts
+                    </td>
+
+                    <td className="px-3 text-center">
+                      <span className="font-bold text-[#006c49]">
+                        {task.submittedCount} / {task.totalStudents}
+                      </span>
+                      <div className="w-16 bg-slate-100 h-1 rounded-full overflow-hidden mx-auto mt-1">
+                        <div
+                          className="bg-[#006c49] h-full"
+                          style={{
+                            width: `${
+                              task.totalStudents > 0
+                                ? (task.submittedCount / task.totalStudents) * 100
+                                : 0
+                            }%`,
+                          }}
+                        ></div>
+                      </div>
+                    </td>
+
+                    <td className="px-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() =>
+                            dispatch(addToast({ message: `Downloaded ${task.handoutName}`, type: 'info' }))
+                          }
+                          className="p-1 text-[#464555] hover:text-[#121c2a] hover:bg-[#eff4ff] rounded transition-colors"
+                          title="Download Handout"
+                        >
+                          <span className="material-symbols-outlined text-[17px]">attachment</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenGrading(task.id)}
+                          className="px-3 py-1 rounded-lg bg-[#4f46e5] hover:bg-[#3525cd] text-white font-bold text-[11px] shadow-xs"
+                        >
+                          Grade
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

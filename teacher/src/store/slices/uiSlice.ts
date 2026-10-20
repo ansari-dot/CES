@@ -10,44 +10,7 @@ interface UiState {
   toasts: ToastState[];
 }
 
-const initialNotifications: NotificationItem[] = [
-  {
-    id: 'NOTIF-01',
-    title: 'Attendance Pending Submission',
-    message: 'Period 1 (Class 5-A Mathematics) completed at 09:47 AM. Roster awaiting teacher sign-off.',
-    type: 'attendance',
-    timestamp: '25 min ago',
-    read: false,
-    targetTab: 'student-attendance',
-  },
-  {
-    id: 'NOTIF-02',
-    title: 'New Student Submission Received',
-    message: 'Daniel Evans submitted Assignment 4 (+8h late). Review queue updated.',
-    type: 'grading',
-    timestamp: '1 hour ago',
-    read: false,
-    targetTab: 'submissions-grading',
-  },
-  {
-    id: 'NOTIF-03',
-    title: 'Term 2 Exam Timetable Draft',
-    message: 'Dean Miller published draft exam schedule for Grades 4–7.',
-    type: 'administrative',
-    timestamp: '3 hours ago',
-    read: false,
-    targetTab: 'notices',
-  },
-  {
-    id: 'NOTIF-04',
-    title: 'Zoom Room Verified',
-    message: 'Persistent Zoom Pro room 849-2039-1102 health check passed (18ms latency).',
-    type: 'zoom',
-    timestamp: 'Yesterday',
-    read: true,
-    targetTab: 'live-lessons',
-  },
-];
+const initialNotifications: NotificationItem[] = [];
 
 const initialState: UiState = {
   currentTab: 'dashboard',

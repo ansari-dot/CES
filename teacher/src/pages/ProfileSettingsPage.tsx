@@ -87,23 +87,27 @@ export const ProfileSettingsPage: React.FC = () => {
 
             <div>
               <span className="text-[11px] font-bold text-[#777587] uppercase tracking-wider block mb-2">
-                Authorized Assigned Classes (4)
+                Authorized Assigned Classes ({teacher.assignedClasses?.length || 0})
               </span>
               <div className="space-y-1.5">
-                {teacher.assignedClasses.map((cls) => (
-                  <div
-                    key={cls.id}
-                    className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between"
-                  >
-                    <div>
-                      <span className="font-bold text-[#121c2a] block">{cls.name}</span>
-                      <span className="text-[11px] text-[#777587]">{cls.subject}</span>
+                {teacher.assignedClasses?.length === 0 ? (
+                  <p className="text-xs text-[#777587] py-2">No assigned classes found for this academic term.</p>
+                ) : (
+                  teacher.assignedClasses?.map((cls) => (
+                    <div
+                      key={cls.id}
+                      className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between"
+                    >
+                      <div>
+                        <span className="font-bold text-[#121c2a] block">{cls.name}</span>
+                        <span className="text-[11px] text-[#777587]">{cls.subject}</span>
+                      </div>
+                      <span className="text-xs font-semibold text-[#006c49]">
+                        {cls.enrolledCount} Enrolled
+                      </span>
                     </div>
-                    <span className="text-xs font-semibold text-[#006c49]">
-                      {cls.enrolledCount} Enrolled
-                    </span>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </div>

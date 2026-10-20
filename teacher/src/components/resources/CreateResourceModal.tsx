@@ -16,10 +16,10 @@ export const CreateResourceModal: React.FC<CreateResourceModalProps> = ({ isOpen
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [targetClassId, setTargetClassId] = useState('5-math-a');
-  const [subject, setSubject] = useState('Mathematics');
+  const [targetClassId, setTargetClassId] = useState(assignedClasses[0]?.id || '');
+  const [subject, setSubject] = useState(assignedClasses[0]?.subject || 'General');
   const [type, setType] = useState<'pdf' | 'recording' | 'slides' | 'notes' | 'link'>('pdf');
-  const [fileUrl, setFileUrl] = useState('https://resources.edupulse.org/uploads/fraction_study_guide.pdf');
+  const [fileUrl, setFileUrl] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +38,7 @@ export const CreateResourceModal: React.FC<CreateResourceModalProps> = ({ isOpen
           description,
           resourceType: type.toUpperCase(),
           fileUrl,
-          fileSize: '2.4 MB'
+          fileSize: fileUrl ? '1.2 MB' : '—'
         })
       });
     } catch (err) {
@@ -52,11 +52,11 @@ export const CreateResourceModal: React.FC<CreateResourceModalProps> = ({ isOpen
       title,
       description,
       classId: targetClassId,
-      className: selectedCls ? selectedCls.name.split(' - ')[0] : 'Class 5-A',
+      className: selectedCls ? selectedCls.name.split(' - ')[0] : (targetClassId || 'General Class'),
       subject,
       type,
-      fileUrl,
-      fileSize: '2.4 MB',
+      fileUrl: fileUrl.trim() || '—',
+      fileSize: fileUrl ? '1.2 MB' : '—',
       uploadDate: 'Today',
       isPublished: true,
     };
@@ -70,6 +70,7 @@ export const CreateResourceModal: React.FC<CreateResourceModalProps> = ({ isOpen
     );
     setTitle('');
     setDescription('');
+    setFileUrl('');
     onClose();
   };
 
@@ -112,13 +113,18 @@ export const CreateResourceModal: React.FC<CreateResourceModalProps> = ({ isOpen
             <select
               value={targetClassId}
               onChange={(e) => setTargetClassId(e.target.value)}
+              disabled={assignedClasses.length === 0}
               className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none"
             >
-              {assignedClasses.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
+              {assignedClasses.length === 0 ? (
+                <option value="" disabled>No classes assigned</option>
+              ) : (
+                assignedClasses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))
+              )}
             </select>
           </div>
 
@@ -129,9 +135,17 @@ export const CreateResourceModal: React.FC<CreateResourceModalProps> = ({ isOpen
               onChange={(e) => setSubject(e.target.value)}
               className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none"
             >
-              <option value="Mathematics">Mathematics</option>
-              <option value="General Science">General Science</option>
-              <option value="Science Lab">Science Lab</option>
+              {assignedClasses.length > 0 ? (
+                Array.from(new Set(assignedClasses.map((c) => c.subject))).map((subj) => (
+                  <option key={subj} value={subj}>{subj}</option>
+                ))
+              ) : (
+                <>
+                  <option value="General">General</option>
+                  <option value="Mathematics">Mathematics</option>
+                  <option value="Science">Science</option>
+                </>
+              )}
             </select>
           </div>
         </div>

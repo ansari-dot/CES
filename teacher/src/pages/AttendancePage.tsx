@@ -60,7 +60,11 @@ export const AttendancePage: React.FC = () => {
               {isLocked ? 'Locked' : 'Draft'}
             </span>
           </div>
-          <p className="text-xs text-[#777587]">Class 5-A • Mathematics • Period 1 (09:00 - 09:45 AM)</p>
+          <p className="text-xs text-[#777587]">
+            {teacher?.assignedClasses?.[0]
+              ? `${teacher.assignedClasses[0].name} • ${teacher.assignedClasses[0].subject} • Period 1 (09:00 - 09:45 AM)`
+              : 'No active session scheduled'}
+          </p>
         </div>
 
         {/* Action Buttons */}
@@ -166,31 +170,39 @@ export const AttendancePage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {submittedLogs.map((log) => (
-                <tr key={log.id} className="hover:bg-slate-50 h-11 transition-colors">
-                  <td className="px-3 font-semibold text-[#121c2a]">{log.date}</td>
-                  <td className="px-3">
-                    <span className="font-bold text-[#121c2a]">{log.className}</span>
-                    <span className="text-[#777587] ml-1.5">• {log.topic}</span>
-                  </td>
-                  <td className="px-3 text-center font-bold text-[#006c49]">
-                    {log.presentCount}/{log.totalStudents} Present
-                  </td>
-                  <td className="px-3 text-center">
-                    <span className="px-2 py-0.5 rounded-full bg-slate-100 text-[#065f46] font-bold text-[10px]">
-                      Locked
-                    </span>
-                  </td>
-                  <td className="px-3 text-right">
-                    <button
-                      onClick={() => dispatch(openCorrectionDrawer(log.id))}
-                      className="px-2.5 py-1 rounded bg-[#eff4ff] hover:bg-[#dee9fc] text-[#3525cd] font-bold text-[11px]"
-                    >
-                      Correction
-                    </button>
+              {submittedLogs.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-[#777587]">
+                    No past attendance records found.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                submittedLogs.map((log) => (
+                  <tr key={log.id} className="hover:bg-slate-50 h-11 transition-colors">
+                    <td className="px-3 font-semibold text-[#121c2a]">{log.date}</td>
+                    <td className="px-3">
+                      <span className="font-bold text-[#121c2a]">{log.className}</span>
+                      <span className="text-[#777587] ml-1.5">• {log.topic}</span>
+                    </td>
+                    <td className="px-3 text-center font-bold text-[#006c49]">
+                      {log.presentCount}/{log.totalStudents} Present
+                    </td>
+                    <td className="px-3 text-center">
+                      <span className="px-2 py-0.5 rounded-full bg-slate-100 text-[#065f46] font-bold text-[10px]">
+                        Locked
+                      </span>
+                    </td>
+                    <td className="px-3 text-right">
+                      <button
+                        onClick={() => dispatch(openCorrectionDrawer(log.id))}
+                        className="px-2.5 py-1 rounded bg-[#eff4ff] hover:bg-[#dee9fc] text-[#3525cd] font-bold text-[11px]"
+                      >
+                        Correction
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

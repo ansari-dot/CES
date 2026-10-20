@@ -7,10 +7,10 @@ export const LoginPage: React.FC = () => {
   const dispatch = useAppDispatch();
   const loginError = useAppSelector((state) => state.auth.loginError);
 
-  const [email, setEmail] = useState('teacher@school.pk');
-  const [password, setPassword] = useState('TeacherPassword123!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Forgot Password modal state

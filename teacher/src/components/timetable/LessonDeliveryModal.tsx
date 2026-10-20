@@ -22,16 +22,10 @@ export const LessonDeliveryModal: React.FC = () => {
   useEffect(() => {
     if (activeLesson) {
       setTopic(activeLesson.topic || '');
-      setStartTime(activeLesson.actualStartTime || activeLesson.startTime || '09:00 AM');
-      setEndTime(activeLesson.actualEndTime || activeLesson.endTime || '09:45 AM');
-      setNotes(
-        activeLesson.notes ||
-          'Covered core concepts and practice sets. Enrolled students actively engaged.'
-      );
-      setResourceUrl(
-        activeLesson.resourceAttachmentUrl ||
-          'https://resources.edupulse.org/boards/class5-math-oct23.pdf'
-      );
+      setStartTime(activeLesson.actualStartTime || activeLesson.startTime || '');
+      setEndTime(activeLesson.actualEndTime || activeLesson.endTime || '');
+      setNotes(activeLesson.notes || '');
+      setResourceUrl(activeLesson.resourceAttachmentUrl || '');
     }
   }, [activeLesson]);
 

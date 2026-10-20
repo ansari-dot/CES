@@ -8,34 +8,7 @@ interface NoticesState {
   error: string | null;
 }
 
-const initialNotices: AcademicNotice[] = [
-  {
-    id: '1',
-    title: 'Term 2 Examination Timetable Draft Released',
-    content:
-      'Dean Miller published the draft timetable for grades 4–8. Please cross-check classroom allocations and submit conflict requests before Friday 3:00 PM.',
-    author: 'Academic Administration',
-    date: 'Today, 08:15 AM',
-    targetClassId: 'all',
-    targetClassName: 'All Assigned Classes',
-    isUrgent: true,
-    isPublished: true,
-    category: 'Examination & Scheduling',
-  },
-  {
-    id: '2',
-    title: 'Zoom Virtual Classroom Maintenance Patch',
-    content:
-      'Virtual classroom links will experience a 15-minute sync window on Saturday Oct 26 from 11:00 PM – 11:15 PM PKT. No weekday impact expected.',
-    author: 'IT Infrastructure Advisory',
-    date: 'Yesterday, 04:30 PM',
-    targetClassId: 'all',
-    targetClassName: 'All Faculty',
-    isUrgent: false,
-    isPublished: true,
-    category: 'Technical',
-  },
-];
+const initialNotices: AcademicNotice[] = [];
 
 export const fetchNoticesThunk = createAsyncThunk(
   'notices/fetchNotices',
@@ -104,7 +77,7 @@ export const noticesSlice = createSlice({
       })
       .addCase(fetchNoticesThunk.fulfilled, (state, action) => {
         state.loading = false;
-        if (Array.isArray(action.payload) && action.payload.length > 0) {
+        if (Array.isArray(action.payload)) {
           state.notices = action.payload.map((n: any) => ({
             id: String(n.id),
             title: n.title,
