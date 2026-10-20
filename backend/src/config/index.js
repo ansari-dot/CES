@@ -5,7 +5,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().default(5000),
   APP_BASE_URL: z.string().default('http://localhost:5000'),
-  ALLOWED_ORIGINS: z.string().default('http://localhost:3000,http://localhost:5173,http://localhost:5174'),
+  ALLOWED_ORIGINS: z.string().default('http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:5173,http://localhost:5174'),
   
   DB_HOST: z.string().default('127.0.0.1'),
   DB_PORT: z.coerce.number().default(3306),

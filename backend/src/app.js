@@ -9,6 +9,8 @@ import { requestId } from './shared/middleware/requestId.js';
 import { csrfProtection } from './shared/middleware/csrf.js';
 import { notFound } from './shared/middleware/notFound.js';
 import { errorHandler } from './shared/errors/errorHandler.js';
+import { AppError } from './shared/errors/AppError.js';
+import { ErrorCodes } from './shared/errors/errorCodes.js';
 import authRoutes from './modules/auth/auth.routes.js';
 import teachersRoutes from './modules/teachers/teachers.routes.js';
 import academicRoutes from './modules/academic/academic.routes.js';
@@ -57,11 +59,11 @@ export function createApp() {
   app.use(
     cors({
       origin: (origin, callback) => {
-        // Allow requests with no origin (e.g. mobile apps, curl, same-origin)
-        if (!origin || config.allowedOrigins.includes(origin)) {
+        // Allow requests with no origin (e.g. mobile apps, curl, same-origin) or allowed origins or development
+        if (!origin || config.allowedOrigins.includes(origin) || !config.isProduction) {
           return callback(null, true);
         }
-        return callback(new Error('Blocked by CORS'));
+        return callback(new AppError('Blocked by CORS policy', 403, ErrorCodes.FORBIDDEN));
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
