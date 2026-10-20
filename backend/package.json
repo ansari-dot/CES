@@ -11,6 +11,7 @@
     "migrate:rollback": "knex migrate:rollback --knexfile knexfile.js",
     "seed": "knex seed:run --knexfile knexfile.js",
     "create:principal": "node scripts/create-principal.js",
+    "db:wipe": "node -r dotenv/config scripts/wipe_data.js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --detectOpenHandles --forceExit"
   },
   "dependencies": {
