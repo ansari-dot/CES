@@ -2,6 +2,7 @@ import { teachersRepository } from './teachers.repository.js';
 import { hashPassword } from '../../shared/crypto/password.js';
 import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
+import { emailService } from '../../shared/email/email.service.js';
 
 export const teachersService = {
   async getAllTeachers() {
@@ -65,6 +66,20 @@ export const teachersService = {
         approved_by: creatorUserId || null
       }
     });
+
+    // Send Welcome Email with credentials to teacher
+    if (email) {
+      emailService.sendTeacherCredentials({
+        email,
+        name,
+        staffIdentifier,
+        username,
+        temporaryPassword,
+        designation: designation || 'Faculty Member'
+      }).catch((err) => {
+        console.warn(`[TeachersService] Background email dispatch failed: ${err.message}`);
+      });
+    }
 
     return {
       id: `TCH-${String(teacherId).padStart(2, '0')}`,

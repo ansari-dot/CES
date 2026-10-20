@@ -3,6 +3,7 @@ import { academicRepository } from '../academic/academic.repository.js';
 import { hashPassword } from '../../shared/crypto/password.js';
 import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
+import { emailService } from '../../shared/email/email.service.js';
 
 import { timetableRepository } from '../timetable/timetable.repository.js';
 import { zoomRepository } from '../zoom/zoom.repository.js';
@@ -68,6 +69,21 @@ export const studentsService = {
           }
         : null
     });
+
+    // Send Welcome Email with credentials to student/parent
+    if (email) {
+      emailService.sendStudentCredentials({
+        email,
+        name,
+        admissionNo,
+        rollNo,
+        className: `Class ${currentClassId}`,
+        username,
+        temporaryPassword
+      }).catch((err) => {
+        console.warn(`[StudentsService] Background email dispatch failed: ${err.message}`);
+      });
+    }
 
     return {
       id: studentId,
