@@ -13,7 +13,8 @@ import {
   Lock,
   CheckCircle2,
   AlertTriangle,
-  RotateCcw
+  RotateCcw,
+  Copy
 } from 'lucide-react';
 
 export const ZoomLinksModule: React.FC = () => {
@@ -175,15 +176,29 @@ export const ZoomLinksModule: React.FC = () => {
 
               {/* Action Buttons */}
               <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-1 text-xs">
-                <button
-                  onClick={() => handleRunHealthCheck(m.classNumber)}
-                  disabled={checkingClassNum === m.classNumber}
-                  title="Run availability health check"
-                  className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors flex items-center gap-1 text-[11px]"
-                >
-                  <RefreshCw className={`w-3 h-3 ${checkingClassNum === m.classNumber ? 'animate-spin text-amber-600' : ''}`} />
-                  <span>Check</span>
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleRunHealthCheck(m.classNumber)}
+                    disabled={checkingClassNum === m.classNumber}
+                    title="Run availability health check"
+                    className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors flex items-center gap-1 text-[11px]"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${checkingClassNum === m.classNumber ? 'animate-spin text-amber-600' : ''}`} />
+                    <span>Check</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(m.joinUrl);
+                      toast.success(`Copied Class ${m.classNumber} persistent link`);
+                    }}
+                    title="Copy permanent classroom join link"
+                    className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors flex items-center gap-1 text-[11px]"
+                  >
+                    <Copy className="w-3 h-3" />
+                    <span>Copy</span>
+                  </button>
+                </div>
 
                 <div className="flex items-center gap-1">
                   {m.renewalHistory.length > 0 && (

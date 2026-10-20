@@ -4,6 +4,7 @@ import { addResource } from '../../store/slices/resourcesSlice';
 import { addToast } from '../../store/slices/uiSlice';
 import { Modal } from '../common/Modal';
 import { LearningResource } from '../../types';
+import { requestApi } from '../../services/api';
 
 interface CreateResourceModalProps {
   isOpen: boolean;
@@ -95,10 +96,8 @@ export const CreateResourceModal: React.FC<CreateResourceModalProps> = ({ isOpen
     const finalFileUrl = fileUrl.trim() || 'https://edupulse.org/resources/sample-handout.pdf';
 
     try {
-      await fetch('/api/v1/tasks/resources', {
+      await requestApi('/api/v1/tasks/resources', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           classId: classNum,
           subjectId: subjectNum,

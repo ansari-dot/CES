@@ -1,3 +1,28 @@
+let refreshPromise: Promise<boolean> | null = null;
+
+export async function executeTokenRefresh(): Promise<boolean> {
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = (async () => {
+    try {
+      const res = await fetch('/api/v1/auth/refresh', {
+        method: 'POST',
+        credentials: 'include'
+      });
+      // Refresh returns 204 No Content on success
+      return res.status === 204 || res.ok;
+    } catch {
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
 async function getCsrfHeader(): Promise<string | undefined> {
   const match = document.cookie.match(/(?:^|;\s*)sms_csrf=([^;]+)/);
   if (match) {
@@ -12,7 +37,7 @@ async function getCsrfHeader(): Promise<string | undefined> {
   }
 }
 
-export async function requestApi<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function requestApi<T>(path: string, options: RequestInit = {}, isRetry = false): Promise<T> {
   const headers = new Headers(options.headers || {});
   if (!(options.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
@@ -32,10 +57,46 @@ export async function requestApi<T>(path: string, options: RequestInit = {}): Pr
     credentials: 'include'
   });
 
-  const json = await res.json();
-  if (!res.ok || json.success === false) {
-    throw new Error(json.error?.message || 'API request failed');
+  // Automatically refresh access token on 401 Unauthorized and retry request seamlessly
+  if (
+    res.status === 401 &&
+    !isRetry &&
+    !path.includes('/auth/login') &&
+    !path.includes('/auth/refresh')
+  ) {
+    const refreshed = await executeTokenRefresh();
+    if (refreshed) {
+      const retryHeaders = new Headers(options.headers || {});
+      if (!(options.body instanceof FormData) && !retryHeaders.has('Content-Type')) {
+        retryHeaders.set('Content-Type', 'application/json');
+      }
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+        const newCsrf = await getCsrfHeader();
+        if (newCsrf) {
+          retryHeaders.set('X-CSRF-Token', newCsrf);
+        }
+      }
+      return requestApi<T>(path, { ...options, headers: retryHeaders }, true);
+    }
   }
 
-  return json.data as T;
+  if (res.status === 204) {
+    return null as T;
+  }
+
+  let json: any = null;
+  const contentType = res.headers.get('content-type');
+  if (contentType && contentType.includes('application/json')) {
+    try {
+      json = await res.json();
+    } catch {
+      json = null;
+    }
+  }
+
+  if (!res.ok || (json && json.success === false)) {
+    throw new Error(json?.error?.message || `API request failed (${res.status})`);
+  }
+
+  return (json ? json.data : null) as T;
 }

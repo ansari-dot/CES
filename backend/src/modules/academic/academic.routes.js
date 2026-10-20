@@ -12,7 +12,9 @@ router.post('/sessions', authenticate, authorize('academic.setup.manage'), acade
 // Classes & Subjects
 router.get('/classes', authenticate, academicController.getClasses);
 router.get('/classes/:id/subjects', authenticate, academicController.getClassSubjects);
+router.post('/classes/:id/subjects', authenticate, authorize('academic.setup.manage'), academicController.addSubjectToClass);
 router.put('/classes/:id/subjects', authenticate, authorize('academic.setup.manage'), academicController.setClassSubjects);
+router.post('/classes/:id/assign-teacher', authenticate, authorize('academic.setup.manage'), academicController.assignTeacher);
 
 // Subjects
 router.get('/subjects', authenticate, academicController.getSubjects);
@@ -21,5 +23,7 @@ router.post('/subjects', authenticate, authorize('academic.setup.manage'), acade
 // Teacher Assignments
 router.get('/teachers/:id/assignments', authenticate, academicController.getTeacherAssignments);
 router.post('/teachers/:id/assignments', authenticate, authorize('academic.setup.manage'), academicController.assignTeacher);
+router.post('/academic/assign-teacher', authenticate, authorize('academic.setup.manage'), academicController.assignTeacher);
+router.post('/academic/unassign-teacher', authenticate, authorize('academic.setup.manage'), academicController.unassignTeacher);
 
 export default router;

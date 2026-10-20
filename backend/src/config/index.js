@@ -15,9 +15,9 @@ const envSchema = z.object({
   DB_SSL: z.enum(['true', 'false']).default('false'),
 
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
-  ACCESS_TTL_MIN: z.coerce.number().default(15),
-  REFRESH_IDLE_DAYS: z.coerce.number().default(7),
-  REFRESH_ABS_DAYS: z.coerce.number().default(30),
+  ACCESS_TTL_MIN: z.coerce.number().default(1440), // 24 hours (1440 minutes) for seamless LMS usage
+  REFRESH_IDLE_DAYS: z.coerce.number().default(30),
+  REFRESH_ABS_DAYS: z.coerce.number().default(90),
 
   CSRF_SECRET: z.string().min(32, 'CSRF_SECRET must be at least 32 characters'),
   COOKIE_SECURE: z.enum(['true', 'false']).default('false'),

@@ -1,5 +1,6 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
 import { NavTab, NotificationItem, ToastState } from '../../types';
+import { requestApi } from '../../services/api';
 
 interface UiState {
   currentTab: NavTab;
@@ -11,6 +12,76 @@ interface UiState {
 }
 
 const initialNotifications: NotificationItem[] = [];
+
+export const fetchTeacherNotificationsThunk = createAsyncThunk(
+  'ui/fetchTeacherNotifications',
+  async (_, { rejectWithValue }) => {
+    try {
+      const data = await requestApi<any[]>('/api/v1/notices/notifications');
+      if (!Array.isArray(data)) return [];
+
+      const mapped: NotificationItem[] = data.map((n: any) => {
+        let type: NotificationItem['type'] = 'administrative';
+        let targetTab: NavTab = 'dashboard';
+
+        const rawType = (n.type || '').toLowerCase();
+        const recType = (n.relatedRecordType || '').toLowerCase();
+
+        if (rawType.includes('zoom') || recType.includes('zoom')) {
+          type = 'zoom';
+          targetTab = 'live-lessons';
+        } else if (rawType.includes('attendance') || recType.includes('attendance')) {
+          type = 'attendance';
+          targetTab = 'student-attendance';
+        } else if (rawType.includes('task') || recType.includes('task') || rawType.includes('submission')) {
+          type = 'grading';
+          targetTab = 'tasks-assignments';
+        } else if (rawType.includes('timetable') || recType.includes('timetable') || rawType.includes('substitute')) {
+          type = 'timetable';
+          targetTab = 'timetable';
+        } else if (rawType.includes('notice') || recType.includes('notice')) {
+          type = 'administrative';
+          targetTab = 'notices';
+        }
+
+        return {
+          id: String(n.id),
+          title: n.title,
+          message: n.message,
+          type,
+          timestamp: n.timestamp ? new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Now',
+          read: Boolean(n.isRead),
+          targetTab
+        };
+      });
+
+      return mapped;
+    } catch (err: any) {
+      return rejectWithValue(err.message || 'Failed to fetch operational notifications');
+    }
+  }
+);
+
+export const markNotificationReadThunk = createAsyncThunk(
+  'ui/markNotificationRead',
+  async (id: string) => {
+    try {
+      if (!id.startsWith('remind-5m-')) {
+        await requestApi(`/api/v1/notices/notifications/${id}/read`, { method: 'POST' });
+      }
+    } catch (_) {}
+    return id;
+  }
+);
+
+export const markAllNotificationsReadThunk = createAsyncThunk(
+  'ui/markAllNotificationsRead',
+  async () => {
+    try {
+      await requestApi('/api/v1/notices/notifications/read-all', { method: 'POST' });
+    } catch (_) {}
+  }
+);
 
 const initialState: UiState = {
   currentTab: 'dashboard',
@@ -47,6 +118,12 @@ export const uiSlice = createSlice({
     closeNotifications: (state) => {
       state.isNotificationsOpen = false;
     },
+    addNotification: (state, action: PayloadAction<NotificationItem>) => {
+      const exists = state.notifications.some((n) => n.id === action.payload.id);
+      if (!exists) {
+        state.notifications.unshift(action.payload);
+      }
+    },
     markNotificationAsRead: (state, action: PayloadAction<string>) => {
       const n = state.notifications.find((notif) => notif.id === action.payload);
       if (n) {
@@ -78,6 +155,27 @@ export const uiSlice = createSlice({
       state.toasts = state.toasts.filter((t) => t.id !== action.payload);
     },
   },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchTeacherNotificationsThunk.fulfilled, (state, action) => {
+        if (Array.isArray(action.payload)) {
+          const incoming = action.payload;
+          const localPreLesson = state.notifications.filter((n) => n.id.startsWith('remind-5m-'));
+          const incomingIds = new Set(incoming.map((n) => n.id));
+          const merged = [...incoming, ...localPreLesson.filter((n) => !incomingIds.has(n.id))];
+          state.notifications = merged;
+        }
+      })
+      .addCase(markNotificationReadThunk.fulfilled, (state, action) => {
+        const notif = state.notifications.find((n) => n.id === action.payload);
+        if (notif) notif.read = true;
+      })
+      .addCase(markAllNotificationsReadThunk.fulfilled, (state) => {
+        state.notifications.forEach((n) => {
+          n.read = true;
+        });
+      });
+  },
 });
 
 export const {
@@ -88,6 +186,7 @@ export const {
   openMobileSidebar,
   toggleNotifications,
   closeNotifications,
+  addNotification,
   markNotificationAsRead,
   markAllNotificationsAsRead,
   addToast,

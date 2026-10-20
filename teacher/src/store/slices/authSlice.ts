@@ -163,6 +163,14 @@ export const authSlice = createSlice({
           state.selectedClassId = classes.length > 0 ? classes[0].id : '';
         }
       })
+      .addCase(checkTeacherSessionThunk.rejected, (state) => {
+        state.isAuthenticated = false;
+        state.teacher = DEFAULT_LIVE_TEACHER;
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('edupulse_auth_state');
+          sessionStorage.removeItem('edupulse_session_auth');
+        }
+      })
       .addCase(logoutTeacherThunk.fulfilled, (state) => {
         state.isAuthenticated = false;
         state.loginError = null;

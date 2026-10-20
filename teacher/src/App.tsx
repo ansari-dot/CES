@@ -27,12 +27,16 @@ import { fetchNoticesThunk } from './store/slices/noticesSlice';
 import { fetchPerformanceDataThunk } from './store/slices/performanceSlice';
 import { fetchLessonRosterThunk, fetchCorrectionVouchersThunk } from './store/slices/attendanceSlice';
 import { fetchDutySummaryThunk } from './store/slices/dutySlice';
+import { useLessonReminderTicker } from './hooks/useLessonReminderTicker';
 
 export default function App() {
   const dispatch = useAppDispatch();
   const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
   const teacher = useAppSelector((state) => state.auth.teacher);
   const currentTab = useAppSelector((state) => state.ui.currentTab);
+
+  // Active 5-minute pre-lesson notification reminder ticker
+  useLessonReminderTicker();
 
   // 1. Session verification on app startup
   useEffect(() => {

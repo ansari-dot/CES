@@ -5,6 +5,7 @@ import {
   submitCorrectionVoucher,
 } from '../../store/slices/attendanceSlice';
 import { addToast } from '../../store/slices/uiSlice';
+import { requestApi } from '../../services/api';
 
 export const CorrectionDrawer: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -28,10 +29,8 @@ export const CorrectionDrawer: React.FC = () => {
     try {
       const lessonNum = parseInt((targetLogId || '').replace(/\D/g, ''), 10) || 1;
       const proposed = correctionType.includes('Excused') ? 'EXCUSED' : correctionType.includes('Present') ? 'PRESENT' : 'LATE';
-      await fetch('/api/v1/attendance/corrections', {
+      await requestApi('/api/v1/attendance/corrections', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           lessonId: lessonNum,
           studentId: 1,

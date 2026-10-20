@@ -27,12 +27,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setCurrentUser(profile);
           setIsAuthenticated(true);
         } else {
+          localStorage.removeItem(AUTH_SESSION_KEY);
+          sessionStorage.removeItem(AUTH_SESSION_KEY);
           setIsAuthenticated(false);
           setCurrentUser(null);
         }
       } else {
-        setIsAuthenticated(false);
-        setCurrentUser(null);
+        // Fallback: check if active HTTP cookie session exists
+        const profile = await api.getProfile();
+        if (profile) {
+          setCurrentUser(profile);
+          setIsAuthenticated(true);
+          sessionStorage.setItem(AUTH_SESSION_KEY, 'cookie_session_active');
+        } else {
+          setIsAuthenticated(false);
+          setCurrentUser(null);
+        }
       }
     } catch (err) {
       console.warn('No active authenticated session found:', err);

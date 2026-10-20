@@ -12,7 +12,7 @@ export const noticesService = {
       throw new AppError('Notice content is required', 422, ErrorCodes.VALIDATION_ERROR);
     }
 
-    return await noticesRepository.createNotice({
+    const notice = await noticesRepository.createNotice({
       title,
       content,
       audience,
@@ -22,6 +22,20 @@ export const noticesService = {
       expiryDate,
       userId
     });
+
+    try {
+      await noticesRepository.createNotification({
+        title: `Official Notice: ${title}`,
+        message: content.length > 140 ? `${content.substring(0, 137)}...` : content,
+        type: 'Operational Update',
+        targetRole: 'ALL',
+        relatedRecordId: notice.id,
+        relatedRecordType: 'Notice',
+        priority: priority === 'Urgent' ? 'High' : 'Medium'
+      });
+    } catch (_) {}
+
+    return notice;
   },
 
   async getNotices(filters) {

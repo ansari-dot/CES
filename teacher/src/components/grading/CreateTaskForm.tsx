@@ -3,6 +3,7 @@ import { useAppDispatch, useAppSelector } from '../../store';
 import { createNewTask } from '../../store/slices/tasksSlice';
 import { addToast } from '../../store/slices/uiSlice';
 import { Task } from '../../types';
+import { requestApi } from '../../services/api';
 
 export const CreateTaskForm: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -95,10 +96,8 @@ export const CreateTaskForm: React.FC = () => {
     const subjectNum = selectedSubjObj?.id || 1;
 
     try {
-      await fetch('/api/v1/tasks', {
+      await requestApi('/api/v1/tasks', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           classId: classNum,
           subjectId: subjectNum,

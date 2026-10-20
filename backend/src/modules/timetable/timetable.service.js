@@ -1,5 +1,7 @@
 import { timetableRepository } from './timetable.repository.js';
 import { zoomRepository } from '../zoom/zoom.repository.js';
+import { db } from '../../shared/db/knex.js';
+import { notificationService } from '../../shared/services/notificationService.js';
 import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
 
@@ -200,9 +202,30 @@ export const timetableService = {
       changedBy: createdBy
     });
 
+    const slotIds = slots.map((s) => s.id);
+    let totalScheduledCount = generatedLessons.length;
+    if (slotIds.length > 0) {
+      const activeRows = await db('timetable_lessons')
+        .whereIn('slot_id', slotIds)
+        .count('* as count')
+        .first();
+      totalScheduledCount = Math.max(generatedLessons.length, Number(activeRows?.count || 0));
+    }
+
+    notificationService.notify({
+      title: 'Academic Timetable Published',
+      message: `Timetable published covering a ${days}-day rolling window with ${totalScheduledCount} scheduled lessons.`,
+      type: 'Timetable Change',
+      targetRole: 'TEACHER',
+      relatedRecordId: sessionId,
+      relatedRecordType: 'Timetable',
+      priority: 'Medium'
+    });
+
     return {
-      message: `Generated ${generatedLessons.length} lessons for ${days} days rolling window`,
-      count: generatedLessons.length
+      message: `Generated ${generatedLessons.length} new lessons (${totalScheduledCount} total active) for ${days} days rolling window`,
+      count: totalScheduledCount,
+      newCount: generatedLessons.length
     };
   },
 
@@ -224,6 +247,16 @@ export const timetableService = {
       changedBy: userId
     });
 
+    notificationService.notify({
+      title: 'Scheduled Lesson Cancelled',
+      message: `Lesson #${lessonId} scheduled for ${lesson.lesson_date || 'scheduled date'} was cancelled: ${reason || 'Administrative update'}.`,
+      type: 'Timetable Change',
+      targetRole: 'ALL',
+      relatedRecordId: lessonId,
+      relatedRecordType: 'Timetable',
+      priority: 'High'
+    });
+
     return { lessonId, status: 'CANCELLED' };
   },
 
@@ -242,6 +275,23 @@ export const timetableService = {
       newValues: { substitute_teacher_id: substituteTeacherId },
       reason: reason || 'Substitute teacher assigned',
       changedBy: userId
+    });
+
+    let subUserId = null;
+    try {
+      const subTeacher = await db('teachers').where({ id: substituteTeacherId }).first();
+      subUserId = subTeacher?.user_id;
+    } catch (_) {}
+
+    notificationService.notify({
+      userId: subUserId,
+      title: 'Substitute Teaching Duty Assigned',
+      message: `You have been assigned as substitute instructor for Lesson #${lessonId}. Reason: ${reason || 'Institutional allocation'}.`,
+      type: 'Substitute Assigned',
+      targetRole: 'TEACHER',
+      relatedRecordId: lessonId,
+      relatedRecordType: 'Timetable',
+      priority: 'High'
     });
 
     return { lessonId, substituteTeacherId };

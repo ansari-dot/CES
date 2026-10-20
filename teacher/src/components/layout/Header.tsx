@@ -7,6 +7,8 @@ import {
   closeNotifications,
   markNotificationAsRead,
   markAllNotificationsAsRead,
+  markNotificationReadThunk,
+  markAllNotificationsReadThunk,
   setCurrentTab,
   toggleMobileSidebar,
   addToast,
@@ -84,7 +86,7 @@ export const Header: React.FC = () => {
           >
             <span className="material-symbols-outlined text-[22px]">notifications</span>
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#ba1a1a] text-white font-bold text-[10px]">
+              <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#ba1a1a] text-white font-bold text-[10px] animate-pulse ring-2 ring-white">
                 {unreadCount}
               </span>
             )}
@@ -104,7 +106,10 @@ export const Header: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => dispatch(markAllNotificationsAsRead())}
+                    onClick={() => {
+                      dispatch(markAllNotificationsAsRead());
+                      dispatch(markAllNotificationsReadThunk());
+                    }}
                     className="text-[11px] font-medium text-[#3525cd] hover:underline"
                   >
                     Mark all read
@@ -131,6 +136,7 @@ export const Header: React.FC = () => {
                       key={notif.id}
                       onClick={() => {
                         dispatch(markNotificationAsRead(notif.id));
+                        dispatch(markNotificationReadThunk(notif.id));
                         if (notif.targetTab) {
                           dispatch(setCurrentTab(notif.targetTab));
                           dispatch(closeNotifications());

@@ -2,7 +2,7 @@ import { tasksRepository } from './tasks.repository.js';
 import { parseDbDate } from '../../shared/utils/date.js';
 import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
-
+import { notificationService } from '../../shared/services/notificationService.js';
 import { db } from '../../shared/db/knex.js';
 
 export const tasksService = {
@@ -50,7 +50,19 @@ export const tasksService = {
       created_by: createdBy
     });
 
-    return await tasksRepository.findTaskById(taskId);
+    const createdTask = await tasksRepository.findTaskById(taskId);
+
+    notificationService.notify({
+      title: 'New Assignment Published',
+      message: `Assignment "${title}" has been published for Class ${classId}. Deadline: ${new Date(deadline).toLocaleDateString()}.`,
+      type: 'Operational Update',
+      targetRole: 'ALL',
+      relatedRecordId: taskId,
+      relatedRecordType: 'Task',
+      priority: 'Medium'
+    });
+
+    return createdTask;
   },
 
   async getTasks(filters) {
@@ -88,6 +100,23 @@ export const tasksService = {
       fileSize,
       studentNotes,
       isLate
+    });
+
+    let teacherUserId = null;
+    try {
+      const teacher = await db('teachers').where({ id: task.teacher_id }).first();
+      teacherUserId = teacher?.user_id;
+    } catch (_) {}
+
+    notificationService.notify({
+      userId: teacherUserId,
+      title: 'Student Submission Received',
+      message: `A coursework submission was turned in for "${task.title}".`,
+      type: 'Operational Update',
+      targetRole: 'TEACHER',
+      relatedRecordId: subId,
+      relatedRecordType: 'Task',
+      priority: 'Medium'
     });
 
     return await tasksRepository.findSubmissionById(subId);

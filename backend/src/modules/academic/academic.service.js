@@ -57,5 +57,40 @@ export const academicService = {
   async assignTeacher(data) {
     const id = await academicRepository.assignTeacher(data);
     return { id, ...data };
+  },
+
+  async addSubjectToClass(classId, { subjectId, name, code }) {
+    const cls = await academicRepository.getClassById(classId);
+    if (!cls) {
+      throw new AppError('Class not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    let finalSubjectId = subjectId ? Number(subjectId) : null;
+
+    if (!finalSubjectId && name && code) {
+      let existingSub = await academicRepository.getSubjectByCode(code.toUpperCase());
+      if (!existingSub) {
+        const newId = await academicRepository.createSubject({
+          name: name.trim(),
+          code: code.trim().toUpperCase(),
+          is_active: 1
+        });
+        finalSubjectId = newId;
+      } else {
+        finalSubjectId = existingSub.id;
+      }
+    }
+
+    if (!finalSubjectId) {
+      throw new AppError('Subject ID or valid name and code required', 400, ErrorCodes.VALIDATION_ERROR);
+    }
+
+    await academicRepository.addSubjectToClass(classId, finalSubjectId);
+    return await academicRepository.getClassSubjects(classId);
+  },
+
+  async removeTeacherAssignment(data) {
+    await academicRepository.removeTeacherAssignment(data);
+    return { success: true };
   }
 };
