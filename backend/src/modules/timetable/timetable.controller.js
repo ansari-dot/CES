@@ -35,6 +35,34 @@ export const timetableController = {
     }
   },
 
+  async updateSlot(req, res, next) {
+    try {
+      const slotId = Number(req.params.id);
+      const updates = req.body;
+      const slot = await timetableService.updateSlot({
+        slotId,
+        updates,
+        userId: req.user?.id
+      });
+      return sendSuccess(res, slot);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async deleteSlot(req, res, next) {
+    try {
+      const slotId = Number(req.params.id);
+      const result = await timetableService.deleteSlot({
+        slotId,
+        userId: req.user?.id
+      });
+      return sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async getLessons(req, res, next) {
     try {
       const classId = req.query.classId ? Number(req.query.classId) : null;

@@ -119,7 +119,7 @@ export const studentsRepository = {
         full_name: user.full_name,
         password_hash: user.password_hash,
         status: user.status || 'ACTIVE',
-        must_change_password: 1
+        must_change_password: user.must_change_password ?? 0
       });
 
       // 2. Create student record

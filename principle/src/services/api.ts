@@ -690,20 +690,80 @@ export const api = {
   },
 
   async saveTimetableLesson(lessonData: Omit<TimetableLesson, 'id' | 'history'>, lessonId?: string, reason = 'Timetable update'): Promise<TimetableLesson> {
-    const newLessonId = lessonId || `SLOT-${Date.now()}`;
-    return {
-      ...lessonData,
-      id: newLessonId,
-      history: []
+    const weekdayMap: Record<string, number> = {
+      Monday: 1,
+      Tuesday: 2,
+      Wednesday: 3,
+      Thursday: 4,
+      Friday: 5,
+      Saturday: 6,
+      Sunday: 7
     };
+
+    const rawClassId = Number(lessonData.classNumber) || 1;
+    const rawSubjectId = Number(lessonData.subjectId) || 1;
+    const rawTeacherId = parseInt(String(lessonData.teacherId).replace(/\D/g, ''), 10) || 1;
+    const startTimeFormatted = lessonData.startTime.length === 5 ? `${lessonData.startTime}:00` : lessonData.startTime;
+    const endTimeFormatted = lessonData.endTime.length === 5 ? `${lessonData.endTime}:00` : lessonData.endTime;
+
+    const numSlotId = lessonId ? parseInt(lessonId.replace(/\D/g, ''), 10) : null;
+
+    if (numSlotId) {
+      await requestApi(`/api/v1/timetable/slots/${numSlotId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          classId: rawClassId,
+          subjectId: rawSubjectId,
+          teacherId: rawTeacherId,
+          weekday: weekdayMap[lessonData.dayOfWeek] || 1,
+          startTime: startTimeFormatted,
+          endTime: endTimeFormatted
+        })
+      });
+    } else {
+      await requestApi('/api/v1/timetable/slots', {
+        method: 'POST',
+        body: JSON.stringify({
+          sessionId: 1,
+          classId: rawClassId,
+          subjectId: rawSubjectId,
+          teacherId: rawTeacherId,
+          weekday: weekdayMap[lessonData.dayOfWeek] || 1,
+          startTime: startTimeFormatted,
+          endTime: endTimeFormatted,
+          effectiveFrom: new Date().toISOString().split('T')[0]
+        })
+      });
+    }
+
+    const all = await this.getTimetableLessons();
+    const found = all.find(
+      (s) =>
+        s.classNumber === lessonData.classNumber &&
+        s.dayOfWeek === lessonData.dayOfWeek &&
+        s.startTime === lessonData.startTime.substring(0, 5)
+    );
+    return found || { ...lessonData, id: lessonId || `SLOT-${Date.now()}`, history: [] };
   },
 
   async cancelTimetableLesson(lessonId: string, reason: string): Promise<TimetableLesson> {
+    const numId = parseInt(lessonId.replace(/\D/g, ''), 10);
+    if (numId) {
+      try {
+        await requestApi(`/api/v1/timetable/slots/${numId}`, {
+          method: 'DELETE'
+        });
+      } catch (err) {
+        console.warn('cancelTimetableLesson backend warning:', err);
+      }
+    }
     const lessons = await this.getTimetableLessons();
-    const lesson = lessons.find(l => l.id === lessonId);
-    if (!lesson) throw new Error('Lesson not found');
-    lesson.lessonStatus = 'Cancelled';
-    return lesson;
+    const found = lessons.find(l => l.id === lessonId);
+    if (found) {
+      found.lessonStatus = 'Cancelled';
+      return found;
+    }
+    return { id: lessonId, lessonStatus: 'Cancelled' } as TimetableLesson;
   },
 
   async publishTimetable(classNumber?: number): Promise<void> {

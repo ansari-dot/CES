@@ -12,6 +12,14 @@ export const attendanceService = {
     return data;
   },
 
+  async getClassRoster(classId, date) {
+    const data = await attendanceRepository.getClassRoster(classId, date);
+    if (!data) {
+      throw new AppError('Class not found', 404, ErrorCodes.NOT_FOUND);
+    }
+    return data;
+  },
+
   async recordLessonDelivery({
     lessonId,
     actualStartAt,

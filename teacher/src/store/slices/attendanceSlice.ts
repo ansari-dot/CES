@@ -38,6 +38,19 @@ export const fetchLessonRosterThunk = createAsyncThunk(
   }
 );
 
+export const fetchClassRosterThunk = createAsyncThunk(
+  'attendance/fetchClassRoster',
+  async (classId: number | string, { rejectWithValue }) => {
+    try {
+      const numClassId = typeof classId === 'string' ? parseInt(classId.replace(/\D/g, ''), 10) || 1 : classId;
+      const res = await requestApi<any>(`/api/v1/attendance/classes/${numClassId}/roster`);
+      return res;
+    } catch (err: any) {
+      return rejectWithValue(err.message || 'Failed to fetch class roster');
+    }
+  }
+);
+
 export const submitAttendanceThunk = createAsyncThunk(
   'attendance/submitAttendance',
   async (
@@ -250,22 +263,55 @@ export const attendanceSlice = createSlice({
           if (action.payload.lesson?.lessonId) {
             state.currentLessonId = String(action.payload.lesson.lessonId);
           }
-          if (Array.isArray(action.payload.students)) {
-            state.roster = action.payload.students.map((s: any) => ({
+          const list = action.payload.roster || action.payload.students || [];
+          if (Array.isArray(list)) {
+            state.roster = list.map((s: any) => ({
               studentId: String(s.studentId),
               rollNumber: s.rollNumber || '01',
               studentName: s.studentName,
-              admissionId: s.admissionNumber || `ADM-${s.studentId}`,
+              admissionId: s.admissionNumber || s.admissionId || `ADM-${s.studentId}`,
               avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120',
               status: (s.status ? s.status.toLowerCase() : 'present') as AttendanceStatus,
               remark: s.remarks || '',
-              streak: s.attendanceRate >= 95 ? 'Perfect Attendance Streak' : 'Consistent',
+              streak: (Number(s.attendanceRate) >= 95 || !s.attendanceRate) ? 'Perfect Attendance Streak' : 'Consistent',
               attendanceRate: Number(s.attendanceRate) || 96,
             }));
           }
         }
       })
       .addCase(fetchLessonRosterThunk.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // Fetch Class Roster
+      .addCase(fetchClassRosterThunk.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchClassRosterThunk.fulfilled, (state, action) => {
+        state.loading = false;
+        if (action.payload) {
+          state.isLocked = Boolean(action.payload.isLocked);
+          if (action.payload.lesson?.lessonId) {
+            state.currentLessonId = String(action.payload.lesson.lessonId);
+          }
+          const list = action.payload.roster || action.payload.students || [];
+          if (Array.isArray(list)) {
+            state.roster = list.map((s: any) => ({
+              studentId: String(s.studentId),
+              rollNumber: s.rollNumber || '01',
+              studentName: s.studentName,
+              admissionId: s.admissionNumber || s.admissionId || `ADM-${s.studentId}`,
+              avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120',
+              status: (s.status ? s.status.toLowerCase() : 'present') as AttendanceStatus,
+              remark: s.remarks || '',
+              streak: (Number(s.attendanceRate) >= 95 || !s.attendanceRate) ? 'Perfect Attendance Streak' : 'Consistent',
+              attendanceRate: Number(s.attendanceRate) || 96,
+            }));
+          }
+        }
+      })
+      .addCase(fetchClassRosterThunk.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })

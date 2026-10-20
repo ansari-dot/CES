@@ -62,7 +62,81 @@ export const timetableService = {
       changedBy: createdBy
     });
 
+    // Auto-generate rolling lessons so they immediately appear on teacher, student, and principal calendars
+    try {
+      await this.publishTimetable({ sessionId, days: 14, createdBy });
+    } catch (e) {
+      console.warn('[TimetableService] Auto-publish on slot creation warning:', e.message);
+    }
+
     return await timetableRepository.findSlotById(slotId);
+  },
+
+  async updateSlot({ slotId, updates, userId }) {
+    const slot = await timetableRepository.findSlotById(slotId);
+    if (!slot) {
+      throw new AppError('Timetable slot not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    const { classId, subjectId, teacherId, weekday, startTime, endTime, status } = updates;
+
+    // Check conflict if schedule parameters changed
+    if (classId || teacherId || weekday || startTime || endTime) {
+      const conflict = await timetableRepository.checkSlotConflict({
+        classId: classId || slot.classId,
+        teacherId: teacherId || slot.teacherId,
+        weekday: weekday || slot.weekday,
+        startTime: startTime || slot.startTime,
+        endTime: endTime || slot.endTime,
+        excludeSlotId: slotId
+      });
+
+      if (conflict) {
+        const message =
+          conflict.type === 'CLASS_CONFLICT'
+            ? 'Class already has another subject scheduled during this period.'
+            : 'Teacher already has another class assigned during this period.';
+        throw new AppError(message, 409, ErrorCodes.SCHEDULE_CONFLICT);
+      }
+    }
+
+    const dbUpdates = {};
+    if (classId !== undefined) dbUpdates.class_id = classId;
+    if (subjectId !== undefined) dbUpdates.subject_id = subjectId;
+    if (teacherId !== undefined) dbUpdates.teacher_id = teacherId;
+    if (weekday !== undefined) dbUpdates.weekday = weekday;
+    if (startTime !== undefined) dbUpdates.start_time = startTime;
+    if (endTime !== undefined) dbUpdates.end_time = endTime;
+    if (status !== undefined) dbUpdates.status = status;
+
+    await timetableRepository.updateSlot(slotId, dbUpdates);
+
+    try {
+      await this.publishTimetable({ sessionId: slot.sessionId || 1, days: 14, createdBy: userId });
+    } catch (e) {
+      console.warn('[TimetableService] Auto-publish on slot update warning:', e.message);
+    }
+
+    return await timetableRepository.findSlotById(slotId);
+  },
+
+  async deleteSlot({ slotId, userId }) {
+    const slot = await timetableRepository.findSlotById(slotId);
+    if (!slot) {
+      throw new AppError('Timetable slot not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    await timetableRepository.deleteSlot(slotId);
+
+    await timetableRepository.logChange({
+      slotId,
+      changeType: 'DELETED',
+      oldValues: slot,
+      reason: 'Timetable slot deleted by administrator',
+      changedBy: userId
+    });
+
+    return { slotId, deleted: true };
   },
 
   async getLessons(filter = {}) {

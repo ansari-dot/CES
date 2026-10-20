@@ -17,20 +17,57 @@ export const fetchTeacherLessonsThunk = createAsyncThunk(
   'timetable/fetchTeacherLessons',
   async (_, { rejectWithValue }) => {
     try {
-      const data = await requestApi<any[]>('/api/v1/zoom/my-class-session');
-      if (Array.isArray(data) && data.length > 0) {
-        return data.map((l: any) => ({
+      const [todayRes, lessonsRes, slotsRes] = await Promise.all([
+        requestApi<any[]>('/api/v1/zoom/my-class-session').catch(() => []),
+        requestApi<any[]>('/api/v1/timetable/lessons').catch(() => []),
+        requestApi<any[]>('/api/v1/timetable/slots').catch(() => [])
+      ]);
+
+      const daysMap: Record<number, string> = {
+        1: 'Monday',
+        2: 'Tuesday',
+        3: 'Wednesday',
+        4: 'Thursday',
+        5: 'Friday',
+        6: 'Saturday',
+        7: 'Sunday'
+      };
+
+      const todayList = Array.isArray(todayRes) ? todayRes : [];
+      const lessonsList = Array.isArray(lessonsRes) ? lessonsRes : [];
+      const slotsList = Array.isArray(slotsRes) ? slotsRes : [];
+
+      const combinedLessons: TimetableLesson[] = [];
+      const seenKeys = new Set<string>();
+
+      // 1. Process dated lessons
+      const listToProcess = lessonsList.length > 0 ? lessonsList : todayList;
+      for (const l of listToProcess) {
+        const dateStr = l.lessonDate || (l.startAt ? String(l.startAt).split('T')[0] : new Date().toISOString().split('T')[0]);
+        const dObj = new Date(dateStr + 'T12:00:00Z');
+        const dayOfWeek = dObj.toLocaleDateString('en-US', { weekday: 'long' });
+
+        const startH = l.startAt ? new Date(l.startAt).getHours() : parseInt(String(l.startTime || '09').substring(0, 2), 10);
+        let periodNum = 1;
+        if (startH >= 14) periodNum = 4;
+        else if (startH >= 13) periodNum = 3;
+        else if (startH >= 10) periodNum = 2;
+
+        const key = `${dayOfWeek}-${periodNum}-${l.classId}`;
+        seenKeys.add(key);
+
+        combinedLessons.push({
           id: `LES-${String(l.id).padStart(2, '0')}`,
           rawId: l.id,
           classId: `${l.classNumber}-${(l.subjectCode || 'sub').toLowerCase()}-a`,
-          className: l.className,
+          className: l.className || `Class ${l.classNumber}`,
           subject: l.subjectName,
           topic: l.topicCovered || 'Core Instruction & Practical Exercises',
-          date: l.lessonDate || new Date().toISOString().split('T')[0],
-          dayOfWeek: new Date(l.lessonDate || Date.now()).toLocaleDateString('en-US', { weekday: 'long' }),
+          date: dateStr,
+          dayOfWeek,
           startTime: l.startAt ? String(l.startAt).substring(11, 16) : '09:00 AM',
           endTime: l.endAt ? String(l.endAt).substring(11, 16) : '09:45 AM',
-          periodNumber: 1,
+          periodNumber: periodNum,
           room: `Online Live Classroom (Room ${l.classNumber})`,
           status: (l.status === 'LIVE' ? 'live' : l.status === 'COMPLETED' ? 'completed' : 'scheduled') as any,
           zoomRoomId: l.meetingNumber || `900${l.classNumber}000${l.classNumber}`,
@@ -38,9 +75,45 @@ export const fetchTeacherLessonsThunk = createAsyncThunk(
           deliveryLogged: Boolean(l.deliveryLoggedAt),
           attendanceSubmitted: false,
           notes: l.teachingNotes || ''
-        }));
+        });
       }
-      return [];
+
+      // 2. Also populate weekly recurring slots so the full weekly matrix is visible
+      for (const s of slotsList) {
+        const dayOfWeek = daysMap[s.weekday] || 'Monday';
+        const startH = parseInt(String(s.startTime).substring(0, 2), 10);
+        let periodNum = 1;
+        if (startH >= 14) periodNum = 4;
+        else if (startH >= 13) periodNum = 3;
+        else if (startH >= 10) periodNum = 2;
+
+        const key = `${dayOfWeek}-${periodNum}-${s.classId}`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          combinedLessons.push({
+            id: `SLOT-${String(s.id).padStart(2, '0')}`,
+            rawId: s.id,
+            classId: `${s.classNumber}-${(s.subjectCode || 'sub').toLowerCase()}-a`,
+            className: s.className || `Class ${s.classNumber}`,
+            subject: s.subjectName,
+            topic: 'Core Instruction & Practical Exercises',
+            date: new Date().toISOString().split('T')[0],
+            dayOfWeek,
+            startTime: String(s.startTime).substring(0, 5),
+            endTime: String(s.endTime).substring(0, 5),
+            periodNumber: periodNum,
+            room: `Online Live Classroom (Room ${s.classNumber})`,
+            status: 'scheduled' as any,
+            zoomRoomId: `900${s.classNumber}000${s.classNumber}`,
+            zoomPasscode: `CLASS${s.classNumber}#`,
+            deliveryLogged: false,
+            attendanceSubmitted: false,
+            notes: ''
+          });
+        }
+      }
+
+      return combinedLessons;
     } catch (err: any) {
       return rejectWithValue(err.message || 'Failed to fetch teacher lessons');
     }

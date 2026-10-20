@@ -27,7 +27,8 @@ async function enrichUserData(user, permissions) {
         joiningDate: teacher.joining_date
       };
 
-      const assignments = await db('teacher_assignments')
+      // 1. Direct assignments from teacher_assignments
+      const directAssignments = await db('teacher_assignments')
         .join('classes', 'teacher_assignments.class_id', 'classes.id')
         .join('subjects', 'teacher_assignments.subject_id', 'subjects.id')
         .leftJoin('zoom_meetings', 'classes.id', 'zoom_meetings.class_id')
@@ -42,13 +43,78 @@ async function enrichUserData(user, permissions) {
           'zoom_meetings.zoom_meeting_id as zoomRoomId'
         );
 
-      assignedClasses = assignments.map((a) => ({
-        id: `${a.grade}-${a.subjectCode.toLowerCase()}-a`,
+      // 2. Timetable slots where teacher is scheduled
+      const slotAssignments = await db('timetable_slots')
+        .join('classes', 'timetable_slots.class_id', 'classes.id')
+        .join('subjects', 'timetable_slots.subject_id', 'subjects.id')
+        .leftJoin('zoom_meetings', 'classes.id', 'zoom_meetings.class_id')
+        .where('timetable_slots.teacher_id', teacher.id)
+        .select(
+          'classes.id as classId',
+          'classes.grade_level as grade',
+          'classes.name as className',
+          'subjects.id as subjectId',
+          'subjects.name as subject',
+          'subjects.code as subjectCode',
+          'zoom_meetings.zoom_meeting_id as zoomRoomId'
+        );
+
+      // Merge and deduplicate by classId + subjectId
+      const mergedMap = new Map();
+      for (const item of [...directAssignments, ...slotAssignments]) {
+        const key = `${item.classId}-${item.subjectId}`;
+        if (!mergedMap.has(key)) {
+          mergedMap.set(key, item);
+        }
+      }
+      const uniqueAssignments = Array.from(mergedMap.values());
+
+      // Sync any missing assignments into teacher_assignments table for consistency
+      for (const item of uniqueAssignments) {
+        try {
+          const exists = await db('teacher_assignments').where({
+            teacher_id: teacher.id,
+            class_id: item.classId,
+            subject_id: item.subjectId
+          }).first();
+          if (!exists) {
+            await db('teacher_assignments').insert({
+              teacher_id: teacher.id,
+              class_id: item.classId,
+              subject_id: item.subjectId,
+              session_id: 1,
+              effective_from: '2026-10-20',
+              assigned_by: user.id
+            });
+          }
+        } catch (_) {}
+      }
+
+      // Query active student counts per class
+      const classIds = uniqueAssignments.map((a) => a.classId);
+      const countsByClass = {};
+      if (classIds.length > 0) {
+        const studentCounts = await db('students')
+          .whereIn('current_class_id', classIds)
+          .where('status', 'ACTIVE')
+          .groupBy('current_class_id')
+          .select('current_class_id', db.raw('count(*) as count'));
+        for (const row of studentCounts) {
+          countsByClass[row.current_class_id] = Number(row.count);
+        }
+      }
+
+      assignedClasses = uniqueAssignments.map((a) => ({
+        id: String(a.classId),
+        classId: a.classId,
         name: `${a.className} - ${a.subject}`,
+        className: a.className,
         grade: a.grade,
         section: 'A',
+        subjectId: a.subjectId,
         subject: a.subject,
-        enrolledCount: 26,
+        subjectCode: a.subjectCode,
+        enrolledCount: countsByClass[a.classId] || 0,
         zoomRoomId: a.zoomRoomId || `900${a.grade}000${a.grade}`,
         zoomPasscode: `CLASS${a.grade}#`,
         roomName: `Online Room ${a.grade}`

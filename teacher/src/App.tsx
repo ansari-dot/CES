@@ -20,6 +20,7 @@ import { ProfileSettingsPage } from './pages/ProfileSettingsPage';
 // Import Live Backend Async Thunks
 import { checkTeacherSessionThunk } from './store/slices/authSlice';
 import { fetchTeacherLessonsThunk } from './store/slices/timetableSlice';
+import { fetchSchoolTimetable } from './store/slices/schoolTimetableSlice';
 import { fetchTasksThunk, fetchSubmissionsThunk } from './store/slices/tasksSlice';
 import { fetchResourcesThunk } from './store/slices/resourcesSlice';
 import { fetchNoticesThunk } from './store/slices/noticesSlice';
@@ -42,6 +43,7 @@ export default function App() {
   useEffect(() => {
     if (isAuthenticated) {
       dispatch(fetchTeacherLessonsThunk());
+      dispatch(fetchSchoolTimetable());
       dispatch(fetchTasksThunk());
       dispatch(fetchSubmissionsThunk());
       dispatch(fetchResourcesThunk());

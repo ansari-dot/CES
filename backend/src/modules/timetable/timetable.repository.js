@@ -34,7 +34,31 @@ export const timetableRepository = {
   },
 
   async findSlotById(id) {
-    return await db('timetable_slots').where({ id }).first();
+    const row = await db('timetable_slots')
+      .join('classes', 'timetable_slots.class_id', 'classes.id')
+      .join('subjects', 'timetable_slots.subject_id', 'subjects.id')
+      .join('teachers', 'timetable_slots.teacher_id', 'teachers.id')
+      .join('users', 'teachers.user_id', 'users.id')
+      .where('timetable_slots.id', id)
+      .select(
+        'timetable_slots.id',
+        'timetable_slots.session_id as sessionId',
+        'timetable_slots.class_id as classId',
+        'classes.grade_level as classNumber',
+        'classes.name as className',
+        'timetable_slots.subject_id as subjectId',
+        'subjects.code as subjectCode',
+        'subjects.name as subjectName',
+        'timetable_slots.teacher_id as teacherId',
+        'users.full_name as teacherName',
+        'timetable_slots.weekday',
+        'timetable_slots.start_time as startTime',
+        'timetable_slots.end_time as endTime',
+        'timetable_slots.status'
+      )
+      .first();
+
+    return row || (await db('timetable_slots').where({ id }).first());
   },
 
   async checkSlotConflict({ classId, teacherId, weekday, startTime, endTime, excludeSlotId = null }) {
@@ -70,6 +94,11 @@ export const timetableRepository = {
 
   async updateSlot(id, updates) {
     return await db('timetable_slots').where({ id }).update(updates);
+  },
+
+  async deleteSlot(id) {
+    await db('timetable_lessons').where({ slot_id: id }).delete();
+    return await db('timetable_slots').where({ id }).delete();
   },
 
   // Lessons
