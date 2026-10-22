@@ -1,0 +1,6 @@
+{
+  "name": "Cambridge Education System — Student Portal",
+  "description": "Student portal for Cambridge Education System with live classes, timetable, learning resources, assignments, attendance, results, fees, and achievements.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
