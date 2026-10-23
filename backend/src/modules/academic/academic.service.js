@@ -57,5 +57,9 @@ export const academicService = {
   async assignTeacher(data) {
     const id = await academicRepository.assignTeacher(data);
     return { id, ...data };
+  },
+
+  async getClassAssignments(classId) {
+    return await academicRepository.getClassAssignments(classId);
   }
 };

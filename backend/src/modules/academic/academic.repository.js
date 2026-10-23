@@ -99,5 +99,19 @@ export const academicRepository = {
       assigned_by: assignedBy
     });
     return id;
+  },
+
+  async getClassAssignments(classId) {
+    return await db('teacher_assignments')
+      .join('subjects', 'teacher_assignments.subject_id', 'subjects.id')
+      .join('teachers', 'teacher_assignments.teacher_id', 'teachers.id')
+      .join('users', 'teachers.user_id', 'users.id')
+      .where('teacher_assignments.class_id', classId)
+      .select(
+        'teacher_assignments.subject_id as subjectId',
+        'subjects.name as subjectName',
+        'teacher_assignments.teacher_id as teacherId',
+        'users.full_name as teacherName'
+      );
   }
 };

@@ -94,5 +94,15 @@ export const academicController = {
     } catch (error) {
       next(error);
     }
+  },
+
+  async getClassAssignments(req, res, next) {
+    try {
+      const classId = Number(req.params.id);
+      const assignments = await academicService.getClassAssignments(classId);
+      return sendSuccess(res, assignments);
+    } catch (error) {
+      next(error);
+    }
   }
 };
