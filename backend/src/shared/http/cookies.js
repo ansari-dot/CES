@@ -39,7 +39,8 @@ export function setAuthCookies(res, { accessToken, refreshToken, csrfToken }) {
       httpOnly: false, // client JS reads this to send in X-CSRF-Token header
       secure,
       sameSite,
-      path: '/'
+      path: '/',
+      maxAge: 24 * 60 * 60 * 1000 // 24 h — matches default ACCESS_TTL_MIN in dev
     });
   }
 }

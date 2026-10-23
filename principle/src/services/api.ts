@@ -93,15 +93,24 @@ function logAudit(
   }).catch(() => {});
 }
 
+let _csrfCache: string | null = null;
+
 async function getCsrfHeader(): Promise<string | undefined> {
+  // 1. Try the cookie first (set by login / csrf refresh)
   const match = document.cookie.match(/(?:^|;\s*)sms_csrf=([^;]+)/);
   if (match) {
-    return match[1];
+    _csrfCache = decodeURIComponent(match[1]);
+    return _csrfCache;
   }
+  // 2. Return in-memory cache if cookie was cleared but we already fetched
+  if (_csrfCache) return _csrfCache;
+  // 3. Fetch a fresh token from the authenticated endpoint
   try {
     const res = await fetch('/api/v1/auth/csrf', { credentials: 'include' });
     const json = await res.json();
-    return json.data?.csrfToken;
+    const token = json.data?.csrfToken;
+    if (token) _csrfCache = token;
+    return token;
   } catch {
     return undefined;
   }
@@ -167,6 +176,7 @@ export const api = {
   },
 
   async logout(): Promise<void> {
+    _csrfCache = null;
     try {
       await requestApi('/api/v1/auth/logout', { method: 'POST' });
     } catch {
