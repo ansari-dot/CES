@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import Sidebar from './Sidebar';
@@ -12,17 +12,23 @@ import { fetchResources } from '../../store/slices/resourcesSlice';
 import { fetchChallans } from '../../store/slices/feesSlice';
 import { fetchAttendanceStats } from '../../store/slices/attendanceSlice';
 import { fetchNotifications } from '../../store/slices/notificationsSlice';
+import RestrictedNotice from '../common/RestrictedNotice';
+import { useTimezone } from '../../hooks/useTimezone';
+import { zoneAbbreviation } from '../../lib/timezone';
 
 export default function PortalLayout() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useDispatch<AppDispatch>();
-  const { profile } = useSelector((state: RootState) => state.student);
+  const { profile, dashboard } = useSelector((state: RootState) => state.student);
+  const timezone = useSelector((state: RootState) => state.classes.timezone);
+  const timezoneSource = useSelector((state: RootState) => state.classes.timezoneSource);
 
-  // Fetch all data once on mount
-  useEffect(() => {
-    dispatch(fetchDashboard());
+  // Detect student timezone via IP geolocation and keep timetable in sync
+  useTimezone();
+
+  const loadPortalData = useCallback(() => {
     dispatch(fetchTimetable());
     dispatch(fetchStudentZoomSession());
     dispatch(fetchTasks());
@@ -30,7 +36,23 @@ export default function PortalLayout() {
     dispatch(fetchChallans());
     dispatch(fetchAttendanceStats());
     dispatch(fetchNotifications());
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dispatch]);
+
+  // Load the dashboard first: a fee-restricted student only gets the
+  // restriction notice (other endpoints are blocked by the server).
+  const loadDashboardThenData = useCallback(async () => {
+    const result = await dispatch(fetchDashboard());
+    if (fetchDashboard.fulfilled.match(result) && !result.payload?.isRestricted) {
+      loadPortalData();
+    }
+  }, [dispatch, loadPortalData]);
+
+  useEffect(() => {
+    loadDashboardThenData();
+  }, [loadDashboardThenData]);
+
+  const isRestricted = Boolean(dashboard?.isRestricted);
+  const showRestriction = isRestricted && location.pathname !== '/student/profile';
 
   const handleLogout = async () => {
     await dispatch(logoutStudent());
@@ -43,7 +65,7 @@ export default function PortalLayout() {
       case '/student/dashboard':
         return { title: `Good morning, ${firstName}!`, subtitle: "Here's your learning overview for today" };
       case '/student/timetable':
-        return { title: 'My Timetable', subtitle: `${profile.session} · ${profile.grade} · All times PKT` };
+        return { title: 'My Timetable', subtitle: `${profile.session} · ${profile.grade} · Times shown in ${timezone} (${zoneAbbreviation(timezone)})${timezoneSource === 'ip' ? ' · detected from your location' : ''}` };
       case '/student/classes':
         return { title: 'Live Classes', subtitle: `Join with your ${profile.grade} class Zoom link` };
       case '/student/learning':
@@ -99,7 +121,7 @@ export default function PortalLayout() {
           onToggleMobileNav={() => setMobileNavOpen(true)}
         />
         <main className="p-4 sm:p-6 lg:p-8 max-w-[1080px] w-full mx-auto flex flex-col gap-6">
-          <Outlet />
+          {showRestriction ? <RestrictedNotice onCheckAgain={loadDashboardThenData} /> : <Outlet />}
         </main>
       </div>
 
