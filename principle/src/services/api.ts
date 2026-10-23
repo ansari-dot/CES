@@ -20,6 +20,7 @@ import {
   StudentConcession,
   MonthlyChallan,
   PaymentProofSubmission,
+  RestrictedStudent,
   TeacherSalaryDraft,
   SchoolNotice,
   OperationalNotification,
@@ -612,6 +613,12 @@ export const api = {
             } catch {
               realSubjects = [];
             }
+            let classAssignments: any[] = [];
+            try {
+              classAssignments = await requestApi<any[]>(`/api/v1/classes/${c.id}/assignments`);
+            } catch {
+              classAssignments = [];
+            }
             return {
               classNumber: classNum,
               name: c.name || `Class ${classNum}`,
@@ -625,7 +632,11 @@ export const api = {
                     code: s.code || '',
                     classNumber: classNum,
                     weeklyLessons: 5,
-                    assignedTeacherIds: []
+                    assignedTeacherIds: Array.isArray(classAssignments)
+                      ? classAssignments
+                          .filter((a) => String(a.subjectId) === String(s.id))
+                          .map((a) => String(a.teacherId))
+                      : []
                   }))
                 : []
             };
@@ -645,6 +656,28 @@ export const api = {
     teacherId: string,
     reason: string
   ): Promise<SchoolClass> {
+    // Resolve class id
+    const classesData = await requestApi<any[]>('/api/v1/classes');
+    const cls = Array.isArray(classesData)
+      ? classesData.find((c: any) => Number(c.grade_level) === Number(classNumber))
+      : null;
+    if (!cls) throw new Error(`Class ${classNumber} not found`);
+
+    // Resolve active session
+    const sessions = await requestApi<any[]>('/api/v1/sessions');
+    const activeSession = Array.isArray(sessions) ? sessions.find((s: any) => s.is_current) : null;
+    const sessionId = activeSession ? activeSession.id : 1;
+
+    await requestApi(`/api/v1/teachers/${encodeURIComponent(teacherId)}/assignments`, {
+      method: 'POST',
+      body: JSON.stringify({
+        classId: cls.id,
+        subjectId: Number(subjectId),
+        sessionId,
+        effectiveFrom: new Date().toISOString().split('T')[0]
+      })
+    });
+
     const classes = await this.getClasses();
     const schoolClass = classes.find(c => c.classNumber === classNumber);
     if (!schoolClass) throw new Error('Class not found');
@@ -690,15 +723,51 @@ export const api = {
   },
 
   async saveTimetableLesson(lessonData: Omit<TimetableLesson, 'id' | 'history'>, lessonId?: string, reason = 'Timetable update'): Promise<TimetableLesson> {
-    const newLessonId = lessonId || `SLOT-${Date.now()}`;
+    const daysMap: Record<string, number> = {
+      Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6, Sunday: 7
+    };
+
+    // Find the class id from the backend
+    const classesData = await requestApi<any[]>('/api/v1/classes');
+    const cls = Array.isArray(classesData)
+      ? classesData.find((c: any) => Number(c.grade_level) === Number(lessonData.classNumber))
+      : null;
+    if (!cls) throw new Error(`Class ${lessonData.classNumber} not found`);
+
+    // Find active session
+    const sessions = await requestApi<any[]>('/api/v1/sessions');
+    const activeSession = Array.isArray(sessions) ? sessions.find((s: any) => s.is_current) : null;
+    const sessionId = activeSession ? activeSession.id : 1;
+
+    await requestApi('/api/v1/timetable/slots', {
+      method: 'POST',
+      body: JSON.stringify({
+        sessionId,
+        classId: cls.id,
+        subjectId: Number(lessonData.subjectId),
+        teacherId: Number(lessonData.teacherId.replace(/\D/g, '')),
+        weekday: daysMap[lessonData.dayOfWeek] || 1,
+        startTime: lessonData.startTime,
+        endTime: lessonData.endTime,
+        effectiveFrom: new Date().toISOString().split('T')[0]
+      })
+    });
+
     return {
       ...lessonData,
-      id: newLessonId,
+      id: lessonId || `SLOT-${Date.now()}`,
       history: []
     };
   },
 
   async cancelTimetableLesson(lessonId: string, reason: string): Promise<TimetableLesson> {
+    const numId = parseInt(lessonId.replace(/\D/g, ''), 10);
+    if (numId) {
+      await requestApi(`/api/v1/timetable/lessons/${numId}/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({ reason })
+      });
+    }
     const lessons = await this.getTimetableLessons();
     const lesson = lessons.find(l => l.id === lessonId);
     if (!lesson) throw new Error('Lesson not found');
@@ -707,14 +776,13 @@ export const api = {
   },
 
   async publishTimetable(classNumber?: number): Promise<void> {
-    try {
-      await requestApi('/api/v1/timetable/publish', {
-        method: 'POST',
-        body: JSON.stringify({ sessionId: 1, days: 14 })
-      });
-    } catch (err) {
-      console.warn('publishTimetable failed:', err);
-    }
+    const sessions = await requestApi<any[]>('/api/v1/sessions').catch(() => []);
+    const activeSession = Array.isArray(sessions) ? sessions.find((s: any) => s.is_current) : null;
+    const sessionId = activeSession ? activeSession.id : 1;
+    await requestApi('/api/v1/timetable/publish', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId, days: 30 })
+    });
   },
 
   // 8. Zoom Class Links Management — Live Only
@@ -1069,6 +1137,37 @@ export const api = {
   },
 
   // 12. Payment Proof Verification — Live Only
+  // Fee-restricted students & Principal manual access restoration (live only;
+  // errors propagate so the UI reflects the real server response)
+  async getRestrictedStudents(): Promise<RestrictedStudent[]> {
+    const data = await requestApi<any[]>('/api/v1/fees/restricted-students');
+    return (data || []).map((r) => ({
+      studentId: String(r.studentId),
+      studentName: r.studentName,
+      admissionNo: r.admissionNo || '',
+      rollNo: r.rollNo || '',
+      classNumber: r.classNumber != null ? Number(r.classNumber) : null,
+      className: r.className || '',
+      restrictedForMonths: r.restrictedForMonths || [],
+      reason: r.reason || '',
+      restrictedAt: r.restrictedAt,
+      portalStatus: r.portalStatus,
+      outstandingAmount: Number(r.outstandingAmount || 0),
+      outstandingInvoices: (r.outstandingInvoices || []).map((i: any) => ({
+        billingMonth: i.billingMonth,
+        status: i.status,
+        outstanding: Number(i.outstanding || 0)
+      }))
+    }));
+  },
+
+  async restoreStudentAccess(studentId: string): Promise<{ studentId: number; studentName: string; restoredAt: string }> {
+    return await requestApi(`/api/v1/fees/students/${encodeURIComponent(studentId)}/restore-access`, {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+  },
+
   async getPaymentProofs(): Promise<PaymentProofSubmission[]> {
     try {
       const data = await requestApi<any[]>('/api/v1/fees/payment-proofs');

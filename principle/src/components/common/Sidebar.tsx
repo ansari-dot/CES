@@ -16,6 +16,7 @@ import {
   History,
   UserCheck,
   ShieldAlert,
+  Lock,
   ChevronRight,
   LogOut
 } from 'lucide-react';
@@ -33,6 +34,7 @@ export type ActiveModule =
   | 'fees'
   | 'challans'
   | 'payments'
+  | 'restricted-students'
   | 'payroll'
   | 'academic-oversight'
   | 'notices'
@@ -49,6 +51,7 @@ interface SidebarProps {
     salaryDrafts?: number;
     attendanceCorrections?: number;
     zoomDegraded?: number;
+    restrictedStudents?: number;
   };
 }
 
@@ -118,6 +121,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: FileCheck2,
           badge: pendingCounts.paymentProofs ? `${pendingCounts.paymentProofs}` : undefined,
           badgeColor: 'text-emerald-700 bg-emerald-50 border-emerald-200'
+        },
+        {
+          id: 'restricted-students',
+          label: 'Restricted Students',
+          icon: Lock,
+          badge: pendingCounts.restrictedStudents ? `${pendingCounts.restrictedStudents}` : undefined,
+          badgeColor: 'text-rose-700 bg-rose-50 border-rose-200'
         },
         {
           id: 'payroll',
