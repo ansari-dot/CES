@@ -145,7 +145,7 @@ export const fetchSchoolTimetable = createAsyncThunk(
   'schoolTimetable/fetchSchoolTimetable',
   async (_, { rejectWithValue }) => {
     try {
-      const slots = await requestApi<any[]>('/api/v1/timetable/slots');
+      const slots = await requestApi<any[]>('/api/v1/timetable/my-slots');
       const sessions: SchoolClassSession[] = Array.isArray(slots)
         ? slots.map((s: any) => ({
             id: `SLOT-${s.id}`,

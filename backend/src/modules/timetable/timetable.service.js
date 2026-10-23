@@ -84,7 +84,6 @@ export const timetableService = {
     const now = new Date();
     for (let dayOffset = 0; dayOffset < days; dayOffset++) {
       const targetDate = new Date(now.getTime() + dayOffset * 24 * 60 * 60 * 1000);
-      // JS getDay(): 0=Sun, 1=Mon ... 6=Sat. SRS convention: 1=Mon .. 7=Sun
       const jsDay = targetDate.getDay();
       const srsWeekday = jsDay === 0 ? 7 : jsDay;
       const dateString = targetDate.toISOString().split('T')[0];
@@ -92,13 +91,14 @@ export const timetableService = {
       const matchingSlots = slots.filter((s) => s.weekday === srsWeekday && s.status === 'PUBLISHED');
 
       for (const slot of matchingSlots) {
-        // Find active class zoom meeting
         const classMeeting = await zoomRepository.getMeetingByClassId(slot.classId);
 
+        // Store as school wall-clock datetime strings (no Z suffix) so
+        // parseDbDate on read treats them as local school time, not UTC.
         const startIso = slot.startTime.length === 5 ? `${slot.startTime}:00` : slot.startTime;
         const endIso = slot.endTime.length === 5 ? `${slot.endTime}:00` : slot.endTime;
-        const startAt = new Date(`${dateString}T${startIso}Z`);
-        const endAt = new Date(`${dateString}T${endIso}Z`);
+        const startAt = `${dateString} ${startIso}`;
+        const endAt = `${dateString} ${endIso}`;
 
         try {
           const lessonId = await timetableRepository.createLesson({

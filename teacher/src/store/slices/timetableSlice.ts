@@ -17,28 +17,40 @@ export const fetchTeacherLessonsThunk = createAsyncThunk(
   'timetable/fetchTeacherLessons',
   async (_, { rejectWithValue }) => {
     try {
-      const data = await requestApi<any[]>('/api/v1/zoom/my-class-session');
+      // Fetch lessons for a 14-day window so the weekly grid is populated
+      const today = new Date();
+      const startDate = today.toISOString().split('T')[0];
+      const endDate = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const data = await requestApi<any[]>(`/api/v1/timetable/my-lessons?startDate=${startDate}&endDate=${endDate}`);
       if (Array.isArray(data) && data.length > 0) {
-        return data.map((l: any) => ({
-          id: `LES-${String(l.id).padStart(2, '0')}`,
-          rawId: l.id,
-          classId: `${l.classNumber}-${(l.subjectCode || 'sub').toLowerCase()}-a`,
-          className: l.className,
-          subject: l.subjectName,
-          topic: l.topicCovered || 'Core Instruction & Practical Exercises',
-          date: l.lessonDate || new Date().toISOString().split('T')[0],
-          dayOfWeek: new Date(l.lessonDate || Date.now()).toLocaleDateString('en-US', { weekday: 'long' }),
-          startTime: l.startAt ? String(l.startAt).substring(11, 16) : '09:00 AM',
-          endTime: l.endAt ? String(l.endAt).substring(11, 16) : '09:45 AM',
-          periodNumber: 1,
-          room: `Online Live Classroom (Room ${l.classNumber})`,
-          status: (l.status === 'LIVE' ? 'live' : l.status === 'COMPLETED' ? 'completed' : 'scheduled') as any,
-          zoomRoomId: l.meetingNumber || `900${l.classNumber}000${l.classNumber}`,
-          zoomPasscode: `CLASS${l.classNumber}#`,
-          deliveryLogged: Boolean(l.deliveryLoggedAt),
-          attendanceSubmitted: false,
-          notes: l.teachingNotes || ''
-        }));
+        return data.map((l: any) => {
+          const startStr: string = l.startAt || l.start_at || '';
+          const endStr: string = l.endAt || l.end_at || '';
+          // startAt is stored as 'YYYY-MM-DD HH:MM:SS' school wall-clock time
+          const startTime = startStr.length >= 16 ? startStr.substring(11, 16) : '09:00';
+          const endTime = endStr.length >= 16 ? endStr.substring(11, 16) : '09:45';
+          const lessonDate: string = l.lessonDate || startStr.substring(0, 10) || new Date().toISOString().split('T')[0];
+          return {
+            id: `LES-${String(l.id).padStart(2, '0')}`,
+            rawId: l.id,
+            classId: `${l.classNumber}-${(l.subjectCode || 'sub').toLowerCase()}-a`,
+            className: l.className,
+            subject: l.subjectName,
+            topic: l.topicCovered || 'Core Instruction & Practical Exercises',
+            date: lessonDate,
+            dayOfWeek: new Date(lessonDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' }),
+            startTime,
+            endTime,
+            periodNumber: 1,
+            room: `Online Live Classroom (Room ${l.classNumber})`,
+            status: (l.status === 'LIVE' ? 'live' : l.status === 'COMPLETED' ? 'completed' : 'scheduled') as any,
+            zoomRoomId: l.meetingNumber || `900${l.classNumber}000${l.classNumber}`,
+            zoomPasscode: `CLASS${l.classNumber}#`,
+            deliveryLogged: Boolean(l.deliveryLoggedAt),
+            attendanceSubmitted: false,
+            notes: l.teachingNotes || ''
+          };
+        });
       }
       return [];
     } catch (err: any) {

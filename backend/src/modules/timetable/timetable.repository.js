@@ -111,8 +111,8 @@ export const timetableRepository = {
       });
     }
     if (date) query = query.where('timetable_lessons.lesson_date', date);
-    if (startDate) query = query.where('timetable_lessons.start_at', '>=', startDate);
-    if (endDate) query = query.where('timetable_lessons.end_at', '<=', endDate);
+    if (startDate) query = query.where('timetable_lessons.lesson_date', '>=', startDate);
+    if (endDate) query = query.where('timetable_lessons.lesson_date', '<=', endDate);
     if (status) query = query.where('timetable_lessons.status', status);
 
     return await query;
