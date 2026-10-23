@@ -1,6 +1,14 @@
 import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
 import { TimetableLesson } from '../../types';
 import { requestApi } from '../../services/api';
+import {
+  DEFAULT_SCHOOL_TIMEZONE,
+  getBrowserTimeZone,
+  isValidTimeZone,
+  parseUtcInstant,
+  formatTimeInZone,
+  dateKeyInZone
+} from '../../lib/timezone';
 
 interface TimetableState {
   viewMode: 'agenda' | 'grid';
@@ -9,13 +17,41 @@ interface TimetableState {
   activeLessonModal: TimetableLesson | null;
   activeProblemModalLesson: TimetableLesson | null;
   isLoading: boolean;
+  timezone: string;
+  timezoneSource: 'ip' | 'browser' | 'fallback';
+  schoolTimezone: string;
 }
 
-const initialLessons: TimetableLesson[] = [];
+const browserTz = getBrowserTimeZone();
+
+export const detectTeacherTimezoneThunk = createAsyncThunk(
+  'timetable/detectTimezone',
+  async (_, { rejectWithValue }) => {
+    try {
+      const data = await requestApi<{ timezone: string; source: 'ip' | 'browser' | 'fallback'; schoolTimezone: string }>(
+        `/api/v1/geo/timezone${browserTz ? `?browserTz=${encodeURIComponent(browserTz)}` : ''}`
+      );
+      if (isValidTimeZone(data?.timezone)) {
+        return data;
+      }
+      return {
+        timezone: browserTz || DEFAULT_SCHOOL_TIMEZONE,
+        source: browserTz ? ('browser' as const) : ('fallback' as const),
+        schoolTimezone: DEFAULT_SCHOOL_TIMEZONE
+      };
+    } catch {
+      return {
+        timezone: browserTz || DEFAULT_SCHOOL_TIMEZONE,
+        source: browserTz ? ('browser' as const) : ('fallback' as const),
+        schoolTimezone: DEFAULT_SCHOOL_TIMEZONE
+      };
+    }
+  }
+);
 
 export const fetchTeacherLessonsThunk = createAsyncThunk(
   'timetable/fetchTeacherLessons',
-  async (_, { rejectWithValue }) => {
+  async (_, { getState, rejectWithValue }) => {
     try {
       const [todayRes, lessonsRes, slotsRes] = await Promise.all([
         requestApi<any[]>('/api/v1/zoom/my-class-session').catch(() => []),
@@ -123,10 +159,13 @@ export const fetchTeacherLessonsThunk = createAsyncThunk(
 const initialState: TimetableState = {
   viewMode: 'agenda',
   currentWeekLabel: 'Academic Year 2026–2027',
-  lessons: initialLessons,
+  lessons: [],
   activeLessonModal: null,
   activeProblemModalLesson: null,
   isLoading: false,
+  timezone: browserTz || DEFAULT_SCHOOL_TIMEZONE,
+  timezoneSource: browserTz ? 'browser' : 'fallback',
+  schoolTimezone: DEFAULT_SCHOOL_TIMEZONE,
 };
 
 export const timetableSlice = createSlice({
@@ -138,6 +177,14 @@ export const timetableSlice = createSlice({
     },
     setCurrentWeekLabel: (state, action: PayloadAction<string>) => {
       state.currentWeekLabel = action.payload;
+    },
+    setTimezone: (
+      state,
+      action: PayloadAction<{ timezone: string; source: 'ip' | 'browser' | 'fallback'; schoolTimezone?: string }>
+    ) => {
+      state.timezone = action.payload.timezone;
+      state.timezoneSource = action.payload.source;
+      if (action.payload.schoolTimezone) state.schoolTimezone = action.payload.schoolTimezone;
     },
     openLessonModal: (state, action: PayloadAction<TimetableLesson>) => {
       state.activeLessonModal = action.payload;
@@ -185,6 +232,15 @@ export const timetableSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+      .addCase(detectTeacherTimezoneThunk.fulfilled, (state, action) => {
+        if (action.payload) {
+          state.timezone = action.payload.timezone;
+          state.timezoneSource = action.payload.source;
+          if (action.payload.schoolTimezone) {
+            state.schoolTimezone = action.payload.schoolTimezone;
+          }
+        }
+      })
       .addCase(fetchTeacherLessonsThunk.pending, (state) => {
         state.isLoading = true;
       })
@@ -203,6 +259,7 @@ export const timetableSlice = createSlice({
 export const {
   setViewMode,
   setCurrentWeekLabel,
+  setTimezone,
   openLessonModal,
   closeLessonModal,
   openProblemModal,

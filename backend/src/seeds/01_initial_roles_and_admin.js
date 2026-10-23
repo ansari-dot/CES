@@ -41,7 +41,8 @@ export async function seed(knex) {
     { id: 16, code: 'reports.view', description: 'View operational and performance reports' },
     { id: 17, code: 'reports.export', description: 'Export operational data to Excel or PDF' },
     { id: 18, code: 'audit.view', description: 'View system audit logs' },
-    { id: 19, code: 'system.settings.manage', description: 'Manage system settings and configurations' }
+    { id: 19, code: 'system.settings.manage', description: 'Manage system settings and configurations' },
+    { id: 20, code: 'fees.access.restore', description: 'Restore student portal access restricted for overdue fees' }
   ];
 
   for (const p of permissionsData) {
@@ -53,7 +54,7 @@ export async function seed(knex) {
 
   // 3. Map Permissions to Roles
   const adminRolePerms = permissionsData.map((p) => ({ role_id: 1, permission_id: p.id }));
-  const principalPermIds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+  const principalPermIds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20];
   const principalRolePerms = principalPermIds.map((pid) => ({ role_id: 2, permission_id: pid }));
   const teacherPermIds = [6, 7, 9, 10, 16];
   const teacherRolePerms = teacherPermIds.map((pid) => ({ role_id: 3, permission_id: pid }));

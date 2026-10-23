@@ -120,7 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         <h2 className="text-xs font-semibold tracking-wider text-slate-700 font-heading uppercase">
           Verifying Principal Security Session
         </h2>
-        <p className="text-[11px] text-slate-400 mt-1">Iqra Online Academy Portal</p>
+        <p className="text-[11px] text-slate-400 mt-1">Cambridge Education System</p>
       </div>
     );
   }

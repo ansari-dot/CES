@@ -87,7 +87,7 @@ export const TimetableModule: React.FC = () => {
 
     setEditingLesson(null);
     setFormData({
-      classNumber: selectedClassNum === 'All' ? 1 : selectedClassNum,
+      classNumber: selectedClassNum === 'All' ? (classes[0]?.classNumber ?? 1) : selectedClassNum,
       subjectId: firstSubject?.id || '',
       subjectName: firstSubject?.name || 'Mathematics',
       teacherId: defaultTeacher?.id || '',
@@ -124,7 +124,7 @@ export const TimetableModule: React.FC = () => {
     }
 
     try {
-      const zoomMeetingId = `821 990${formData.classNumber} ${formData.classNumber}00${formData.classNumber}`;
+      const zoomMeetingId = editingLesson ? editingLesson.zoomMeetingId : '';
 
       await api.saveTimetableLesson(
         {
@@ -245,19 +245,19 @@ export const TimetableModule: React.FC = () => {
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
             }`}
           >
-            All Classes (1–8)
+            All Classes
           </button>
-          {[1, 2, 3, 4, 5, 6, 7, 8].map((c) => (
+          {classes.map((c) => (
             <button
-              key={c}
-              onClick={() => setSelectedClassNum(c)}
+              key={c.classNumber}
+              onClick={() => setSelectedClassNum(c.classNumber)}
               className={`px-3 py-1 rounded-lg font-medium whitespace-nowrap transition-colors ${
-                selectedClassNum === c
+                selectedClassNum === c.classNumber
                   ? 'bg-amber-600 text-white font-semibold shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
-              Class {c}
+              {c.name || `Class ${c.classNumber}`}
             </button>
           ))}
         </div>
@@ -428,8 +428,8 @@ export const TimetableModule: React.FC = () => {
                 disabled={!!editingLesson}
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 focus:bg-white"
               >
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((c) => (
-                  <option key={c} value={c}>Class {c}</option>
+                {classes.map((c) => (
+                  <option key={c.classNumber} value={c.classNumber}>{c.name || `Class ${c.classNumber}`}</option>
                 ))}
               </select>
             </div>

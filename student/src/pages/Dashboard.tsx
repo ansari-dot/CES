@@ -43,14 +43,7 @@ export default function Dashboard() {
     );
   }
 
-  if (dashboard?.isRestricted) {
-    return (
-      <div className="bg-error/10 border border-error/30 rounded-md p-6 text-center">
-        <div className="font-headings font-bold text-lg text-error mb-2">Account Restricted</div>
-        <div className="text-sm text-foreground">{dashboard.suspensionReason}</div>
-      </div>
-    );
-  }
+  // A fee/account restriction is rendered by PortalLayout (RestrictedNotice)
 
   const dueSoonTasks = (dashboard?.tasks ?? []).slice(0, 3);
   const recentAchievements = (dashboard?.achievements ?? []).slice(0, 3);

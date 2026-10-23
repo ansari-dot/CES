@@ -2,12 +2,16 @@ import { db } from '../../shared/db/knex.js';
 
 export const timetableRepository = {
   // Slots
-  async getSlots({ classId = null, teacherId = null, sessionId = null } = {}) {
+  async getSlots({ classId = null, teacherId = null, sessionId = null, status = null } = {}) {
     let query = db('timetable_slots')
       .join('classes', 'timetable_slots.class_id', 'classes.id')
       .join('subjects', 'timetable_slots.subject_id', 'subjects.id')
       .join('teachers', 'timetable_slots.teacher_id', 'teachers.id')
       .join('users', 'teachers.user_id', 'users.id')
+      .leftJoin('zoom_meetings', function () {
+        this.on('timetable_slots.class_id', '=', 'zoom_meetings.class_id')
+          .andOn('zoom_meetings.status', '=', db.raw('?', ['ACTIVE']));
+      })
       .select(
         'timetable_slots.id',
         'timetable_slots.session_id as sessionId',
@@ -19,16 +23,19 @@ export const timetableRepository = {
         'subjects.name as subjectName',
         'timetable_slots.teacher_id as teacherId',
         'users.full_name as teacherName',
+        'zoom_meetings.zoom_meeting_id as zoomMeetingId',
         'timetable_slots.weekday',
         'timetable_slots.start_time as startTime',
         'timetable_slots.end_time as endTime',
         'timetable_slots.status'
       )
+      .where('timetable_slots.status', '!=', 'ARCHIVED')
       .orderBy(['timetable_slots.weekday', 'timetable_slots.start_time']);
 
     if (classId) query = query.where('timetable_slots.class_id', classId);
     if (teacherId) query = query.where('timetable_slots.teacher_id', teacherId);
     if (sessionId) query = query.where('timetable_slots.session_id', sessionId);
+    if (status) query = query.where('timetable_slots.status', status);
 
     return await query;
   },
@@ -106,8 +113,10 @@ export const timetableRepository = {
     let query = db('timetable_lessons')
       .join('classes', 'timetable_lessons.class_id', 'classes.id')
       .join('subjects', 'timetable_lessons.subject_id', 'subjects.id')
-      .join('teachers', 'timetable_lessons.teacher_id', 'teachers.id')
-      .join('users', 'teachers.user_id', 'users.id')
+      .join('teachers as primary_teachers', 'timetable_lessons.teacher_id', 'primary_teachers.id')
+      .join('users as primary_users', 'primary_teachers.user_id', 'primary_users.id')
+      .leftJoin('teachers as sub_teachers', 'timetable_lessons.substitute_teacher_id', 'sub_teachers.id')
+      .leftJoin('users as sub_users', 'sub_teachers.user_id', 'sub_users.id')
       .leftJoin('zoom_meetings', 'timetable_lessons.zoom_meeting_id', 'zoom_meetings.id')
       .select(
         'timetable_lessons.id',
@@ -119,8 +128,10 @@ export const timetableRepository = {
         'subjects.code as subjectCode',
         'subjects.name as subjectName',
         'timetable_lessons.teacher_id as teacherId',
-        'users.full_name as teacherName',
+        db.raw('COALESCE(sub_users.full_name, primary_users.full_name) as teacherName'),
+        'primary_users.full_name as originalTeacherName',
         'timetable_lessons.substitute_teacher_id as substituteTeacherId',
+        'sub_users.full_name as substituteTeacherName',
         'timetable_lessons.zoom_meeting_id as zoomMeetingId',
         'zoom_meetings.zoom_meeting_id as meetingNumber',
         'zoom_meetings.last_health_status as meetingHealth',
@@ -140,19 +151,34 @@ export const timetableRepository = {
       });
     }
     if (date) query = query.where('timetable_lessons.lesson_date', date);
-    if (startDate) query = query.where('timetable_lessons.start_at', '>=', startDate);
-    if (endDate) query = query.where('timetable_lessons.end_at', '<=', endDate);
+    if (startDate) query = query.where('timetable_lessons.lesson_date', '>=', startDate);
+    if (endDate) query = query.where('timetable_lessons.lesson_date', '<=', endDate);
     if (status) query = query.where('timetable_lessons.status', status);
 
-    return await query;
+    const rows = await query;
+    return rows.map((r) => {
+      const formatUtc = (val) => {
+        if (!val) return val;
+        const str = String(val).trim();
+        const iso = str.includes('T') ? str : str.replace(' ', 'T');
+        return iso.endsWith('Z') || /[+-]\d{2}(?::?\d{2})?$/.test(iso) ? iso : `${iso}Z`;
+      };
+      return {
+        ...r,
+        startAt: formatUtc(r.startAt),
+        endAt: formatUtc(r.endAt)
+      };
+    });
   },
 
   async findLessonById(id) {
-    return await db('timetable_lessons')
+    const lesson = await db('timetable_lessons')
       .join('classes', 'timetable_lessons.class_id', 'classes.id')
       .join('subjects', 'timetable_lessons.subject_id', 'subjects.id')
-      .join('teachers', 'timetable_lessons.teacher_id', 'teachers.id')
-      .join('users', 'teachers.user_id', 'users.id')
+      .join('teachers as primary_teachers', 'timetable_lessons.teacher_id', 'primary_teachers.id')
+      .join('users as primary_users', 'primary_teachers.user_id', 'primary_users.id')
+      .leftJoin('teachers as sub_teachers', 'timetable_lessons.substitute_teacher_id', 'sub_teachers.id')
+      .leftJoin('users as sub_users', 'sub_teachers.user_id', 'sub_users.id')
       .leftJoin('zoom_meetings', 'timetable_lessons.zoom_meeting_id', 'zoom_meetings.id')
       .where('timetable_lessons.id', id)
       .select(
@@ -160,11 +186,28 @@ export const timetableRepository = {
         'classes.name as className',
         'classes.grade_level as classNumber',
         'subjects.name as subjectName',
-        'users.full_name as teacherName',
+        db.raw('COALESCE(sub_users.full_name, primary_users.full_name) as teacherName'),
+        'primary_users.full_name as originalTeacherName',
+        'sub_users.full_name as substituteTeacherName',
         'zoom_meetings.zoom_meeting_id as meetingNumber',
         'zoom_meetings.last_health_status as meetingHealth'
       )
       .first();
+
+    if (!lesson) return null;
+
+    const formatUtc = (val) => {
+      if (!val) return val;
+      const str = String(val).trim();
+      const iso = str.includes('T') ? str : str.replace(' ', 'T');
+      return iso.endsWith('Z') || /[+-]\d{2}(?::?\d{2})?$/.test(iso) ? iso : `${iso}Z`;
+    };
+
+    return {
+      ...lesson,
+      start_at: formatUtc(lesson.start_at),
+      end_at: formatUtc(lesson.end_at)
+    };
   },
 
   async checkLessonConflict({ classId, teacherId, startAt, endAt, excludeLessonId = null }) {

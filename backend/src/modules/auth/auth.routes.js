@@ -14,7 +14,10 @@ const router = Router();
 // Public auth endpoints
 router.post('/login', validate(loginSchema), authController.login);
 router.post('/refresh', authController.refresh);
-router.get('/csrf', authController.getCsrf);
+
+// CSRF token refresh — requires a valid session so the token is bound to the
+// real session familyId, not 'anonymous'
+router.get('/csrf', authenticate, authController.getCsrf);
 
 // Protected auth endpoints
 router.post('/logout', authenticate, authController.logout);

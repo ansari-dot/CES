@@ -202,17 +202,17 @@ export const LoginPage: React.FC = () => {
               {/* Email / Username Input */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Institutional Email
+                  Email or Username
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                     <span className="material-symbols-outlined text-[18px]">mail</span>
                   </div>
                   <input
-                    type="email"
+                    type="text"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@edupulse.k12"
+                    placeholder="Email or username"
                     required
                     className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-normal text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#3525cd] focus:border-transparent transition-all"
                   />
@@ -342,10 +342,10 @@ export const LoginPage: React.FC = () => {
                   Institutional Email
                 </label>
                 <input
-                  type="email"
+                  type="text"
                   value={forgotEmail}
                   onChange={(e) => setForgotEmail(e.target.value)}
-                  placeholder="name@edupulse.k12"
+                  placeholder="Email or username"
                   required
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#3525cd]"
                 />

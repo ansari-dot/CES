@@ -20,6 +20,7 @@ import {
   StudentConcession,
   MonthlyChallan,
   PaymentProofSubmission,
+  RestrictedStudent,
   TeacherSalaryDraft,
   SchoolNotice,
   OperationalNotification,
@@ -117,14 +118,21 @@ export async function executeTokenRefresh(): Promise<boolean> {
 }
 
 async function getCsrfHeader(): Promise<string | undefined> {
+  // 1. Try the cookie first (set by login / csrf refresh)
   const match = document.cookie.match(/(?:^|;\s*)sms_csrf=([^;]+)/);
   if (match) {
-    return match[1];
+    _csrfCache = decodeURIComponent(match[1]);
+    return _csrfCache;
   }
+  // 2. Return in-memory cache if cookie was cleared but we already fetched
+  if (_csrfCache) return _csrfCache;
+  // 3. Fetch a fresh token from the authenticated endpoint
   try {
     const res = await fetch('/api/v1/auth/csrf', { credentials: 'include' });
     const json = await res.json();
-    return json.data?.csrfToken;
+    const token = json.data?.csrfToken;
+    if (token) _csrfCache = token;
+    return token;
   } catch {
     return undefined;
   }
@@ -228,6 +236,7 @@ export const api = {
   },
 
   async logout(): Promise<void> {
+    _csrfCache = null;
     try {
       await requestApi('/api/v1/auth/logout', { method: 'POST' });
     } catch {
@@ -674,6 +683,12 @@ export const api = {
             } catch {
               realSubjects = [];
             }
+            let classAssignments: any[] = [];
+            try {
+              classAssignments = await requestApi<any[]>(`/api/v1/classes/${c.id}/assignments`);
+            } catch {
+              classAssignments = [];
+            }
             return {
               classNumber: classNum,
               name: c.name || `Class ${classNum}`,
@@ -804,14 +819,14 @@ export const api = {
           classNumber: slot.classNumber,
           subjectId: String(slot.subjectId),
           subjectName: slot.subjectName,
-          teacherId: `TCH-${String(slot.teacherId).padStart(2, '0')}`,
+          teacherId: String(slot.teacherId),
           teacherName: slot.teacherName,
           dayOfWeek: daysMap[slot.weekday] || 'Monday',
           startTime: String(slot.startTime).substring(0, 5),
           endTime: String(slot.endTime).substring(0, 5),
           timezone: 'Asia/Karachi',
           academicSession: '2026-27',
-          zoomMeetingId: `900-${slot.classNumber}000-${slot.classNumber}`,
+          zoomMeetingId: slot.zoomMeetingId || (slot.meetingNumber ? String(slot.meetingNumber) : `Class ${slot.classNumber} Room`),
           publicationStatus: slot.status === 'PUBLISHED' ? 'Published' : 'Draft',
           lessonStatus: 'Scheduled',
           history: []
@@ -901,14 +916,13 @@ export const api = {
   },
 
   async publishTimetable(classNumber?: number): Promise<void> {
-    try {
-      await requestApi('/api/v1/timetable/publish', {
-        method: 'POST',
-        body: JSON.stringify({ sessionId: 1, days: 14 })
-      });
-    } catch (err) {
-      console.warn('publishTimetable failed:', err);
-    }
+    const sessions = await requestApi<any[]>('/api/v1/sessions').catch(() => []);
+    const activeSession = Array.isArray(sessions) ? sessions.find((s: any) => s.is_current) : null;
+    const sessionId = activeSession ? activeSession.id : 1;
+    await requestApi('/api/v1/timetable/publish', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId, days: 30 })
+    });
   },
 
   // 8. Zoom Class Links Management — Live Only
@@ -1263,6 +1277,37 @@ export const api = {
   },
 
   // 12. Payment Proof Verification — Live Only
+  // Fee-restricted students & Principal manual access restoration (live only;
+  // errors propagate so the UI reflects the real server response)
+  async getRestrictedStudents(): Promise<RestrictedStudent[]> {
+    const data = await requestApi<any[]>('/api/v1/fees/restricted-students');
+    return (data || []).map((r) => ({
+      studentId: String(r.studentId),
+      studentName: r.studentName,
+      admissionNo: r.admissionNo || '',
+      rollNo: r.rollNo || '',
+      classNumber: r.classNumber != null ? Number(r.classNumber) : null,
+      className: r.className || '',
+      restrictedForMonths: r.restrictedForMonths || [],
+      reason: r.reason || '',
+      restrictedAt: r.restrictedAt,
+      portalStatus: r.portalStatus,
+      outstandingAmount: Number(r.outstandingAmount || 0),
+      outstandingInvoices: (r.outstandingInvoices || []).map((i: any) => ({
+        billingMonth: i.billingMonth,
+        status: i.status,
+        outstanding: Number(i.outstanding || 0)
+      }))
+    }));
+  },
+
+  async restoreStudentAccess(studentId: string): Promise<{ studentId: number; studentName: string; restoredAt: string }> {
+    return await requestApi(`/api/v1/fees/students/${encodeURIComponent(studentId)}/restore-access`, {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+  },
+
   async getPaymentProofs(): Promise<PaymentProofSubmission[]> {
     try {
       const data = await requestApi<any[]>('/api/v1/fees/payment-proofs');

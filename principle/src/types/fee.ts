@@ -92,3 +92,20 @@ export interface PaymentProofSubmission {
   verifiedAmount?: number;
   receiptNumber?: string;
 }
+
+// Student whose portal access is restricted for overdue fees
+export interface RestrictedStudent {
+  studentId: string;
+  studentName: string;
+  admissionNo: string;
+  rollNo: string;
+  classNumber: number | null;
+  className: string;
+  restrictedForMonths: string[];
+  reason: string;
+  restrictedAt: string;
+  portalStatus: string;
+  // Balance of the latest unpaid invoice (includes carried-forward arrears)
+  outstandingAmount: number;
+  outstandingInvoices: { billingMonth: string; status: string; outstanding: number }[];
+}

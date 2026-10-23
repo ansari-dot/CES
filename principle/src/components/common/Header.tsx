@@ -97,6 +97,7 @@ export const Header: React.FC<HeaderProps> = ({
     fees: { section: 'Financials', title: 'Fee Structures & Concessions' },
     challans: { section: 'Financials', title: 'Monthly Challans & Billing' },
     payments: { section: 'Financials', title: 'Payment Proof Verification' },
+    'restricted-students': { section: 'Financials', title: 'Restricted Students & Portal Access' },
     payroll: { section: 'Financials', title: 'Teacher Payroll & Duty Review' },
     'academic-oversight': { section: 'Governance', title: 'Academic Performance & Results' },
     notices: { section: 'Governance', title: 'Official Notices & Circulars' },

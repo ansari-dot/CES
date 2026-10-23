@@ -26,6 +26,7 @@ import payrollRoutes from './modules/payroll/payroll.routes.js';
 import noticesRoutes from './modules/notices/notices.routes.js';
 import auditRoutes from './modules/audit/audit.routes.js';
 import reportsRoutes from './modules/reports/reports.routes.js';
+import geoRoutes from './modules/geo/geo.routes.js';
 
 export function createApp() {
   const app = express();
@@ -112,6 +113,7 @@ export function createApp() {
   app.use('/api/v1/notices', noticesRoutes);
   app.use('/api/v1/audit', auditRoutes);
   app.use('/api/v1/reports', reportsRoutes);
+  app.use('/api/v1/geo', geoRoutes);
 
   // 9. 404 Handler
   app.use(notFound);

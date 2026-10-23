@@ -1,4 +1,4 @@
-# Iqra Online Academy — School Management & Learning Platform (LMS)
+# Cambridge Education System — School Management & Learning Platform (LMS)
 
 A complete, production-ready Online School Management System and Learning Platform supporting daily operations for Classes 1 to 8. Built strictly according to the SRS specifications, providing dedicated role-based portals for School Administration/Principals, Teachers, Students, and Parents.
 
@@ -162,4 +162,4 @@ cd teacher && npx tsc --noEmit
 ---
 
 ## 📄 License
-This project is proprietary software developed for Iqra Online Academy. All rights reserved.
+This project is proprietary software developed for Cambridge Education System. All rights reserved.

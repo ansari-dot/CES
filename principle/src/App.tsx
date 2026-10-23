@@ -18,6 +18,7 @@ import { AttendanceModule } from './modules/attendance/AttendanceModule';
 import { FeeStructureModule } from './modules/fees/FeeStructureModule';
 import { ChallansModule } from './modules/challans/ChallansModule';
 import { PaymentVerificationModule } from './modules/payments/PaymentVerificationModule';
+import { RestrictedStudentsModule } from './modules/restricted-students/RestrictedStudentsModule';
 import { TeacherPayrollModule } from './modules/payroll/TeacherPayrollModule';
 import { AcademicOversightModule } from './modules/academic-oversight/AcademicOversightModule';
 import { NoticesModule } from './modules/notices/NoticesModule';
@@ -34,16 +35,18 @@ function PrincipalPortalApp() {
     salaryDrafts?: number;
     attendanceCorrections?: number;
     zoomDegraded?: number;
+    restrictedStudents?: number;
   }>({});
 
   const refreshBadges = useCallback(async () => {
     if (!isAuthenticated) return;
     try {
-      const [proofs, drafts, corrections, zoomMeetings] = await Promise.all([
+      const [proofs, drafts, corrections, zoomMeetings, restricted] = await Promise.all([
         api.getPaymentProofs(),
         api.getSalaryDrafts(),
         api.getAttendanceCorrections(),
-        api.getZoomMeetings()
+        api.getZoomMeetings(),
+        api.getRestrictedStudents().catch(() => [])
       ]);
 
       setPendingCounts({
@@ -52,7 +55,8 @@ function PrincipalPortalApp() {
         attendanceCorrections: corrections.filter((c) => c.status === 'Pending').length,
         zoomDegraded: zoomMeetings.filter(
           (m) => m.status === 'Requires Renewal' || m.healthCheckStatus === 'Degraded'
-        ).length
+        ).length,
+        restrictedStudents: restricted.length
       });
     } catch {
       // quiet fallback
@@ -95,6 +99,8 @@ function PrincipalPortalApp() {
         return <ChallansModule />;
       case 'payments':
         return <PaymentVerificationModule />;
+      case 'restricted-students':
+        return <RestrictedStudentsModule />;
       case 'payroll':
         return <TeacherPayrollModule />;
       case 'academic-oversight':

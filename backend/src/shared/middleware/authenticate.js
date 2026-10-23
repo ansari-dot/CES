@@ -35,14 +35,38 @@ export async function authenticate(req, res, next) {
       return next(new AppError('Account is deactivated', 403, ErrorCodes.ACCOUNT_RESTRICTED));
     }
 
+    // Fee-based restriction: SUSPENDED students are blocked from protected
+    // routes. Session/account endpoints and /students/me/dashboard (which
+    // returns the restriction notice and outstanding fees) stay available.
+    if (user.status === 'SUSPENDED' && user.role_code === 'STUDENT') {
+      const allowedWhileSuspended = [
+        '/api/v1/auth/logout', '/api/v1/auth/logout-all', '/api/v1/auth/me',
+        '/api/v1/auth/change-password', '/api/v1/students/me/dashboard'
+      ];
+      // req.path is relative to the router mount point, so use the full path
+      const fullPath = `${req.baseUrl}${req.path}`.replace(/\/+$/, '');
+      const isAllowed = allowedWhileSuspended.includes(fullPath);
+      if (!isAllowed) {
+        return next(new AppError(
+          'Portal access is restricted due to outstanding fee dues. Please contact the Principal.',
+          403,
+          ErrorCodes.ACCOUNT_SUSPENDED
+        ));
+      }
+    }
+
     // Token version check (revocation detection)
     if (user.token_version !== decoded.tv) {
       return next(new AppError('Session invalidated, please login again', 401, ErrorCodes.UNAUTHENTICATED));
     }
 
     // Password change required enforcement (Section 4.3 step 6)
-    const allowedPathOnPasswordChange = ['/auth/change-password', '/auth/logout', '/auth/logout-all', '/auth/me'];
-    const isAllowedPath = allowedPathOnPasswordChange.some((p) => req.path.endsWith(p));
+    // First login: only session endpoints and change-password are available until
+    // the temporary password is replaced. req.path is router-relative, so use the full path.
+    const allowedPathOnPasswordChange = [
+      '/api/v1/auth/change-password', '/api/v1/auth/logout', '/api/v1/auth/logout-all', '/api/v1/auth/me'
+    ];
+    const isAllowedPath = allowedPathOnPasswordChange.includes(`${req.baseUrl}${req.path}`.replace(/\/+$/, ''));
 
     if (user.must_change_password && !isAllowedPath) {
       return next(

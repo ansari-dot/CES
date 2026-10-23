@@ -26,4 +26,7 @@ router.post('/teachers/:id/assignments', authenticate, authorize('academic.setup
 router.post('/academic/assign-teacher', authenticate, authorize('academic.setup.manage'), academicController.assignTeacher);
 router.post('/academic/unassign-teacher', authenticate, authorize('academic.setup.manage'), academicController.unassignTeacher);
 
+// Class Assignments (subjects → teachers for a class)
+router.get('/classes/:id/assignments', authenticate, academicController.getClassAssignments);
+
 export default router;

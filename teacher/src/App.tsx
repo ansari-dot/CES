@@ -3,6 +3,7 @@ import { useAppSelector, useAppDispatch } from './store';
 import { AppLayout } from './components/layout/AppLayout';
 import { LoginPage } from './pages/LoginPage';
 import { ToastContainer } from './components/common/Toast';
+import { SetPasswordModal } from './components/common/SetPasswordModal';
 import { DashboardPage } from './pages/DashboardPage';
 import { TimetablePage } from './pages/TimetablePage';
 import { LiveLessonsPage } from './pages/LiveLessonsPage';
@@ -27,6 +28,7 @@ import { fetchNoticesThunk } from './store/slices/noticesSlice';
 import { fetchPerformanceDataThunk } from './store/slices/performanceSlice';
 import { fetchLessonRosterThunk, fetchCorrectionVouchersThunk } from './store/slices/attendanceSlice';
 import { fetchDutySummaryThunk } from './store/slices/dutySlice';
+import { fetchSchoolTimetable } from './store/slices/schoolTimetableSlice';
 import { useLessonReminderTicker } from './hooks/useLessonReminderTicker';
 
 export default function App() {
@@ -34,6 +36,7 @@ export default function App() {
   const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
   const teacher = useAppSelector((state) => state.auth.teacher);
   const currentTab = useAppSelector((state) => state.ui.currentTab);
+  const mustChangePassword = useAppSelector((state) => state.auth.mustChangePassword);
 
   // Active 5-minute pre-lesson notification reminder ticker
   useLessonReminderTicker();
@@ -45,7 +48,7 @@ export default function App() {
 
   // 2. Hydrate all live academic data when authenticated
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !mustChangePassword) {
       dispatch(fetchTeacherLessonsThunk());
       dispatch(fetchSchoolTimetable());
       dispatch(fetchTasksThunk());
@@ -57,13 +60,23 @@ export default function App() {
       dispatch(fetchLessonRosterThunk(1));
       dispatch(fetchDutySummaryThunk(teacher?.id || 45));
     }
-  }, [isAuthenticated, dispatch, teacher?.id]);
+  }, [isAuthenticated, mustChangePassword, dispatch, teacher?.id]);
 
   // Authentication Route Guard: Protect all routes and views
   if (!isAuthenticated) {
     return (
       <div className="relative min-h-screen bg-[#f8faff]">
         <LoginPage />
+        <ToastContainer />
+      </div>
+    );
+  }
+
+  // First login: the portal stays locked until the temporary password is replaced
+  if (mustChangePassword) {
+    return (
+      <div className="relative min-h-screen bg-[#f8faff]">
+        <SetPasswordModal />
         <ToastContainer />
       </div>
     );

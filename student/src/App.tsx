@@ -6,6 +6,7 @@ import { fetchMe } from './store/slices/studentSlice';
 
 import Login from './pages/Login';
 import PortalLayout from './components/layout/PortalLayout';
+import SetPasswordModal from './components/dialogs/SetPasswordModal';
 import Dashboard from './pages/Dashboard';
 import Timetable from './pages/Timetable';
 import LiveClasses from './pages/LiveClasses';
@@ -22,7 +23,7 @@ import MyProfile from './pages/MyProfile';
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
-  const { isAuthenticated, authLoading } = useSelector((state: RootState) => state.student);
+  const { isAuthenticated, authLoading, mustChangePassword } = useSelector((state: RootState) => state.student);
 
   useEffect(() => {
     // On first load, try to restore session from existing cookie
@@ -42,6 +43,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  // First login: the portal stays locked until the temporary password is replaced
+  if (mustChangePassword) return <SetPasswordModal />;
   return <>{children}</>;
 }
 

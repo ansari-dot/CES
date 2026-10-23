@@ -9,6 +9,10 @@ const router = Router();
 // Stats
 router.get('/stats', authenticate, feesController.getFeeStats);
 
+// Restricted students & access restoration (Principal only)
+router.get('/restricted-students', authenticate, authorize('fees.access.restore'), feesController.getRestrictedStudents);
+router.post('/students/:id/restore-access', authenticate, authorize('fees.access.restore'), feesController.restoreStudentAccess);
+
 // 1. Fee Structures
 router.get('/structures', authenticate, feesController.getFeeStructures);
 router.post('/structures', authenticate, authorize('fees.structure.manage'), feesController.createOrUpdateFeeStructure);

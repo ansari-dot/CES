@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { requestApi } from '../../services/api';
+import { rememberTemporaryPassword } from '../../lib/firstLogin';
 
 export interface AlertPreferences {
   classReminders: boolean;
@@ -10,6 +11,7 @@ export interface AlertPreferences {
 
 export interface StudentProfile {
   name: string;
+  username?: string;
   avatar: string;
   grade: string;
   rollNumber: string;
@@ -37,6 +39,17 @@ export interface DashboardData {
   achievements: any[];
   isRestricted?: boolean;
   suspensionReason?: string;
+  resolutionMessage?: string;
+  restrictionType?: 'FEE_OVERDUE' | 'ACCOUNT';
+  feeRestriction?: FeeRestriction | null;
+  principalContact?: { whatsappUrl: string | null };
+}
+
+export interface FeeRestriction {
+  restrictedAt: string;
+  restrictedForMonths: string[];
+  outstandingAmount: number;
+  outstandingInvoices: { challanId: number; billingMonth: string; dueDate: string; graceEndsOn: string; status: string; outstanding: number }[];
 }
 
 interface StudentState {
@@ -47,6 +60,8 @@ interface StudentState {
   dashboardLoading: boolean;
   authError: string | null;
   toastMessage: string | null;
+  // Account still has the temporary password issued at creation
+  mustChangePassword: boolean;
 }
 
 const initialState: StudentState = {
@@ -74,6 +89,7 @@ const initialState: StudentState = {
   dashboardLoading: false,
   authError: null,
   toastMessage: null,
+  mustChangePassword: false,
 };
 
 // ── Thunks ──────────────────────────────────────────────────────────────────
@@ -86,6 +102,12 @@ export const loginStudent = createAsyncThunk(
         method: 'POST',
         body: JSON.stringify({ identifier, password }),
       });
+      // Reject non-student accounts — teachers/admins must use their own portal
+      if (data.role !== 'STUDENT') {
+        await requestApi('/api/v1/auth/logout', { method: 'POST' }).catch(() => {});
+        return rejectWithValue('This portal is for students only. Please use the correct portal for your role.');
+      }
+      rememberTemporaryPassword(data?.mustChangePassword ? password : null);
       return data;
     } catch (err: any) {
       return rejectWithValue(err.message || 'Login failed');
@@ -95,7 +117,12 @@ export const loginStudent = createAsyncThunk(
 
 export const fetchMe = createAsyncThunk('student/fetchMe', async (_, { rejectWithValue }) => {
   try {
-    return await requestApi<any>('/api/v1/auth/me');
+    const data = await requestApi<any>('/api/v1/auth/me');
+    if (data.role !== 'STUDENT') {
+      await requestApi('/api/v1/auth/logout', { method: 'POST' }).catch(() => {});
+      return rejectWithValue('This portal is for students only.');
+    }
+    return data;
   } catch (err: any) {
     return rejectWithValue(err.message);
   }
@@ -131,12 +158,46 @@ export const changePassword = createAsyncThunk(
   }
 );
 
+// First login: replace the temporary password, then sign in again with the new
+// one (the server ends the old session when a password changes).
+export const completeFirstPasswordSetup = createAsyncThunk(
+  'student/completeFirstPasswordSetup',
+  async (
+    { username, currentPassword, newPassword }: { username: string; currentPassword: string; newPassword: string },
+    { rejectWithValue }
+  ) => {
+    try {
+      await requestApi('/api/v1/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+    } catch (err: any) {
+      return rejectWithValue(err.message || 'Could not set your password');
+    }
+    rememberTemporaryPassword(null);
+    try {
+      const data = await requestApi<any>('/api/v1/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ identifier: username, password: newPassword }),
+      });
+      if (data.role !== 'STUDENT') {
+        await requestApi('/api/v1/auth/logout', { method: 'POST' }).catch(() => {});
+        return rejectWithValue('This portal is for students only.');
+      }
+      return data;
+    } catch {
+      return rejectWithValue('RELOGIN_REQUIRED');
+    }
+  }
+);
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function mapUserToProfile(data: any, existing: StudentProfile): StudentProfile {
   return {
     ...existing,
     name: data.fullName || data.username || existing.name,
+    username: data.username || existing.username,
     email: data.email || existing.email,
     userId: data.id,
     status: data.status === 'ACTIVE' ? 'Active' : data.status || existing.status,
@@ -194,6 +255,7 @@ const studentSlice = createSlice({
       .addCase(loginStudent.fulfilled, (state, action) => {
         state.authLoading = false;
         state.isAuthenticated = true;
+        state.mustChangePassword = Boolean(action.payload?.mustChangePassword);
         state.profile = mapUserToProfile(action.payload, state.profile);
       })
       .addCase(loginStudent.rejected, (state, action) => {
@@ -205,10 +267,26 @@ const studentSlice = createSlice({
     builder
       .addCase(fetchMe.fulfilled, (state, action) => {
         state.isAuthenticated = true;
+        state.mustChangePassword = Boolean(action.payload?.mustChangePassword);
         state.profile = mapUserToProfile(action.payload, state.profile);
       })
       .addCase(fetchMe.rejected, (state) => {
         state.isAuthenticated = false;
+      });
+
+    // first-login password setup
+    builder
+      .addCase(completeFirstPasswordSetup.fulfilled, (state, action) => {
+        state.mustChangePassword = Boolean(action.payload?.mustChangePassword);
+        state.profile = mapUserToProfile(action.payload, state.profile);
+      })
+      .addCase(completeFirstPasswordSetup.rejected, (state, action) => {
+        // Password was changed but automatic sign-in failed: return to login
+        if (action.payload === 'RELOGIN_REQUIRED') {
+          state.isAuthenticated = false;
+          state.mustChangePassword = false;
+          state.authError = 'Password updated. Please sign in with your new password.';
+        }
       });
 
     // logout
@@ -234,6 +312,10 @@ const studentSlice = createSlice({
           achievements: data.achievements || [],
           isRestricted: data.isRestricted || false,
           suspensionReason: data.suspensionReason,
+          resolutionMessage: data.resolutionMessage,
+          restrictionType: data.restrictionType,
+          feeRestriction: data.feeRestriction || null,
+          principalContact: data.principalContact,
         };
         if (data.student) {
           state.profile = mapStudentToProfile(data.student, state.profile);

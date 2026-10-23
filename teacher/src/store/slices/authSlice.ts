@@ -2,6 +2,11 @@ import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
 import { TeacherProfile } from '../../types';
 import { requestApi } from '../../services/api';
 
+// Temporary password typed at login (memory only) so the first-login popup
+// does not ask for it again.
+let temporaryPassword: string | null = null;
+export const getTemporaryPassword = () => temporaryPassword;
+
 interface AuthState {
   isAuthenticated: boolean;
   teacher: TeacherProfile;
@@ -9,6 +14,9 @@ interface AuthState {
   rememberMe: boolean;
   activeRole: 'teacher' | 'lead' | 'coordinator';
   loginError: string | null;
+  // Account still has the temporary password issued at creation
+  mustChangePassword: boolean;
+  username: string;
 }
 
 export const initialAssignedClasses: any[] = [];
@@ -45,6 +53,8 @@ const initialState: AuthState = {
   rememberMe: !!parsedAuth?.isAuthenticated,
   activeRole: 'teacher',
   loginError: null,
+  mustChangePassword: false,
+  username: '',
 };
 
 export const authSlice = createSlice({
@@ -118,6 +128,8 @@ export const authSlice = createSlice({
         const user = action.payload.data;
         state.isAuthenticated = true;
         state.loginError = null;
+        state.mustChangePassword = Boolean(user.mustChangePassword);
+        state.username = user.username || '';
         state.rememberMe = !!action.payload.rememberMe;
         const classes = Array.isArray(user.assignedClasses) ? user.assignedClasses : [];
         state.teacher = {
@@ -146,6 +158,8 @@ export const authSlice = createSlice({
         const user = action.payload;
         if (user && user.id) {
           state.isAuthenticated = true;
+          state.mustChangePassword = Boolean(user.mustChangePassword);
+          state.username = user.username || '';
           const classes = Array.isArray(user.assignedClasses) ? user.assignedClasses : [];
           state.teacher = {
             id: user.teacherProfile?.id || `TCH-${String(user.id).padStart(3, '0')}`,
@@ -163,6 +177,16 @@ export const authSlice = createSlice({
           state.selectedClassId = classes.length > 0 ? classes[0].id : '';
         }
       })
+      .addCase(completeFirstPasswordSetupThunk.fulfilled, (state, action) => {
+        state.mustChangePassword = Boolean(action.payload?.mustChangePassword);
+      })
+      .addCase(completeFirstPasswordSetupThunk.rejected, (state, action) => {
+        // Password was changed but automatic sign-in failed: return to login
+        if (action.payload === 'RELOGIN_REQUIRED') {
+          state.isAuthenticated = false;
+          state.mustChangePassword = false;
+          state.loginError = 'Password updated. Please sign in with your new password.';
+          if (typeof window !== 'undefined') localStorage.removeItem('edupulse_auth_state');
       .addCase(checkTeacherSessionThunk.rejected, (state) => {
         state.isAuthenticated = false;
         state.teacher = DEFAULT_LIVE_TEACHER;
@@ -173,6 +197,7 @@ export const authSlice = createSlice({
       })
       .addCase(logoutTeacherThunk.fulfilled, (state) => {
         state.isAuthenticated = false;
+        state.mustChangePassword = false;
         state.loginError = null;
         if (typeof window !== 'undefined') {
           localStorage.removeItem('edupulse_auth_state');
@@ -196,6 +221,12 @@ export const loginTeacherThunk = createAsyncThunk(
           password: credentials.password
         })
       });
+      temporaryPassword = data?.mustChangePassword ? credentials.password : null;
+      // Reject non-teacher accounts — students/admins must use their own portal
+      if (data.role !== 'TEACHER' && data.role !== 'ADMIN') {
+        await requestApi('/api/v1/auth/logout', { method: 'POST' }).catch(() => {});
+        return rejectWithValue('This portal is for teachers only. Please use the correct portal for your role.');
+      }
       return { data, rememberMe: credentials.rememberMe };
     } catch (err: any) {
       return rejectWithValue(err.message || 'Authentication failed. Please verify credentials.');
@@ -211,6 +242,34 @@ export const checkTeacherSessionThunk = createAsyncThunk(
       return data;
     } catch (err: any) {
       return rejectWithValue(err.message);
+    }
+  }
+);
+
+// First login: replace the temporary password, then sign in again with the new
+// one (the server ends the old session when a password changes).
+export const completeFirstPasswordSetupThunk = createAsyncThunk(
+  'auth/completeFirstPasswordSetup',
+  async (
+    { username, currentPassword, newPassword }: { username: string; currentPassword: string; newPassword: string },
+    { rejectWithValue }
+  ) => {
+    try {
+      await requestApi('/api/v1/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+    } catch (err: any) {
+      return rejectWithValue(err.message || 'Could not set your password');
+    }
+    temporaryPassword = null;
+    try {
+      return await requestApi<any>('/api/v1/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ identifier: username, password: newPassword })
+      });
+    } catch {
+      return rejectWithValue('RELOGIN_REQUIRED');
     }
   }
 );

@@ -1,7 +1,32 @@
 import { timetableService } from './timetable.service.js';
 import { sendSuccess } from '../../shared/http/response.js';
+import { db } from '../../shared/db/knex.js';
 
 export const timetableController = {
+  async getMySlots(req, res, next) {
+    try {
+      const teacher = await db('teachers').where({ user_id: req.user.id }).first();
+      if (!teacher) return sendSuccess(res, []);
+      const slots = await timetableService.getSlots({ teacherId: teacher.id });
+      return sendSuccess(res, slots);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getMyLessons(req, res, next) {
+    try {
+      const teacher = await db('teachers').where({ user_id: req.user.id }).first();
+      if (!teacher) return sendSuccess(res, []);
+      const startDate = req.query.startDate || null;
+      const endDate = req.query.endDate || null;
+      const lessons = await timetableService.getLessons({ teacherId: teacher.id, startDate, endDate });
+      return sendSuccess(res, lessons);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async getSlots(req, res, next) {
     try {
       const classId = req.query.classId ? Number(req.query.classId) : null;
@@ -38,6 +63,21 @@ export const timetableController = {
   async updateSlot(req, res, next) {
     try {
       const slotId = Number(req.params.id);
+      const { sessionId, classId, subjectId, teacherId, weekday, startTime, endTime, effectiveFrom, effectiveTo, status, reason } = req.body;
+      const slot = await timetableService.updateSlot({
+        slotId,
+        sessionId: sessionId ? Number(sessionId) : undefined,
+        classId: classId ? Number(classId) : undefined,
+        subjectId: subjectId ? Number(subjectId) : undefined,
+        teacherId: teacherId ? Number(teacherId) : undefined,
+        weekday: weekday !== undefined ? Number(weekday) : undefined,
+        startTime,
+        endTime,
+        effectiveFrom,
+        effectiveTo,
+        status,
+        userId: req.user?.id,
+        reason
       const updates = req.body;
       const slot = await timetableService.updateSlot({
         slotId,
@@ -53,6 +93,11 @@ export const timetableController = {
   async deleteSlot(req, res, next) {
     try {
       const slotId = Number(req.params.id);
+      const { reason } = req.body || {};
+      const result = await timetableService.deleteSlot({
+        slotId,
+        userId: req.user?.id,
+        reason
       const result = await timetableService.deleteSlot({
         slotId,
         userId: req.user?.id
@@ -68,9 +113,11 @@ export const timetableController = {
       const classId = req.query.classId ? Number(req.query.classId) : null;
       const teacherId = req.query.teacherId ? Number(req.query.teacherId) : null;
       const date = req.query.date || null;
+      const startDate = req.query.startDate || null;
+      const endDate = req.query.endDate || null;
       const status = req.query.status || null;
 
-      const lessons = await timetableService.getLessons({ classId, teacherId, date, status });
+      const lessons = await timetableService.getLessons({ classId, teacherId, date, startDate, endDate, status });
       return sendSuccess(res, lessons);
     } catch (error) {
       next(error);

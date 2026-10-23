@@ -246,13 +246,35 @@ export const studentsRepository = {
       student.enrollmentStatus === 'DEACTIVATED' ||
       student.accountStatus === 'DEACTIVATED'
     ) {
+      // Fetch outstanding invoices so the restriction notice can show them
+      const overdueChallans = await db('fee_challans')
+        .where('student_id', student.id)
+        .whereNotIn('status', ['PAID'])
+        .select('id', 'billing_month', 'due_date', 'total_payable', 'paid_amount', 'status')
+        .orderBy('due_date', 'asc');
+
+      const outstandingInvoices = overdueChallans.map((c) => ({
+        challanId: c.id,
+        billingMonth: c.billing_month,
+        dueDate: c.due_date ? String(c.due_date).split('T')[0] : null,
+        outstanding: Math.max(0, Number(c.total_payable) - Number(c.paid_amount)),
+        status: c.status
+      }));
+      const outstandingAmount = outstandingInvoices.reduce((s, i) => s + i.outstanding, 0);
+
+      // Principal WhatsApp contact from env (optional)
+      const principalWhatsapp = process.env.PRINCIPAL_WHATSAPP_NUMBER || null;
+
       return {
-        accountStatus: student.enrollmentStatus,
+        accountStatus: student.accountStatus,
         isRestricted: true,
-        suspensionReason:
-          'Classroom access is temporarily restricted due to account suspension or outstanding fee dues.',
+        suspensionReason: 'Your portal access has been temporarily restricted due to an outstanding fee balance.',
         resolutionMessage:
-          'Please clear pending fee dues or contact the Principal administration office to restore classroom access.'
+          'Please pay your outstanding fee and then contact the Principal via WhatsApp to restore access.',
+        feeRestriction: { outstandingAmount, outstandingInvoices },
+        principalContact: principalWhatsapp
+          ? { whatsappUrl: `https://wa.me/${principalWhatsapp.replace(/\D/g, '')}` }
+          : null
       };
     }
 

@@ -46,13 +46,13 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="text-xs font-semibold text-muted-foreground block mb-1">
-                Username or Email
+                Admission No, Username or Email
               </label>
               <input
                 type="text"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="student@school.pk"
+                placeholder="e.g. ADM-0936"
                 required
                 autoComplete="username"
                 className="w-full bg-card border border-border rounded-sm px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
