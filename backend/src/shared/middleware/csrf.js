@@ -15,6 +15,12 @@ export function csrfProtection(options = {}) {
       return next();
     }
 
+    // In development, skip CSRF — double-submit cookie only guards against
+    // cross-site attacks which cannot occur on localhost.
+    if (!config.isProduction) {
+      return next();
+    }
+
     // Check exempt paths (e.g. webhooks, login, forgot password, refresh)
     const isExempt = exemptPaths.some((p) => {
       if (typeof p === 'string') return req.path === p || req.originalUrl === p;
