@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { db } from '../src/shared/db/knex.js';
+import { hashPassword } from '../src/shared/crypto/password.js';
 
 describe('Module 3: Timetable & Zoom Integration Tests', () => {
   let app;
@@ -12,6 +13,37 @@ describe('Module 3: Timetable & Zoom Integration Tests', () => {
 
   beforeAll(async () => {
     app = createApp();
+
+    // Ensure teacher test user exists and has known credentials
+    const teacherPwd = await hashPassword('TeacherPassword123!');
+    let user = await db('users').where({ email: 'ayesha.math@school.pk' }).first();
+    if (!user) {
+      const [uId] = await db('users').insert({
+        role_id: 3,
+        username: 'ayesha.math',
+        email: 'ayesha.math@school.pk',
+        full_name: 'Ms. Ayesha Khan',
+        password_hash: teacherPwd,
+        status: 'ACTIVE',
+        must_change_password: 0
+      });
+      user = { id: uId };
+    } else {
+      await db('users').where({ id: user.id }).update({ password_hash: teacherPwd, status: 'ACTIVE' });
+    }
+
+    let teacherRecord = await db('teachers').where({ user_id: user.id }).first();
+    if (!teacherRecord) {
+      const [tId] = await db('teachers').insert({
+        user_id: user.id,
+        employee_no: 'TCH-TEST-AYESHA',
+        designation: 'Senior Mathematics Teacher',
+        joining_date: '2024-01-15',
+        employment_status: 'ACTIVE'
+      });
+      teacherRecord = { id: tId };
+    }
+    teacherId = teacherRecord.id;
 
     // 1. Principal Login
     const principalRes = await request(app)
@@ -32,14 +64,6 @@ describe('Module 3: Timetable & Zoom Integration Tests', () => {
     teacherCookies = teacherRes.headers['set-cookie'];
     const tCsrfCookie = teacherCookies.find((c) => c.startsWith('sms_csrf='));
     teacherCsrf = tCsrfCookie.split(';')[0].split('=')[1];
-
-    // Get Teacher profile ID
-    const teacherRecord = await db('teachers')
-      .join('users', 'teachers.user_id', 'users.id')
-      .where('users.email', 'ayesha.math@school.pk')
-      .select('teachers.id')
-      .first();
-    teacherId = teacherRecord.id;
 
     // Clean up timetable test tables for repeatable run
     await db('timetable_lessons').del();
@@ -257,6 +281,43 @@ describe('Module 3: Timetable & Zoom Integration Tests', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.data.status).toBe('LIVE');
       expect(res.body.data.joinUrl).toBeDefined();
+    });
+
+    it('should seamlessly hand off host and auto-complete previous lesson when next teacher starts lesson', async () => {
+      // 1. Ensure testLessonId is LIVE
+      await db('timetable_lessons').where({ id: testLessonId }).update({ status: 'LIVE' });
+
+      // 2. Create Lesson 2 (e.g. Period 2 for same Class 1)
+      const now = new Date();
+      const today = now.toISOString().split('T')[0];
+      const meeting = await db('zoom_meetings').where({ class_id: 1, status: 'ACTIVE' }).first();
+
+      const [nextLessonId] = await db('timetable_lessons').insert({
+        class_id: 1,
+        subject_id: 1,
+        teacher_id: teacherId,
+        zoom_meeting_id: meeting.id,
+        lesson_date: today,
+        start_at: new Date(now.getTime() - 1 * 60 * 1000),
+        end_at: new Date(now.getTime() + 45 * 60 * 1000),
+        status: 'SCHEDULED'
+      });
+
+      // 3. Next teacher starts lesson for Class 1 while previous lesson was still marked LIVE
+      const res = await request(app)
+        .post(`/api/v1/zoom/sessions/${nextLessonId}/start`)
+        .set('Cookie', teacherCookies)
+        .set('X-CSRF-Token', teacherCsrf)
+        .send({});
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.status).toBe('LIVE');
+      expect(res.body.data.hostTransitioned).toBe(true);
+
+      // Verify previous lesson was automatically concluded
+      const prevLesson = await db('timetable_lessons').where({ id: testLessonId }).first();
+      expect(prevLesson.status).toBe('COMPLETED');
     });
 
     it('should allow student in Class 1 to access the LIVE class session', async () => {

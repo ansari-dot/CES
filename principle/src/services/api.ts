@@ -93,7 +93,29 @@ function logAudit(
   }).catch(() => {});
 }
 
-let _csrfCache: string | null = null;
+let refreshPromise: Promise<boolean> | null = null;
+
+export async function executeTokenRefresh(): Promise<boolean> {
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = (async () => {
+    try {
+      const res = await fetch('/api/v1/auth/refresh', {
+        method: 'POST',
+        credentials: 'include'
+      });
+      return res.status === 204 || res.ok;
+    } catch {
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
 
 async function getCsrfHeader(): Promise<string | undefined> {
   // 1. Try the cookie first (set by login / csrf refresh)
@@ -116,9 +138,11 @@ async function getCsrfHeader(): Promise<string | undefined> {
   }
 }
 
-async function requestApi<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function requestApi<T>(path: string, options: RequestInit = {}, isRetry = false): Promise<T> {
   const headers = new Headers(options.headers || {});
-  headers.set('Content-Type', 'application/json');
+  if (!(options.body instanceof FormData) && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
 
   const method = (options.method || 'GET').toUpperCase();
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
@@ -134,12 +158,48 @@ async function requestApi<T>(path: string, options: RequestInit = {}): Promise<T
     credentials: 'include'
   });
 
-  const json = await res.json();
-  if (!res.ok || json.success === false) {
-    throw new Error(json.error?.message || 'API request failed');
+  // Automatically refresh access token on 401 Unauthorized and retry request seamlessly
+  if (
+    res.status === 401 &&
+    !isRetry &&
+    !path.includes('/auth/login') &&
+    !path.includes('/auth/refresh')
+  ) {
+    const refreshed = await executeTokenRefresh();
+    if (refreshed) {
+      const retryHeaders = new Headers(options.headers || {});
+      if (!(options.body instanceof FormData) && !retryHeaders.has('Content-Type')) {
+        retryHeaders.set('Content-Type', 'application/json');
+      }
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+        const newCsrf = await getCsrfHeader();
+        if (newCsrf) {
+          retryHeaders.set('X-CSRF-Token', newCsrf);
+        }
+      }
+      return requestApi<T>(path, { ...options, headers: retryHeaders }, true);
+    }
   }
 
-  return json.data as T;
+  if (res.status === 204) {
+    return null as T;
+  }
+
+  let json: any = null;
+  const contentType = res.headers.get('content-type');
+  if (contentType && contentType.includes('application/json')) {
+    try {
+      json = await res.json();
+    } catch {
+      json = null;
+    }
+  }
+
+  if (!res.ok || (json && json.success === false)) {
+    throw new Error(json?.error?.message || `API request failed (${res.status})`);
+  }
+
+  return (json ? json.data : null) as T;
 }
 
 export const api = {
@@ -192,7 +252,7 @@ export const api = {
     );
   },
 
-  async getProfile(): Promise<UserProfile> {
+  async getProfile(): Promise<UserProfile | null> {
     try {
       const data = await requestApi<any>('/api/v1/auth/me');
       const principal: UserProfile = {
@@ -208,7 +268,7 @@ export const api = {
       };
       return principal;
     } catch {
-      return getStoredDB().principalProfile;
+      return null;
     }
   },
 
@@ -642,10 +702,8 @@ export const api = {
                     code: s.code || '',
                     classNumber: classNum,
                     weeklyLessons: 5,
-                    assignedTeacherIds: Array.isArray(classAssignments)
-                      ? classAssignments
-                          .filter((a) => String(a.subjectId) === String(s.id))
-                          .map((a) => String(a.teacherId))
+                    assignedTeacherIds: Array.isArray(s.assignedTeacherIds)
+                      ? s.assignedTeacherIds.map(String)
                       : []
                   }))
                 : []
@@ -660,31 +718,60 @@ export const api = {
     return [];
   },
 
+  async getAllSubjects(): Promise<{ id: string; name: string; code: string }[]> {
+    try {
+      const data = await requestApi<any[]>('/api/v1/subjects');
+      if (Array.isArray(data)) {
+        return data.map((s) => ({
+          id: String(s.id),
+          name: s.name,
+          code: s.code
+        }));
+      }
+    } catch (err) {
+      console.warn('getAllSubjects failed:', err);
+    }
+    return [];
+  },
+
+  async addSubjectToClass(
+    classNumber: number,
+    subjectData: { subjectId?: string; name?: string; code?: string }
+  ): Promise<void> {
+    const rawClassId = Number(classNumber) || 1;
+    const payload: any = {};
+    if (subjectData.subjectId) {
+      payload.subjectId = parseInt(String(subjectData.subjectId).replace(/\D/g, ''), 10);
+    }
+    if (subjectData.name) {
+      payload.name = subjectData.name.trim();
+    }
+    if (subjectData.code) {
+      payload.code = subjectData.code.trim().toUpperCase();
+    }
+
+    await requestApi(`/api/v1/classes/${rawClassId}/subjects`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
   async assignTeacherToSubject(
     classNumber: number,
     subjectId: string,
     teacherId: string,
     reason: string
   ): Promise<SchoolClass> {
-    // Resolve class id
-    const classesData = await requestApi<any[]>('/api/v1/classes');
-    const cls = Array.isArray(classesData)
-      ? classesData.find((c: any) => Number(c.grade_level) === Number(classNumber))
-      : null;
-    if (!cls) throw new Error(`Class ${classNumber} not found`);
+    const rawClassId = Number(classNumber) || 1;
+    const rawSubjectId = parseInt(String(subjectId).replace(/\D/g, ''), 10) || 1;
+    const rawTeacherId = parseInt(String(teacherId).replace(/\D/g, ''), 10) || 1;
 
-    // Resolve active session
-    const sessions = await requestApi<any[]>('/api/v1/sessions');
-    const activeSession = Array.isArray(sessions) ? sessions.find((s: any) => s.is_current) : null;
-    const sessionId = activeSession ? activeSession.id : 1;
-
-    await requestApi(`/api/v1/teachers/${encodeURIComponent(teacherId)}/assignments`, {
+    await requestApi(`/api/v1/classes/${rawClassId}/assign-teacher`, {
       method: 'POST',
       body: JSON.stringify({
-        classId: cls.id,
-        subjectId: Number(subjectId),
-        sessionId,
-        effectiveFrom: new Date().toISOString().split('T')[0]
+        teacherId: rawTeacherId,
+        subjectId: rawSubjectId,
+        reason
       })
     });
 
@@ -692,6 +779,25 @@ export const api = {
     const schoolClass = classes.find(c => c.classNumber === classNumber);
     if (!schoolClass) throw new Error('Class not found');
     return schoolClass;
+  },
+
+  async unassignTeacherFromSubject(
+    classNumber: number,
+    subjectId: string,
+    teacherId: string
+  ): Promise<void> {
+    const rawClassId = Number(classNumber) || 1;
+    const rawSubjectId = parseInt(String(subjectId).replace(/\D/g, ''), 10) || 1;
+    const rawTeacherId = parseInt(String(teacherId).replace(/\D/g, ''), 10) || 1;
+
+    await requestApi('/api/v1/academic/unassign-teacher', {
+      method: 'POST',
+      body: JSON.stringify({
+        classId: rawClassId,
+        subjectId: rawSubjectId,
+        teacherId: rawTeacherId
+      })
+    });
   },
 
   // 7. Timetable Management — Live Only
@@ -733,97 +839,80 @@ export const api = {
   },
 
   async saveTimetableLesson(lessonData: Omit<TimetableLesson, 'id' | 'history'>, lessonId?: string, reason = 'Timetable update'): Promise<TimetableLesson> {
-    const daysMap: Record<string, number> = {
-      Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6, Sunday: 7
+    const weekdayMap: Record<string, number> = {
+      Monday: 1,
+      Tuesday: 2,
+      Wednesday: 3,
+      Thursday: 4,
+      Friday: 5,
+      Saturday: 6,
+      Sunday: 7
     };
 
-    // Find the class id from the backend
-    const classesData = await requestApi<any[]>('/api/v1/classes');
-    const cls = Array.isArray(classesData)
-      ? classesData.find((c: any) => Number(c.grade_level) === Number(lessonData.classNumber))
-      : null;
-    if (!cls) throw new Error(`Class ${lessonData.classNumber} not found`);
+    const rawClassId = Number(lessonData.classNumber) || 1;
+    const rawSubjectId = Number(lessonData.subjectId) || 1;
+    const rawTeacherId = parseInt(String(lessonData.teacherId).replace(/\D/g, ''), 10) || 1;
+    const startTimeFormatted = lessonData.startTime.length === 5 ? `${lessonData.startTime}:00` : lessonData.startTime;
+    const endTimeFormatted = lessonData.endTime.length === 5 ? `${lessonData.endTime}:00` : lessonData.endTime;
 
-    // Find active session
-    const sessions = await requestApi<any[]>('/api/v1/sessions');
-    const activeSession = Array.isArray(sessions) ? sessions.find((s: any) => s.is_current) : null;
-    const sessionId = activeSession ? activeSession.id : 1;
+    const numSlotId = lessonId ? parseInt(lessonId.replace(/\D/g, ''), 10) : null;
 
-    const numericId = lessonId ? parseInt(lessonId.replace(/\D/g, ''), 10) : null;
-
-    if (numericId) {
-      await requestApi(`/api/v1/timetable/slots/${numericId}`, {
+    if (numSlotId) {
+      await requestApi(`/api/v1/timetable/slots/${numSlotId}`, {
         method: 'PUT',
         body: JSON.stringify({
-          sessionId,
-          classId: cls.id,
-          subjectId: Number(lessonData.subjectId),
-          teacherId: Number(lessonData.teacherId.replace(/\D/g, '')),
-          weekday: daysMap[lessonData.dayOfWeek] || 1,
-          startTime: lessonData.startTime,
-          endTime: lessonData.endTime,
-          effectiveFrom: new Date().toISOString().split('T')[0],
-          reason
+          classId: rawClassId,
+          subjectId: rawSubjectId,
+          teacherId: rawTeacherId,
+          weekday: weekdayMap[lessonData.dayOfWeek] || 1,
+          startTime: startTimeFormatted,
+          endTime: endTimeFormatted
         })
       });
-      return {
-        ...lessonData,
-        id: lessonId,
-        history: []
-      };
     } else {
-      const created = await requestApi<any>('/api/v1/timetable/slots', {
+      await requestApi('/api/v1/timetable/slots', {
         method: 'POST',
         body: JSON.stringify({
-          sessionId,
-          classId: cls.id,
-          subjectId: Number(lessonData.subjectId),
-          teacherId: Number(lessonData.teacherId.replace(/\D/g, '')),
-          weekday: daysMap[lessonData.dayOfWeek] || 1,
-          startTime: lessonData.startTime,
-          endTime: lessonData.endTime,
+          sessionId: 1,
+          classId: rawClassId,
+          subjectId: rawSubjectId,
+          teacherId: rawTeacherId,
+          weekday: weekdayMap[lessonData.dayOfWeek] || 1,
+          startTime: startTimeFormatted,
+          endTime: endTimeFormatted,
           effectiveFrom: new Date().toISOString().split('T')[0]
         })
       });
-      return {
-        ...lessonData,
-        id: `SLOT-${created.id}`,
-        history: []
-      };
     }
+
+    const all = await this.getTimetableLessons();
+    const found = all.find(
+      (s) =>
+        s.classNumber === lessonData.classNumber &&
+        s.dayOfWeek === lessonData.dayOfWeek &&
+        s.startTime === lessonData.startTime.substring(0, 5)
+    );
+    return found || { ...lessonData, id: lessonId || `SLOT-${Date.now()}`, history: [] };
   },
 
   async cancelTimetableLesson(lessonId: string, reason: string): Promise<TimetableLesson> {
     const numId = parseInt(lessonId.replace(/\D/g, ''), 10);
     if (numId) {
-      await requestApi(`/api/v1/timetable/slots/${numId}`, {
-        method: 'DELETE',
-        body: JSON.stringify({ reason })
-      });
+      try {
+        await requestApi(`/api/v1/timetable/slots/${numId}`, {
+          method: 'DELETE'
+        });
+      } catch (err) {
+        console.warn('cancelTimetableLesson backend warning:', err);
+      }
     }
     const lessons = await this.getTimetableLessons();
-    const lesson = lessons.find(l => l.id === lessonId);
-    if (!lesson) {
-      return {
-        id: lessonId,
-        classNumber: 1,
-        subjectId: '',
-        subjectName: '',
-        teacherId: '',
-        teacherName: '',
-        dayOfWeek: 'Monday',
-        startTime: '',
-        endTime: '',
-        timezone: 'Asia/Karachi',
-        academicSession: '2026-27',
-        zoomMeetingId: '',
-        publicationStatus: 'Draft',
-        lessonStatus: 'Cancelled',
-        history: []
-      };
+    const found = lessons.find(l => l.id === lessonId);
+    if (found) {
+      found.lessonStatus = 'Cancelled';
+      return found;
     }
-    lesson.lessonStatus = 'Cancelled';
-    return lesson;
+    return { id: lessonId, lessonStatus: 'Cancelled' } as TimetableLesson;
   },
 
   async publishTimetable(classNumber?: number): Promise<void> {

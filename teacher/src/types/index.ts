@@ -15,10 +15,14 @@ export type NavTab =
 
 export interface AssignedClass {
   id: string;
+  classId?: number;
+  className?: string;
   name: string;
   grade: number;
   section: string;
+  subjectId?: number;
   subject: string;
+  subjectCode?: string;
   enrolledCount: number;
   zoomRoomId: string;
   zoomPasscode: string;
@@ -53,6 +57,7 @@ export interface Student {
 
 export interface TimetableLesson {
   id: string;
+  rawId?: number;
   classId: string;
   className: string;
   subject: string;

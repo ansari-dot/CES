@@ -45,6 +45,7 @@ export const zoomController = {
       const result = await zoomService.startLesson({
         lessonId,
         teacherId,
+        userId: req.user?.id,
         userRole: req.user?.role
       });
       return sendSuccess(res, result);

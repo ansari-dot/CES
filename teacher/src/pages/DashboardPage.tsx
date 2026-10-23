@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
 import { toggleClockInOut } from '../store/slices/authSlice';
 import { setCurrentTab, addToast } from '../store/slices/uiSlice';
-import { openLessonModal } from '../store/slices/timetableSlice';
+import { openLessonModal, markLessonStarted } from '../store/slices/timetableSlice';
 import { KeyMetricsWidget } from '../components/dashboard/KeyMetricsWidget';
+import { requestApi } from '../services/api';
+import { TimetableLesson } from '../types';
 
 export const DashboardPage: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -12,9 +14,76 @@ export const DashboardPage: React.FC = () => {
   const tasks = useAppSelector((state) => state.tasks.tasks);
   const duty = useAppSelector((state) => state.duty.summary);
   const notices = useAppSelector((state) => state.notices.notices);
+  const [startingLessonId, setStartingLessonId] = useState<string | null>(null);
 
   const todayLessons = lessons.slice(0, 4);
   const nextLesson = lessons.find((l) => l.status === 'scheduled' || l.status === 'live') || lessons[0];
+
+  const isStartingIn5Min = (() => {
+    if (!nextLesson) return false;
+    const now = Date.now();
+    const todayStr = new Date().toISOString().split('T')[0];
+    let timeStr = (nextLesson.startTime || '').trim();
+    if (!timeStr) return false;
+    if (timeStr.includes('AM') || timeStr.includes('PM')) {
+      const [t, mod] = timeStr.split(' ');
+      let [h, m] = t.split(':').map(Number);
+      if (mod === 'PM' && h < 12) h += 12;
+      if (mod === 'AM' && h === 12) h = 0;
+      timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+    } else if (timeStr.length === 5) {
+      timeStr = `${timeStr}:00`;
+    }
+    const d = new Date(`${nextLesson.date || todayStr}T${timeStr}`);
+    const diff = (d.getTime() - now) / 60000;
+    return diff > 0 && diff <= 5;
+  })();
+
+  const handleLaunchZoomLesson = async (lesson: TimetableLesson) => {
+    try {
+      setStartingLessonId(lesson.id);
+      dispatch(
+        addToast({
+          message: `Connecting to ${lesson.className} classroom link...`,
+          type: 'info',
+        })
+      );
+
+      let targetUrl = `https://zoom.us/j/${lesson.zoomRoomId.replace(/-/g, '')}?pwd=${lesson.zoomPasscode}`;
+
+      if (lesson.rawId) {
+        try {
+          const res = await requestApi<any>(`/api/v1/zoom/sessions/${lesson.rawId}/start`, {
+            method: 'POST',
+          });
+          if (res?.joinUrl) {
+            targetUrl = res.joinUrl;
+          }
+          if (res?.hostTransitioned) {
+            dispatch(
+              addToast({
+                message: `Host handoff completed for ${lesson.className}. Previous teacher session concluded cleanly.`,
+                type: 'info',
+              })
+            );
+          }
+        } catch (apiErr) {
+          console.warn('Backend start session call fell back to persistent link:', apiErr);
+        }
+      }
+
+      dispatch(markLessonStarted(lesson.id));
+      window.open(targetUrl, '_blank');
+      dispatch(
+        addToast({
+          message: `Live classroom launched for ${lesson.className} (${lesson.subject}). Host active.`,
+          type: 'success',
+        })
+      );
+    } finally {
+      setStartingLessonId(null);
+    }
+  };
 
   const handleClockToggle = () => {
     dispatch(toggleClockInOut());
@@ -138,40 +207,66 @@ export const DashboardPage: React.FC = () => {
 
       {/* Hero Banner: Up Next */}
       {nextLesson ? (
-        <div className="bg-white rounded-xl p-4 border border-indigo-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 bg-gradient-to-r from-indigo-50/50 to-white">
+        <div className={`bg-white rounded-xl p-4 border shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 ${
+          nextLesson.status === 'live'
+            ? 'border-emerald-300 bg-gradient-to-r from-emerald-50/60 to-white'
+            : isStartingIn5Min
+            ? 'border-amber-300 bg-gradient-to-r from-amber-50/80 to-white'
+            : 'border-indigo-200 bg-gradient-to-r from-indigo-50/50 to-white'
+        }`}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#4f46e5] text-white flex items-center justify-center shrink-0">
+            <div className={`w-10 h-10 rounded-xl text-white flex items-center justify-center shrink-0 ${
+              nextLesson.status === 'live'
+                ? 'bg-emerald-600 animate-pulse'
+                : isStartingIn5Min
+                ? 'bg-amber-600 animate-bounce'
+                : 'bg-[#4f46e5]'
+            }`}>
               <span className="material-symbols-outlined text-[22px]">videocam</span>
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold px-2 py-0.2 rounded bg-indigo-100 text-[#3525cd]">
-                  NEXT CLASS • {nextLesson.startTime}
-                </span>
+                {nextLesson.status === 'live' ? (
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 animate-pulse flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                    LIVE NOW • HOST ACTIVE
+                  </span>
+                ) : isStartingIn5Min ? (
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 animate-pulse flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
+                    STARTS IN 5 MIN • PREPARE TO HOST
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-[#3525cd]">
+                    NEXT CLASS • {nextLesson.startTime}
+                  </span>
+                )}
                 <span className="text-xs font-bold text-[#121c2a]">
                   {nextLesson.className} ({nextLesson.subject})
                 </span>
               </div>
               <p className="text-xs text-[#464555] mt-0.5">
-                {nextLesson.topic} • Room ID: {nextLesson.zoomRoomId}
+                {nextLesson.topic} • Persistent Room ID: <span className="font-mono font-semibold text-slate-800">{nextLesson.zoomRoomId}</span>
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 self-end md:self-auto">
             <button
-              onClick={() =>
-                dispatch(
-                  addToast({
-                    message: `Launching Zoom meeting for ${nextLesson.className}...`,
-                    type: 'success',
-                  })
-                )
-              }
-              className="px-4 py-2 bg-[#4f46e5] hover:bg-[#3525cd] text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5"
+              onClick={() => handleLaunchZoomLesson(nextLesson)}
+              disabled={startingLessonId === nextLesson.id}
+              className={`px-4 py-2 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 transition-all ${
+                nextLesson.status === 'live'
+                  ? 'bg-emerald-600 hover:bg-emerald-500'
+                  : isStartingIn5Min
+                  ? 'bg-amber-600 hover:bg-amber-500 shadow-md ring-2 ring-amber-400/50'
+                  : 'bg-[#4f46e5] hover:bg-[#3525cd]'
+              }`}
             >
-              <span className="material-symbols-outlined text-[16px]">videocam</span>
-              <span>Join Zoom</span>
+              <span className={`material-symbols-outlined text-[16px] ${startingLessonId === nextLesson.id ? 'animate-spin' : ''}`}>
+                {startingLessonId === nextLesson.id ? 'sync' : 'videocam'}
+              </span>
+              <span>{startingLessonId === nextLesson.id ? 'Launching...' : nextLesson.status === 'live' ? 'Re-Join Live Room' : 'Join Zoom Room'}</span>
             </button>
             <button
               onClick={() => dispatch(setCurrentTab('student-attendance'))}
@@ -273,18 +368,15 @@ export const DashboardPage: React.FC = () => {
                     <td className="px-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         <button
-                          onClick={() =>
-                            dispatch(
-                              addToast({
-                                message: `Launching Zoom for ${l.className}...`,
-                                type: 'success',
-                              })
-                            )
-                          }
-                          className="px-2.5 py-1 rounded-lg bg-[#eff4ff] hover:bg-[#dee9fc] text-[#3525cd] text-[11px] font-bold flex items-center gap-1"
+                          onClick={() => handleLaunchZoomLesson(l)}
+                          disabled={startingLessonId === l.id}
+                          className="px-2.5 py-1 rounded-lg bg-[#eff4ff] hover:bg-[#dee9fc] text-[#3525cd] text-[11px] font-bold flex items-center gap-1 transition-colors"
+                          title={`Launch ${l.className} live Zoom room`}
                         >
-                          <span className="material-symbols-outlined text-[14px]">videocam</span>
-                          Zoom
+                          <span className={`material-symbols-outlined text-[14px] ${startingLessonId === l.id ? 'animate-spin' : ''}`}>
+                            {startingLessonId === l.id ? 'sync' : 'videocam'}
+                          </span>
+                          <span>{startingLessonId === l.id ? 'Opening...' : 'Zoom'}</span>
                         </button>
                         <button
                           onClick={() => dispatch(openLessonModal(l))}

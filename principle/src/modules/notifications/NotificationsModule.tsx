@@ -41,6 +41,10 @@ export const NotificationsModule: React.FC<NotificationsModuleProps> = ({ onNavi
 
   useEffect(() => {
     loadNotifs();
+    const interval = setInterval(() => {
+      api.getNotifications().then(setNotifications).catch(() => {});
+    }, 8000);
+    return () => clearInterval(interval);
   }, [loadNotifs]);
 
   const handleMarkRead = async (id: string) => {

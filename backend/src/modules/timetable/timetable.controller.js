@@ -78,6 +78,11 @@ export const timetableController = {
         status,
         userId: req.user?.id,
         reason
+      const updates = req.body;
+      const slot = await timetableService.updateSlot({
+        slotId,
+        updates,
+        userId: req.user?.id
       });
       return sendSuccess(res, slot);
     } catch (error) {
@@ -93,6 +98,9 @@ export const timetableController = {
         slotId,
         userId: req.user?.id,
         reason
+      const result = await timetableService.deleteSlot({
+        slotId,
+        userId: req.user?.id
       });
       return sendSuccess(res, result);
     } catch (error) {

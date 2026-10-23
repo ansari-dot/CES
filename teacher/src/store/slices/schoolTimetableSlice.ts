@@ -5,7 +5,6 @@ import {
   SchoolClassSession,
 } from '../../types';
 import { requestApi } from '../../services/api';
-import { convertRecurringSlotToZoned, DEFAULT_SCHOOL_TIMEZONE } from '../../lib/timezone';
 
 export interface SchoolTimetableState {
   isLoading: boolean;
@@ -174,12 +173,60 @@ export const fetchSchoolTimetable = createAsyncThunk(
             };
           })
         : [];
+      const data = await requestApi<any[]>('/api/v1/timetable/slots');
+      const daysMap: Record<number, string> = {
+        1: 'Monday',
+        2: 'Tuesday',
+        3: 'Wednesday',
+        4: 'Thursday',
+        5: 'Friday',
+        6: 'Saturday',
+        7: 'Sunday'
+      };
+
+      const sessions: SchoolClassSession[] = Array.isArray(data)
+        ? data.map((s: any) => {
+            const startH = parseInt(String(s.startTime).substring(0, 2), 10);
+            let periodNum = 1;
+            if (startH >= 14) periodNum = 4;
+            else if (startH >= 13) periodNum = 3;
+            else if (startH >= 10) periodNum = 2;
+
+            return {
+              id: `SLOT-${s.id}`,
+              periodId: `P-${periodNum}`,
+              periodNumber: periodNum,
+              classId: String(s.classId),
+              className: s.className || `Class ${s.classNumber}`,
+              grade: Number(s.classNumber),
+              section: 'A',
+              subject: s.subjectName,
+              subjectCode: s.subjectCode || 'SUB',
+              topic: 'Core Instruction & Live Lesson',
+              teacherId: String(s.teacherId),
+              teacherName: s.teacherName,
+              teacherAvatar: '',
+              roomNumber: `Online Live Classroom (Room ${s.classNumber})`,
+              roomType: 'virtual_zoom',
+              zoomMeetingId: `900${s.classNumber}000${s.classNumber}`,
+              zoomPasscode: `CLASS${s.classNumber}#`,
+              dayOfWeek: daysMap[s.weekday] || 'Monday',
+              startTime: String(s.startTime).substring(0, 5),
+              endTime: String(s.endTime).substring(0, 5),
+              status: 'scheduled',
+              enrolledStudentsCount: 25,
+              colorTag: '#3525cd',
+              subjectIcon: 'school'
+            };
+          })
+        : [];
+
       return {
         sessions,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
-    } catch {
-      return rejectWithValue('Failed to load school timetable state.');
+    } catch (err: any) {
+      return rejectWithValue(err.message || 'Failed to load school timetable state.');
     }
   }
 );
@@ -239,6 +286,9 @@ export const schoolTimetableSlice = createSlice({
         state.lastFetchedAt = `Today at ${payload.timestamp}`;
         if (Array.isArray(payload.sessions)) {
           state.sessions = payload.sessions;
+        state.lastFetchedAt = `Today at ${action.payload.timestamp}`;
+        if (action.payload.sessions) {
+          state.sessions = action.payload.sessions;
         }
       })
       .addCase(fetchSchoolTimetable.rejected, (state) => {

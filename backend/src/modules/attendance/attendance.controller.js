@@ -12,6 +12,17 @@ export const attendanceController = {
     }
   },
 
+  async getClassRoster(req, res, next) {
+    try {
+      const classId = Number(req.params.classId);
+      const { date } = req.query;
+      const data = await attendanceService.getClassRoster(classId, date);
+      return sendSuccess(res, data);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async recordDelivery(req, res, next) {
     try {
       const lessonId = Number(req.params.lessonId);

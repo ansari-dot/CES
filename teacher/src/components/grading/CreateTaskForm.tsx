@@ -3,15 +3,32 @@ import { useAppDispatch, useAppSelector } from '../../store';
 import { createNewTask } from '../../store/slices/tasksSlice';
 import { addToast } from '../../store/slices/uiSlice';
 import { Task } from '../../types';
+import { requestApi } from '../../services/api';
 
 export const CreateTaskForm: React.FC = () => {
   const dispatch = useAppDispatch();
-  const assignedClasses = useAppSelector((state) => state.auth.teacher.assignedClasses);
+  const assignedClasses = useAppSelector((state) => state.auth.teacher.assignedClasses || []);
+
+  // Unique classes assigned to this teacher
+  const uniqueAssignedClasses = React.useMemo(() => {
+    const map = new Map<string, { id: string; classId: number; name: string }>();
+    for (const c of assignedClasses) {
+      const cid = String(c.classId || c.id);
+      if (!map.has(cid)) {
+        map.set(cid, {
+          id: cid,
+          classId: Number(c.classId || cid),
+          name: c.className || c.name.split(' - ')[0] || `Class ${c.grade}`
+        });
+      }
+    }
+    return Array.from(map.values());
+  }, [assignedClasses]);
 
   const [title, setTitle] = useState('');
   const [instructions, setInstructions] = useState('');
-  const [targetClassId, setTargetClassId] = useState(assignedClasses[0]?.id || '');
-  const [subject, setSubject] = useState(assignedClasses[0]?.subject || 'General');
+  const [targetClassId, setTargetClassId] = useState<string>('');
+  const [subject, setSubject] = useState<string>('');
   const [deadline, setDeadline] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 3);
@@ -22,20 +39,69 @@ export const CreateTaskForm: React.FC = () => {
   const [notifyParents, setNotifyParents] = useState(true);
   const [attachedFile, setAttachedFile] = useState<string | null>(null);
 
+  // Sync targetClassId with teacher's assigned classes
+  React.useEffect(() => {
+    if (uniqueAssignedClasses.length > 0) {
+      const exists = uniqueAssignedClasses.some((c) => c.id === targetClassId);
+      if (!exists || !targetClassId) {
+        setTargetClassId(uniqueAssignedClasses[0].id);
+      }
+    }
+  }, [uniqueAssignedClasses, targetClassId]);
+
+  // Subjects assigned to this teacher for the selected class
+  const availableSubjects = React.useMemo(() => {
+    const matching = assignedClasses.filter(
+      (c) => String(c.classId || c.id) === String(targetClassId)
+    );
+    const pool = matching.length > 0 ? matching : assignedClasses;
+    const map = new Map<string, { id: number; name: string }>();
+    for (const c of pool) {
+      if (c.subject && !map.has(c.subject)) {
+        map.set(c.subject, {
+          id: Number(c.subjectId || 1),
+          name: c.subject
+        });
+      }
+    }
+    return Array.from(map.values());
+  }, [assignedClasses, targetClassId]);
+
+  // Sync subject with selected class
+  React.useEffect(() => {
+    if (availableSubjects.length > 0) {
+      const exists = availableSubjects.some((s) => s.name === subject);
+      if (!exists || !subject) {
+        setSubject(availableSubjects[0].name);
+      }
+    }
+  }, [availableSubjects, subject]);
+
+  const handleClassChange = (newClassId: string) => {
+    setTargetClassId(newClassId);
+    const matching = assignedClasses.filter(
+      (c) => String(c.classId || c.id) === String(newClassId)
+    );
+    if (matching.length > 0 && matching[0].subject) {
+      setSubject(matching[0].subject);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
 
+    const classNum = Number(targetClassId) || (uniqueAssignedClasses[0]?.classId || 1);
+    const selectedSubjObj = availableSubjects.find((s) => s.name === subject);
+    const subjectNum = selectedSubjObj?.id || 1;
+
     try {
-      const classNum = parseInt(targetClassId.replace(/\D/g, ''), 10) || 1;
-      await fetch('/api/v1/tasks', {
+      await requestApi('/api/v1/tasks', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           classId: classNum,
-          subjectId: 1,
-          title,
+          subjectId: subjectNum,
+          title: title.trim(),
           instructions: instructions || 'Complete all assignment questions with step-by-step working.',
           deadline,
           totalMarks,
@@ -46,15 +112,15 @@ export const CreateTaskForm: React.FC = () => {
       console.warn('Backend task create failed, fallback to local state:', err);
     }
 
-    const selectedCls = assignedClasses.find((c) => c.id === targetClassId);
+    const selectedCls = uniqueAssignedClasses.find((c) => c.id === targetClassId);
 
     const newTask: Task = {
       id: `TASK-${Date.now().toString().slice(-4)}`,
-      title,
+      title: title.trim(),
       instructions: instructions || 'Complete all assignment questions with step-by-step working.',
       classId: targetClassId,
-      className: selectedCls ? selectedCls.name.split(' - ')[0] : (targetClassId || 'General Class'),
-      subject,
+      className: selectedCls ? selectedCls.name : `Class ${classNum}`,
+      subject: subject || 'General',
       assignedDate: 'Today',
       deadline: deadline ? new Date(deadline).toLocaleDateString([], {
         month: 'short',
@@ -66,18 +132,18 @@ export const CreateTaskForm: React.FC = () => {
       gradingScale,
       status: 'active',
       submittedCount: 0,
-      totalStudents: selectedCls?.enrolledCount || 0,
+      totalStudents: assignedClasses.find(c => String(c.classId || c.id) === targetClassId)?.enrolledCount || 0,
       gradedCount: 0,
       pendingCount: 0,
       lateCount: 0,
-      missingCount: selectedCls?.enrolledCount || 0,
+      missingCount: assignedClasses.find(c => String(c.classId || c.id) === targetClassId)?.enrolledCount || 0,
       handoutName: attachedFile || undefined,
     };
 
     dispatch(createNewTask(newTask));
     dispatch(
       addToast({
-        message: `Assignment "${title}" published to ${newTask.className}. ${
+        message: `Assignment "${title}" published to ${newTask.className} (${newTask.subject}). ${
           notifyParents ? 'Guardian broadcast sent.' : ''
         }`,
         type: 'success',
@@ -141,14 +207,14 @@ export const CreateTaskForm: React.FC = () => {
             <label className="text-xs font-semibold text-[#121c2a]">Target Class</label>
             <select
               value={targetClassId}
-              onChange={(e) => setTargetClassId(e.target.value)}
-              disabled={assignedClasses.length === 0}
+              onChange={(e) => handleClassChange(e.target.value)}
+              disabled={uniqueAssignedClasses.length === 0}
               className="w-full bg-[#eff4ff] px-3.5 py-2.5 rounded-lg text-[#121c2a] focus:outline-none focus:ring-2 focus:ring-[#3525cd]/20 cursor-pointer border border-indigo-100/60"
             >
-              {assignedClasses.length === 0 ? (
+              {uniqueAssignedClasses.length === 0 ? (
                 <option value="" disabled>No classes assigned</option>
               ) : (
-                assignedClasses.map((c) => (
+                uniqueAssignedClasses.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>
@@ -162,18 +228,15 @@ export const CreateTaskForm: React.FC = () => {
             <select
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
+              disabled={availableSubjects.length === 0}
               className="w-full bg-[#eff4ff] px-3.5 py-2.5 rounded-lg text-[#121c2a] focus:outline-none focus:ring-2 focus:ring-[#3525cd]/20 cursor-pointer border border-indigo-100/60"
             >
-              {assignedClasses.length > 0 ? (
-                Array.from(new Set(assignedClasses.map((c) => c.subject))).map((subj) => (
-                  <option key={subj} value={subj}>{subj}</option>
+              {availableSubjects.length > 0 ? (
+                availableSubjects.map((subj) => (
+                  <option key={subj.name} value={subj.name}>{subj.name}</option>
                 ))
               ) : (
-                <>
-                  <option value="General">General</option>
-                  <option value="Mathematics">Mathematics</option>
-                  <option value="Science">Science</option>
-                </>
+                <option value="">No subject assigned</option>
               )}
             </select>
           </div>

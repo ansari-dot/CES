@@ -39,7 +39,16 @@ export const attendanceRepository = {
         this.on('lesson_attendance.student_id', '=', 'students.id')
           .andOn('lesson_attendance.lesson_id', '=', db.raw('?', [lessonId]));
       })
-      .where('students.current_class_id', lesson.classId)
+      .where(function () {
+        this.where('students.current_class_id', lesson.classId)
+          .orWhereIn(
+            'students.id',
+            db('enrollments')
+              .select('student_id')
+              .where('class_id', lesson.classId)
+              .andWhere('status', 'ACTIVE')
+          );
+      })
       .where('students.status', 'ACTIVE')
       .select(
         'students.id as studentId',
@@ -55,14 +64,112 @@ export const attendanceRepository = {
       )
       .orderBy('students.roll_no', 'asc');
 
+    const studentRoster = students.map((s) => ({
+      ...s,
+      status: s.status || 'PRESENT' // default to present if not marked
+    }));
+
     return {
       lesson,
       isLocked: submission ? Boolean(submission.is_locked) : false,
       submission: submission || null,
-      roster: students.map((s) => ({
-        ...s,
-        status: s.status || 'PRESENT' // default to present if not marked
-      }))
+      roster: studentRoster,
+      students: studentRoster
+    };
+  },
+
+  /**
+   * Get class roster directly by classId (with today's or specified date's lesson if scheduled)
+   */
+  async getClassRoster(classId, date = new Date().toISOString().slice(0, 10)) {
+    const classObj = await db('classes').where({ id: classId }).first();
+    if (!classObj) return null;
+
+    // Look for a scheduled lesson for this class today
+    const lesson = await db('timetable_lessons')
+      .join('subjects', 'timetable_lessons.subject_id', 'subjects.id')
+      .where('timetable_lessons.class_id', classId)
+      .where('timetable_lessons.lesson_date', date)
+      .select(
+        'timetable_lessons.id as lessonId',
+        'timetable_lessons.class_id as classId',
+        'timetable_lessons.lesson_date as lessonDate',
+        'timetable_lessons.start_at as startAt',
+        'timetable_lessons.end_at as endAt',
+        'timetable_lessons.status as lessonStatus',
+        'subjects.name as subjectName'
+      )
+      .first();
+
+    const lessonId = lesson ? lesson.lessonId : null;
+
+    let submission = null;
+    if (lessonId) {
+      submission = await db('lesson_attendance_submissions')
+        .where({ lesson_id: lessonId })
+        .first();
+    }
+
+    const students = await db('students')
+      .join('users', 'students.user_id', 'users.id')
+      .leftJoin('lesson_attendance', function () {
+        if (lessonId) {
+          this.on('lesson_attendance.student_id', '=', 'students.id')
+            .andOn('lesson_attendance.lesson_id', '=', db.raw('?', [lessonId]));
+        } else {
+          this.on(db.raw('1 = 0'));
+        }
+      })
+      .where(function () {
+        this.where('students.current_class_id', classId)
+          .orWhereIn(
+            'students.id',
+            db('enrollments')
+              .select('student_id')
+              .where('class_id', classId)
+              .andWhere('status', 'ACTIVE')
+          );
+      })
+      .where('students.status', 'ACTIVE')
+      .select(
+        'students.id as studentId',
+        'students.admission_no as admissionNumber',
+        'students.roll_no as rollNumber',
+        'users.full_name as studentName',
+        'users.email as studentEmail',
+        'lesson_attendance.id as attendanceId',
+        'lesson_attendance.status as status',
+        'lesson_attendance.remarks as remarks',
+        'lesson_attendance.marked_by_user_id as markedByUserId',
+        'lesson_attendance.updated_at as markedAt'
+      )
+      .orderBy('students.roll_no', 'asc');
+
+    const roster = students.map((s) => ({
+      ...s,
+      status: s.status || 'PRESENT'
+    }));
+
+    return {
+      class: {
+        id: classObj.id,
+        name: classObj.name,
+        gradeLevel: classObj.grade_level
+      },
+      lesson: lesson || {
+        lessonId: `CLASS-${classObj.id}`,
+        classId: classObj.id,
+        className: classObj.name,
+        subjectName: 'Class Session',
+        lessonDate: date,
+        startAt: `${date} 09:00:00.000`,
+        endAt: `${date} 09:45:00.000`,
+        lessonStatus: 'SCHEDULED'
+      },
+      isLocked: submission ? Boolean(submission.is_locked) : false,
+      submission: submission || null,
+      roster,
+      students: roster
     };
   },
 

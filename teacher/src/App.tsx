@@ -20,7 +20,8 @@ import { ProfileSettingsPage } from './pages/ProfileSettingsPage';
 
 // Import Live Backend Async Thunks
 import { checkTeacherSessionThunk } from './store/slices/authSlice';
-import { fetchTeacherLessonsThunk, detectTeacherTimezoneThunk } from './store/slices/timetableSlice';
+import { fetchTeacherLessonsThunk } from './store/slices/timetableSlice';
+import { fetchSchoolTimetable } from './store/slices/schoolTimetableSlice';
 import { fetchTasksThunk, fetchSubmissionsThunk } from './store/slices/tasksSlice';
 import { fetchResourcesThunk } from './store/slices/resourcesSlice';
 import { fetchNoticesThunk } from './store/slices/noticesSlice';
@@ -28,6 +29,7 @@ import { fetchPerformanceDataThunk } from './store/slices/performanceSlice';
 import { fetchLessonRosterThunk, fetchCorrectionVouchersThunk } from './store/slices/attendanceSlice';
 import { fetchDutySummaryThunk } from './store/slices/dutySlice';
 import { fetchSchoolTimetable } from './store/slices/schoolTimetableSlice';
+import { useLessonReminderTicker } from './hooks/useLessonReminderTicker';
 
 export default function App() {
   const dispatch = useAppDispatch();
@@ -35,6 +37,9 @@ export default function App() {
   const teacher = useAppSelector((state) => state.auth.teacher);
   const currentTab = useAppSelector((state) => state.ui.currentTab);
   const mustChangePassword = useAppSelector((state) => state.auth.mustChangePassword);
+
+  // Active 5-minute pre-lesson notification reminder ticker
+  useLessonReminderTicker();
 
   // 1. Session verification on app startup
   useEffect(() => {

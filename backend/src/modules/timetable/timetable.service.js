@@ -1,5 +1,7 @@
 import { timetableRepository } from './timetable.repository.js';
 import { zoomRepository } from '../zoom/zoom.repository.js';
+import { db } from '../../shared/db/knex.js';
+import { notificationService } from '../../shared/services/notificationService.js';
 import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
 import { config } from '../../config/index.js';
@@ -107,6 +109,61 @@ export const timetableService = {
       reason: 'Slot created',
       changedBy: createdBy
     });
+
+    // Auto-generate rolling lessons so they immediately appear on teacher, student, and principal calendars
+    try {
+      await this.publishTimetable({ sessionId, days: 14, createdBy });
+    } catch (e) {
+      console.warn('[TimetableService] Auto-publish on slot creation warning:', e.message);
+    }
+
+    return await timetableRepository.findSlotById(slotId);
+  },
+
+  async updateSlot({ slotId, updates, userId }) {
+    const slot = await timetableRepository.findSlotById(slotId);
+    if (!slot) {
+      throw new AppError('Timetable slot not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    const { classId, subjectId, teacherId, weekday, startTime, endTime, status } = updates;
+
+    // Check conflict if schedule parameters changed
+    if (classId || teacherId || weekday || startTime || endTime) {
+      const conflict = await timetableRepository.checkSlotConflict({
+        classId: classId || slot.classId,
+        teacherId: teacherId || slot.teacherId,
+        weekday: weekday || slot.weekday,
+        startTime: startTime || slot.startTime,
+        endTime: endTime || slot.endTime,
+        excludeSlotId: slotId
+      });
+
+      if (conflict) {
+        const message =
+          conflict.type === 'CLASS_CONFLICT'
+            ? 'Class already has another subject scheduled during this period.'
+            : 'Teacher already has another class assigned during this period.';
+        throw new AppError(message, 409, ErrorCodes.SCHEDULE_CONFLICT);
+      }
+    }
+
+    const dbUpdates = {};
+    if (classId !== undefined) dbUpdates.class_id = classId;
+    if (subjectId !== undefined) dbUpdates.subject_id = subjectId;
+    if (teacherId !== undefined) dbUpdates.teacher_id = teacherId;
+    if (weekday !== undefined) dbUpdates.weekday = weekday;
+    if (startTime !== undefined) dbUpdates.start_time = startTime;
+    if (endTime !== undefined) dbUpdates.end_time = endTime;
+    if (status !== undefined) dbUpdates.status = status;
+
+    await timetableRepository.updateSlot(slotId, dbUpdates);
+
+    try {
+      await this.publishTimetable({ sessionId: slot.sessionId || 1, days: 14, createdBy: userId });
+    } catch (e) {
+      console.warn('[TimetableService] Auto-publish on slot update warning:', e.message);
+    }
 
     return await timetableRepository.findSlotById(slotId);
   },
@@ -242,6 +299,23 @@ export const timetableService = {
     });
 
     return { slotId, status: 'ARCHIVED' };
+  async deleteSlot({ slotId, userId }) {
+    const slot = await timetableRepository.findSlotById(slotId);
+    if (!slot) {
+      throw new AppError('Timetable slot not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    await timetableRepository.deleteSlot(slotId);
+
+    await timetableRepository.logChange({
+      slotId,
+      changeType: 'DELETED',
+      oldValues: slot,
+      reason: 'Timetable slot deleted by administrator',
+      changedBy: userId
+    });
+
+    return { slotId, deleted: true };
   },
 
   async getLessons(filter = {}) {
@@ -321,9 +395,30 @@ export const timetableService = {
       changedBy: createdBy
     });
 
+    const slotIds = slots.map((s) => s.id);
+    let totalScheduledCount = generatedLessons.length;
+    if (slotIds.length > 0) {
+      const activeRows = await db('timetable_lessons')
+        .whereIn('slot_id', slotIds)
+        .count('* as count')
+        .first();
+      totalScheduledCount = Math.max(generatedLessons.length, Number(activeRows?.count || 0));
+    }
+
+    notificationService.notify({
+      title: 'Academic Timetable Published',
+      message: `Timetable published covering a ${days}-day rolling window with ${totalScheduledCount} scheduled lessons.`,
+      type: 'Timetable Change',
+      targetRole: 'TEACHER',
+      relatedRecordId: sessionId,
+      relatedRecordType: 'Timetable',
+      priority: 'Medium'
+    });
+
     return {
-      message: `Generated ${generatedLessons.length} lessons for ${days} days rolling window`,
-      count: generatedLessons.length
+      message: `Generated ${generatedLessons.length} new lessons (${totalScheduledCount} total active) for ${days} days rolling window`,
+      count: totalScheduledCount,
+      newCount: generatedLessons.length
     };
   },
 
@@ -345,6 +440,16 @@ export const timetableService = {
       changedBy: userId
     });
 
+    notificationService.notify({
+      title: 'Scheduled Lesson Cancelled',
+      message: `Lesson #${lessonId} scheduled for ${lesson.lesson_date || 'scheduled date'} was cancelled: ${reason || 'Administrative update'}.`,
+      type: 'Timetable Change',
+      targetRole: 'ALL',
+      relatedRecordId: lessonId,
+      relatedRecordType: 'Timetable',
+      priority: 'High'
+    });
+
     return { lessonId, status: 'CANCELLED' };
   },
 
@@ -363,6 +468,23 @@ export const timetableService = {
       newValues: { substitute_teacher_id: substituteTeacherId },
       reason: reason || 'Substitute teacher assigned',
       changedBy: userId
+    });
+
+    let subUserId = null;
+    try {
+      const subTeacher = await db('teachers').where({ id: substituteTeacherId }).first();
+      subUserId = subTeacher?.user_id;
+    } catch (_) {}
+
+    notificationService.notify({
+      userId: subUserId,
+      title: 'Substitute Teaching Duty Assigned',
+      message: `You have been assigned as substitute instructor for Lesson #${lessonId}. Reason: ${reason || 'Institutional allocation'}.`,
+      type: 'Substitute Assigned',
+      targetRole: 'TEACHER',
+      relatedRecordId: lessonId,
+      relatedRecordType: 'Timetable',
+      priority: 'High'
     });
 
     return { lessonId, substituteTeacherId };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ActiveModule } from './Sidebar';
 import { Bell, RefreshCw, ChevronDown, Check, LogOut, User } from 'lucide-react';
@@ -23,19 +23,44 @@ export const Header: React.FC<HeaderProps> = ({
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const toast = useToast();
+  const prevUnreadIdsRef = useRef<Set<string>>(new Set());
+  const isInitialLoadRef = useRef(true);
 
-  const fetchNotifs = async () => {
+  const fetchNotifs = useCallback(async () => {
     try {
       const data = await api.getNotifications();
-      setNotifications(data);
+      if (Array.isArray(data)) {
+        setNotifications(data);
+
+        // Instant notification toast for freshly arrived unread alerts
+        const currentUnread = data.filter((n) => !n.isRead);
+        if (!isInitialLoadRef.current) {
+          for (const notif of currentUnread) {
+            if (!prevUnreadIdsRef.current.has(notif.id)) {
+              toast.info(`${notif.title}: ${notif.message}`);
+            }
+          }
+        } else {
+          isInitialLoadRef.current = false;
+        }
+
+        prevUnreadIdsRef.current = new Set(currentUnread.map((n) => n.id));
+      }
     } catch {
       // quiet fallback
     }
-  };
+  }, [toast]);
+
+  // Fast real-time polling ticker: Refresh every 5 seconds for immediate operational awareness
+  useEffect(() => {
+    fetchNotifs();
+    const ticker = setInterval(fetchNotifs, 5000);
+    return () => clearInterval(ticker);
+  }, [fetchNotifs]);
 
   useEffect(() => {
     fetchNotifs();
-  }, [activeModule]);
+  }, [activeModule, fetchNotifs]);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
@@ -130,7 +155,7 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Bell className="w-3.5 h-3.5" />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center font-mono shadow-xs">
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center font-mono shadow-xs animate-pulse ring-2 ring-white">
                 {unreadCount}
               </span>
             )}

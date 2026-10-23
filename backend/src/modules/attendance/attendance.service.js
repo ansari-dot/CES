@@ -1,5 +1,6 @@
 import { attendanceRepository } from './attendance.repository.js';
 import { timetableRepository } from '../timetable/timetable.repository.js';
+import { notificationService } from '../../shared/services/notificationService.js';
 import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
 
@@ -8,6 +9,14 @@ export const attendanceService = {
     const data = await attendanceRepository.getLessonRoster(lessonId);
     if (!data) {
       throw new AppError('Lesson not found', 404, ErrorCodes.NOT_FOUND);
+    }
+    return data;
+  },
+
+  async getClassRoster(classId, date) {
+    const data = await attendanceRepository.getClassRoster(classId, date);
+    if (!data) {
+      throw new AppError('Class not found', 404, ErrorCodes.NOT_FOUND);
     }
     return data;
   },
@@ -84,6 +93,16 @@ export const attendanceService = {
       userId
     });
 
+    notificationService.notify({
+      title: 'Attendance Roster Finalized',
+      message: `Attendance submitted for Lesson #${lessonId} (${records.length} students rostered).`,
+      type: 'Missing Attendance',
+      targetRole: 'PRINCIPAL',
+      relatedRecordId: lessonId,
+      relatedRecordType: 'Attendance',
+      priority: 'Medium'
+    });
+
     return result;
   },
 
@@ -131,6 +150,16 @@ export const attendanceService = {
       reason
     });
 
+    notificationService.notify({
+      title: 'Correction Voucher Awaiting Review',
+      message: `Attendance correction requested for Lesson #${lessonId}: ${reason}`,
+      type: 'Correction Request',
+      targetRole: 'PRINCIPAL',
+      relatedRecordId: correctionId,
+      relatedRecordType: 'AttendanceCorrection',
+      priority: 'High'
+    });
+
     return await attendanceRepository.findCorrectionById(correctionId);
   },
 
@@ -162,6 +191,17 @@ export const attendanceService = {
       status: upperStatus,
       reviewRemarks,
       reviewedByUserId: userId
+    });
+
+    notificationService.notify({
+      userId: correction.requestedByUserId,
+      title: `Correction Voucher ${upperStatus}`,
+      message: `Attendance correction request #${correctionId} was ${upperStatus.toLowerCase()} by administration. Remarks: ${reviewRemarks || 'No remarks provided'}.`,
+      type: 'Correction Request',
+      targetRole: 'TEACHER',
+      relatedRecordId: correctionId,
+      relatedRecordType: 'AttendanceCorrection',
+      priority: 'Medium'
     });
 
     return result;

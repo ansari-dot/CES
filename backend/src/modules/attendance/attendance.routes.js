@@ -7,6 +7,7 @@ const router = Router();
 
 // Roster and Marking
 router.get('/lessons/:lessonId/roster', authenticate, attendanceController.getLessonRoster);
+router.get('/classes/:classId/roster', authenticate, attendanceController.getClassRoster);
 router.post('/lessons/:lessonId/delivery', authenticate, authorize('attendance.mark'), attendanceController.recordDelivery);
 router.post('/lessons/:lessonId/submit', authenticate, authorize('attendance.mark'), attendanceController.submitAttendance);
 

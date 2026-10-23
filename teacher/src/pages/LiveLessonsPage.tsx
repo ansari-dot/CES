@@ -3,6 +3,7 @@ import { useAppDispatch, useAppSelector } from '../store';
 import { addToast } from '../store/slices/uiSlice';
 import { openProblemModal } from '../store/slices/timetableSlice';
 import { ZoomProblemModal } from '../components/timetable/ZoomProblemModal';
+import { requestApi } from '../services/api';
 
 export const LiveLessonsPage: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -14,19 +15,23 @@ export const LiveLessonsPage: React.FC = () => {
 
   const handleLaunchRoom = async (className: string, roomId: string) => {
     try {
-      const res = await fetch('/api/v1/zoom/my-class-session', { credentials: 'include' });
-      const data = await res.json();
-      if (data.success && Array.isArray(data.data) && data.data.length > 0) {
-        const activeLesson = data.data.find((l: any) => l.canStart);
+      const data = await requestApi<any[]>('/api/v1/zoom/my-class-session');
+      if (Array.isArray(data) && data.length > 0) {
+        const activeLesson = data.find((l: any) => l.canStart);
         if (activeLesson) {
-          const startRes = await fetch(`/api/v1/zoom/sessions/${activeLesson.id}/start`, {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' }
+          const startData = await requestApi<any>(`/api/v1/zoom/sessions/${activeLesson.id}/start`, {
+            method: 'POST'
           });
-          const startData = await startRes.json();
-          if (startData.success && startData.data?.joinUrl) {
-            window.open(startData.data.joinUrl, '_blank');
+          if (startData?.hostTransitioned) {
+            dispatch(
+              addToast({
+                message: `Host handoff completed for ${className}. Prior session concluded cleanly.`,
+                type: 'info'
+              })
+            );
+          }
+          if (startData?.joinUrl) {
+            window.open(startData.joinUrl, '_blank');
             dispatch(addToast({ message: `Zoom live lesson started for ${className}. Session is LIVE.`, type: 'success' }));
             return;
           }
@@ -38,7 +43,7 @@ export const LiveLessonsPage: React.FC = () => {
     window.open(`https://zoom.us/j/${roomId.replace(/-/g, '')}`, '_blank');
     dispatch(
       addToast({
-        message: `Launching Zoom Pro authenticated room for ${className} (${roomId}). Cloud recording enabled.`,
+        message: `Launching Zoom room for ${className} (${roomId}). Cloud recording enabled.`,
         type: 'success',
       })
     );

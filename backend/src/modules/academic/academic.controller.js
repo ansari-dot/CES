@@ -79,16 +79,25 @@ export const academicController = {
 
   async assignTeacher(req, res, next) {
     try {
-      const teacherId = Number(req.params.id);
-      const { classId, subjectId, sessionId, effectiveFrom, effectiveTo } = req.body;
+      let teacherId = Number(req.body.teacherId);
+      let classId = Number(req.body.classId);
+
+      // Support /teachers/:id/assignments (params.id is teacherId)
+      // or /classes/:id/assign-teacher (params.id is classId)
+      if (req.params.id) {
+        if (!teacherId) teacherId = Number(req.params.id);
+        else if (!classId) classId = Number(req.params.id);
+      }
+
+      const { subjectId, sessionId, effectiveFrom, effectiveTo } = req.body;
       const assignment = await academicService.assignTeacher({
         teacherId,
         classId,
-        subjectId,
-        sessionId,
+        subjectId: Number(subjectId),
+        sessionId: sessionId ? Number(sessionId) : null,
         effectiveFrom,
         effectiveTo,
-        assignedBy: req.user?.id
+        assignedBy: req.user?.id || 1
       });
       return sendSuccess(res, assignment, null, 201);
     } catch (error) {
@@ -101,6 +110,26 @@ export const academicController = {
       const classId = Number(req.params.id);
       const assignments = await academicService.getClassAssignments(classId);
       return sendSuccess(res, assignments);
+  async addSubjectToClass(req, res, next) {
+    try {
+      const classId = Number(req.params.id);
+      const { subjectId, name, code } = req.body;
+      const subjects = await academicService.addSubjectToClass(classId, { subjectId, name, code });
+      return sendSuccess(res, subjects, null, 201);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async unassignTeacher(req, res, next) {
+    try {
+      const { teacherId, classId, subjectId } = req.body;
+      const result = await academicService.removeTeacherAssignment({
+        teacherId: Number(teacherId),
+        classId: Number(classId),
+        subjectId: Number(subjectId)
+      });
+      return sendSuccess(res, result);
     } catch (error) {
       next(error);
     }
