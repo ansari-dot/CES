@@ -1,18 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { ChevronLeft, ChevronRight, BookOpen, Calendar } from 'lucide-react';
 import { RootState } from '../store';
-import { TimetableLesson } from '../store/slices/classesSlice';
+import { TimetableLesson, TimetableDay } from '../store/slices/classesSlice';
+import { dateKeyInZone, dayLabelFromKey, longDateFromKey } from '../lib/timezone';
 import StatusChip from '../components/common/StatusChip';
 import ZoomMeetingModal from '../components/dialogs/ZoomMeetingModal';
 
 export default function Timetable() {
   const weeklyTimetable = useSelector((state: RootState) => state.classes.weeklyTimetable);
-  const [selectedDay, setSelectedDay] = useState("Mon 19");
+  const timetableDays = useSelector((state: RootState) => state.classes.timetableDays);
+  const timezone = useSelector((state: RootState) => state.classes.timezone);
+  const [selectedKey, setSelectedKey] = useState<string>('');
   const [activeView, setActiveView] = useState<"Week" | "Day">("Week");
   const [activeModalLesson, setActiveModalLesson] = useState<TimetableLesson | null>(null);
 
-  const days = ["Mon 19", "Tue 20", "Wed 21", "Thu 22", "Fri 23", "Sat 24"];
+  // Days are local calendar dates in the student's detected timezone
+  const todayKey = dateKeyInZone(new Date(), timezone);
+  const days: TimetableDay[] = useMemo(() => {
+    const list = [...timetableDays];
+    if (!list.some((d) => d.key === todayKey)) list.push({ key: todayKey, label: dayLabelFromKey(todayKey) });
+    return list.sort((a, b) => a.key.localeCompare(b.key));
+  }, [timetableDays, todayKey]);
+  const selectedDay = days.some((d) => d.key === selectedKey) ? selectedKey : todayKey;
+  const selectedIdx = days.findIndex((d) => d.key === selectedDay);
+  const selectedLabel = dayLabelFromKey(selectedDay);
   const currentLessons = weeklyTimetable[selectedDay] || [];
 
   return (
@@ -22,23 +34,31 @@ export default function Timetable() {
         <div className="flex items-center gap-2">
           <button
             className="w-8 h-8 rounded-sm border border-border flex items-center justify-center hover:bg-muted cursor-pointer"
-            aria-label="Previous week"
+            aria-label="Previous day"
+            onClick={() => selectedIdx > 0 && setSelectedKey(days[selectedIdx - 1].key)}
+            disabled={selectedIdx <= 0}
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
           <button
-            onClick={() => setSelectedDay("Mon 19")}
+            onClick={() => setSelectedKey(todayKey)}
             className="text-sm font-semibold text-primary px-3 py-1 rounded-sm border border-primary/30 bg-secondary/50 cursor-pointer"
           >
             Today
           </button>
           <button
             className="w-8 h-8 rounded-sm border border-border flex items-center justify-center hover:bg-muted cursor-pointer"
-            aria-label="Next week"
+            aria-label="Next day"
+            onClick={() => selectedIdx < days.length - 1 && setSelectedKey(days[selectedIdx + 1].key)}
+            disabled={selectedIdx >= days.length - 1}
           >
             <ChevronRight className="w-4 h-4" />
           </button>
-          <span className="text-sm font-bold ml-2">19 – 24 Oct 2026</span>
+          <span className="text-sm font-bold ml-2">
+            {days.length > 1
+              ? `${longDateFromKey(days[0].key)} – ${longDateFromKey(days[days.length - 1].key)}`
+              : longDateFromKey(todayKey)}
+          </span>
         </div>
 
         <div className="flex bg-muted p-1 rounded-sm text-xs font-semibold">
@@ -58,18 +78,18 @@ export default function Timetable() {
       </div>
 
       {/* Day Pills Bar */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+      <div className="grid grid-cols-3 sm:grid-cols-7 gap-2">
         {days.map((day) => (
           <button
-            key={day}
-            onClick={() => setSelectedDay(day)}
+            key={day.key}
+            onClick={() => setSelectedKey(day.key)}
             className={`py-2.5 text-center text-sm font-semibold rounded-md transition cursor-pointer ${
-              selectedDay === day
+              selectedDay === day.key
                 ? "bg-primary text-white shadow-sm"
                 : "bg-card border border-border text-foreground hover:bg-muted"
             }`}
           >
-            {day}
+            {day.label}
           </button>
         ))}
       </div>
@@ -125,7 +145,7 @@ export default function Timetable() {
           </div>
           <div>
             <div className="font-headings font-bold text-base text-foreground">
-              {selectedDay.split(" ")[0]} — No classes scheduled
+              {selectedLabel.split(" ")[0]} — No classes scheduled
             </div>
             <div className="text-xs text-muted-foreground mt-0.5">
               Use this day for revision, homework, and family time.

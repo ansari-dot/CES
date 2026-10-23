@@ -1,5 +1,13 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { requestApi } from '../../services/api';
+import {
+  DEFAULT_SCHOOL_TIMEZONE,
+  getBrowserTimeZone,
+  schoolWallTimeToDate,
+  formatTimeInZone,
+  dateKeyInZone,
+  dayLabelFromKey,
+} from '../../lib/timezone';
 
 export interface NextClass {
   id: string;
@@ -54,13 +62,27 @@ export interface CompletedLesson {
   hasNotes: boolean;
 }
 
+export interface TimetableDay {
+  key: string; // local date "YYYY-MM-DD" in the student's timezone
+  label: string; // "Mon 19"
+}
+
+export type TimezoneSource = 'ip' | 'browser' | 'fallback';
+
 interface ClassesState {
   nextClass: NextClass;
   todayClasses: TodayClass[];
+  // Keyed by local date "YYYY-MM-DD" in the student's timezone
   weeklyTimetable: Record<string, TimetableLesson[]>;
+  timetableDays: TimetableDay[];
   recentlyCompleted: CompletedLesson[];
   zoomSession: { joinUrl: string | null; passcode: string | null; inWindow: boolean } | null;
   loading: boolean;
+  // Lessons exactly as returned by the API (authoritative, never modified)
+  rawLessons: any[];
+  timezone: string;
+  timezoneSource: TimezoneSource;
+  schoolTimezone: string;
 }
 
 const defaultNextClass: NextClass = {
@@ -78,42 +100,135 @@ const defaultNextClass: NextClass = {
   isLiveNow: false,
 };
 
+const browserTz = getBrowserTimeZone();
+
 const initialState: ClassesState = {
   nextClass: defaultNextClass,
   todayClasses: [],
   weeklyTimetable: {},
+  timetableDays: [],
   recentlyCompleted: [],
   zoomSession: null,
   loading: false,
+  rawLessons: [],
+  timezone: browserTz || DEFAULT_SCHOOL_TIMEZONE,
+  timezoneSource: browserTz ? 'browser' : 'fallback',
+  schoolTimezone: DEFAULT_SCHOOL_TIMEZONE,
 };
-
-function formatTime(val: string): string {
-  if (!val) return '';
-  const t = val.includes('T') ? val.split('T')[1] : val;
-  const [h, m] = t.split(':');
-  const hour = parseInt(h, 10);
-  const ampm = hour >= 12 ? 'PM' : 'AM';
-  const h12 = hour % 12 || 12;
-  return `${h12}:${m} ${ampm}`;
-}
-
-function minutesUntil(val: string): number {
-  if (!val) return 999;
-  const diff = new Date(val).getTime() - Date.now();
-  return Math.round(diff / 60000);
-}
-
-function dayLabel(dateStr: string): string {
-  const d = new Date(dateStr);
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  return `${days[d.getDay()]} ${d.getDate()}`;
-}
 
 const BORDERS = ['border-primary', 'border-success', 'border-warning', 'border-info'];
 
+function durationLabel(start: Date | null, end: Date | null): string {
+  if (!start || !end) return '45 min';
+  const mins = Math.round((end.getTime() - start.getTime()) / 60000);
+  return mins > 0 ? `${mins} min` : '45 min';
+}
+
+/**
+ * Re-derive every timetable view from the raw lessons for the given timezone.
+ * Lessons are placed on the student's local calendar date, which may differ
+ * from the school date when conversion crosses midnight.
+ */
+function deriveSchedule(state: ClassesState) {
+  const tz = state.timezone;
+  const schoolTz = state.schoolTimezone;
+  const now = Date.now();
+  const todayKey = dateKeyInZone(new Date(now), tz);
+
+  const lessons = state.rawLessons
+    .map((l) => {
+      const start = schoolWallTimeToDate(l.startAt || l.start_at || '', schoolTz);
+      const end = schoolWallTimeToDate(l.endAt || l.end_at || '', schoolTz);
+      return { l, start, end };
+    })
+    .filter((x) => x.start)
+    .sort((a, b) => a.start!.getTime() - b.start!.getTime());
+
+  const fmt = (d: Date | null) => (d ? formatTimeInZone(d, tz) : '');
+  const minutesUntil = (d: Date | null) => (d ? Math.round((d.getTime() - now) / 60000) : 999);
+
+  const todayLessons = lessons.filter((x) => dateKeyInZone(x.start!, tz) === todayKey);
+
+  state.todayClasses = todayLessons.map(({ l, start, end }) => {
+    const mins = minutesUntil(start);
+    return {
+      id: String(l.id),
+      lessonId: l.id,
+      time: fmt(start),
+      endTime: fmt(end),
+      subject: l.subjectName || '',
+      topic: l.topicCovered || '',
+      teacher: l.teacherName || '',
+      duration: durationLabel(start, end),
+      status: l.status === 'LIVE' ? 'Live' : l.status === 'COMPLETED' ? 'Completed' : 'Upcoming',
+      joinable: l.status === 'LIVE' || (mins >= -5 && mins <= 10),
+    };
+  });
+
+  const upcoming = todayLessons.find(
+    ({ l, start }) => l.status !== 'COMPLETED' && l.status !== 'CANCELLED' && minutesUntil(start) >= -15
+  );
+  if (upcoming) {
+    const mins = minutesUntil(upcoming.start);
+    state.nextClass = {
+      ...state.nextClass,
+      id: String(upcoming.l.id),
+      lessonId: upcoming.l.id,
+      subject: upcoming.l.subjectName || '',
+      topic: upcoming.l.topicCovered || '',
+      teacher: upcoming.l.teacherName || '',
+      grade: '',
+      duration: durationLabel(upcoming.start, upcoming.end),
+      time: fmt(upcoming.start),
+      timeEnd: fmt(upcoming.end),
+      startsInMinutes: Math.max(0, mins),
+      secondsLeft: Math.max(0, mins) * 60,
+      isLiveNow: upcoming.l.status === 'LIVE',
+    };
+  } else {
+    state.nextClass = { ...defaultNextClass, zoomLink: state.nextClass.zoomLink, joinUrl: state.nextClass.joinUrl, passcode: state.nextClass.passcode };
+  }
+
+  const grouped: Record<string, TimetableLesson[]> = {};
+  for (const { l, start, end } of lessons) {
+    const key = dateKeyInZone(start!, tz);
+    if (!grouped[key]) grouped[key] = [];
+    const idx = grouped[key].length;
+    const mins = minutesUntil(start);
+    grouped[key].push({
+      id: String(l.id),
+      lessonId: l.id,
+      time: `${fmt(start)} - ${fmt(end)}`,
+      subject: l.subjectName || '',
+      topic: l.topicCovered || '',
+      teacher: l.teacherName || '',
+      joinableAt: mins >= 0 && mins <= 10 ? fmt(start) : undefined,
+      status: l.status || 'SCHEDULED',
+      border: BORDERS[idx % BORDERS.length],
+    });
+  }
+  state.weeklyTimetable = grouped;
+  state.timetableDays = Object.keys(grouped)
+    .sort()
+    .map((key) => ({ key, label: dayLabelFromKey(key) }));
+
+  state.recentlyCompleted = lessons
+    .filter(({ l }) => l.status === 'COMPLETED' || l.status === 'CANCELLED')
+    .slice(0, 5)
+    .map(({ l, start }) => ({
+      id: String(l.id),
+      subject: l.subjectName || '',
+      topic: l.topicCovered || '',
+      teacher: l.teacherName || '',
+      time: fmt(start),
+      status: l.status === 'CANCELLED' ? 'Cancelled' : 'Completed',
+      hasNotes: Boolean(l.resourceUrl),
+    }));
+}
+
 export const fetchTimetable = createAsyncThunk('classes/fetchTimetable', async (_, { rejectWithValue }) => {
   try {
-    return await requestApi<any[]>('/api/v1/timetable/lessons');
+    return await requestApi<any[]>('/api/v1/students/me/timetable');
   } catch (err: any) {
     return rejectWithValue(err.message);
   }
@@ -138,98 +253,27 @@ export const joinLesson = createAsyncThunk('classes/joinLesson', async (lessonId
 const classesSlice = createSlice({
   name: 'classes',
   initialState,
-  reducers: {},
+  reducers: {
+    // Called by useTimezone when the detected timezone changes. Only the
+    // display is recomputed; the schedule itself is untouched.
+    setTimezone: (
+      state,
+      action: PayloadAction<{ timezone: string; source: TimezoneSource; schoolTimezone?: string }>
+    ) => {
+      state.timezone = action.payload.timezone;
+      state.timezoneSource = action.payload.source;
+      if (action.payload.schoolTimezone) state.schoolTimezone = action.payload.schoolTimezone;
+      deriveSchedule(state);
+    },
+  },
   extraReducers: (builder) => {
     builder
       .addCase(fetchTimetable.pending, (state) => { state.loading = true; })
       .addCase(fetchTimetable.rejected, (state) => { state.loading = false; })
       .addCase(fetchTimetable.fulfilled, (state, action) => {
         state.loading = false;
-        const lessons: any[] = Array.isArray(action.payload) ? action.payload : [];
-        if (!lessons.length) return;
-
-        const todayStr = new Date().toISOString().split('T')[0];
-        const todayLessons = lessons.filter((l) =>
-          (l.lessonDate || l.lesson_date || '').split('T')[0] === todayStr
-        );
-
-        state.todayClasses = todayLessons.map((l) => {
-          const start = l.startAt || l.start_at || '';
-          const end = l.endAt || l.end_at || '';
-          const mins = minutesUntil(start);
-          return {
-            id: String(l.id),
-            lessonId: l.id,
-            time: formatTime(start),
-            endTime: formatTime(end),
-            subject: l.subjectName || '',
-            topic: l.topicCovered || '',
-            teacher: l.teacherName || '',
-            duration: '45 min',
-            status: l.status === 'LIVE' ? 'Live' : l.status === 'COMPLETED' ? 'Completed' : 'Upcoming',
-            joinable: l.status === 'LIVE' || (mins >= -5 && mins <= 10),
-          };
-        });
-
-        const upcoming = todayLessons.find((l) => {
-          const mins = minutesUntil(l.startAt || l.start_at || '');
-          return l.status !== 'COMPLETED' && l.status !== 'CANCELLED' && mins >= -15;
-        });
-        if (upcoming) {
-          const mins = minutesUntil(upcoming.startAt || upcoming.start_at || '');
-          state.nextClass = {
-            id: String(upcoming.id),
-            lessonId: upcoming.id,
-            subject: upcoming.subjectName || '',
-            topic: upcoming.topicCovered || '',
-            teacher: upcoming.teacherName || '',
-            grade: '',
-            duration: '45 min',
-            time: formatTime(upcoming.startAt || upcoming.start_at || ''),
-            timeEnd: formatTime(upcoming.endAt || upcoming.end_at || ''),
-            startsInMinutes: Math.max(0, mins),
-            secondsLeft: Math.max(0, mins) * 60,
-            zoomLink: '',
-            isLiveNow: upcoming.status === 'LIVE',
-          };
-        }
-
-        const grouped: Record<string, TimetableLesson[]> = {};
-        for (const l of lessons) {
-          const dateStr = (l.lessonDate || l.lesson_date || '').split('T')[0];
-          if (!dateStr) continue;
-          const label = dayLabel(dateStr);
-          if (!grouped[label]) grouped[label] = [];
-          const idx = grouped[label].length;
-          const start = l.startAt || l.start_at || '';
-          const end = l.endAt || l.end_at || '';
-          const mins = minutesUntil(start);
-          grouped[label].push({
-            id: String(l.id),
-            lessonId: l.id,
-            time: `${formatTime(start)} - ${formatTime(end)}`,
-            subject: l.subjectName || '',
-            topic: l.topicCovered || '',
-            teacher: l.teacherName || '',
-            joinableAt: mins >= 0 && mins <= 10 ? formatTime(start) : undefined,
-            status: l.status || 'SCHEDULED',
-            border: BORDERS[idx % BORDERS.length],
-          });
-        }
-        state.weeklyTimetable = grouped;
-
-        state.recentlyCompleted = lessons
-          .filter((l) => l.status === 'COMPLETED' || l.status === 'CANCELLED')
-          .slice(0, 5)
-          .map((l) => ({
-            id: String(l.id),
-            subject: l.subjectName || '',
-            topic: l.topicCovered || '',
-            teacher: l.teacherName || '',
-            time: formatTime(l.startAt || l.start_at || ''),
-            status: l.status === 'CANCELLED' ? 'Cancelled' : 'Completed',
-            hasNotes: Boolean(l.resourceUrl),
-          }));
+        state.rawLessons = Array.isArray(action.payload) ? action.payload : [];
+        deriveSchedule(state);
       });
 
     builder.addCase(fetchStudentZoomSession.fulfilled, (state, action) => {
@@ -252,4 +296,5 @@ const classesSlice = createSlice({
   },
 });
 
+export const { setTimezone } = classesSlice.actions;
 export default classesSlice.reducer;
