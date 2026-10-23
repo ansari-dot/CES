@@ -1,6 +1,7 @@
 import { createApp } from './app.js';
 import { config } from './config/index.js';
 import { testDbConnection, db } from './shared/db/knex.js';
+import { startFeeScheduler } from './modules/fees/fees.scheduler.js';
 
 async function bootstrap() {
   const app = createApp();
@@ -13,13 +14,20 @@ async function bootstrap() {
     console.log('✅ Connected to MySQL database successfully.');
   }
 
+  let stopFeeScheduler = null;
   const server = app.listen(config.PORT, () => {
     console.log(`🚀 School Backend API server running on port ${config.PORT} [${config.NODE_ENV}]`);
+    // Start fee lifecycle scheduler (skip in test environment)
+    if (!config.isTest && config.feeSchedulerEnabled) {
+      stopFeeScheduler = startFeeScheduler();
+      console.log(`⏰ Fee lifecycle scheduler started (billing timezone: ${config.SCHOOL_TIMEZONE}).`);
+    }
   });
 
   // Graceful shutdown handling
   const shutdown = async (signal) => {
     console.log(`\n🛑 Received ${signal}, closing HTTP server gracefully...`);
+    stopFeeScheduler?.();
     server.close(async () => {
       console.log('HTTP server closed.');
       try {

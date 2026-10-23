@@ -1,6 +1,8 @@
 import { feesRepository } from './fees.repository.js';
 import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
+import { config } from '../../config/index.js';
+import { toZonedDateString } from './fees.billing.js';
 
 export const feesService = {
   // Fee Structures
@@ -175,5 +177,35 @@ export const feesService = {
 
   async getFeeStats(filters) {
     return await feesRepository.getFeeStats(filters);
+  },
+
+  async getRestrictedStudents() {
+    return await feesRepository.getRestrictedStudents();
+  },
+
+  // Principal manual access restoration. No payment receipt/verification step:
+  // the Principal's explicit action is the authorisation. Invoice status is not changed.
+  async restoreStudentAccess({ studentId, actor, ipAddress }) {
+    if (!Number.isInteger(studentId) || studentId <= 0) {
+      throw new AppError('Invalid student ID', 422, ErrorCodes.VALIDATION_ERROR);
+    }
+    const student = await feesRepository.findStudentForRestore(studentId);
+    if (!student) {
+      throw new AppError('Student not found', 404, ErrorCodes.NOT_FOUND);
+    }
+    if (student.userStatus !== 'SUSPENDED' || student.openRestrictions === 0) {
+      throw new AppError('Student portal is not currently restricted for overdue fees', 409, ErrorCodes.INVALID_STATE);
+    }
+    const result = await feesRepository.restoreStudentAccess({
+      studentId,
+      userId: student.userId,
+      actor,
+      ipAddress,
+      schoolToday: toZonedDateString(new Date(), config.SCHOOL_TIMEZONE)
+    });
+    if (!result) {
+      throw new AppError('Student portal is not currently restricted for overdue fees', 409, ErrorCodes.INVALID_STATE);
+    }
+    return { ...result, studentName: student.name };
   }
 };

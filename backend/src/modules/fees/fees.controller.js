@@ -1,5 +1,6 @@
 import { feesService } from './fees.service.js';
 import { db } from '../../shared/db/knex.js';
+import { authRepository } from '../auth/auth.repository.js';
 import { sendSuccess } from '../../shared/http/response.js';
 
 export const feesController = {
@@ -223,6 +224,34 @@ export const feesController = {
         classId: classId ? Number(classId) : null
       });
       return sendSuccess(res, stats);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getRestrictedStudents(req, res, next) {
+    try {
+      const list = await feesService.getRestrictedStudents();
+      return sendSuccess(res, list);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async restoreStudentAccess(req, res, next) {
+    try {
+      const studentId = Number(req.params.id);
+      const actorRecord = await authRepository.findUserById(req.user.id);
+      const result = await feesService.restoreStudentAccess({
+        studentId,
+        actor: {
+          id: req.user.id,
+          name: actorRecord?.full_name || req.user.username,
+          role: req.user.role === 'ADMIN' ? 'Administrator' : 'Principal'
+        },
+        ipAddress: req.ip
+      });
+      return sendSuccess(res, result);
     } catch (error) {
       next(error);
     }

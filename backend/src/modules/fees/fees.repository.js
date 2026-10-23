@@ -1,4 +1,11 @@
 import { db } from '../../shared/db/knex.js';
+import {
+  normalizeBillingMonth,
+  isSameBillingMonth,
+  getBillingPeriod,
+  addDays,
+  GRACE_PERIOD_DAYS
+} from './fees.billing.js';
 
 export const feesRepository = {
   // 1. Fee Structures
@@ -201,19 +208,24 @@ export const feesRepository = {
 
     const students = await studentsQuery;
     const generatedChallans = [];
+    let createdCount = 0;
 
     // Clean month string (e.g. "April 2026" or "2026-04")
     const cleanMonth = billingMonth;
+    const periodKey = normalizeBillingMonth(cleanMonth);
+    const policyPeriod = periodKey ? getBillingPeriod(Number(periodKey.slice(0, 4)), Number(periodKey.slice(5, 7))) : null;
+    const effectiveDueDate = dueDate || policyPeriod?.dueDate || null;
+    const effectiveValidUntil =
+      validUntil || (effectiveDueDate ? addDays(effectiveDueDate, gracePeriodDays ?? GRACE_PERIOD_DAYS) : null);
 
     for (const student of students) {
-      // Check if challan already exists for this student, month, session
-      const existing = await db('fee_challans')
-        .where({
-          student_id: student.id,
-          billing_month: cleanMonth,
-          session_id: sessionId
-        })
-        .first();
+      // Check if challan already exists for this student, month, session.
+      // Month labels are compared in normalised form so "2026-11" and
+      // "November 2026" are recognised as the same billing period.
+      const sessionChallans = await db('fee_challans')
+        .where({ student_id: student.id, session_id: sessionId })
+        .select('id', 'billing_month');
+      const existing = sessionChallans.find((c) => isSameBillingMonth(c.billing_month, cleanMonth));
 
       if (existing) {
         generatedChallans.push(existing.id);
@@ -261,10 +273,11 @@ export const feesRepository = {
       }
 
       // Check past unpaid arrears
-      const pastUnpaid = await db('fee_challans')
-        .where('student_id', student.id)
-        .where('status', '!=', 'PAID')
-        .where('billing_month', '!=', cleanMonth);
+      const pastUnpaid = (
+        await db('fee_challans')
+          .where('student_id', student.id)
+          .where('status', '!=', 'PAID')
+      ).filter((p) => !isSameBillingMonth(p.billing_month, cleanMonth));
 
       let arrearsAmount = 0;
       for (const p of pastUnpaid) {
@@ -274,23 +287,22 @@ export const feesRepository = {
       const totalPayable = grossAmount - concessionAmount + arrearsAmount;
 
       // Generate 10-digit 1Link Consumer Number:
-      // Prefix 10 + 2-digit Year (26) + 2-digit Month (04) + 4-digit Student Sequence (e.g. 0001) = 10 digits
-      const yearPart = '26';
-      const monthPart = '04';
+      // Prefix 10 + 2-digit Year + 2-digit Month (of the billing period) + 4-digit Student Sequence = 10 digits
+      const issue = issueDate || policyPeriod?.issueDate || new Date().toISOString().split('T')[0];
+      const [yyyy, mm] = (periodKey || issue.slice(0, 7)).split('-');
       const studentSeq = String(student.id).padStart(4, '0').slice(-4);
-      const consumerNumber = `10${yearPart}${monthPart}${studentSeq}`;
-      const challanNumber = `CH-2026-04-${studentSeq}`;
+      const { consumerNumber, challanNumber } = await this._uniqueChallanNumbers(yyyy, mm, studentSeq);
 
-      const [cId] = await db('fee_challans').insert({
+      const row = {
         challan_number: challanNumber,
         consumer_number: consumerNumber,
         session_id: sessionId,
         class_id: student.current_class_id,
         student_id: student.id,
         billing_month: cleanMonth,
-        issue_date: issueDate || new Date().toISOString().split('T')[0],
-        due_date: dueDate || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        valid_until: validUntil || new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        issue_date: issue,
+        due_date: effectiveDueDate || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        valid_until: effectiveValidUntil || new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         grace_period_days: gracePeriodDays,
         tuition_amount: tuitionAmount,
         technology_amount: technologyAmount,
@@ -305,15 +317,38 @@ export const feesRepository = {
         total_payable: totalPayable,
         paid_amount: 0.00,
         status: 'UNPAID'
-      });
+      };
 
-      generatedChallans.push(cId);
+      try {
+        const [cId] = await db('fee_challans').insert(row);
+        generatedChallans.push(cId);
+        createdCount += 1;
+      } catch (err) {
+        // A concurrent run (scheduler + manual request) already created it
+        if (err.code === 'ER_DUP_ENTRY') continue;
+        throw err;
+      }
     }
 
     return {
       message: `Generated ${generatedChallans.length} fee challans for ${cleanMonth}`,
-      count: generatedChallans.length
+      count: generatedChallans.length,
+      createdCount
     };
+  },
+
+  async _uniqueChallanNumbers(yyyy, mm, studentSeq) {
+    // Second digit of the prefix is bumped only if a legacy row already occupies the number
+    for (let variant = 0; variant < 10; variant++) {
+      const consumerNumber = `1${variant}${yyyy.slice(-2)}${mm}${studentSeq}`;
+      const challanNumber = `CH-${yyyy}-${mm}-${studentSeq}${variant ? `-${variant}` : ''}`;
+      const clash = await db('fee_challans')
+        .where({ consumer_number: consumerNumber })
+        .orWhere({ challan_number: challanNumber })
+        .first();
+      if (!clash) return { consumerNumber, challanNumber };
+    }
+    throw new Error(`Unable to allocate a unique consumer number for ${yyyy}-${mm}-${studentSeq}`);
   },
 
   async getChallans({ classId = null, studentId = null, billingMonth = null, status = null, search = null } = {}) {
@@ -537,6 +572,340 @@ export const feesRepository = {
         });
 
       return await this.findPaymentProofById(proofId, trx);
+    });
+  },
+
+  // 5. Fee-based portal restriction lifecycle
+  //
+  // A challan is "restrictable" when it still has an outstanding balance, is not
+  // awaiting payment-proof verification, and its grace period (valid_until) ended
+  // before today in the billing timezone. Each restrictable challan gets at most
+  // one fee_restriction_events row; once resolved it never restricts again.
+
+  _restrictableChallansQuery(schoolToday, trx = db) {
+    return trx('fee_challans as fc')
+      .whereIn('fc.status', ['UNPAID', 'PARTIALLY_PAID', 'OVERDUE'])
+      .whereRaw('fc.total_payable - fc.paid_amount > 0')
+      .where('fc.valid_until', '<', schoolToday);
+  },
+
+  async findRestrictionCandidates(schoolToday) {
+    return await this._restrictableChallansQuery(schoolToday)
+      .join('students as s', 'fc.student_id', 's.id')
+      .leftJoin('fee_restriction_events as fre', 'fre.challan_id', 'fc.id')
+      .whereNull('fre.id')
+      .where('s.status', 'ACTIVE')
+      .select(
+        'fc.id as challanId',
+        'fc.student_id as studentId',
+        's.user_id as userId',
+        'fc.session_id as sessionId',
+        'fc.billing_month as billingMonth',
+        'fc.valid_until as validUntil'
+      )
+      .orderBy(['fc.student_id', 'fc.id']);
+  },
+
+  /**
+   * Restrict one student for the given overdue challans. Returns
+   * 'RESTRICTED' | 'ATTACHED' (already fee-restricted; challans added) | 'SKIPPED'.
+   */
+  async applyFeeRestriction({ studentId, userId, challans, now = new Date() }) {
+    return await db.transaction(async (trx) => {
+      const user = await trx('users').where({ id: userId }).forUpdate().first();
+      if (!user) return 'SKIPPED';
+
+      const openEvent = await trx('fee_restriction_events')
+        .where({ student_id: studentId })
+        .whereNull('resolved_at')
+        .first();
+
+      let outcome;
+      if (user.status === 'ACTIVE') {
+        outcome = 'RESTRICTED';
+      } else if (user.status === 'SUSPENDED' && openEvent) {
+        outcome = 'ATTACHED';
+      } else {
+        // Suspended/deactivated for a non-fee reason: leave untouched
+        return 'SKIPPED';
+      }
+
+      const months = [...new Set(challans.map((c) => c.billingMonth))].join(', ');
+      const reason = `Fee overdue after grace period (${months})`;
+
+      await trx('fee_restriction_events').insert(
+        challans.map((c) => ({
+          student_id: studentId,
+          user_id: userId,
+          challan_id: c.challanId,
+          session_id: c.sessionId,
+          billing_month: c.billingMonth,
+          reason,
+          restricted_at: now
+        }))
+      );
+
+      if (outcome === 'RESTRICTED') {
+        await trx('users').where({ id: userId }).update({ status: 'SUSPENDED' });
+        await trx('account_status_history').insert({
+          user_id: userId,
+          old_status: 'ACTIVE',
+          new_status: 'SUSPENDED',
+          reason_code: 'FEE_OVERDUE',
+          reason_text: `Automatic restriction: ${reason}. Challan IDs: ${challans.map((c) => c.challanId).join(', ')}.`,
+          effective_from: now,
+          changed_by: null // system action
+        });
+        await trx('audit_logs').insert({
+          actor_id: null,
+          actor_name: 'System (Fee Scheduler)',
+          actor_role: 'System',
+          action: 'RESTRICT_STUDENT_PORTAL_ACCESS',
+          record_type: 'Student Account',
+          record_identifier: String(studentId),
+          reason,
+          previous_value: 'ACTIVE',
+          new_value: 'SUSPENDED'
+        });
+      }
+
+      return outcome;
+    });
+  },
+
+  /** Students with open restrictions whose restricting challans have all been settled. */
+  async findSettledOpenRestrictions() {
+    const rows = await db('fee_restriction_events as fre')
+      .join('fee_challans as fc', 'fre.challan_id', 'fc.id')
+      .whereNull('fre.resolved_at')
+      .select(
+        'fre.student_id as studentId',
+        'fre.user_id as userId',
+        'fc.status',
+        db.raw('fc.total_payable - fc.paid_amount as outstanding')
+      );
+
+    const byStudent = new Map();
+    for (const r of rows) {
+      const entry = byStudent.get(r.studentId) || { studentId: r.studentId, userId: r.userId, settled: true };
+      if (r.status !== 'PAID' && Number(r.outstanding) > 0) entry.settled = false;
+      byStudent.set(r.studentId, entry);
+    }
+    return [...byStudent.values()].filter((e) => e.settled);
+  },
+
+  async liftSettledRestriction({ studentId, userId, now = new Date() }) {
+    return await db.transaction(async (trx) => {
+      const user = await trx('users').where({ id: userId }).forUpdate().first();
+      const resolved = await trx('fee_restriction_events')
+        .where({ student_id: studentId })
+        .whereNull('resolved_at')
+        .update({
+          resolved_at: now,
+          resolved_by: null,
+          resolution: 'INVOICE_SETTLED',
+          resolve_reason: 'All restricting invoices settled'
+        });
+
+      if (!resolved || !user || user.status !== 'SUSPENDED') return false;
+
+      const lastChange = await trx('account_status_history')
+        .where({ user_id: userId })
+        .orderBy('id', 'desc')
+        .first();
+      if (lastChange?.reason_code !== 'FEE_OVERDUE') return false;
+
+      await trx('users').where({ id: userId }).update({ status: 'ACTIVE' });
+      await trx('account_status_history').insert({
+        user_id: userId,
+        old_status: 'SUSPENDED',
+        new_status: 'ACTIVE',
+        reason_code: 'FEE_SETTLED',
+        reason_text: 'Automatic reactivation: all invoices that caused the fee restriction are settled.',
+        effective_from: now,
+        changed_by: null
+      });
+      return true;
+    });
+  },
+
+  async getRestrictedStudents() {
+    // Students whose account is SUSPENDED with at least one open fee restriction
+    const rows = await db('fee_restriction_events as fre')
+      .join('students', 'fre.student_id', 'students.id')
+      .join('users', 'fre.user_id', 'users.id')
+      .leftJoin('classes', 'students.current_class_id', 'classes.id')
+      .whereNull('fre.resolved_at')
+      .where('users.status', 'SUSPENDED')
+      .select(
+        'students.id as studentId',
+        'users.full_name as studentName',
+        'students.admission_no as admissionNo',
+        'students.roll_no as rollNo',
+        'classes.grade_level as classNumber',
+        'classes.name as className',
+        'fre.billing_month as billingMonth',
+        'fre.reason',
+        'fre.restricted_at as restrictedAt',
+        'users.status as portalStatus'
+      )
+      .orderBy('fre.restricted_at', 'desc');
+
+    const byStudent = new Map();
+    for (const r of rows) {
+      const entry = byStudent.get(r.studentId);
+      if (!entry) {
+        byStudent.set(r.studentId, { ...r, restrictedForMonths: [r.billingMonth] });
+      } else {
+        if (!entry.restrictedForMonths.includes(r.billingMonth)) entry.restrictedForMonths.push(r.billingMonth);
+        if (r.restrictedAt < entry.restrictedAt) entry.restrictedAt = r.restrictedAt;
+      }
+    }
+
+    return await Promise.all(
+      [...byStudent.values()].map(async ({ billingMonth, ...r }) => ({
+        ...r,
+        ...(await this.getOutstandingSummary(r.studentId))
+      }))
+    );
+  },
+
+  /**
+   * Outstanding invoices for a student. Because the challan generator rolls
+   * unpaid balances into the next invoice as arrears, the latest unpaid
+   * invoice's balance is reported as the amount due (summing every invoice
+   * would double-count carried-forward arrears).
+   */
+  async getOutstandingSummary(studentId) {
+    const challans = await db('fee_challans')
+      .where('student_id', studentId)
+      .whereNot('status', 'PAID')
+      .whereRaw('total_payable - paid_amount > 0')
+      .select('id', 'billing_month', 'due_date', 'valid_until', 'status', 'total_payable', 'paid_amount')
+      .orderBy([{ column: 'issue_date', order: 'desc' }, { column: 'id', order: 'desc' }]);
+
+    const outstandingInvoices = challans.map((c) => ({
+      challanId: c.id,
+      billingMonth: c.billing_month,
+      dueDate: c.due_date,
+      graceEndsOn: c.valid_until,
+      status: c.status,
+      outstanding: Number(c.total_payable) - Number(c.paid_amount)
+    }));
+
+    return {
+      outstandingInvoices,
+      outstandingAmount: outstandingInvoices[0]?.outstanding ?? 0
+    };
+  },
+
+  /** Open fee restriction details for the student's own restricted dashboard. */
+  async getStudentRestrictionSummary(studentId) {
+    const open = await db('fee_restriction_events')
+      .where({ student_id: studentId })
+      .whereNull('resolved_at')
+      .select('billing_month', 'restricted_at', 'reason')
+      .orderBy('restricted_at', 'asc');
+    if (!open.length) return null;
+
+    return {
+      restrictedAt: open[0].restricted_at,
+      restrictedForMonths: [...new Set(open.map((o) => o.billing_month))],
+      ...(await this.getOutstandingSummary(studentId))
+    };
+  },
+
+  async findStudentForRestore(studentId) {
+    const student = await db('students')
+      .join('users', 'students.user_id', 'users.id')
+      .where('students.id', studentId)
+      .select('students.id', 'students.user_id as userId', 'users.status as userStatus', 'users.full_name as name')
+      .first();
+    if (!student) return null;
+
+    const [{ openCount }] = await db('fee_restriction_events')
+      .where({ student_id: studentId })
+      .whereNull('resolved_at')
+      .count('* as openCount');
+    return { ...student, openRestrictions: Number(openCount) };
+  },
+
+  async restoreStudentAccess({ studentId, userId, actor, ipAddress, schoolToday, now = new Date() }) {
+    return await db.transaction(async (trx) => {
+      const user = await trx('users').where({ id: userId }).forUpdate().first();
+      const openEvents = await trx('fee_restriction_events')
+        .where({ student_id: studentId })
+        .whereNull('resolved_at')
+        .select('id', 'billing_month');
+
+      // Re-checked under lock so concurrent clicks cannot double-restore
+      if (!user || user.status !== 'SUSPENDED' || openEvents.length === 0) {
+        return null;
+      }
+
+      const resolution = {
+        resolved_at: now,
+        resolved_by: actor.id,
+        resolution: 'PRINCIPAL_MANUAL_RESTORE',
+        resolve_reason: `Manual restore by ${actor.name}`
+      };
+
+      // 1. Resolve the open restriction events
+      await trx('fee_restriction_events').whereIn('id', openEvents.map((e) => e.id)).update(resolution);
+
+      // 2. Cover any other already-overdue challans with resolved events so the
+      //    scheduler does not immediately re-restrict for the same overdue state.
+      const uncovered = await this._restrictableChallansQuery(schoolToday, trx)
+        .leftJoin('fee_restriction_events as fre', 'fre.challan_id', 'fc.id')
+        .whereNull('fre.id')
+        .where('fc.student_id', studentId)
+        .select('fc.id', 'fc.session_id', 'fc.billing_month');
+      if (uncovered.length) {
+        await trx('fee_restriction_events').insert(
+          uncovered.map((c) => ({
+            student_id: studentId,
+            user_id: userId,
+            challan_id: c.id,
+            session_id: c.session_id,
+            billing_month: c.billing_month,
+            reason: 'Overdue at time of Principal manual restore',
+            restricted_at: now,
+            ...resolution
+          }))
+        );
+      }
+
+      // 3. Restore the account (financial invoice status is intentionally untouched)
+      await trx('users').where({ id: userId }).update({ status: 'ACTIVE' });
+
+      await trx('account_status_history').insert({
+        user_id: userId,
+        old_status: 'SUSPENDED',
+        new_status: 'ACTIVE',
+        reason_code: 'PRINCIPAL_MANUAL_RESTORE',
+        reason_text: `${actor.name} manually restored portal access after the student reported fee payment.`,
+        effective_from: now,
+        changed_by: actor.id,
+        reactivated_by: actor.id
+      });
+
+      // 4. Audit log
+      await trx('audit_logs').insert({
+        actor_id: actor.id,
+        actor_name: actor.name,
+        actor_role: actor.role,
+        action: 'RESTORE_STUDENT_PORTAL_ACCESS',
+        record_type: 'Student Account',
+        record_identifier: String(studentId),
+        reason: `Manual portal access restoration (restricted for: ${[
+          ...new Set(openEvents.map((e) => e.billing_month))
+        ].join(', ')})`,
+        previous_value: 'SUSPENDED',
+        new_value: 'ACTIVE',
+        ip_address: ipAddress || null
+      });
+
+      return { studentId, userId, previousStatus: 'SUSPENDED', portalStatus: 'ACTIVE', restoredAt: now.toISOString() };
     });
   },
 

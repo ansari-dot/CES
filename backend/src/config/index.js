@@ -26,7 +26,20 @@ const envSchema = z.object({
   REDIS_CACHE_URL: z.string().default('redis://127.0.0.1:6379/0'),
   REDIS_QUEUE_URL: z.string().default('redis://127.0.0.1:6379/1'),
 
-  SCHOOL_TIMEZONE: z.string().default('Asia/Karachi')
+  SCHOOL_TIMEZONE: z.string().default('Asia/Karachi'),
+
+  // Fee lifecycle: monthly invoice generation + overdue portal restriction
+  FEE_SCHEDULER_ENABLED: z.enum(['true', 'false']).default('true'),
+  // Official Principal WhatsApp number shown to restricted students (international format, optional)
+  PRINCIPAL_WHATSAPP_NUMBER: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z
+      .string()
+      .regex(/^\+?\d{8,15}$/, 'PRINCIPAL_WHATSAPP_NUMBER must be digits in international format, e.g. 923001234567')
+      .optional()
+  ),
+  // IP geolocation lookup; {ip} is replaced with the client IP. The JSON response must contain `timezone`.
+  GEO_LOOKUP_URL: z.string().default('http://ip-api.com/json/{ip}?fields=status,timezone')
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -41,5 +54,6 @@ export const config = {
   isProduction: parsed.data.NODE_ENV === 'production',
   isTest: parsed.data.NODE_ENV === 'test',
   allowedOrigins: parsed.data.ALLOWED_ORIGINS.split(',').map((o) => o.trim()),
-  cookieSecure: parsed.data.COOKIE_SECURE === 'true'
+  cookieSecure: parsed.data.COOKIE_SECURE === 'true',
+  feeSchedulerEnabled: parsed.data.FEE_SCHEDULER_ENABLED === 'true'
 };
