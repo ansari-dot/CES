@@ -2,9 +2,8 @@
  * Timezone helpers for displaying the class schedule in the student's local time.
  *
  * The authoritative schedule is entered in the school's timezone: lessons are
- * stored as school wall-clock times (e.g. "2026-11-02 17:00:00" = 5:00 PM in
- * Asia/Karachi). We convert that wall time to a real instant using the school
- * timezone's rules for that specific date, then format it in the student's
+ * stored as school wall-clock times converted to UTC (e.g. "2026-11-02T04:00:00.000Z"
+ * = 9:00 AM in Asia/Karachi). We format that UTC instant in the student's
  * timezone. All offsets come from the browser's IANA database (Intl), so DST
  * transitions are respected and no fixed country offsets are hard-coded.
  * The original values are never modified.
@@ -52,8 +51,25 @@ function zoneOffsetMs(instantMs: number, timeZone: string): number {
 }
 
 /**
- * Convert a school wall-clock datetime string ("YYYY-MM-DD HH:MM[:SS]",
- * optionally with "T" and a trailing "Z" that the API adds without meaning UTC)
+ * Safely parse a database UTC timestamp (e.g. "2026-10-24T04:00:00.000Z" or
+ * "2026-10-24 04:00:00") to a Date object representing that exact UTC instant.
+ * Does NOT apply a second timezone conversion to an already-UTC timestamp.
+ */
+export function parseUtcInstant(value: string | Date | null | undefined): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
+  const str = String(value).trim();
+  if (!str) return null;
+  const normalized = str.includes('T') ? str : str.replace(' ', 'T');
+  const utcStr = normalized.endsWith('Z') || /[+-]\d{2}(?::?\d{2})?$/.test(normalized)
+    ? normalized
+    : `${normalized}Z`;
+  const d = new Date(utcStr);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Convert a school wall-clock datetime string ("YYYY-MM-DD HH:MM[:SS]")
  * to the actual instant, using the school timezone rules for that date.
  */
 export function schoolWallTimeToDate(value: string, schoolTimeZone: string): Date | null {

@@ -2,6 +2,52 @@ import { timetableRepository } from './timetable.repository.js';
 import { zoomRepository } from '../zoom/zoom.repository.js';
 import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
+import { config } from '../../config/index.js';
+import { db } from '../../shared/db/knex.js';
+
+/**
+ * Convert a school wall-clock time string "HH:MM" or "HH:MM:SS" on a given
+ * date string "YYYY-MM-DD" from the school timezone to a UTC ISO string.
+ * Accurate two-pass offset resolution with strict month 0-indexing.
+ */
+export function wallClockToUtc(dateString, timeString, schoolTimezone = config.SCHOOL_TIMEZONE || 'Asia/Karachi') {
+  const [year, month, day] = dateString.split('-').map(Number);
+  const timePart = timeString.length === 5 ? `${timeString}:00` : timeString;
+  const [hour, minute, second = 0] = timePart.split(':').map(Number);
+
+  // Initial UTC guess treating wall-clock components as UTC (month - 1 for 0-based month)
+  const guessUtcMs = Date.UTC(year, month - 1, day, hour, minute, second);
+
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: schoolTimezone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric'
+  });
+
+  const getOffset = (instantMs) => {
+    const parts = dtf.formatToParts(new Date(instantMs));
+    const p = {};
+    for (const part of parts) {
+      if (part.type !== 'literal') p[part.type] = Number(part.value);
+    }
+    const localUtcMs = Date.UTC(p.year, p.month - 1, p.day, p.hour % 24, p.minute, p.second);
+    return localUtcMs - instantMs;
+  };
+
+  const offset1 = getOffset(guessUtcMs);
+  let instantMs = guessUtcMs - offset1;
+  const offset2 = getOffset(instantMs);
+  if (offset2 !== offset1) {
+    instantMs = guessUtcMs - offset2;
+  }
+
+  return new Date(instantMs).toISOString();
+}
 
 export const timetableService = {
   async getSlots(filter = {}) {
@@ -65,6 +111,139 @@ export const timetableService = {
     return await timetableRepository.findSlotById(slotId);
   },
 
+  async updateSlot({
+    slotId,
+    sessionId,
+    classId,
+    subjectId,
+    teacherId,
+    weekday,
+    startTime,
+    endTime,
+    effectiveFrom,
+    effectiveTo = null,
+    status = 'PUBLISHED',
+    userId,
+    reason = 'Slot updated'
+  }) {
+    const existing = await timetableRepository.findSlotById(slotId);
+    if (!existing) {
+      throw new AppError('Timetable slot not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    // Check conflict excluding this slot
+    const conflict = await timetableRepository.checkSlotConflict({
+      classId: classId || existing.class_id,
+      teacherId: teacherId || existing.teacher_id,
+      weekday: weekday !== undefined ? weekday : existing.weekday,
+      startTime: startTime || existing.start_time,
+      endTime: endTime || existing.end_time,
+      excludeSlotId: slotId
+    });
+
+    if (conflict) {
+      const message =
+        conflict.type === 'CLASS_CONFLICT'
+          ? 'Class already has another subject scheduled during this period.'
+          : 'Teacher already has another class assigned during this period.';
+      throw new AppError(message, 409, ErrorCodes.SCHEDULE_CONFLICT, [
+        { field: 'timeRange', issue: message }
+      ]);
+    }
+
+    const updates = {
+      ...(sessionId && { session_id: sessionId }),
+      ...(classId && { class_id: classId }),
+      ...(subjectId && { subject_id: subjectId }),
+      ...(teacherId && { teacher_id: teacherId }),
+      ...(weekday !== undefined && { weekday }),
+      ...(startTime && { start_time: startTime }),
+      ...(endTime && { end_time: endTime }),
+      ...(effectiveFrom && { effective_from: effectiveFrom }),
+      ...(effectiveTo !== undefined && { effective_to: effectiveTo }),
+      ...(status && { status })
+    };
+
+    await timetableRepository.updateSlot(slotId, updates);
+
+    // If future scheduled lessons exist for this slot, update them or cancel if weekday changed
+    const schoolTz = config.SCHOOL_TIMEZONE || 'Asia/Karachi';
+    const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: schoolTz }).format(new Date());
+
+    const futureLessons = await db('timetable_lessons')
+      .where({ slot_id: slotId, status: 'SCHEDULED' })
+      .where('lesson_date', '>=', todayStr);
+
+    for (const fl of futureLessons) {
+      const flWeekdayParts = new Intl.DateTimeFormat('en-US', { timeZone: schoolTz, weekday: 'short' })
+        .format(new Date(fl.lesson_date + 'T12:00:00Z'));
+      const flWeekday = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 }[flWeekdayParts];
+
+      const newWeekday = weekday !== undefined ? weekday : existing.weekday;
+      if (flWeekday !== newWeekday) {
+        await timetableRepository.updateLesson(fl.id, {
+          status: 'CANCELLED',
+          cancel_reason: 'Slot rescheduled to a different weekday'
+        });
+      } else {
+        const newStart = startTime || existing.start_time;
+        const newEnd = endTime || existing.end_time;
+        const startAt = wallClockToUtc(fl.lesson_date, newStart, schoolTz);
+        const endAt = wallClockToUtc(fl.lesson_date, newEnd, schoolTz);
+        await timetableRepository.updateLesson(fl.id, {
+          class_id: classId || existing.class_id,
+          subject_id: subjectId || existing.subject_id,
+          teacher_id: teacherId || existing.teacher_id,
+          start_at: startAt,
+          end_at: endAt
+        });
+      }
+    }
+
+    await timetableRepository.logChange({
+      slotId,
+      changeType: 'EDITED',
+      oldValues: existing,
+      newValues: updates,
+      reason,
+      changedBy: userId
+    });
+
+    return await timetableRepository.findSlotById(slotId);
+  },
+
+  async deleteSlot({ slotId, userId, reason = 'Slot archived' }) {
+    const existing = await timetableRepository.findSlotById(slotId);
+    if (!existing) {
+      throw new AppError('Timetable slot not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    await timetableRepository.updateSlot(slotId, { status: 'ARCHIVED' });
+
+    // Cancel future scheduled lessons created from this slot
+    const schoolTz = config.SCHOOL_TIMEZONE || 'Asia/Karachi';
+    const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: schoolTz }).format(new Date());
+
+    await db('timetable_lessons')
+      .where({ slot_id: slotId, status: 'SCHEDULED' })
+      .where('lesson_date', '>=', todayStr)
+      .update({
+        status: 'CANCELLED',
+        cancel_reason: reason || 'Timetable slot archived'
+      });
+
+    await timetableRepository.logChange({
+      slotId,
+      changeType: 'CANCELLED',
+      oldValues: { status: existing.status },
+      newValues: { status: 'ARCHIVED' },
+      reason,
+      changedBy: userId
+    });
+
+    return { slotId, status: 'ARCHIVED' };
+  },
+
   async getLessons(filter = {}) {
     return await timetableRepository.getLessons(filter);
   },
@@ -78,27 +257,43 @@ export const timetableService = {
   },
 
   async publishTimetable({ sessionId, days = 14, createdBy }) {
+    const schoolTz = config.SCHOOL_TIMEZONE || 'Asia/Karachi';
     const slots = await timetableRepository.getSlots({ sessionId });
+    const publishedSlots = slots.filter((s) => s.status === 'PUBLISHED');
     const generatedLessons = [];
 
+    // Calculate dates in the school's configured source timezone
     const now = new Date();
-    for (let dayOffset = 0; dayOffset < days; dayOffset++) {
-      const targetDate = new Date(now.getTime() + dayOffset * 24 * 60 * 60 * 1000);
-      const jsDay = targetDate.getDay();
-      const srsWeekday = jsDay === 0 ? 7 : jsDay;
-      const dateString = targetDate.toISOString().split('T')[0];
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: schoolTz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const todaySchoolStr = formatter.format(now);
+    const [startYear, startMonth, startDay] = todaySchoolStr.split('-').map(Number);
 
-      const matchingSlots = slots.filter((s) => s.weekday === srsWeekday && s.status === 'PUBLISHED');
+    for (let dayOffset = 0; dayOffset < days; dayOffset++) {
+      const targetDate = new Date(Date.UTC(startYear, startMonth - 1, startDay + dayOffset, 12, 0, 0));
+      const dateString = formatter.format(targetDate);
+
+      const dayParts = new Intl.DateTimeFormat('en-US', {
+        timeZone: schoolTz,
+        weekday: 'short'
+      }).format(targetDate);
+
+      const weekdayMap = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
+      const srsWeekday = weekdayMap[dayParts] || 1;
+
+      const matchingSlots = publishedSlots.filter((s) => s.weekday === srsWeekday);
 
       for (const slot of matchingSlots) {
         const classMeeting = await zoomRepository.getMeetingByClassId(slot.classId);
 
-        // Store as school wall-clock datetime strings (no Z suffix) so
-        // parseDbDate on read treats them as local school time, not UTC.
-        const startIso = slot.startTime.length === 5 ? `${slot.startTime}:00` : slot.startTime;
-        const endIso = slot.endTime.length === 5 ? `${slot.endTime}:00` : slot.endTime;
-        const startAt = `${dateString} ${startIso}`;
-        const endAt = `${dateString} ${endIso}`;
+        // Convert school wall-clock time (Pakistan/Asia/Karachi) to UTC for storage.
+        // Clients receive UTC and convert to their local timezone for display.
+        const startAt = wallClockToUtc(dateString, slot.startTime, schoolTz);
+        const endAt = wallClockToUtc(dateString, slot.endTime, schoolTz);
 
         try {
           const lessonId = await timetableRepository.createLesson({

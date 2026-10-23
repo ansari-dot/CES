@@ -713,14 +713,14 @@ export const api = {
           classNumber: slot.classNumber,
           subjectId: String(slot.subjectId),
           subjectName: slot.subjectName,
-          teacherId: `TCH-${String(slot.teacherId).padStart(2, '0')}`,
+          teacherId: String(slot.teacherId),
           teacherName: slot.teacherName,
           dayOfWeek: daysMap[slot.weekday] || 'Monday',
           startTime: String(slot.startTime).substring(0, 5),
           endTime: String(slot.endTime).substring(0, 5),
           timezone: 'Asia/Karachi',
           academicSession: '2026-27',
-          zoomMeetingId: `900-${slot.classNumber}000-${slot.classNumber}`,
+          zoomMeetingId: slot.zoomMeetingId || (slot.meetingNumber ? String(slot.meetingNumber) : `Class ${slot.classNumber} Room`),
           publicationStatus: slot.status === 'PUBLISHED' ? 'Published' : 'Draft',
           lessonStatus: 'Scheduled',
           history: []
@@ -749,38 +749,79 @@ export const api = {
     const activeSession = Array.isArray(sessions) ? sessions.find((s: any) => s.is_current) : null;
     const sessionId = activeSession ? activeSession.id : 1;
 
-    await requestApi('/api/v1/timetable/slots', {
-      method: 'POST',
-      body: JSON.stringify({
-        sessionId,
-        classId: cls.id,
-        subjectId: Number(lessonData.subjectId),
-        teacherId: Number(lessonData.teacherId.replace(/\D/g, '')),
-        weekday: daysMap[lessonData.dayOfWeek] || 1,
-        startTime: lessonData.startTime,
-        endTime: lessonData.endTime,
-        effectiveFrom: new Date().toISOString().split('T')[0]
-      })
-    });
+    const numericId = lessonId ? parseInt(lessonId.replace(/\D/g, ''), 10) : null;
 
-    return {
-      ...lessonData,
-      id: lessonId || `SLOT-${Date.now()}`,
-      history: []
-    };
+    if (numericId) {
+      await requestApi(`/api/v1/timetable/slots/${numericId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          sessionId,
+          classId: cls.id,
+          subjectId: Number(lessonData.subjectId),
+          teacherId: Number(lessonData.teacherId.replace(/\D/g, '')),
+          weekday: daysMap[lessonData.dayOfWeek] || 1,
+          startTime: lessonData.startTime,
+          endTime: lessonData.endTime,
+          effectiveFrom: new Date().toISOString().split('T')[0],
+          reason
+        })
+      });
+      return {
+        ...lessonData,
+        id: lessonId,
+        history: []
+      };
+    } else {
+      const created = await requestApi<any>('/api/v1/timetable/slots', {
+        method: 'POST',
+        body: JSON.stringify({
+          sessionId,
+          classId: cls.id,
+          subjectId: Number(lessonData.subjectId),
+          teacherId: Number(lessonData.teacherId.replace(/\D/g, '')),
+          weekday: daysMap[lessonData.dayOfWeek] || 1,
+          startTime: lessonData.startTime,
+          endTime: lessonData.endTime,
+          effectiveFrom: new Date().toISOString().split('T')[0]
+        })
+      });
+      return {
+        ...lessonData,
+        id: `SLOT-${created.id}`,
+        history: []
+      };
+    }
   },
 
   async cancelTimetableLesson(lessonId: string, reason: string): Promise<TimetableLesson> {
     const numId = parseInt(lessonId.replace(/\D/g, ''), 10);
     if (numId) {
-      await requestApi(`/api/v1/timetable/lessons/${numId}/cancel`, {
-        method: 'POST',
+      await requestApi(`/api/v1/timetable/slots/${numId}`, {
+        method: 'DELETE',
         body: JSON.stringify({ reason })
       });
     }
     const lessons = await this.getTimetableLessons();
     const lesson = lessons.find(l => l.id === lessonId);
-    if (!lesson) throw new Error('Lesson not found');
+    if (!lesson) {
+      return {
+        id: lessonId,
+        classNumber: 1,
+        subjectId: '',
+        subjectName: '',
+        teacherId: '',
+        teacherName: '',
+        dayOfWeek: 'Monday',
+        startTime: '',
+        endTime: '',
+        timezone: 'Asia/Karachi',
+        academicSession: '2026-27',
+        zoomMeetingId: '',
+        publicationStatus: 'Draft',
+        lessonStatus: 'Cancelled',
+        history: []
+      };
+    }
     lesson.lessonStatus = 'Cancelled';
     return lesson;
   },

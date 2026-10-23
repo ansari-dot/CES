@@ -20,7 +20,7 @@ import { ProfileSettingsPage } from './pages/ProfileSettingsPage';
 
 // Import Live Backend Async Thunks
 import { checkTeacherSessionThunk } from './store/slices/authSlice';
-import { fetchTeacherLessonsThunk } from './store/slices/timetableSlice';
+import { fetchTeacherLessonsThunk, detectTeacherTimezoneThunk } from './store/slices/timetableSlice';
 import { fetchTasksThunk, fetchSubmissionsThunk } from './store/slices/tasksSlice';
 import { fetchResourcesThunk } from './store/slices/resourcesSlice';
 import { fetchNoticesThunk } from './store/slices/noticesSlice';

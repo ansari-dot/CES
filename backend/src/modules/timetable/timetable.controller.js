@@ -60,6 +60,46 @@ export const timetableController = {
     }
   },
 
+  async updateSlot(req, res, next) {
+    try {
+      const slotId = Number(req.params.id);
+      const { sessionId, classId, subjectId, teacherId, weekday, startTime, endTime, effectiveFrom, effectiveTo, status, reason } = req.body;
+      const slot = await timetableService.updateSlot({
+        slotId,
+        sessionId: sessionId ? Number(sessionId) : undefined,
+        classId: classId ? Number(classId) : undefined,
+        subjectId: subjectId ? Number(subjectId) : undefined,
+        teacherId: teacherId ? Number(teacherId) : undefined,
+        weekday: weekday !== undefined ? Number(weekday) : undefined,
+        startTime,
+        endTime,
+        effectiveFrom,
+        effectiveTo,
+        status,
+        userId: req.user?.id,
+        reason
+      });
+      return sendSuccess(res, slot);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async deleteSlot(req, res, next) {
+    try {
+      const slotId = Number(req.params.id);
+      const { reason } = req.body || {};
+      const result = await timetableService.deleteSlot({
+        slotId,
+        userId: req.user?.id,
+        reason
+      });
+      return sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async getLessons(req, res, next) {
     try {
       const classId = req.query.classId ? Number(req.query.classId) : null;

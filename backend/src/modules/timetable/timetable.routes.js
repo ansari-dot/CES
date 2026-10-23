@@ -9,6 +9,8 @@ router.get('/slots', authenticate, timetableController.getSlots);
 router.get('/my-slots', authenticate, timetableController.getMySlots);
 router.get('/my-lessons', authenticate, timetableController.getMyLessons);
 router.post('/slots', authenticate, authorize('timetable.manage'), timetableController.createSlot);
+router.put('/slots/:id', authenticate, authorize('timetable.manage'), timetableController.updateSlot);
+router.delete('/slots/:id', authenticate, authorize('timetable.manage'), timetableController.deleteSlot);
 
 router.get('/lessons', authenticate, timetableController.getLessons);
 router.post('/publish', authenticate, authorize('timetable.publish'), timetableController.publishTimetable);

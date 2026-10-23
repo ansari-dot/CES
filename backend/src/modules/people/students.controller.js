@@ -99,7 +99,21 @@ export const studentsController = {
     try {
       const student = await db('students').where({ user_id: req.user.id }).first();
       if (!student) return sendSuccess(res, []);
-      const lessons = await timetableRepository.getLessons({ classId: student.current_class_id });
+
+      let classId = student.current_class_id;
+      if (!classId) {
+        const activeEnrollment = await db('enrollments')
+          .where({ student_id: student.id, status: 'ACTIVE' })
+          .orderBy('id', 'desc')
+          .first();
+        if (activeEnrollment) {
+          classId = activeEnrollment.class_id;
+        }
+      }
+
+      if (!classId) return sendSuccess(res, []);
+
+      const lessons = await timetableRepository.getLessons({ classId });
       return sendSuccess(res, lessons);
     } catch (error) {
       next(error);

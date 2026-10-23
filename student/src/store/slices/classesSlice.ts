@@ -3,6 +3,7 @@ import { requestApi } from '../../services/api';
 import {
   DEFAULT_SCHOOL_TIMEZONE,
   getBrowserTimeZone,
+  parseUtcInstant,
   schoolWallTimeToDate,
   formatTimeInZone,
   dateKeyInZone,
@@ -137,12 +138,12 @@ function deriveSchedule(state: ClassesState) {
 
   const lessons = state.rawLessons
     .map((l) => {
-      const start = schoolWallTimeToDate(l.startAt || l.start_at || '', schoolTz);
-      const end = schoolWallTimeToDate(l.endAt || l.end_at || '', schoolTz);
+      const start = parseUtcInstant(l.startAt || l.start_at) || schoolWallTimeToDate(l.startAt || l.start_at || '', schoolTz);
+      const end = parseUtcInstant(l.endAt || l.end_at) || schoolWallTimeToDate(l.endAt || l.end_at || '', schoolTz);
       return { l, start, end };
     })
-    .filter((x) => x.start)
-    .sort((a, b) => a.start!.getTime() - b.start!.getTime());
+    .filter((x): x is { l: any; start: Date; end: Date } => Boolean(x.start && x.end))
+    .sort((a, b) => a.start.getTime() - b.start.getTime());
 
   const fmt = (d: Date | null) => (d ? formatTimeInZone(d, tz) : '');
   const minutesUntil = (d: Date | null) => (d ? Math.round((d.getTime() - now) / 60000) : 999);
@@ -202,7 +203,7 @@ function deriveSchedule(state: ClassesState) {
       subject: l.subjectName || '',
       topic: l.topicCovered || '',
       teacher: l.teacherName || '',
-      joinableAt: mins >= 0 && mins <= 10 ? fmt(start) : undefined,
+      joinableAt: mins >= 0 && mins <= 10 && l.status !== 'CANCELLED' ? fmt(start) : undefined,
       status: l.status || 'SCHEDULED',
       border: BORDERS[idx % BORDERS.length],
     });
