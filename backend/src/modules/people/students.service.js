@@ -8,6 +8,8 @@ import { emailService } from '../../shared/email/email.service.js';
 import { timetableRepository } from '../timetable/timetable.repository.js';
 import { zoomRepository } from '../zoom/zoom.repository.js';
 import { parseDbDate } from '../../shared/utils/date.js';
+import { feesRepository } from '../fees/fees.repository.js';
+import { config } from '../../config/index.js';
 
 export const studentsService = {
   async getAllStudents(filter = {}) {
@@ -49,6 +51,11 @@ export const studentsService = {
     const { userId, studentId } = await studentsRepository.createStudentWithUser({
       user: {
         username,
+        // Also store admissionNo as a searchable alias so students can log in
+        // with either the cleaned username OR the original admission number.
+        // The auth findUserByIdentifier already searches username/email/phone;
+        // we store the original admissionNo in the email field only when no
+        // real email is provided, so the student can type it at the login screen.
         email: email || null,
         phone: phone || null,
         full_name: name,
@@ -129,6 +136,24 @@ export const studentsService = {
     const data = await studentsRepository.getStudentDashboard(userId);
     if (!data) {
       throw new AppError('Student profile not found', 404, ErrorCodes.NOT_FOUND);
+    }
+    if (data.isRestricted) {
+      const student = await studentsRepository.getStudentByUserId(userId);
+      const feeRestriction = await feesRepository.getStudentRestrictionSummary(student.id);
+      const whatsapp = config.PRINCIPAL_WHATSAPP_NUMBER?.replace(/\D/g, '');
+      return {
+        ...data,
+        student,
+        restrictionType: feeRestriction ? 'FEE_OVERDUE' : 'ACCOUNT',
+        ...(feeRestriction && {
+          suspensionReason:
+            'Your portal access is temporarily restricted because your fee invoice was not paid by the end of the grace period.',
+          resolutionMessage:
+            'Please pay the outstanding fee, then contact the Principal on WhatsApp with your name and student ID. Your access will be restored once the Principal confirms.',
+          feeRestriction
+        }),
+        principalContact: { whatsappUrl: whatsapp ? `https://wa.me/${whatsapp}` : null }
+      };
     }
     return data;
   },

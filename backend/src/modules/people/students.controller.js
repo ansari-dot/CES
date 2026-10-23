@@ -1,5 +1,7 @@
 import { studentsService } from './students.service.js';
 import { sendSuccess } from '../../shared/http/response.js';
+import { db } from '../../shared/db/knex.js';
+import { timetableRepository } from '../timetable/timetable.repository.js';
 
 export const studentsController = {
   async getAllStudents(req, res, next) {
@@ -88,6 +90,17 @@ export const studentsController = {
       });
 
       return sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getMyTimetable(req, res, next) {
+    try {
+      const student = await db('students').where({ user_id: req.user.id }).first();
+      if (!student) return sendSuccess(res, []);
+      const lessons = await timetableRepository.getLessons({ classId: student.current_class_id });
+      return sendSuccess(res, lessons);
     } catch (error) {
       next(error);
     }

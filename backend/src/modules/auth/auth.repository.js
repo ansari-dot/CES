@@ -2,17 +2,36 @@ import { db } from '../../shared/db/knex.js';
 
 export const authRepository = {
   async findUserByIdentifier(identifier) {
-    return await db('users')
+    // Try username, email, phone first
+    let user = await db('users')
       .join('roles', 'users.role_id', 'roles.id')
       .where('users.username', identifier)
       .orWhere('users.email', identifier)
       .orWhere('users.phone', identifier)
-      .select(
-        'users.*',
-        'roles.code as role_code',
-        'roles.name as role_name'
-      )
+      // Credential emails give students their admission number and teachers
+      // their staff ID, so those are accepted as login identifiers too.
+      .orWhereIn('users.id', db('students').select('user_id').where('admission_no', identifier))
+      .orWhereIn('users.id', db('teachers').select('user_id').where('employee_no', identifier))
+      .select('users.*', 'roles.code as role_code', 'roles.name as role_name')
       .first();
+
+    // If not found, try matching against student admission_no (students log in
+    // with the admission number shown in their welcome email)
+    if (!user) {
+      const student = await db('students')
+        .where('admission_no', identifier)
+        .select('user_id')
+        .first();
+      if (student) {
+        user = await db('users')
+          .join('roles', 'users.role_id', 'roles.id')
+          .where('users.id', student.user_id)
+          .select('users.*', 'roles.code as role_code', 'roles.name as role_name')
+          .first();
+      }
+    }
+
+    return user || null;
   },
 
   async findUserById(id) {

@@ -7,6 +7,7 @@ const router = Router();
 
 // Student Portal (Self)
 router.get('/me/dashboard', authenticate, studentsController.getMyDashboard);
+router.get('/me/timetable', authenticate, studentsController.getMyTimetable);
 router.get('/me/live-lesson/:lessonId/join', authenticate, studentsController.joinLiveLesson);
 
 router.get('/', authenticate, studentsController.getAllStudents);
