@@ -13,6 +13,9 @@ export interface ClassZoomMeeting {
   zoomMeetingId: string; // e.g. "892 4810 9921"
   passcode: string;
   joinUrl: string; // student/teacher safe join link
+  hostKey?: string; // 6-digit Host Claim PIN
+  accountEmail?: string; // Specific Zoom Pro Account identifier
+  configNotes?: string;
   status: 'Active' | 'Requires Renewal' | 'Reported Failure' | 'Expired';
   createdDate: string;
   lastRenewalDate: string;

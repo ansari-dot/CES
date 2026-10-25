@@ -82,7 +82,8 @@ export const payrollController = {
         draftId,
         paymentMethod,
         paymentReference,
-        paidAmount
+        paidAmount,
+        userId: req.user?.id
       });
       return sendSuccess(res, draft);
     } catch (error) {

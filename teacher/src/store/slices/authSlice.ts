@@ -187,6 +187,8 @@ export const authSlice = createSlice({
           state.mustChangePassword = false;
           state.loginError = 'Password updated. Please sign in with your new password.';
           if (typeof window !== 'undefined') localStorage.removeItem('edupulse_auth_state');
+        }
+      })
       .addCase(checkTeacherSessionThunk.rejected, (state) => {
         state.isAuthenticated = false;
         state.teacher = DEFAULT_LIVE_TEACHER;

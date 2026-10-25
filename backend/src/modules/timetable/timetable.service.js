@@ -5,7 +5,6 @@ import { notificationService } from '../../shared/services/notificationService.j
 import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
 import { config } from '../../config/index.js';
-import { db } from '../../shared/db/knex.js';
 
 /**
  * Convert a school wall-clock time string "HH:MM" or "HH:MM:SS" on a given
@@ -245,8 +244,8 @@ export const timetableService = {
       } else {
         const newStart = startTime || existing.start_time;
         const newEnd = endTime || existing.end_time;
-        const startAt = wallClockToUtc(fl.lesson_date, newStart, schoolTz);
-        const endAt = wallClockToUtc(fl.lesson_date, newEnd, schoolTz);
+        const startAt = new Date(wallClockToUtc(fl.lesson_date, newStart, schoolTz));
+        const endAt = new Date(wallClockToUtc(fl.lesson_date, newEnd, schoolTz));
         await timetableRepository.updateLesson(fl.id, {
           class_id: classId || existing.class_id,
           subject_id: subjectId || existing.subject_id,
@@ -299,6 +298,8 @@ export const timetableService = {
     });
 
     return { slotId, status: 'ARCHIVED' };
+  },
+
   async deleteSlot({ slotId, userId }) {
     const slot = await timetableRepository.findSlotById(slotId);
     if (!slot) {
@@ -366,8 +367,8 @@ export const timetableService = {
 
         // Convert school wall-clock time (Pakistan/Asia/Karachi) to UTC for storage.
         // Clients receive UTC and convert to their local timezone for display.
-        const startAt = wallClockToUtc(dateString, slot.startTime, schoolTz);
-        const endAt = wallClockToUtc(dateString, slot.endTime, schoolTz);
+        const startAt = new Date(wallClockToUtc(dateString, slot.startTime, schoolTz));
+        const endAt = new Date(wallClockToUtc(dateString, slot.endTime, schoolTz));
 
         try {
           const lessonId = await timetableRepository.createLesson({

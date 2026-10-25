@@ -1,4 +1,6 @@
 import { db } from '../../shared/db/knex.js';
+import { AppError } from '../../shared/errors/AppError.js';
+import { ErrorCodes } from '../../shared/errors/errorCodes.js';
 
 function mapSalaryModelToFrontend(model) {
   switch (model) {
@@ -52,148 +54,204 @@ function mapStatusToBackend(status) {
   return 'SUBMITTED_FOR_APPROVAL';
 }
 
+/**
+ * Atomically records an audit entry within an ongoing database transaction.
+ */
+async function logPayrollAudit(trx, {
+  actorId = null,
+  action,
+  recordIdentifier,
+  reason = null,
+  previousValue = null,
+  newValue = null
+}) {
+  let actorName = 'System';
+  let actorRole = 'System';
+
+  if (actorId) {
+    const actor = await trx('users')
+      .leftJoin('roles', 'users.role_id', 'roles.id')
+      .where('users.id', actorId)
+      .select('users.full_name', 'roles.name as role_name')
+      .first();
+
+    if (actor) {
+      actorName = actor.full_name || `User #${actorId}`;
+      actorRole = actor.role_name || 'Staff';
+    }
+  }
+
+  await trx('audit_logs').insert({
+    actor_id: actorId ? Number(actorId) : null,
+    actor_name: actorName,
+    actor_role: actorRole,
+    action,
+    record_type: 'Teacher Payroll',
+    record_identifier: recordIdentifier,
+    reason: reason || null,
+    previous_value: previousValue ? String(previousValue) : null,
+    new_value: newValue ? String(newValue) : null,
+    created_at: trx.fn.now(3)
+  });
+}
+
 export const payrollRepository = {
-  // 1. Generate Monthly Payroll Drafts
+  // 1. Generate Monthly Payroll Drafts (ACID Atomic Batch)
   async generateMonthlyDrafts({ payrollMonth, userId, teacherId = null }) {
-    let teachersQuery = db('teachers')
-      .join('users', 'teachers.user_id', 'users.id')
-      .where('users.status', 'ACTIVE');
+    return await db.transaction(async (trx) => {
+      let teachersQuery = trx('teachers')
+        .join('users', 'teachers.user_id', 'users.id')
+        .where('users.status', 'ACTIVE');
 
-    if (teacherId) {
-      teachersQuery = teachersQuery.where('teachers.id', teacherId);
-    }
-
-    const teachers = await teachersQuery.select(
-      'teachers.id as teacherId',
-      'teachers.employee_no as staffIdentifier',
-      'users.full_name as teacherName'
-    );
-
-    let generatedCount = 0;
-    let skippedCount = 0;
-
-    for (const t of teachers) {
-      // 1. Check if draft already exists
-      const existing = await db('teacher_payroll_drafts')
-        .where({ teacher_id: t.teacherId, payroll_month: payrollMonth })
-        .first();
-
-      if (existing) {
-        skippedCount++;
-        continue;
+      if (teacherId) {
+        teachersQuery = teachersQuery.where('teachers.id', teacherId);
       }
 
-      // 2. Fetch salary profile (or default to FIXED)
-      const profile = await db('teacher_salary_profiles')
-        .where('teacher_id', t.teacherId)
-        .orderBy('effective_from', 'desc')
-        .first();
+      const teachers = await teachersQuery.select(
+        'teachers.id as teacherId',
+        'teachers.employee_no as staffIdentifier',
+        'users.full_name as teacherName'
+      );
 
-      const model = profile ? profile.model : 'FIXED';
-      const baseMonthlySalary = profile ? Number(profile.base_amount || 0) : 50000;
-      const perLessonRate = profile ? Number(profile.per_lesson_rate || 0) : 1500;
-      const perHourRate = profile ? Number(profile.per_hour_rate || 0) : 1200;
+      let generatedCount = 0;
+      let skippedCount = 0;
 
-      let allowances = 5000;
-      let standardDeductions = 2500;
-      if (profile && profile.rules) {
-        try {
-          const parsed = typeof profile.rules === 'string' ? JSON.parse(profile.rules) : profile.rules;
-          if (parsed.allowances !== undefined) allowances = Number(parsed.allowances);
-          if (parsed.standardDeductions !== undefined) standardDeductions = Number(parsed.standardDeductions);
-        } catch {
-          // ignore json parse error
+      for (const t of teachers) {
+        // 1. Atomically check if draft already exists
+        const existing = await trx('teacher_payroll_drafts')
+          .where({ teacher_id: t.teacherId, payroll_month: payrollMonth })
+          .first();
+
+        if (existing) {
+          skippedCount++;
+          continue;
         }
-      }
 
-      // 3. Compute duty metrics from timetable_lessons
-      const lessons = await db('timetable_lessons').where('teacher_id', t.teacherId);
+        // 2. Fetch salary profile (or default to FIXED)
+        const profile = await trx('teacher_salary_profiles')
+          .where('teacher_id', t.teacherId)
+          .orderBy('effective_from', 'desc')
+          .first();
 
-      const scheduledLessons = lessons.length;
-      const completedLessons = lessons.filter((l) => l.status === 'COMPLETED').length;
-      const cancelledLessons = lessons.filter((l) => l.status === 'CANCELLED').length;
-      const missedLessons = lessons.filter((l) => l.status === 'MISSED').length;
-      const approvedLeaveDays = 0;
+        const model = profile ? profile.model : 'FIXED';
+        const baseMonthlySalary = profile ? Number(profile.base_amount || 0) : 50000;
+        const perLessonRate = profile ? Number(profile.per_lesson_rate || 0) : 1500;
+        const perHourRate = profile ? Number(profile.per_hour_rate || 0) : 1200;
 
-      // Approximate hours (0.75h per lesson if no explicit time diff)
-      let verifiedHours = 0;
-      for (const l of lessons.filter((l) => l.status === 'COMPLETED')) {
-        if (l.start_at && l.end_at) {
-          const start = new Date(l.start_at).getTime();
-          const end = new Date(l.end_at).getTime();
-          const diffHours = (end - start) / (1000 * 60 * 60);
-          verifiedHours += diffHours > 0 ? diffHours : 0.75;
-        } else {
-          verifiedHours += 0.75;
+        let allowances = 5000;
+        let standardDeductions = 2500;
+        if (profile && profile.rules) {
+          try {
+            const parsed = typeof profile.rules === 'string' ? JSON.parse(profile.rules) : profile.rules;
+            if (parsed.allowances !== undefined) allowances = Number(parsed.allowances);
+            if (parsed.standardDeductions !== undefined) standardDeductions = Number(parsed.standardDeductions);
+          } catch {
+            // ignore json parse error
+          }
         }
+
+        // 3. Compute duty metrics from timetable_lessons
+        const lessons = await trx('timetable_lessons').where('teacher_id', t.teacherId);
+
+        const scheduledLessons = lessons.length;
+        const completedLessons = lessons.filter((l) => l.status === 'COMPLETED').length;
+        const cancelledLessons = lessons.filter((l) => l.status === 'CANCELLED').length;
+        const missedLessons = lessons.filter((l) => l.status === 'MISSED').length;
+        const approvedLeaveDays = 0;
+
+        // Exact verified hours from Zoom Server-to-Server tracking (join to leave)
+        let verifiedHours = 0;
+        for (const l of lessons.filter((l) => l.status === 'COMPLETED')) {
+          const start = l.actual_start_at || l.teacher_joined_at;
+          const end = l.actual_end_at || l.handover_at;
+          if (start && end) {
+            const startMs = new Date(start).getTime();
+            const endMs = new Date(end).getTime();
+            const diffHours = (endMs - startMs) / (1000 * 60 * 60);
+            verifiedHours += diffHours > 0 ? diffHours : 0;
+          } else {
+            // Strict verified attendance: no free hours if actual join/leave was not recorded
+            verifiedHours += 0;
+          }
+        }
+        verifiedHours = Number(verifiedHours.toFixed(2));
+
+        // 4. Calculate Earnings per Salary Model
+        let basePay = 0;
+        let ratePerUnit = 0;
+        let lessonOrHourlyEarning = 0;
+        let calculationFormula = '';
+
+        if (model === 'FIXED') {
+          basePay = baseMonthlySalary;
+          ratePerUnit = 0;
+          lessonOrHourlyEarning = 0;
+          calculationFormula = `Fixed: Base (Rs. ${basePay.toLocaleString()}) + Allowances (Rs. ${allowances.toLocaleString()}) - Deductions (Rs. ${standardDeductions.toLocaleString()})`;
+        } else if (model === 'PER_LESSON') {
+          basePay = 0;
+          ratePerUnit = perLessonRate;
+          lessonOrHourlyEarning = completedLessons * perLessonRate;
+          calculationFormula = `Per Lesson: ${completedLessons} completed × Rs. ${perLessonRate.toLocaleString()} + Allowances (Rs. ${allowances.toLocaleString()}) - Deductions (Rs. ${standardDeductions.toLocaleString()})`;
+        } else if (model === 'PER_HOUR') {
+          basePay = 0;
+          ratePerUnit = perHourRate;
+          lessonOrHourlyEarning = Number((verifiedHours * perHourRate).toFixed(2));
+          calculationFormula = `Per Hour: ${verifiedHours} hrs × Rs. ${perHourRate.toLocaleString()} + Allowances (Rs. ${allowances.toLocaleString()}) - Deductions (Rs. ${standardDeductions.toLocaleString()})`;
+        } else if (model === 'HYBRID') {
+          basePay = baseMonthlySalary;
+          ratePerUnit = perLessonRate;
+          lessonOrHourlyEarning = completedLessons * perLessonRate;
+          calculationFormula = `Hybrid: Base (Rs. ${basePay.toLocaleString()}) + (${completedLessons} lessons × Rs. ${ratePerUnit.toLocaleString()}) + Allowances (Rs. ${allowances.toLocaleString()}) - Deductions (Rs. ${standardDeductions.toLocaleString()})`;
+        }
+
+        const grossAmount = basePay + lessonOrHourlyEarning + allowances;
+        const netPayable = Math.max(0, grossAmount - standardDeductions);
+
+        await trx('teacher_payroll_drafts').insert({
+          teacher_id: t.teacherId,
+          payroll_month: payrollMonth,
+          salary_model: model,
+          scheduled_lessons: scheduledLessons,
+          completed_lessons: completedLessons,
+          cancelled_lessons: cancelledLessons,
+          missed_lessons: missedLessons,
+          approved_leave_days: approvedLeaveDays,
+          verified_hours: verifiedHours,
+          base_pay: basePay,
+          rate_per_unit: ratePerUnit,
+          lesson_or_hourly_earning: lessonOrHourlyEarning,
+          allowances,
+          standard_deductions: standardDeductions,
+          calculation_formula: calculationFormula,
+          gross_amount: grossAmount,
+          net_payable: netPayable,
+          status: 'SUBMITTED_FOR_APPROVAL',
+          generated_by: userId
+        });
+
+        generatedCount++;
       }
-      verifiedHours = Number(verifiedHours.toFixed(2));
 
-      // 4. Calculate Earnings per Salary Model
-      let basePay = 0;
-      let ratePerUnit = 0;
-      let lessonOrHourlyEarning = 0;
-      let calculationFormula = '';
-
-      if (model === 'FIXED') {
-        basePay = baseMonthlySalary;
-        ratePerUnit = 0;
-        lessonOrHourlyEarning = 0;
-        calculationFormula = `Fixed: Base (Rs. ${basePay.toLocaleString()}) + Allowances (Rs. ${allowances.toLocaleString()}) - Deductions (Rs. ${standardDeductions.toLocaleString()})`;
-      } else if (model === 'PER_LESSON') {
-        basePay = 0;
-        ratePerUnit = perLessonRate;
-        lessonOrHourlyEarning = completedLessons * perLessonRate;
-        calculationFormula = `Per Lesson: ${completedLessons} completed × Rs. ${perLessonRate.toLocaleString()} + Allowances (Rs. ${allowances.toLocaleString()}) - Deductions (Rs. ${standardDeductions.toLocaleString()})`;
-      } else if (model === 'PER_HOUR') {
-        basePay = 0;
-        ratePerUnit = perHourRate;
-        lessonOrHourlyEarning = Number((verifiedHours * perHourRate).toFixed(2));
-        calculationFormula = `Per Hour: ${verifiedHours} hrs × Rs. ${perHourRate.toLocaleString()} + Allowances (Rs. ${allowances.toLocaleString()}) - Deductions (Rs. ${standardDeductions.toLocaleString()})`;
-      } else if (model === 'HYBRID') {
-        basePay = baseMonthlySalary;
-        ratePerUnit = perLessonRate;
-        lessonOrHourlyEarning = completedLessons * perLessonRate;
-        calculationFormula = `Hybrid: Base (Rs. ${basePay.toLocaleString()}) + (${completedLessons} lessons × Rs. ${ratePerUnit.toLocaleString()}) + Allowances (Rs. ${allowances.toLocaleString()}) - Deductions (Rs. ${standardDeductions.toLocaleString()})`;
+      if (generatedCount > 0) {
+        await logPayrollAudit(trx, {
+          actorId: userId,
+          action: 'GENERATE_PAYROLL_DRAFTS',
+          recordIdentifier: `Month: ${payrollMonth}`,
+          reason: `Batch generated ${generatedCount} teacher salary drafts (${skippedCount} skipped).`,
+          newValue: `Generated: ${generatedCount}, Skipped: ${skippedCount}`
+        });
       }
 
-      const grossAmount = basePay + lessonOrHourlyEarning + allowances;
-      const netPayable = Math.max(0, grossAmount - standardDeductions);
-
-      await db('teacher_payroll_drafts').insert({
-        teacher_id: t.teacherId,
-        payroll_month: payrollMonth,
-        salary_model: model,
-        scheduled_lessons: scheduledLessons,
-        completed_lessons: completedLessons,
-        cancelled_lessons: cancelledLessons,
-        missed_lessons: missedLessons,
-        approved_leave_days: approvedLeaveDays,
-        verified_hours: verifiedHours,
-        base_pay: basePay,
-        rate_per_unit: ratePerUnit,
-        lesson_or_hourly_earning: lessonOrHourlyEarning,
-        allowances,
-        standard_deductions: standardDeductions,
-        calculation_formula: calculationFormula,
-        gross_amount: grossAmount,
-        net_payable: netPayable,
-        status: 'SUBMITTED_FOR_APPROVAL',
-        generated_by: userId
-      });
-
-      generatedCount++;
-    }
-
-    return {
-      message: `Generated ${generatedCount} payroll drafts for ${payrollMonth}. ${skippedCount} teachers skipped (drafts exist).`,
-      generatedCount,
-      skippedCount
-    };
+      return {
+        message: `Generated ${generatedCount} payroll drafts for ${payrollMonth}. ${skippedCount} teachers skipped (drafts exist).`,
+        generatedCount,
+        skippedCount
+      };
+    });
   },
 
-  // 2. Query Salary Drafts
-  async getSalaryDrafts({ payrollMonth = null, teacherId = null, status = null } = {}, trx = db) {
+  // 2. Query Salary Drafts (Efficient index filter)
+  async getSalaryDrafts({ payrollMonth = null, teacherId = null, status = null, draftId = null } = {}, trx = db) {
     let query = trx('teacher_payroll_drafts')
       .join('teachers', 'teacher_payroll_drafts.teacher_id', 'teachers.id')
       .join('users as teacher_users', 'teachers.user_id', 'teacher_users.id')
@@ -234,6 +292,7 @@ export const payrollRepository = {
       )
       .orderBy('teacher_payroll_drafts.created_at', 'desc');
 
+    if (draftId) query = query.where('teacher_payroll_drafts.id', draftId);
     if (payrollMonth) query = query.where('teacher_payroll_drafts.payroll_month', payrollMonth);
     if (teacherId) query = query.where('teacher_payroll_drafts.teacher_id', teacherId);
     if (status) query = query.where('teacher_payroll_drafts.status', mapStatusToBackend(status));
@@ -304,21 +363,32 @@ export const payrollRepository = {
   },
 
   async findSalaryDraftById(id, trx = db) {
-    const list = await this.getSalaryDrafts({}, trx);
-    return list.find((d) => d.id === String(id)) || null;
+    const list = await this.getSalaryDrafts({ draftId: id }, trx);
+    return list[0] || null;
   },
 
-  // 3. Review Salary Draft (Approve / Return / Reject)
+  // 3. Review Salary Draft (Approve / Return / Reject) with ACID Isolation & Invariants
   async reviewSalaryDraft({ draftId, decision, reviewRemarks, reviewerUserId }) {
     return await db.transaction(async (trx) => {
-      const draft = await trx('teacher_payroll_drafts').where({ id: draftId }).first();
+      // 1. Acquire exclusive lock on the draft row (Pessimistic concurrency control)
+      const draft = await trx('teacher_payroll_drafts')
+        .where({ id: draftId })
+        .forUpdate()
+        .first();
+
       if (!draft) return null;
+
+      // Invariant: Once PAID, draft is frozen and immutable
+      if (draft.status === 'PAID') {
+        throw new AppError('Cannot modify or review a salary draft that has already been paid and settled.', 400, ErrorCodes.VALIDATION_ERROR);
+      }
 
       const backendStatus = mapStatusToBackend(decision);
       let salarySlipNumber = draft.salary_slip_number;
 
       if (backendStatus === 'APPROVED' && !salarySlipNumber) {
-        salarySlipNumber = `SLIP-${Date.now().toString().slice(-6)}`;
+        const cleanMonth = (draft.payroll_month || 'MONTH').replace(/\s+/g, '').toUpperCase();
+        salarySlipNumber = `SLIP-${cleanMonth}-${String(draft.teacher_id).padStart(4, '0')}-${String(draft.id).padStart(4, '0')}`;
       }
 
       await trx('teacher_payroll_drafts')
@@ -332,19 +402,43 @@ export const payrollRepository = {
           updated_at: trx.fn.now(3)
         });
 
+      // Atomic Audit Log
+      await logPayrollAudit(trx, {
+        actorId: reviewerUserId,
+        action: `REVIEW_DRAFT_${backendStatus}`,
+        recordIdentifier: `Slip: ${salarySlipNumber || draft.id} (Draft #${draftId})`,
+        reason: reviewRemarks || `Status transitioned to ${backendStatus}`,
+        previousValue: `Status: ${draft.status}`,
+        newValue: `Status: ${backendStatus}, Slip: ${salarySlipNumber || 'N/A'}`
+      });
+
       return await this.findSalaryDraftById(draftId, trx);
     });
   },
 
-  // 4. Add Salary Adjustment (Addition / Deduction)
+  // 4. Add Salary Adjustment (Addition / Deduction) with Atomic Row Lock & Recalculation
   async addSalaryAdjustment({ draftId, type, title, amount, reason, authorizedByUserId }) {
     return await db.transaction(async (trx) => {
-      const draft = await trx('teacher_payroll_drafts').where({ id: draftId }).first();
+      // 1. Acquire exclusive lock on the draft row (Pessimistic concurrency control)
+      const draft = await trx('teacher_payroll_drafts')
+        .where({ id: draftId })
+        .forUpdate()
+        .first();
+
       if (!draft) return null;
+
+      // Invariant: Frozen states
+      if (draft.status === 'PAID') {
+        throw new AppError('Cannot add adjustments to a salary draft that has already been settled and paid.', 400, ErrorCodes.VALIDATION_ERROR);
+      }
+      if (draft.status === 'REJECTED') {
+        throw new AppError('Cannot add adjustments to a rejected salary draft.', 400, ErrorCodes.VALIDATION_ERROR);
+      }
 
       const upperType = type.toUpperCase() === 'ADDITION' ? 'ADDITION' : 'DEDUCTION';
       const adjAmount = Math.abs(Number(amount));
 
+      // 2. Insert adjustment record
       await trx('teacher_salary_adjustments').insert({
         payroll_draft_id: draftId,
         type: upperType,
@@ -354,7 +448,7 @@ export const payrollRepository = {
         authorized_by: authorizedByUserId
       });
 
-      // Recalculate totals
+      // 3. Atomically recalculate totals from source of truth inside transaction
       const allAdjustments = await trx('teacher_salary_adjustments').where({
         payroll_draft_id: draftId
       });
@@ -371,34 +465,93 @@ export const payrollRepository = {
       const grossAmount = earnings + additions;
       const netPayable = Math.max(0, grossAmount - deductions);
 
+      // Invariant: If draft was previously approved, modifying financial amounts requires re-audit
+      let newStatus = draft.status;
+      if (draft.status === 'APPROVED') {
+        newStatus = 'SUBMITTED_FOR_APPROVAL';
+      }
+
       await trx('teacher_payroll_drafts').where({ id: draftId }).update({
         gross_amount: grossAmount,
         net_payable: netPayable,
+        status: newStatus,
         updated_at: trx.fn.now(3)
+      });
+
+      // Atomic Audit Log
+      await logPayrollAudit(trx, {
+        actorId: authorizedByUserId,
+        action: `ADD_ADJUSTMENT_${upperType}`,
+        recordIdentifier: `Draft #${draftId} - ${title}`,
+        reason: `${reason} (Amount: Rs. ${adjAmount})`,
+        previousValue: `Gross: ${draft.gross_amount}, Net: ${draft.net_payable}, Status: ${draft.status}`,
+        newValue: `Gross: ${grossAmount}, Net: ${netPayable}, Status: ${newStatus}`
       });
 
       return await this.findSalaryDraftById(draftId, trx);
     });
   },
 
-  // 5. Settle Salary Payment
-  async settleSalaryPayment({ draftId, paymentMethod, paymentReference, paidAmount }) {
+  // 5. Settle Salary Payment with Concurrency Isolation (Prevents Double-Payout)
+  async settleSalaryPayment({ draftId, paymentMethod, paymentReference, paidAmount, userId = null }) {
     return await db.transaction(async (trx) => {
-      const draft = await trx('teacher_payroll_drafts').where({ id: draftId }).first();
+      // 1. Acquire exclusive lock on the draft row (Pessimistic concurrency control)
+      const draft = await trx('teacher_payroll_drafts')
+        .where({ id: draftId })
+        .forUpdate()
+        .first();
+
       if (!draft) return null;
 
+      // Invariant: Prevent double payout race conditions
+      if (draft.status === 'PAID') {
+        throw new AppError('Salary draft has already been settled and paid. Double disbursement is prevented.', 409, ErrorCodes.CONFLICT);
+      }
+
+      // Invariant: Only approved drafts can be disbursed
+      if (draft.status !== 'APPROVED') {
+        throw new AppError('Only approved salary drafts can be settled for payment.', 400, ErrorCodes.VALIDATION_ERROR);
+      }
+
       const finalAmount = Number(paidAmount || draft.net_payable);
+      if (finalAmount <= 0) {
+        throw new AppError('Disbursement amount must be greater than zero.', 400, ErrorCodes.VALIDATION_ERROR);
+      }
+
+      const reference = paymentReference || `REF-${Date.now()}`;
+
+      // Invariant: Prevent duplicate payment reference on another settled record
+      if (paymentReference) {
+        const existingRef = await trx('teacher_payroll_drafts')
+          .where({ payment_reference: paymentReference })
+          .whereNot({ id: draftId })
+          .first();
+
+        if (existingRef) {
+          throw new AppError(`Payment reference "${paymentReference}" is already registered on another salary disbursement.`, 409, ErrorCodes.CONFLICT);
+        }
+      }
 
       await trx('teacher_payroll_drafts')
         .where({ id: draftId })
         .update({
           status: 'PAID',
           payment_method: paymentMethod || 'Bank Transfer',
-          payment_reference: paymentReference || `REF-${Date.now()}`,
+          payment_reference: reference,
           paid_at: trx.fn.now(3),
           paid_amount: finalAmount,
           updated_at: trx.fn.now(3)
         });
+
+      // Atomic Audit Log
+      await logPayrollAudit(trx, {
+        actorId: userId,
+        action: 'SETTLE_SALARY_PAYMENT',
+        recordIdentifier: `Slip: ${draft.salary_slip_number || draftId} (Draft #${draftId})`,
+        reason: `Settled via ${paymentMethod || 'Bank Transfer'}, Reference: ${reference}`,
+        previousValue: `Status: APPROVED, Net: ${draft.net_payable}`,
+        newValue: `Status: PAID, Paid: ${finalAmount}, Ref: ${reference}`
+      });
 
       return await this.findSalaryDraftById(draftId, trx);
     });
@@ -423,10 +576,12 @@ export const payrollRepository = {
 
     let verifiedTeachingHours = 0;
     for (const l of lessons.filter((l) => l.status === 'COMPLETED')) {
-      if (l.start_at && l.end_at) {
-        const start = new Date(l.start_at).getTime();
-        const end = new Date(l.end_at).getTime();
-        const diffHours = (end - start) / (1000 * 60 * 60);
+      const start = l.actual_start_at || l.teacher_joined_at || l.start_at;
+      const end = l.actual_end_at || l.handover_at || l.end_at;
+      if (start && end) {
+        const startMs = new Date(start).getTime();
+        const endMs = new Date(end).getTime();
+        const diffHours = (endMs - startMs) / (1000 * 60 * 60);
         verifiedTeachingHours += diffHours > 0 ? diffHours : 0.75;
       } else {
         verifiedTeachingHours += 0.75;

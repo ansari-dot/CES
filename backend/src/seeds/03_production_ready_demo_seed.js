@@ -86,6 +86,7 @@ export async function seed(knex) {
         start_url_enc: encryptAesGcm(startUrl),
         host_zoom_user_id: 'zoom_admin_master',
         host_mode: 'ALT_HOST',
+        config_notes: `Host Key: 884422 | Account: zoom.class${cls.grade_level}@school.pk`,
         status: 'ACTIVE',
         last_health_status: 'HEALTHY',
         created_by: principalUser.id

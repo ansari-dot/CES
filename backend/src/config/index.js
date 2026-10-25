@@ -39,7 +39,13 @@ const envSchema = z.object({
       .optional()
   ),
   // IP geolocation lookup; {ip} is replaced with the client IP. The JSON response must contain `timezone`.
-  GEO_LOOKUP_URL: z.string().default('http://ip-api.com/json/{ip}?fields=status,timezone')
+  GEO_LOOKUP_URL: z.string().default('http://ip-api.com/json/{ip}?fields=status,timezone'),
+
+  // Zoom Server-to-Server OAuth Configuration
+  ZOOM_ACCOUNT_ID: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  ZOOM_CLIENT_ID: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  ZOOM_CLIENT_SECRET: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  ZOOM_WEBHOOK_SECRET_TOKEN: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional())
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -55,5 +61,6 @@ export const config = {
   isTest: parsed.data.NODE_ENV === 'test',
   allowedOrigins: parsed.data.ALLOWED_ORIGINS.split(',').map((o) => o.trim()),
   cookieSecure: parsed.data.COOKIE_SECURE === 'true',
-  feeSchedulerEnabled: parsed.data.FEE_SCHEDULER_ENABLED === 'true'
+  feeSchedulerEnabled: parsed.data.FEE_SCHEDULER_ENABLED === 'true',
+  zoomApiConfigured: Boolean(parsed.data.ZOOM_ACCOUNT_ID && parsed.data.ZOOM_CLIENT_ID && parsed.data.ZOOM_CLIENT_SECRET)
 };

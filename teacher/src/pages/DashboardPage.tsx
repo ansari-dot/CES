@@ -76,7 +76,7 @@ export const DashboardPage: React.FC = () => {
       window.open(targetUrl, '_blank');
       dispatch(
         addToast({
-          message: `Live classroom launched for ${lesson.className} (${lesson.subject}). Host active.`,
+          message: `Live classroom launched for ${lesson.className}. In Zoom: Click Participants ➔ Claim Host (PIN: ${lesson.hostKey || '884422'}).`,
           type: 'success',
         })
       );
@@ -246,7 +246,7 @@ export const DashboardPage: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-[#464555] mt-0.5">
-                {nextLesson.topic} • Persistent Room ID: <span className="font-mono font-semibold text-slate-800">{nextLesson.zoomRoomId}</span>
+                {nextLesson.topic} • Room: <span className="font-mono font-semibold text-slate-800">{nextLesson.zoomRoomId}</span> • Host Key: <span className="font-mono font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-200">{nextLesson.hostKey || '884422'}</span>
               </p>
             </div>
           </div>

@@ -28,7 +28,6 @@ import { fetchNoticesThunk } from './store/slices/noticesSlice';
 import { fetchPerformanceDataThunk } from './store/slices/performanceSlice';
 import { fetchLessonRosterThunk, fetchCorrectionVouchersThunk } from './store/slices/attendanceSlice';
 import { fetchDutySummaryThunk } from './store/slices/dutySlice';
-import { fetchSchoolTimetable } from './store/slices/schoolTimetableSlice';
 import { useLessonReminderTicker } from './hooks/useLessonReminderTicker';
 
 export default function App() {

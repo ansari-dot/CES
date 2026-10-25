@@ -140,39 +140,6 @@ export const fetchSchoolTimetable = createAsyncThunk(
   'schoolTimetable/fetchSchoolTimetable',
   async (_, { getState, rejectWithValue }) => {
     try {
-      const state = getState() as { timetable?: { timezone?: string; schoolTimezone?: string } };
-      const targetTz = state.timetable?.timezone || DEFAULT_SCHOOL_TIMEZONE;
-      const schoolTz = state.timetable?.schoolTimezone || DEFAULT_SCHOOL_TIMEZONE;
-
-      const slots = await requestApi<any[]>('/api/v1/timetable/my-slots');
-      const sessions: SchoolClassSession[] = Array.isArray(slots)
-        ? slots.map((s: any) => {
-            const zoned = convertRecurringSlotToZoned(
-              { weekday: s.weekday, startTime: s.startTime, endTime: s.endTime },
-              schoolTz,
-              targetTz
-            );
-            return {
-              id: `SLOT-${s.id}`,
-              classId: `${s.classNumber}-${(s.subjectCode || 'sub').toLowerCase()}-a`,
-              className: s.className || `Class ${s.classNumber}`,
-              grade: s.classNumber,
-              subject: s.subjectName || '',
-              subjectIcon: 'menu_book',
-              topic: 'Core Instruction',
-              dayOfWeek: zoned.dayOfWeek,
-              startTime: zoned.startTime,
-              endTime: zoned.endTime,
-              periodNumber: 1,
-              roomNumber: `Online Room ${s.classNumber}`,
-              teacherName: s.teacherName || '',
-              teacherAvatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(s.teacherName || 'T')}&size=32`,
-              zoomMeetingId: s.zoomMeetingId || (s.meetingNumber ? String(s.meetingNumber) : ''),
-              zoomPasscode: `CLASS${s.classNumber}#`,
-              status: s.status === 'PUBLISHED' ? 'scheduled' : 'scheduled',
-            };
-          })
-        : [];
       const data = await requestApi<any[]>('/api/v1/timetable/slots');
       const daysMap: Record<number, string> = {
         1: 'Monday',
@@ -208,8 +175,8 @@ export const fetchSchoolTimetable = createAsyncThunk(
               teacherAvatar: '',
               roomNumber: `Online Live Classroom (Room ${s.classNumber})`,
               roomType: 'virtual_zoom',
-              zoomMeetingId: `900${s.classNumber}000${s.classNumber}`,
-              zoomPasscode: `CLASS${s.classNumber}#`,
+              zoomMeetingId: s.zoomMeetingId || `900${s.classNumber}000${s.classNumber}`,
+              zoomPasscode: s.zoomPasscode || `CLASS${s.classNumber}#`,
               dayOfWeek: daysMap[s.weekday] || 'Monday',
               startTime: String(s.startTime).substring(0, 5),
               endTime: String(s.endTime).substring(0, 5),
@@ -283,12 +250,9 @@ export const schoolTimetableSlice = createSlice({
       .addCase(fetchSchoolTimetable.fulfilled, (state, action) => {
         state.isLoading = false;
         const payload = action.payload as any;
-        state.lastFetchedAt = `Today at ${payload.timestamp}`;
-        if (Array.isArray(payload.sessions)) {
+        state.lastFetchedAt = `Today at ${payload?.timestamp || ''}`;
+        if (Array.isArray(payload?.sessions)) {
           state.sessions = payload.sessions;
-        state.lastFetchedAt = `Today at ${action.payload.timestamp}`;
-        if (action.payload.sessions) {
-          state.sessions = action.payload.sessions;
         }
       })
       .addCase(fetchSchoolTimetable.rejected, (state) => {

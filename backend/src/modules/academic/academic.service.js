@@ -61,6 +61,8 @@ export const academicService = {
 
   async getClassAssignments(classId) {
     return await academicRepository.getClassAssignments(classId);
+  },
+
   async addSubjectToClass(classId, { subjectId, name, code }) {
     const cls = await academicRepository.getClassById(classId);
     if (!cls) {

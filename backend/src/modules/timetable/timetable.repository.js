@@ -1,4 +1,5 @@
 import { db } from '../../shared/db/knex.js';
+import { decryptAesGcm } from '../../shared/crypto/aes.js';
 
 export const timetableRepository = {
   // Slots
@@ -24,6 +25,9 @@ export const timetableRepository = {
         'timetable_slots.teacher_id as teacherId',
         'users.full_name as teacherName',
         'zoom_meetings.zoom_meeting_id as zoomMeetingId',
+        'zoom_meetings.passcode_enc as zoomPasscodeEnc',
+        'zoom_meetings.join_url_enc as zoomJoinUrlEnc',
+        'zoom_meetings.config_notes as zoomConfigNotes',
         'timetable_slots.weekday',
         'timetable_slots.start_time as startTime',
         'timetable_slots.end_time as endTime',
@@ -37,7 +41,28 @@ export const timetableRepository = {
     if (sessionId) query = query.where('timetable_slots.session_id', sessionId);
     if (status) query = query.where('timetable_slots.status', status);
 
-    return await query;
+    const rows = await query;
+    return rows.map((r) => {
+      let zoomJoinUrl = '';
+      let zoomPasscode = '';
+      try {
+        zoomJoinUrl = r.zoomJoinUrlEnc ? decryptAesGcm(r.zoomJoinUrlEnc) : (r.zoomMeetingId ? `https://zoom.us/j/${r.zoomMeetingId}` : '');
+      } catch {
+        zoomJoinUrl = r.zoomMeetingId ? `https://zoom.us/j/${r.zoomMeetingId}` : '';
+      }
+      try {
+        zoomPasscode = r.zoomPasscodeEnc ? decryptAesGcm(r.zoomPasscodeEnc) : '';
+      } catch {
+        zoomPasscode = '';
+      }
+      const hostKey = r.zoomConfigNotes ? (r.zoomConfigNotes.match(/(?:host\s*key|host\s*pin|key|pin)[:\s=]*([0-9]{6})/i)?.[1] || '884422') : '884422';
+      return {
+        ...r,
+        zoomPasscode,
+        zoomJoinUrl,
+        hostKey
+      };
+    });
   },
 
   async findSlotById(id) {
@@ -135,6 +160,14 @@ export const timetableRepository = {
         'timetable_lessons.zoom_meeting_id as zoomMeetingId',
         'zoom_meetings.zoom_meeting_id as meetingNumber',
         'zoom_meetings.last_health_status as meetingHealth',
+        'zoom_meetings.passcode_enc as zoomPasscodeEnc',
+        'zoom_meetings.join_url_enc as zoomJoinUrlEnc',
+        'zoom_meetings.config_notes as zoomConfigNotes',
+        'timetable_lessons.session_state as sessionState',
+        'timetable_lessons.teacher_joined_at as teacherJoinedAt',
+        'timetable_lessons.handover_at as handoverAt',
+        'timetable_lessons.teacher_notified_at as teacherNotifiedAt',
+        'timetable_lessons.teacher_absence_alert_at as teacherAbsenceAlertAt',
         'timetable_lessons.lesson_date as lessonDate',
         'timetable_lessons.start_at as startAt',
         'timetable_lessons.end_at as endAt',
@@ -163,10 +196,28 @@ export const timetableRepository = {
         const iso = str.includes('T') ? str : str.replace(' ', 'T');
         return iso.endsWith('Z') || /[+-]\d{2}(?::?\d{2})?$/.test(iso) ? iso : `${iso}Z`;
       };
+      let zoomJoinUrl = '';
+      let zoomPasscode = '';
+      try {
+        zoomJoinUrl = r.zoomJoinUrlEnc ? decryptAesGcm(r.zoomJoinUrlEnc) : (r.meetingNumber ? `https://zoom.us/j/${r.meetingNumber}` : '');
+      } catch {
+        zoomJoinUrl = r.meetingNumber ? `https://zoom.us/j/${r.meetingNumber}` : '';
+      }
+      try {
+        zoomPasscode = r.zoomPasscodeEnc ? decryptAesGcm(r.zoomPasscodeEnc) : '';
+      } catch {
+        zoomPasscode = '';
+      }
+      const hostKey = r.zoomConfigNotes ? (r.zoomConfigNotes.match(/(?:host\s*key|host\s*pin|key|pin)[:\s=]*([0-9]{6})/i)?.[1] || '884422') : '884422';
       return {
         ...r,
         startAt: formatUtc(r.startAt),
-        endAt: formatUtc(r.endAt)
+        endAt: formatUtc(r.endAt),
+        sessionState: r.sessionState || (r.status === 'LIVE' ? 'LIVE' : r.status === 'COMPLETED' ? 'COMPLETED' : 'SCHEDULED'),
+        zoomRoomId: r.meetingNumber,
+        zoomPasscode,
+        zoomJoinUrl,
+        hostKey
       };
     });
   },
@@ -190,7 +241,9 @@ export const timetableRepository = {
         'primary_users.full_name as originalTeacherName',
         'sub_users.full_name as substituteTeacherName',
         'zoom_meetings.zoom_meeting_id as meetingNumber',
-        'zoom_meetings.last_health_status as meetingHealth'
+        'zoom_meetings.last_health_status as meetingHealth',
+        'zoom_meetings.passcode_enc as zoomPasscodeEnc',
+        'zoom_meetings.join_url_enc as zoomJoinUrlEnc'
       )
       .first();
 
@@ -203,10 +256,25 @@ export const timetableRepository = {
       return iso.endsWith('Z') || /[+-]\d{2}(?::?\d{2})?$/.test(iso) ? iso : `${iso}Z`;
     };
 
+    let zoomJoinUrl = '';
+    let zoomPasscode = '';
+    try {
+      zoomJoinUrl = lesson.zoomJoinUrlEnc ? decryptAesGcm(lesson.zoomJoinUrlEnc) : (lesson.meetingNumber ? `https://zoom.us/j/${lesson.meetingNumber}` : '');
+    } catch {
+      zoomJoinUrl = lesson.meetingNumber ? `https://zoom.us/j/${lesson.meetingNumber}` : '';
+    }
+    try {
+      zoomPasscode = lesson.zoomPasscodeEnc ? decryptAesGcm(lesson.zoomPasscodeEnc) : '';
+    } catch {
+      zoomPasscode = '';
+    }
+
     return {
       ...lesson,
       start_at: formatUtc(lesson.start_at),
-      end_at: formatUtc(lesson.end_at)
+      end_at: formatUtc(lesson.end_at),
+      zoomPasscode,
+      zoomJoinUrl
     };
   },
 

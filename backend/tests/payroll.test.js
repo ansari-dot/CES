@@ -288,4 +288,59 @@ describe('Module 7: Teacher Payroll & Duty Tracking Tests', () => {
     expect(res.body.data.completedLessons).toBeGreaterThanOrEqual(2);
     expect(res.body.data.verifiedTeachingHours).toBeGreaterThan(0);
   });
+
+  test('11. ACID Invariant - Frozen state: Cannot add adjustment to an already Paid salary draft', async () => {
+    const res = await request(app)
+      .post(`/api/v1/payroll/drafts/${generatedDraftId}/adjustments`)
+      .set('Cookie', principalCookies)
+      .set('X-CSRF-Token', principalCsrf)
+      .send({
+        type: 'Addition',
+        title: 'Post-Payment Bonus Hack',
+        amount: 5000,
+        reason: 'Should be blocked by ACID invariants'
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
+
+  test('12. ACID Invariant - Double-disbursement prevention: Cannot re-settle an already Paid draft', async () => {
+    const res = await request(app)
+      .post(`/api/v1/payroll/drafts/${generatedDraftId}/settle`)
+      .set('Cookie', principalCookies)
+      .set('X-CSRF-Token', principalCsrf)
+      .send({
+        paymentMethod: 'Bank Transfer',
+        paymentReference: 'HBL-FT-DUPLICATE-ATTEMPT',
+        paidAmount: 51500
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.success).toBe(false);
+  });
+
+  test('13. ACID Invariant - Frozen review: Cannot review or reject an already Paid salary draft', async () => {
+    const res = await request(app)
+      .post(`/api/v1/payroll/drafts/${generatedDraftId}/review`)
+      .set('Cookie', principalCookies)
+      .set('X-CSRF-Token', principalCsrf)
+      .send({
+        decision: 'Rejected',
+        reviewRemarks: 'Attempting to reject already paid draft'
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
+
+  test('14. ACID Durability - Atomic audit logs created for payroll lifecycle actions', async () => {
+    const logs = await db('audit_logs')
+      .where('record_type', 'Teacher Payroll')
+      .orderBy('created_at', 'desc');
+
+    expect(logs.length).toBeGreaterThan(0);
+    const actions = logs.map((l) => l.action);
+    expect(actions).toContain('SETTLE_SALARY_PAYMENT');
+  });
 });

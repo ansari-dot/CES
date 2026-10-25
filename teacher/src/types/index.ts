@@ -26,6 +26,8 @@ export interface AssignedClass {
   enrolledCount: number;
   zoomRoomId: string;
   zoomPasscode: string;
+  hostKey?: string;
+  joinUrl?: string;
   roomName: string;
 }
 
@@ -71,6 +73,9 @@ export interface TimetableLesson {
   status: 'scheduled' | 'started' | 'live' | 'completed' | 'cancelled' | 'rescheduled';
   zoomRoomId: string;
   zoomPasscode: string;
+  hostKey?: string;
+  joinUrl?: string;
+  sessionState?: string;
   deliveryLogged: boolean;
   attendanceSubmitted: boolean;
   isCompleted?: boolean;

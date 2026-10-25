@@ -16,6 +16,7 @@ export interface NextClass {
   topic: string;
   teacher: string;
   grade: string;
+  className?: string;
   duration: string;
   time: string;
   timeEnd: string;
@@ -24,6 +25,9 @@ export interface NextClass {
   zoomLink: string;
   joinUrl?: string;
   passcode?: string;
+  meetingId?: string;
+  sessionState?: string;
+  statusMessage?: string;
   lessonId?: number;
   isLiveNow: boolean;
 }
@@ -37,8 +41,12 @@ export interface TodayClass {
   teacher: string;
   duration: string;
   status: string;
+  sessionState?: string;
   joinable: boolean;
   lessonId?: number;
+  zoomLink?: string;
+  passcode?: string;
+  meetingId?: string;
 }
 
 export interface TimetableLesson {
@@ -77,7 +85,15 @@ interface ClassesState {
   weeklyTimetable: Record<string, TimetableLesson[]>;
   timetableDays: TimetableDay[];
   recentlyCompleted: CompletedLesson[];
-  zoomSession: { joinUrl: string | null; passcode: string | null; inWindow: boolean } | null;
+  zoomSession: {
+    joinUrl: string | null;
+    passcode: string | null;
+    meetingId?: string | null;
+    sessionState?: string | null;
+    statusMessage?: string | null;
+    inWindow: boolean;
+    canJoin?: boolean;
+  } | null;
   loading: boolean;
   // Lessons exactly as returned by the API (authoritative, never modified)
   rawLessons: any[];
@@ -162,7 +178,11 @@ function deriveSchedule(state: ClassesState) {
       teacher: l.teacherName || '',
       duration: durationLabel(start, end),
       status: l.status === 'LIVE' ? 'Live' : l.status === 'COMPLETED' ? 'Completed' : 'Upcoming',
+      sessionState: l.sessionState,
       joinable: l.status === 'LIVE' || (mins >= -5 && mins <= 10),
+      zoomLink: l.zoomJoinUrl || l.joinUrl,
+      passcode: l.zoomPasscode || l.passcode,
+      meetingId: l.zoomRoomId || l.meetingNumber,
     };
   });
 
@@ -178,16 +198,28 @@ function deriveSchedule(state: ClassesState) {
       subject: upcoming.l.subjectName || '',
       topic: upcoming.l.topicCovered || '',
       teacher: upcoming.l.teacherName || '',
-      grade: '',
+      grade: upcoming.l.classNumber ? `Grade ${upcoming.l.classNumber}` : '',
+      className: upcoming.l.className || '',
       duration: durationLabel(upcoming.start, upcoming.end),
       time: fmt(upcoming.start),
       timeEnd: fmt(upcoming.end),
       startsInMinutes: Math.max(0, mins),
       secondsLeft: Math.max(0, mins) * 60,
-      isLiveNow: upcoming.l.status === 'LIVE',
+      zoomLink: upcoming.l.zoomJoinUrl || upcoming.l.joinUrl || state.nextClass.zoomLink,
+      joinUrl: upcoming.l.zoomJoinUrl || upcoming.l.joinUrl || state.nextClass.joinUrl,
+      passcode: upcoming.l.zoomPasscode || upcoming.l.passcode || state.nextClass.passcode,
+      meetingId: upcoming.l.zoomRoomId || upcoming.l.meetingNumber || state.nextClass.meetingId,
+      sessionState: upcoming.l.sessionState,
+      isLiveNow: upcoming.l.status === 'LIVE' || upcoming.l.sessionState === 'LIVE',
     };
   } else {
-    state.nextClass = { ...defaultNextClass, zoomLink: state.nextClass.zoomLink, joinUrl: state.nextClass.joinUrl, passcode: state.nextClass.passcode };
+    state.nextClass = {
+      ...defaultNextClass,
+      zoomLink: state.nextClass.zoomLink,
+      joinUrl: state.nextClass.joinUrl,
+      passcode: state.nextClass.passcode,
+      meetingId: state.nextClass.meetingId,
+    };
   }
 
   const grouped: Record<string, TimetableLesson[]> = {};
@@ -280,18 +312,52 @@ const classesSlice = createSlice({
     builder.addCase(fetchStudentZoomSession.fulfilled, (state, action) => {
       const d = action.payload;
       if (d) {
-        state.zoomSession = { joinUrl: d.joinUrl || null, passcode: d.passcode || null, inWindow: d.inWindow ?? false };
-        if (d.joinUrl) {
-          state.nextClass = { ...state.nextClass, zoomLink: d.joinUrl, joinUrl: d.joinUrl, passcode: d.passcode };
+        state.zoomSession = {
+          joinUrl: d.joinUrl || null,
+          passcode: d.passcode || null,
+          meetingId: d.meetingId || null,
+          sessionState: d.sessionState || null,
+          statusMessage: d.statusMessage || null,
+          inWindow: d.inWindow ?? false,
+          canJoin: d.canJoin ?? Boolean(d.joinUrl),
+        };
+        if (d.joinUrl || d.passcode || d.meetingId) {
+          state.nextClass = {
+            ...state.nextClass,
+            zoomLink: d.joinUrl || state.nextClass.zoomLink,
+            joinUrl: d.joinUrl || state.nextClass.joinUrl,
+            passcode: d.passcode || state.nextClass.passcode,
+            meetingId: d.meetingId || state.nextClass.meetingId,
+            sessionState: d.sessionState || state.nextClass.sessionState,
+            statusMessage: d.statusMessage || state.nextClass.statusMessage,
+          };
         }
       }
     });
 
     builder.addCase(joinLesson.fulfilled, (state, action) => {
       const d = action.payload;
-      if (d?.joinUrl) {
-        state.zoomSession = { joinUrl: d.joinUrl, passcode: d.passcode || null, inWindow: d.inWindow ?? true };
-        state.nextClass = { ...state.nextClass, zoomLink: d.joinUrl, joinUrl: d.joinUrl, passcode: d.passcode };
+      if (d) {
+        state.zoomSession = {
+          joinUrl: d.joinUrl || null,
+          passcode: d.passcode || null,
+          meetingId: d.meetingId || null,
+          sessionState: d.sessionState || null,
+          statusMessage: d.message || null,
+          inWindow: d.inWindow ?? true,
+          canJoin: d.canJoin ?? Boolean(d.joinUrl),
+        };
+        if (d.joinUrl || d.passcode || d.meetingId) {
+          state.nextClass = {
+            ...state.nextClass,
+            zoomLink: d.joinUrl || state.nextClass.zoomLink,
+            joinUrl: d.joinUrl || state.nextClass.joinUrl,
+            passcode: d.passcode || state.nextClass.passcode,
+            meetingId: d.meetingId || state.nextClass.meetingId,
+            sessionState: d.sessionState || state.nextClass.sessionState,
+            statusMessage: d.message || state.nextClass.statusMessage,
+          };
+        }
       }
     });
   },

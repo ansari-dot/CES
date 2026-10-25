@@ -117,6 +117,8 @@ export async function executeTokenRefresh(): Promise<boolean> {
   return refreshPromise;
 }
 
+let _csrfCache: string | null = null;
+
 async function getCsrfHeader(): Promise<string | undefined> {
   // 1. Try the cookie first (set by login / csrf refresh)
   const match = document.cookie.match(/(?:^|;\s*)sms_csrf=([^;]+)/);
@@ -217,13 +219,18 @@ export const api = {
       body: JSON.stringify({ identifier: email, password })
     });
 
+    if (data.role !== 'PRINCIPAL' && data.role !== 'ADMIN') {
+      await this.logout().catch(() => {});
+      throw new Error(`Access denied: Signed in with ${data.role} account. This portal requires Principal credentials.`);
+    }
+
     const principal: UserProfile = {
       id: String(data.id),
       name: data.fullName || data.username,
       email: data.email || email,
       phone: data.phone || '+92 300 9876543',
       role: data.role === 'ADMIN' ? 'Administrator' : 'Principal',
-      designation: 'Principal & Academic Director',
+      designation: data.role === 'ADMIN' ? 'System Administrator' : 'Principal & Academic Director',
       accountStatus: 'Active',
       lastLogin: new Date().toISOString(),
       joiningDate: '2023-01-01'
@@ -255,13 +262,20 @@ export const api = {
   async getProfile(): Promise<UserProfile | null> {
     try {
       const data = await requestApi<any>('/api/v1/auth/me');
+      if (!data) return null;
+
+      // Restrict Principal portal to Principal and Admin roles
+      if (data.role !== 'PRINCIPAL' && data.role !== 'ADMIN') {
+        return null;
+      }
+
       const principal: UserProfile = {
         id: String(data.id),
         name: data.fullName || data.username,
         email: data.email || 'principal@school.pk',
         phone: data.phone || '+92 300 9876543',
         role: data.role === 'ADMIN' ? 'Administrator' : 'Principal',
-        designation: 'Principal & Academic Director',
+        designation: data.role === 'ADMIN' ? 'System Administrator' : 'Principal & Academic Director',
         accountStatus: 'Active',
         lastLogin: new Date().toISOString(),
         joiningDate: '2023-01-01'
@@ -928,28 +942,26 @@ export const api = {
   // 8. Zoom Class Links Management — Live Only
   async getZoomMeetings(): Promise<ClassZoomMeeting[]> {
     try {
-      let res = await requestApi<any>('/api/v1/zoom/class-meetings');
-      let list = Array.isArray(res) ? res : res?.data;
-      if (Array.isArray(list) && list.length === 0) {
-        await requestApi('/api/v1/zoom/class-meetings/setup', { method: 'POST', body: JSON.stringify({}) });
-        res = await requestApi<any>('/api/v1/zoom/class-meetings');
-        list = Array.isArray(res) ? res : res?.data;
-      }
+      const res = await requestApi<any>('/api/v1/zoom/class-meetings');
+      const list = Array.isArray(res) ? res : res?.data;
 
       if (Array.isArray(list) && list.length > 0) {
         return list.map((m: any) => ({
           id: `ZM-${m.id}`,
-          classNumber: m.classNumber,
+          classNumber: m.classNumber || m.classId,
           zoomMeetingId: String(m.zoomMeetingId),
-          passcode: `CLASS${m.classNumber}#`,
-          joinUrl: `https://zoom.us/j/${m.zoomMeetingId}?pwd=CLASS${m.classNumber}#`,
+          passcode: m.passcode || `CLASS${m.classNumber || m.classId}#`,
+          joinUrl: m.joinUrl || `https://zoom.us/j/${m.zoomMeetingId}`,
+          hostKey: m.hostKey || '884422',
+          accountEmail: m.accountEmail || `Class ${m.classNumber || m.classId} Zoom Pro`,
+          configNotes: m.configNotes || '',
           status: m.status === 'ACTIVE' ? 'Active' : 'Expired',
-          createdDate: new Date().toISOString().split('T')[0],
-          lastRenewalDate: new Date().toISOString().split('T')[0],
+          createdDate: m.createdAt ? new Date(m.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          lastRenewalDate: m.updatedAt ? new Date(m.updatedAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           lastHealthCheckDate: m.lastHealthCheckAt ? new Date(m.lastHealthCheckAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           healthCheckStatus: m.lastHealthStatus === 'HEALTHY' ? 'Operational' : 'Degraded',
-          renewalHistory: []
+          renewalHistory: Array.isArray(m.renewalHistory) ? m.renewalHistory : []
         }));
       }
     } catch (err) {
@@ -958,19 +970,80 @@ export const api = {
     return [];
   },
 
-  async renewZoomMeeting(classNumber: number, reason: string): Promise<ClassZoomMeeting> {
-    const meetings = await this.getZoomMeetings();
-    const meeting = meetings.find(m => m.classNumber === classNumber);
-    if (!meeting) throw new Error('Meeting not found');
-    return meeting;
+  async configureZoomMeeting(
+    classNumber: number,
+    data: { zoomMeetingId: string; joinUrl: string; passcode?: string; hostKey?: string; accountEmail?: string; topic?: string; configNotes?: string; reason?: string }
+  ): Promise<any> {
+    const res = await requestApi(`/api/v1/zoom/class-meetings/${classNumber}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+    return res;
   },
 
-  async runZoomHealthCheck(classNumber: number): Promise<ClassZoomMeeting> {
-    const meetings = await this.getZoomMeetings();
-    const meeting = meetings.find(m => m.classNumber === classNumber);
-    if (!meeting) throw new Error('Meeting not found');
-    meeting.lastHealthCheckDate = new Date().toISOString();
-    return meeting;
+  async deleteZoomMeeting(classNumber: number): Promise<any> {
+    const res = await requestApi(`/api/v1/zoom/class-meetings/${classNumber}`, {
+      method: 'DELETE'
+    });
+    return res;
+  },
+
+  async renewZoomMeeting(classNumber: number, reason: string): Promise<any> {
+    const res = await requestApi(`/api/v1/zoom/class-meetings/${classNumber}/renew`, {
+      method: 'POST',
+      body: JSON.stringify({ reason })
+    });
+    return res;
+  },
+
+  async runZoomHealthCheck(classNumber: number): Promise<any> {
+    const res = await requestApi<any>(`/api/v1/zoom/class-meetings/${classNumber}/health-check`, {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+    return res?.data || res;
+  },
+
+  async getZoomCapacityStatus(): Promise<any> {
+    const res = await requestApi<any>('/api/v1/zoom/capacity-status');
+    return res?.data || res;
+  },
+
+  async getZoomApiStatus(): Promise<any> {
+    const res = await requestApi<any>('/api/v1/zoom/api-status');
+    return res?.data || res;
+  },
+
+  async generateZoomMeetingViaApi(classNumber: number, passcode?: string, topic?: string): Promise<any> {
+    const res = await requestApi<any>(`/api/v1/zoom/class-meetings/${classNumber}/generate-zoom-api`, {
+      method: 'POST',
+      body: JSON.stringify({ passcode, topic })
+    });
+    return res?.data || res;
+  },
+
+  async generateAllZoomMeetingsViaApi(): Promise<any> {
+    const res = await requestApi<any>('/api/v1/zoom/class-meetings/generate-all-zoom-api', {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+    return res?.data || res;
+  },
+
+  async syncLessonZoomAttendance(lessonId: string | number): Promise<any> {
+    const rawId = typeof lessonId === 'string' ? lessonId.replace(/\D/g, '') : lessonId;
+    const res = await requestApi<any>(`/api/v1/zoom/lessons/${rawId}/sync-zoom-attendance`, {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+    return res?.data || res;
+  },
+
+  async getTeacherDailyDuty(teacherId: string | number, date?: string): Promise<any> {
+    const rawId = typeof teacherId === 'string' ? teacherId.replace(/\D/g, '') : teacherId;
+    const query = date ? `?date=${encodeURIComponent(date)}` : '';
+    const res = await requestApi<any>(`/api/v1/zoom/teachers/${rawId}/daily-duty${query}`);
+    return res?.data || res;
   },
 
   // 9. Attendance Oversight — Live Only
@@ -1422,6 +1495,17 @@ export const api = {
     const updated = await requestApi<TeacherSalaryDraft>(`/api/v1/payroll/drafts/${draftId}/adjustments`, {
       method: 'POST',
       body: JSON.stringify(adjustment)
+    });
+    return updated;
+  },
+
+  async settleSalaryPayment(
+    draftId: string,
+    paymentDetails: { paymentMethod?: string; paymentReference?: string; paidAmount?: number }
+  ): Promise<TeacherSalaryDraft> {
+    const updated = await requestApi<TeacherSalaryDraft>(`/api/v1/payroll/drafts/${draftId}/settle`, {
+      method: 'POST',
+      body: JSON.stringify(paymentDetails)
     });
     return updated;
   },

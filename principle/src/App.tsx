@@ -42,10 +42,10 @@ function PrincipalPortalApp() {
     if (!isAuthenticated) return;
     try {
       const [proofs, drafts, corrections, zoomMeetings, restricted] = await Promise.all([
-        api.getPaymentProofs(),
-        api.getSalaryDrafts(),
-        api.getAttendanceCorrections(),
-        api.getZoomMeetings(),
+        api.getPaymentProofs().catch(() => []),
+        api.getSalaryDrafts().catch(() => []),
+        api.getAttendanceCorrections().catch(() => []),
+        api.getZoomMeetings().catch(() => []),
         api.getRestrictedStudents().catch(() => [])
       ]);
 

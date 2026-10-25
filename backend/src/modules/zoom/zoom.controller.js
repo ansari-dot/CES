@@ -1,4 +1,5 @@
 import { zoomService } from './zoom.service.js';
+import { zoomRepository } from './zoom.repository.js';
 import { db } from '../../shared/db/knex.js';
 import { sendSuccess } from '../../shared/http/response.js';
 
@@ -18,6 +19,85 @@ export const zoomController = {
     try {
       const meetings = await zoomService.getAllClassMeetings();
       return sendSuccess(res, meetings);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async configureClassMeeting(req, res, next) {
+    try {
+      const classId = Number(req.params.classId);
+      const { zoomMeetingId, joinUrl, passcode, hostKey, accountEmail, topic, configNotes, reason } = req.body;
+      const meeting = await zoomService.configureClassMeeting({
+        classId,
+        zoomMeetingId,
+        joinUrl,
+        passcode,
+        hostKey,
+        accountEmail,
+        topic,
+        configNotes,
+        reason,
+        userId: req.user?.id
+      });
+      return sendSuccess(res, meeting);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async deleteClassMeeting(req, res, next) {
+    try {
+      const classId = Number(req.params.classId);
+      const result = await zoomService.deleteClassMeeting(classId, req.user?.id);
+      return sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async renewZoomMeeting(req, res, next) {
+    try {
+      const classId = Number(req.params.classId);
+      const { newMeetingId, newJoinUrl, newPasscode, reason } = req.body;
+      const result = await zoomService.renewOrReplaceMeeting({
+        classId,
+        newMeetingId,
+        newJoinUrl,
+        newPasscode,
+        reason,
+        userId: req.user?.id
+      });
+      return sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async runHealthCheck(req, res, next) {
+    try {
+      const classId = Number(req.params.classId);
+      const result = await zoomService.runHealthCheck(classId);
+      return sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getCapacityStatus(req, res, next) {
+    try {
+      const result = await zoomService.getCapacityAndConcurrencyStatus();
+      return sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getMeetingHistory(req, res, next) {
+    try {
+      const classId = Number(req.params.classId);
+      const history = await zoomRepository.getMeetingRenewalHistory(classId);
+      return sendSuccess(res, history);
     } catch (error) {
       next(error);
     }
@@ -83,10 +163,78 @@ export const zoomController = {
 
       const result = await zoomService.getStudentClassSession({
         studentId,
+        userId: req.user?.id,
         classId,
         studentName: req.user?.full_name || req.user?.username,
         studentEmail: req.user?.email
       });
+      return sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getZoomApiStatus(req, res, next) {
+    try {
+      const status = await zoomService.getZoomApiStatus();
+      return sendSuccess(res, status);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async generateClassMeetingViaZoomApi(req, res, next) {
+    try {
+      const classId = Number(req.params.classId);
+      const { passcode, topic } = req.body || {};
+      const meeting = await zoomService.autoGenerateClassMeetingViaZoomApi({
+        classId,
+        passcode,
+        topic,
+        userId: req.user?.id
+      });
+      return sendSuccess(res, meeting);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async generateAllClassMeetingsViaZoomApi(req, res, next) {
+    try {
+      const result = await zoomService.autoGenerateAllClassMeetingsViaZoomApi({
+        userId: req.user?.id
+      });
+      return sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async handleWebhook(req, res) {
+    try {
+      const result = await zoomService.handleWebhookEvent(req.body);
+      return res.status(200).json(result);
+    } catch (error) {
+      console.error('Zoom webhook handling error:', error);
+      return res.status(200).json({ received: false, error: error.message });
+    }
+  },
+
+  async syncLessonAttendance(req, res, next) {
+    try {
+      const lessonId = Number(req.params.id);
+      const result = await zoomService.syncLessonAttendanceFromZoom(lessonId);
+      return sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getTeacherDailyDuty(req, res, next) {
+    try {
+      const teacherId = Number(req.params.teacherId);
+      const { date } = req.query;
+      const result = await zoomService.getTeacherDailyDutySummary(teacherId, date);
       return sendSuccess(res, result);
     } catch (error) {
       next(error);

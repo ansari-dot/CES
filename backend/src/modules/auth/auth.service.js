@@ -11,6 +11,7 @@ import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
 import { config } from '../../config/index.js';
 import { db } from '../../shared/db/knex.js';
+import { decryptAesGcm } from '../../shared/crypto/aes.js';
 
 async function enrichUserData(user, permissions) {
   let teacherProfile = null;
@@ -93,6 +94,7 @@ async function enrichUserData(user, permissions) {
       // Query active student counts per class
       const classIds = uniqueAssignments.map((a) => a.classId);
       const countsByClass = {};
+      const zoomByClass = {};
       if (classIds.length > 0) {
         const studentCounts = await db('students')
           .whereIn('current_class_id', classIds)
@@ -102,23 +104,57 @@ async function enrichUserData(user, permissions) {
         for (const row of studentCounts) {
           countsByClass[row.current_class_id] = Number(row.count);
         }
+
+        const zoomMeetings = await db('zoom_meetings')
+          .whereIn('class_id', classIds)
+          .where('status', 'ACTIVE');
+        for (const zm of zoomMeetings) {
+          let joinUrl = '';
+          let passcode = '';
+          try {
+            joinUrl = zm.join_url_enc ? decryptAesGcm(zm.join_url_enc) : `https://zoom.us/j/${zm.zoom_meeting_id}`;
+          } catch {
+            joinUrl = `https://zoom.us/j/${zm.zoom_meeting_id}`;
+          }
+          try {
+            passcode = zm.passcode_enc ? decryptAesGcm(zm.passcode_enc) : '';
+          } catch {
+            passcode = '';
+          }
+          let hostKey = '884422';
+          if (zm.config_notes) {
+            const match = zm.config_notes.match(/(?:host\s*key|host\s*pin|key|pin)[:\s=]*([0-9]{6})/i);
+            if (match) hostKey = match[1];
+          }
+          zoomByClass[zm.class_id] = {
+            zoomRoomId: zm.zoom_meeting_id,
+            zoomPasscode: passcode,
+            joinUrl,
+            hostKey
+          };
+        }
       }
 
-      assignedClasses = uniqueAssignments.map((a) => ({
-        id: String(a.classId),
-        classId: a.classId,
-        name: `${a.className} - ${a.subject}`,
-        className: a.className,
-        grade: a.grade,
-        section: 'A',
-        subjectId: a.subjectId,
-        subject: a.subject,
-        subjectCode: a.subjectCode,
-        enrolledCount: countsByClass[a.classId] || 0,
-        zoomRoomId: a.zoomRoomId || `900${a.grade}000${a.grade}`,
-        zoomPasscode: `CLASS${a.grade}#`,
-        roomName: `Online Room ${a.grade}`
-      }));
+      assignedClasses = uniqueAssignments.map((a) => {
+        const zm = zoomByClass[a.classId];
+        return {
+          id: String(a.classId),
+          classId: a.classId,
+          name: `${a.className} - ${a.subject}`,
+          className: a.className,
+          grade: a.grade,
+          section: 'A',
+          subjectId: a.subjectId,
+          subject: a.subject,
+          subjectCode: a.subjectCode,
+          enrolledCount: countsByClass[a.classId] || 0,
+          zoomRoomId: zm?.zoomRoomId || a.zoomRoomId || `900${a.grade}000${a.grade}`,
+          zoomPasscode: zm?.zoomPasscode || `CLASS${a.grade}#`,
+          hostKey: zm?.hostKey || '884422',
+          joinUrl: zm?.joinUrl || `https://zoom.us/j/${zm?.zoomRoomId || `900${a.grade}000${a.grade}`}`,
+          roomName: `Online Room ${a.grade}`
+        };
+      });
     }
   }
 

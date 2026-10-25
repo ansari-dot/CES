@@ -2,6 +2,7 @@ import { createApp } from './app.js';
 import { config } from './config/index.js';
 import { testDbConnection, db } from './shared/db/knex.js';
 import { startFeeScheduler } from './modules/fees/fees.scheduler.js';
+import { startZoomScheduler } from './modules/zoom/zoom.scheduler.js';
 
 async function bootstrap() {
   const app = createApp();
@@ -15,12 +16,16 @@ async function bootstrap() {
   }
 
   let stopFeeScheduler = null;
+  let stopZoomScheduler = null;
   const server = app.listen(config.PORT, () => {
     console.log(`🚀 School Backend API server running on port ${config.PORT} [${config.NODE_ENV}]`);
-    // Start fee lifecycle scheduler (skip in test environment)
-    if (!config.isTest && config.feeSchedulerEnabled) {
-      stopFeeScheduler = startFeeScheduler();
-      console.log(`⏰ Fee lifecycle scheduler started (billing timezone: ${config.SCHOOL_TIMEZONE}).`);
+    if (!config.isTest) {
+      if (config.feeSchedulerEnabled) {
+        stopFeeScheduler = startFeeScheduler();
+        console.log(`⏰ Fee lifecycle scheduler started (billing timezone: ${config.SCHOOL_TIMEZONE}).`);
+      }
+      stopZoomScheduler = startZoomScheduler();
+      console.log(`🎥 Automatic Zoom timetable scheduler started (timezone: ${config.SCHOOL_TIMEZONE}).`);
     }
   });
 
@@ -28,6 +33,7 @@ async function bootstrap() {
   const shutdown = async (signal) => {
     console.log(`\n🛑 Received ${signal}, closing HTTP server gracefully...`);
     stopFeeScheduler?.();
+    stopZoomScheduler?.();
     server.close(async () => {
       console.log('HTTP server closed.');
       try {

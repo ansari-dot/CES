@@ -13,7 +13,13 @@ export const LiveLessonsPage: React.FC = () => {
   const [testingMic, setTestingMic] = useState(false);
   const [testingCam, setTestingCam] = useState(false);
 
-  const handleLaunchRoom = async (className: string, roomId: string) => {
+  const handleLaunchRoom = async (
+    className: string,
+    roomId: string,
+    customJoinUrl?: string,
+    passcode?: string,
+    hostKey: string = '884422'
+  ) => {
     try {
       const data = await requestApi<any[]>('/api/v1/zoom/my-class-session');
       if (Array.isArray(data) && data.length > 0) {
@@ -22,6 +28,7 @@ export const LiveLessonsPage: React.FC = () => {
           const startData = await requestApi<any>(`/api/v1/zoom/sessions/${activeLesson.id}/start`, {
             method: 'POST'
           });
+          const activeHostKey = startData?.hostKey || hostKey;
           if (startData?.hostTransitioned) {
             dispatch(
               addToast({
@@ -32,7 +39,12 @@ export const LiveLessonsPage: React.FC = () => {
           }
           if (startData?.joinUrl) {
             window.open(startData.joinUrl, '_blank');
-            dispatch(addToast({ message: `Zoom live lesson started for ${className}. Session is LIVE.`, type: 'success' }));
+            dispatch(
+              addToast({
+                message: `Zoom room LIVE for ${className}. In Zoom: Click Participants ➔ Claim Host with PIN: ${activeHostKey}`,
+                type: 'success'
+              })
+            );
             return;
           }
         }
@@ -40,10 +52,11 @@ export const LiveLessonsPage: React.FC = () => {
     } catch (e) {
       console.warn('Backend live session start call fell back to direct link:', e);
     }
-    window.open(`https://zoom.us/j/${roomId.replace(/-/g, '')}`, '_blank');
+    const targetUrl = customJoinUrl || (passcode ? `https://zoom.us/j/${roomId.replace(/-/g, '')}?pwd=${passcode}` : `https://zoom.us/j/${roomId.replace(/-/g, '')}`);
+    window.open(targetUrl, '_blank');
     dispatch(
       addToast({
-        message: `Launching Zoom room for ${className} (${roomId}). Cloud recording enabled.`,
+        message: `Launching Zoom room for ${className} (${roomId}). Claim Host in Zoom with PIN: ${hostKey}`,
         type: 'success',
       })
     );
@@ -100,6 +113,23 @@ export const LiveLessonsPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Host Key Quick Guide Banner */}
+      <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-amber-900 shadow-xs">
+        <div className="flex items-center gap-3">
+          <span className="material-symbols-outlined text-amber-700 text-[24px]">key</span>
+          <div>
+            <p className="font-bold text-amber-950 text-sm">How to Claim Host Privileges in Zoom</p>
+            <p className="text-amber-800 text-xs mt-0.5">
+              In Zoom, open the <strong>Participants</strong> tab ➔ click <strong>Claim Host</strong> ➔ enter your 6-digit Host Key.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-amber-300">
+          <span className="text-[11px] font-semibold text-amber-900">Universal Host PIN:</span>
+          <span className="font-mono font-black text-sm text-[#3525cd]">884422</span>
+        </div>
+      </div>
+
       {/* Persistent Rooms Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
         {assignedClasses.length === 0 ? (
@@ -138,6 +168,25 @@ export const LiveLessonsPage: React.FC = () => {
                   <span className="font-mono font-bold text-[#3525cd]">{cls.zoomPasscode}</span>
                 </div>
                 <div className="flex items-center justify-between">
+                  <span className="text-[#464555]">Host Key (Claim Host):</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono font-bold text-amber-800 bg-amber-100/70 px-2 py-0.5 rounded border border-amber-300">
+                      {cls.hostKey || '884422'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(cls.hostKey || '884422');
+                        dispatch(addToast({ message: `Copied Host Key: ${cls.hostKey || '884422'}`, type: 'info' }));
+                      }}
+                      className="text-amber-800 hover:text-amber-950 p-0.5 rounded hover:bg-amber-100 transition-colors"
+                      title="Copy Host Key"
+                    >
+                      <span className="material-symbols-outlined text-[15px]">content_copy</span>
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
                   <span className="text-[#464555]">Enrolled Student Capacity:</span>
                   <span className="font-bold text-[#121c2a]">{cls.enrolledCount} Seats</span>
                 </div>
@@ -147,7 +196,7 @@ export const LiveLessonsPage: React.FC = () => {
             <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
               <button
                 onClick={() => {
-                  navigator.clipboard?.writeText(`https://zoom.us/j/${cls.zoomRoomId.replace(/-/g, '')}`);
+                  navigator.clipboard?.writeText(cls.joinUrl || `https://zoom.us/j/${cls.zoomRoomId.replace(/-/g, '')}`);
                   dispatch(addToast({ message: `Copied Zoom link for ${cls.name}`, type: 'info' }));
                 }}
                 className="px-3 py-2 text-xs font-semibold text-[#464555] hover:text-[#121c2a] hover:bg-[#eff4ff] rounded-lg transition-colors flex items-center gap-1"
@@ -156,7 +205,7 @@ export const LiveLessonsPage: React.FC = () => {
                 Copy Link
               </button>
               <button
-                onClick={() => handleLaunchRoom(cls.name, cls.zoomRoomId)}
+                onClick={() => handleLaunchRoom(cls.name, cls.zoomRoomId, cls.joinUrl, cls.zoomPasscode, cls.hostKey || '884422')}
                 className="px-5 py-2 bg-[#3525cd] hover:bg-[#4f46e5] text-white text-xs font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 active:scale-98"
               >
                 <span className="material-symbols-outlined text-[18px]">videocam</span>

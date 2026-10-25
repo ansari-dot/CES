@@ -188,6 +188,8 @@ export const academicRepository = {
         'teacher_assignments.teacher_id as teacherId',
         'users.full_name as teacherName'
       );
+  },
+
   async removeTeacherAssignment({ teacherId, classId, subjectId }) {
     return await db('teacher_assignments')
       .where({

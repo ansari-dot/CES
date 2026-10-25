@@ -16,7 +16,8 @@ import {
   Video,
   XCircle,
   Edit2,
-  CheckCircle2
+  CheckCircle2,
+  RefreshCw
 } from 'lucide-react';
 
 const DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -29,6 +30,9 @@ export const TimetableModule: React.FC = () => {
   const [selectedDay, setSelectedDay] = useState<DayOfWeek | 'All'>('Monday');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Zoom Server-to-Server Syncing state
+  const [syncingLessonId, setSyncingLessonId] = useState<string | null>(null);
 
   // Modal states
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -188,6 +192,23 @@ export const TimetableModule: React.FC = () => {
       loadData();
     } catch {
       toast.error('Failed to publish timetable');
+    }
+  };
+
+  const handleSyncZoomAttendance = async (lessonId: string) => {
+    try {
+      setSyncingLessonId(lessonId);
+      const result = await api.syncLessonZoomAttendance(lessonId);
+      if (result?.teacherFound) {
+        toast.success(`Zoom Server-to-Server Sync: Teacher verified! Attended ${result.durationHours} hrs. Status: COMPLETED.`);
+      } else {
+        toast.info(result?.message || 'Sync completed. Teacher attendance updated from Zoom Cloud.');
+      }
+      loadData();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to sync with Zoom');
+    } finally {
+      setSyncingLessonId(null);
     }
   };
 
@@ -372,6 +393,14 @@ export const TimetableModule: React.FC = () => {
                           <History className="w-3.5 h-3.5" strokeWidth={1.75} />
                         </button>
                         <button
+                          onClick={() => handleSyncZoomAttendance(lesson.id)}
+                          disabled={syncingLessonId === lesson.id}
+                          title="Sync verified attendance & hours from Zoom Server-to-Server API"
+                          className="p-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors shadow-2xs"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${syncingLessonId === lesson.id ? 'animate-spin' : ''}`} strokeWidth={1.75} />
+                        </button>
+                        <button
                           onClick={() => handleOpenEdit(lesson)}
                           title="Reschedule Lesson"
                           className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-amber-800 hover:border-amber-300 hover:bg-amber-50 transition-colors shadow-2xs"
@@ -480,6 +509,12 @@ export const TimetableModule: React.FC = () => {
                     <option key={t.id} value={t.id}>{t.name} ({t.designation})</option>
                   ))}
               </select>
+              {teachers.filter((t) => t.accountStatus === 'Active').length === 0 && (
+                <p className="text-[11px] text-amber-600 mt-1 flex items-center gap-1 font-medium">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  <span>No active teachers found in database. Please add teachers in the Faculty/Teachers module first.</span>
+                </p>
+              )}
             </div>
 
             <div>

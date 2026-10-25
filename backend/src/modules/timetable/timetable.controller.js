@@ -63,26 +63,12 @@ export const timetableController = {
   async updateSlot(req, res, next) {
     try {
       const slotId = Number(req.params.id);
-      const { sessionId, classId, subjectId, teacherId, weekday, startTime, endTime, effectiveFrom, effectiveTo, status, reason } = req.body;
-      const slot = await timetableService.updateSlot({
-        slotId,
-        sessionId: sessionId ? Number(sessionId) : undefined,
-        classId: classId ? Number(classId) : undefined,
-        subjectId: subjectId ? Number(subjectId) : undefined,
-        teacherId: teacherId ? Number(teacherId) : undefined,
-        weekday: weekday !== undefined ? Number(weekday) : undefined,
-        startTime,
-        endTime,
-        effectiveFrom,
-        effectiveTo,
-        status,
-        userId: req.user?.id,
-        reason
       const updates = req.body;
       const slot = await timetableService.updateSlot({
         slotId,
         updates,
-        userId: req.user?.id
+        userId: req.user?.id,
+        reason: req.body?.reason
       });
       return sendSuccess(res, slot);
     } catch (error) {
@@ -98,9 +84,6 @@ export const timetableController = {
         slotId,
         userId: req.user?.id,
         reason
-      const result = await timetableService.deleteSlot({
-        slotId,
-        userId: req.user?.id
       });
       return sendSuccess(res, result);
     } catch (error) {

@@ -201,7 +201,7 @@ export const studentsService = {
         lessonId: lesson.id,
         zoomMeetingId: meeting.zoom_meeting_id,
         source: 'PORTAL',
-        userId: student.id,
+        userId: student.userId || student.user_id || userId,
         participantName: student.name,
         participantEmail: student.email,
         joinedAt: new Date()
@@ -210,7 +210,10 @@ export const studentsService = {
       return {
         lessonId: lesson.id,
         status: lesson.status,
+        sessionState: lesson.session_state || (lesson.status === 'LIVE' ? 'LIVE' : 'SCHEDULED'),
         inWindow: true,
+        canJoin: true,
+        meetingId: meeting.zoom_meeting_id,
         joinUrl: meeting.joinUrl,
         passcode: meeting.passcode
       };
@@ -219,8 +222,12 @@ export const studentsService = {
     return {
       lessonId: lesson.id,
       status: lesson.status,
+      sessionState: lesson.session_state || 'SCHEDULED',
       inWindow: false,
+      canJoin: false,
+      meetingId: meeting.zoom_meeting_id,
       joinUrl: null,
+      passcode: meeting.passcode,
       message: 'Class session link will be accessible 10 minutes prior to scheduled start time.'
     };
   }

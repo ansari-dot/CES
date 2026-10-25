@@ -110,6 +110,11 @@ export const academicController = {
       const classId = Number(req.params.id);
       const assignments = await academicService.getClassAssignments(classId);
       return sendSuccess(res, assignments);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async addSubjectToClass(req, res, next) {
     try {
       const classId = Number(req.params.id);
