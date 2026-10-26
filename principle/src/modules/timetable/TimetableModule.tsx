@@ -20,14 +20,29 @@ import {
   RefreshCw
 } from 'lucide-react';
 
-const DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+const formatTime12h = (timeStr: string): string => {
+  if (!timeStr) return '';
+  const [hStr, mStr] = timeStr.split(':');
+  let h = parseInt(hStr, 10);
+  const m = mStr || '00';
+  if (isNaN(h)) return timeStr;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${String(h).padStart(2, '0')}:${m} ${ampm}`;
+};
 
 export const TimetableModule: React.FC = () => {
+  const currentDay = (new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date()) as DayOfWeek) || 'Monday';
+  const initialDay = DAYS.includes(currentDay) ? currentDay : 'Monday';
+
   const [lessons, setLessons] = useState<TimetableLesson[]>([]);
   const [classes, setClasses] = useState<SchoolClass[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [selectedClassNum, setSelectedClassNum] = useState<number | 'All'>('All');
-  const [selectedDay, setSelectedDay] = useState<DayOfWeek | 'All'>('Monday');
+  const [selectedDay, setSelectedDay] = useState<DayOfWeek | 'All'>(initialDay);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,7 +67,7 @@ export const TimetableModule: React.FC = () => {
     subjectName: '',
     teacherId: '',
     teacherName: '',
-    dayOfWeek: 'Monday' as DayOfWeek,
+    dayOfWeek: initialDay as DayOfWeek,
     startTime: '09:00',
     endTime: '09:45',
     reason: ''
@@ -96,7 +111,7 @@ export const TimetableModule: React.FC = () => {
       subjectName: firstSubject?.name || 'Mathematics',
       teacherId: defaultTeacher?.id || '',
       teacherName: defaultTeacher?.name || '',
-      dayOfWeek: selectedDay === 'All' ? 'Monday' : selectedDay,
+      dayOfWeek: selectedDay === 'All' ? initialDay : selectedDay,
       startTime: '09:00',
       endTime: '09:45',
       reason: 'Standard timetable scheduling'
@@ -229,9 +244,14 @@ export const TimetableModule: React.FC = () => {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-slate-900">Online School Timetable & Scheduling</h2>
-          <p className="text-xs text-slate-500">
-            Validated schedules for Classes 1–8 with automated teacher clash and class Zoom overlap prevention.
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-base font-semibold text-slate-900">Online School Timetable &amp; Scheduling</h2>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-semibold">
+              School Master Time: Asia/Karachi (PKT, UTC+5)
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Validated schedules for Classes 1–8 · Synchronized worldwide in teachers&apos; and students&apos; regional timezones.
           </p>
         </div>
 
@@ -532,7 +552,14 @@ export const TimetableModule: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-slate-700 font-medium mb-1">Start Time *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-700 font-medium">Start Time *</label>
+                  {formData.startTime && (
+                    <span className="text-[11px] font-semibold text-amber-700 font-mono">
+                      {formatTime12h(formData.startTime)}
+                    </span>
+                  )}
+                </div>
                 <input
                   type="time"
                   required
@@ -542,7 +569,14 @@ export const TimetableModule: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block text-slate-700 font-medium mb-1">End Time *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-700 font-medium">End Time *</label>
+                  {formData.endTime && (
+                    <span className="text-[11px] font-semibold text-amber-700 font-mono">
+                      {formatTime12h(formData.endTime)}
+                    </span>
+                  )}
+                </div>
                 <input
                   type="time"
                   required

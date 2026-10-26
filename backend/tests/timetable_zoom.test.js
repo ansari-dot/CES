@@ -194,6 +194,73 @@ describe('Module 3: Timetable & Zoom Integration Tests', () => {
       expect(res.body.success).toBe(true);
     });
 
+    it('should create a valid Sunday timetable slot (weekday: 7) and return Sunday name', async () => {
+      const session = await db('academic_sessions').where({ is_current: 1 }).first();
+      const res = await request(app)
+        .post('/api/v1/timetable/slots')
+        .set('Cookie', principalCookies)
+        .set('X-CSRF-Token', principalCsrf)
+        .send({
+          sessionId: session.id,
+          classId: 3,
+          subjectId: 1,
+          teacherId: teacherId,
+          weekday: 7, // Sunday
+          startTime: '11:00:00',
+          endTime: '11:45:00',
+          effectiveFrom: '2026-04-01'
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.weekday).toBe(7);
+      expect(res.body.data.dayOfWeek).toBe('Sunday');
+      expect(res.body.data.weekdayName).toBe('Sunday');
+    });
+
+    it('should create a Sunday slot using weekday string "Sunday"', async () => {
+      const session = await db('academic_sessions').where({ is_current: 1 }).first();
+      const res = await request(app)
+        .post('/api/v1/timetable/slots')
+        .set('Cookie', principalCookies)
+        .set('X-CSRF-Token', principalCsrf)
+        .send({
+          sessionId: session.id,
+          classId: 4,
+          subjectId: 1,
+          teacherId: teacherId,
+          weekday: 'Sunday',
+          startTime: '12:00:00',
+          endTime: '12:45:00',
+          effectiveFrom: '2026-04-01'
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.weekday).toBe(7);
+      expect(res.body.data.dayOfWeek).toBe('Sunday');
+    });
+
+    it('should reject invalid weekday outside 1..7', async () => {
+      const session = await db('academic_sessions').where({ is_current: 1 }).first();
+      const res = await request(app)
+        .post('/api/v1/timetable/slots')
+        .set('Cookie', principalCookies)
+        .set('X-CSRF-Token', principalCsrf)
+        .send({
+          sessionId: session.id,
+          classId: 5,
+          subjectId: 1,
+          teacherId: teacherId,
+          weekday: 8,
+          startTime: '11:00:00',
+          endTime: '11:45:00'
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
     it('should list slots filtered by class and teacher', async () => {
       const res = await request(app)
         .get('/api/v1/timetable/slots?classId=1')

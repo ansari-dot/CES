@@ -14,6 +14,8 @@ router.get('/restricted-students', authenticate, authorize('fees.access.restore'
 router.post('/students/:id/restore-access', authenticate, authorize('fees.access.restore'), feesController.restoreStudentAccess);
 
 // 1. Fee Structures
+router.get('/my-structure', authenticate, feesController.getMyFeeStructure);
+router.get('/students/:id/structure', authenticate, feesController.getStudentFeeStructure);
 router.get('/structures', authenticate, feesController.getFeeStructures);
 router.post('/structures', authenticate, authorize('fees.structure.manage'), feesController.createOrUpdateFeeStructure);
 

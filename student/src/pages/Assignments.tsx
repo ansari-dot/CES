@@ -1,14 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Clock, Send, CheckCircle2, AlertCircle } from 'lucide-react';
-import { RootState } from '../store';
-import { setFilter, AssignmentItem } from '../store/slices/assignmentsSlice';
+import { RootState, AppDispatch } from '../store';
+import { setFilter, fetchTasks, AssignmentItem } from '../store/slices/assignmentsSlice';
 import SubmitAssignmentModal from '../components/dialogs/SubmitAssignmentModal';
 
 export default function Assignments() {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const { items, filter } = useSelector((state: RootState) => state.assignments);
   const [selectedAssignment, setSelectedAssignment] = useState<AssignmentItem | null>(null);
+
+  useEffect(() => {
+    dispatch(fetchTasks());
+  }, [dispatch]);
 
   const pendingCount = items.filter(i => i.status === 'Pending').length;
   const submittedCount = items.filter(i => i.status === 'Submitted').length;
@@ -99,13 +103,20 @@ export default function Assignments() {
                 </div>
               </div>
 
-              <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
-                item.status === 'Pending' ? 'bg-warning-bg text-warning' :
-                item.status === 'Submitted' ? 'bg-info-bg text-info' :
-                item.status === 'Graded' ? 'bg-success-bg text-success' : 'bg-error-bg text-error'
-              }`}>
-                {item.status}
-              </span>
+              <div className="flex items-center gap-2">
+                {item.status === 'Graded' && item.score !== undefined && (
+                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-sm bg-success-bg text-success border border-success/30">
+                    {item.score}/{item.marks}
+                  </span>
+                )}
+                <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
+                  item.status === 'Pending' ? 'bg-warning-bg text-warning' :
+                  item.status === 'Submitted' ? 'bg-info-bg text-info' :
+                  item.status === 'Graded' ? 'bg-success-bg text-success' : 'bg-error-bg text-error'
+                }`}>
+                  {item.status}
+                </span>
+              </div>
 
               <button
                 onClick={() => setSelectedAssignment(item)}

@@ -7,7 +7,7 @@ export const tasksRepository = {
     return id;
   },
 
-  async getTasks({ classId = null, subjectId = null, teacherId = null, status = null, sessionId = null } = {}) {
+  async getTasks({ classId = null, subjectId = null, teacherId = null, status = null, sessionId = null, studentId = null } = {}) {
     let query = db('learning_tasks')
       .join('classes', 'learning_tasks.class_id', 'classes.id')
       .join('subjects', 'learning_tasks.subject_id', 'subjects.id')
@@ -62,6 +62,24 @@ export const tasksRepository = {
         const lateCount = submissions.filter((s) => s.is_late === 1 || s.is_late === true).length;
         const missingCount = Math.max(0, totalStudents - submittedCount);
 
+        let mySubmission = null;
+        if (studentId) {
+          mySubmission = await db('task_submissions')
+            .where({ task_id: task.id, student_id: studentId })
+            .first();
+        }
+
+        let parsedRubric = null;
+        if (mySubmission?.rubric_scores) {
+          try {
+            parsedRubric = typeof mySubmission.rubric_scores === 'string'
+              ? JSON.parse(mySubmission.rubric_scores)
+              : mySubmission.rubric_scores;
+          } catch {
+            parsedRubric = null;
+          }
+        }
+
         return {
           ...task,
           totalStudents,
@@ -69,7 +87,14 @@ export const tasksRepository = {
           gradedCount,
           pendingCount,
           lateCount,
-          missingCount
+          missingCount,
+          submissionStatus: mySubmission ? mySubmission.status : 'PENDING',
+          submissionId: mySubmission ? mySubmission.id : null,
+          marksObtained: mySubmission?.marks_awarded != null ? Number(mySubmission.marks_awarded) : null,
+          marksAwarded: mySubmission?.marks_awarded != null ? Number(mySubmission.marks_awarded) : null,
+          feedback: mySubmission ? (mySubmission.feedback || '') : '',
+          submittedAt: mySubmission ? mySubmission.submitted_at : null,
+          rubricScores: parsedRubric
         };
       })
     );

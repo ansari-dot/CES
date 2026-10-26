@@ -9,7 +9,7 @@ export const WeeklyGrid: React.FC = () => {
   const lessons = useAppSelector((state) => state.timetable.lessons);
   const sessions = useAppSelector((state) => state.schoolTimetable.sessions);
 
-  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   // Normalize grid items from published lessons or recurring slots
   const gridItems: TimetableLesson[] = lessons.length > 0

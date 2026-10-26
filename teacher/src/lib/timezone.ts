@@ -45,9 +45,47 @@ export function parseUtcInstant(value: string | Date | null | undefined): Date |
   return isNaN(d.getTime()) ? null : d;
 }
 
-/** "09:00 AM" or "05:00 AM" in the given timezone */
-export function formatTimeInZone(date: Date, timeZone: string): string {
+export interface TimezoneOption {
+  value: string;
+  label: string;
+  offset: string;
+}
+
+export const COMMON_TIMEZONES: TimezoneOption[] = [
+  { value: 'Asia/Karachi', label: 'Pakistan (PKT)', offset: 'UTC+5' },
+  { value: 'Asia/Dubai', label: 'UAE / Gulf (GST)', offset: 'UTC+4' },
+  { value: 'Asia/Riyadh', label: 'Saudi Arabia (AST)', offset: 'UTC+3' },
+  { value: 'Asia/Kolkata', label: 'India (IST)', offset: 'UTC+5:30' },
+  { value: 'Asia/Dhaka', label: 'Bangladesh (BST)', offset: 'UTC+6' },
+  { value: 'Europe/London', label: 'United Kingdom (GMT/BST)', offset: 'UTC+0/+1' },
+  { value: 'Europe/Berlin', label: 'Central Europe (CET)', offset: 'UTC+1/+2' },
+  { value: 'Europe/Istanbul', label: 'Turkey (TRT)', offset: 'UTC+3' },
+  { value: 'America/New_York', label: 'US Eastern (EST/EDT)', offset: 'UTC-5/-4' },
+  { value: 'America/Chicago', label: 'US Central (CST/CDT)', offset: 'UTC-6/-5' },
+  { value: 'America/Denver', label: 'US Mountain (MST/MDT)', offset: 'UTC-7/-6' },
+  { value: 'America/Los_Angeles', label: 'US Pacific (PST/PDT)', offset: 'UTC-8/-7' },
+  { value: 'America/Toronto', label: 'Canada Eastern', offset: 'UTC-5/-4' },
+  { value: 'Australia/Sydney', label: 'Australia Sydney (AEST)', offset: 'UTC+10/+11' },
+  { value: 'Asia/Singapore', label: 'Singapore (SGT)', offset: 'UTC+8' },
+  { value: 'Asia/Tokyo', label: 'Japan (JST)', offset: 'UTC+9' },
+  { value: 'Africa/Cairo', label: 'Egypt (EET)', offset: 'UTC+2' },
+  { value: 'Africa/Johannesburg', label: 'South Africa (SAST)', offset: 'UTC+2' },
+];
+
+/** "09:00 AM" or "05:00 AM" in the given timezone (or 24h "14:30") */
+export function formatTimeInZone(date: Date, timeZone: string, use24h: boolean = true): string {
+  if (use24h) {
+    return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone });
+  }
   return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone });
+}
+
+export function formatTime24InZone(date: Date, timeZone: string): string {
+  return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone });
+}
+
+export function dayOfWeekInZone(date: Date, timeZone: string): string {
+  return date.toLocaleDateString('en-US', { weekday: 'long', timeZone });
 }
 
 /** Local calendar date key "YYYY-MM-DD" of an instant in the given timezone */

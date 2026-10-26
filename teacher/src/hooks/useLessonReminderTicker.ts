@@ -6,9 +6,14 @@ import {
   fetchTeacherNotificationsThunk
 } from '../store/slices/uiSlice';
 import { TimetableLesson } from '../types';
+import { parseUtcInstant } from '../lib/timezone';
 
 function parseLessonStartMs(lesson: TimetableLesson): number | null {
   try {
+    if (lesson.startAt) {
+      const instant = parseUtcInstant(lesson.startAt);
+      if (instant) return instant.getTime();
+    }
     const todayStr = new Date().toISOString().split('T')[0];
     const lessonDate = lesson.date || todayStr;
     let timeStr = (lesson.startTime || '').trim();

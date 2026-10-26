@@ -1,4 +1,5 @@
 import { feesRepository } from './fees.repository.js';
+import { db } from '../../shared/db/knex.js';
 import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
 import { config } from '../../config/index.js';
@@ -10,9 +11,13 @@ export const feesService = {
     if (!classId) {
       throw new AppError('Class ID is required', 422, ErrorCodes.VALIDATION_ERROR);
     }
+    let finalClassId = Number(classId);
+    const cls = await db('classes').where({ id: finalClassId }).orWhere({ grade_level: finalClassId }).first();
+    if (cls) finalClassId = cls.id;
+
     return await feesRepository.createOrUpdateFeeStructure({
       sessionId: Number(sessionId || 1),
-      classId: Number(classId),
+      classId: finalClassId,
       heads,
       effectiveFrom,
       userId
@@ -21,6 +26,10 @@ export const feesService = {
 
   async getFeeStructures(filters) {
     return await feesRepository.getFeeStructures(filters);
+  },
+
+  async getStudentFeeStructure(studentId) {
+    return await feesRepository.getStudentFeeStructure(studentId);
   },
 
   // Concessions

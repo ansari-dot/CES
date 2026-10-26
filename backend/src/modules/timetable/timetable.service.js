@@ -68,6 +68,12 @@ export const timetableService = {
     status = 'PUBLISHED',
     createdBy
   }) {
+    if (!weekday || weekday < 1 || weekday > 7) {
+      throw new AppError('Valid weekday is required (1=Monday ... 7=Sunday)', 400, ErrorCodes.BAD_REQUEST, [
+        { field: 'weekday', issue: 'Weekday must be between 1 (Monday) and 7 (Sunday)' }
+      ]);
+    }
+
     // 1. Conflict check: no class overlap, no teacher double-booking
     const conflict = await timetableRepository.checkSlotConflict({
       classId,
@@ -119,22 +125,45 @@ export const timetableService = {
     return await timetableRepository.findSlotById(slotId);
   },
 
-  async updateSlot({ slotId, updates, userId }) {
-    const slot = await timetableRepository.findSlotById(slotId);
-    if (!slot) {
+  async updateSlot(params) {
+    const { slotId, userId, reason = 'Slot updated' } = params;
+    const data = params.updates ? { ...params.updates, ...params } : params;
+    const {
+      sessionId,
+      classId,
+      subjectId,
+      teacherId,
+      weekday,
+      startTime,
+      endTime,
+      effectiveFrom,
+      effectiveTo = null,
+      status
+    } = data;
+
+    const existing = await timetableRepository.findSlotById(slotId);
+    if (!existing) {
       throw new AppError('Timetable slot not found', 404, ErrorCodes.NOT_FOUND);
     }
 
-    const { classId, subjectId, teacherId, weekday, startTime, endTime, status } = updates;
+    if (weekday !== undefined && (weekday < 1 || weekday > 7)) {
+      throw new AppError('Weekday must be between 1 (Monday) and 7 (Sunday)', 400, ErrorCodes.BAD_REQUEST);
+    }
 
-    // Check conflict if schedule parameters changed
-    if (classId || teacherId || weekday || startTime || endTime) {
+    const targetClassId = classId !== undefined ? classId : existing.classId || existing.class_id;
+    const targetTeacherId = teacherId !== undefined ? teacherId : existing.teacherId || existing.teacher_id;
+    const targetWeekday = weekday !== undefined ? weekday : existing.weekday;
+    const targetStartTime = startTime || existing.startTime || existing.start_time;
+    const targetEndTime = endTime || existing.endTime || existing.end_time;
+
+    // Check conflict excluding this slot
+    if (classId || teacherId || weekday !== undefined || startTime || endTime) {
       const conflict = await timetableRepository.checkSlotConflict({
-        classId: classId || slot.classId,
-        teacherId: teacherId || slot.teacherId,
-        weekday: weekday || slot.weekday,
-        startTime: startTime || slot.startTime,
-        endTime: endTime || slot.endTime,
+        classId: targetClassId,
+        teacherId: targetTeacherId,
+        weekday: targetWeekday,
+        startTime: targetStartTime,
+        endTime: targetEndTime,
         excludeSlotId: slotId
       });
 
@@ -143,68 +172,10 @@ export const timetableService = {
           conflict.type === 'CLASS_CONFLICT'
             ? 'Class already has another subject scheduled during this period.'
             : 'Teacher already has another class assigned during this period.';
-        throw new AppError(message, 409, ErrorCodes.SCHEDULE_CONFLICT);
+        throw new AppError(message, 409, ErrorCodes.SCHEDULE_CONFLICT, [
+          { field: 'timeRange', issue: message }
+        ]);
       }
-    }
-
-    const dbUpdates = {};
-    if (classId !== undefined) dbUpdates.class_id = classId;
-    if (subjectId !== undefined) dbUpdates.subject_id = subjectId;
-    if (teacherId !== undefined) dbUpdates.teacher_id = teacherId;
-    if (weekday !== undefined) dbUpdates.weekday = weekday;
-    if (startTime !== undefined) dbUpdates.start_time = startTime;
-    if (endTime !== undefined) dbUpdates.end_time = endTime;
-    if (status !== undefined) dbUpdates.status = status;
-
-    await timetableRepository.updateSlot(slotId, dbUpdates);
-
-    try {
-      await this.publishTimetable({ sessionId: slot.sessionId || 1, days: 14, createdBy: userId });
-    } catch (e) {
-      console.warn('[TimetableService] Auto-publish on slot update warning:', e.message);
-    }
-
-    return await timetableRepository.findSlotById(slotId);
-  },
-
-  async updateSlot({
-    slotId,
-    sessionId,
-    classId,
-    subjectId,
-    teacherId,
-    weekday,
-    startTime,
-    endTime,
-    effectiveFrom,
-    effectiveTo = null,
-    status = 'PUBLISHED',
-    userId,
-    reason = 'Slot updated'
-  }) {
-    const existing = await timetableRepository.findSlotById(slotId);
-    if (!existing) {
-      throw new AppError('Timetable slot not found', 404, ErrorCodes.NOT_FOUND);
-    }
-
-    // Check conflict excluding this slot
-    const conflict = await timetableRepository.checkSlotConflict({
-      classId: classId || existing.class_id,
-      teacherId: teacherId || existing.teacher_id,
-      weekday: weekday !== undefined ? weekday : existing.weekday,
-      startTime: startTime || existing.start_time,
-      endTime: endTime || existing.end_time,
-      excludeSlotId: slotId
-    });
-
-    if (conflict) {
-      const message =
-        conflict.type === 'CLASS_CONFLICT'
-          ? 'Class already has another subject scheduled during this period.'
-          : 'Teacher already has another class assigned during this period.';
-      throw new AppError(message, 409, ErrorCodes.SCHEDULE_CONFLICT, [
-        { field: 'timeRange', issue: message }
-      ]);
     }
 
     const updates = {
@@ -227,7 +198,7 @@ export const timetableService = {
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: schoolTz }).format(new Date());
 
     const futureLessons = await db('timetable_lessons')
-      .where({ slot_id: slotId, status: 'SCHEDULED' })
+      .where({ slot_id: slotId })
       .where('lesson_date', '>=', todayStr);
 
     for (const fl of futureLessons) {
@@ -242,16 +213,18 @@ export const timetableService = {
           cancel_reason: 'Slot rescheduled to a different weekday'
         });
       } else {
-        const newStart = startTime || existing.start_time;
-        const newEnd = endTime || existing.end_time;
+        const newStart = startTime || existing.startTime || existing.start_time;
+        const newEnd = endTime || existing.endTime || existing.end_time;
         const startAt = new Date(wallClockToUtc(fl.lesson_date, newStart, schoolTz));
         const endAt = new Date(wallClockToUtc(fl.lesson_date, newEnd, schoolTz));
         await timetableRepository.updateLesson(fl.id, {
-          class_id: classId || existing.class_id,
-          subject_id: subjectId || existing.subject_id,
-          teacher_id: teacherId || existing.teacher_id,
+          class_id: classId || existing.classId || existing.class_id,
+          subject_id: subjectId || existing.subjectId || existing.subject_id,
+          teacher_id: teacherId || existing.teacherId || existing.teacher_id,
           start_at: startAt,
-          end_at: endAt
+          end_at: endAt,
+          status: 'SCHEDULED',
+          cancel_reason: null
         });
       }
     }
@@ -264,6 +237,12 @@ export const timetableService = {
       reason,
       changedBy: userId
     });
+
+    try {
+      await this.publishTimetable({ sessionId: existing.sessionId || existing.session_id || 1, days: 14, createdBy: userId });
+    } catch (e) {
+      console.warn('[TimetableService] Auto-publish on slot update warning:', e.message);
+    }
 
     return await timetableRepository.findSlotById(slotId);
   },
@@ -298,25 +277,6 @@ export const timetableService = {
     });
 
     return { slotId, status: 'ARCHIVED' };
-  },
-
-  async deleteSlot({ slotId, userId }) {
-    const slot = await timetableRepository.findSlotById(slotId);
-    if (!slot) {
-      throw new AppError('Timetable slot not found', 404, ErrorCodes.NOT_FOUND);
-    }
-
-    await timetableRepository.deleteSlot(slotId);
-
-    await timetableRepository.logChange({
-      slotId,
-      changeType: 'DELETED',
-      oldValues: slot,
-      reason: 'Timetable slot deleted by administrator',
-      changedBy: userId
-    });
-
-    return { slotId, deleted: true };
   },
 
   async getLessons(filter = {}) {
@@ -384,7 +344,19 @@ export const timetableService = {
           });
           generatedLessons.push(lessonId);
         } catch {
-          // Ignore unique duplicate constraint (uq_slot_date) if already generated
+          // If lesson already exists for this slot on this date, synchronize its parameters
+          try {
+            await db('timetable_lessons')
+              .where({ slot_id: slot.id, lesson_date: dateString })
+              .update({
+                class_id: slot.classId,
+                subject_id: slot.subjectId,
+                teacher_id: slot.teacherId,
+                zoom_meeting_id: classMeeting ? classMeeting.id : null,
+                start_at: startAt,
+                end_at: endAt
+              });
+          } catch (_) {}
         }
       }
     }

@@ -37,16 +37,31 @@ const initialLogs: DutyLogItem[] = [];
 
 export const fetchDutySummaryThunk = createAsyncThunk(
   'duty/fetchSummary',
-  async (teacherId: number | string | void, { rejectWithValue }) => {
+  async (teacherId: number | string | void, { getState, rejectWithValue }) => {
     try {
-      const numTeacherId = teacherId ? (typeof teacherId === 'string' ? parseInt(teacherId.replace(/\D/g, ''), 10) || 45 : teacherId) : 45;
+      const state: any = getState();
+      const currentTeacherId = teacherId || state?.auth?.teacher?.id;
+      let numTeacherId = 16;
+      if (currentTeacherId) {
+        if (typeof currentTeacherId === 'number') {
+          numTeacherId = currentTeacherId;
+        } else {
+          const parsed = parseInt(String(currentTeacherId).replace(/\D/g, ''), 10);
+          if (!isNaN(parsed) && parsed > 0) numTeacherId = parsed;
+        }
+      }
 
-      const [dutyRes, draftsRes] = await Promise.all([
+      const [dutyRes, draftsRes, dailyDutyRes] = await Promise.all([
         requestApi<any>(`/api/v1/payroll/duty-summary/${numTeacherId}`).catch(() => null),
         requestApi<any[]>(`/api/v1/payroll/drafts?teacherId=${numTeacherId}`).catch(() => []),
+        requestApi<any>(`/api/v1/zoom/teachers/${numTeacherId}/daily-duty`).catch(() => null)
       ]);
 
-      return { duty: dutyRes, drafts: Array.isArray(draftsRes) ? draftsRes : [] };
+      return {
+        duty: dutyRes,
+        drafts: Array.isArray(draftsRes) ? draftsRes : [],
+        dailyDuty: dailyDutyRes
+      };
     } catch (err: any) {
       return rejectWithValue(err.message || 'Failed to fetch duty summary');
     }
@@ -108,7 +123,13 @@ export const dutySlice = createSlice({
       })
       .addCase(fetchDutySummaryThunk.fulfilled, (state, action) => {
         state.loading = false;
-        const { duty, drafts } = action.payload;
+        const { duty, drafts, dailyDuty } = action.payload;
+
+        const liveMinutes = Number(dailyDuty?.totalLiveMinutes) || 0;
+        const liveHours = Number(dailyDuty?.totalLiveHours) || 0;
+        const activeLiveLessons = Array.isArray(dailyDuty?.lessons)
+          ? dailyDuty.lessons.filter((l: any) => l.status === 'LIVE').length
+          : 0;
 
         if (duty) {
           state.summary = {
@@ -116,15 +137,33 @@ export const dutySlice = createSlice({
             scheduledLessonsCount: Number(duty.scheduledLessons) || 0,
             completedLessonsCount: Number(duty.completedLessons) || 0,
             totalDutyHours: Number(duty.verifiedTeachingHours) || 0,
-            targetDutyHours: Number(duty.targetDutyHours) || 0,
+            targetDutyHours: Number(duty.targetDutyHours) || 24,
             payrollStatus: (duty.completedLessons > 0 ? 'On Track' : 'No Records') as any,
             hourlyRate: duty.hourlyRate || 'Standard Faculty',
+            liveDutyHours: liveHours,
+            activeLiveCount: activeLiveLessons
           };
+        } else if (dailyDuty) {
+          state.summary.liveDutyHours = liveHours;
+          state.summary.activeLiveCount = activeLiveLessons;
         }
 
         if (drafts.length > 0) {
           const draft = drafts[0];
           state.summary.payrollStatus = (draft.status === 'Approved' ? 'On Track' : draft.status === 'Paid' ? 'On Track' : 'Pending Review') as any;
+        }
+
+        if (dailyDuty && Array.isArray(dailyDuty.lessons)) {
+          state.logs = dailyDuty.lessons.map((l: any) => ({
+            id: `LOG-${l.id}`,
+            date: dailyDuty.date || new Date().toISOString().split('T')[0],
+            lessonId: `LES-${l.id}`,
+            className: l.className || 'Class',
+            subject: l.subjectName || 'Subject',
+            scheduledTime: `${String(l.scheduledStart || '').substring(11, 16)} - ${String(l.scheduledEnd || '').substring(11, 16)}`,
+            durationMinutes: l.trackedMinutes || 0,
+            status: l.status === 'COMPLETED' ? ('verified' as const) : ('pending' as const)
+          }));
         }
       })
       .addCase(fetchDutySummaryThunk.rejected, (state, action) => {

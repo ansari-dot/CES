@@ -1,6 +1,16 @@
 import { db } from '../../shared/db/knex.js';
 import { decryptAesGcm } from '../../shared/crypto/aes.js';
 
+export const WEEKDAY_NAMES = {
+  1: 'Monday',
+  2: 'Tuesday',
+  3: 'Wednesday',
+  4: 'Thursday',
+  5: 'Friday',
+  6: 'Saturday',
+  7: 'Sunday'
+};
+
 export const timetableRepository = {
   // Slots
   async getSlots({ classId = null, teacherId = null, sessionId = null, status = null } = {}) {
@@ -58,6 +68,8 @@ export const timetableRepository = {
       const hostKey = r.zoomConfigNotes ? (r.zoomConfigNotes.match(/(?:host\s*key|host\s*pin|key|pin)[:\s=]*([0-9]{6})/i)?.[1] || '884422') : '884422';
       return {
         ...r,
+        weekdayName: WEEKDAY_NAMES[r.weekday] || 'Sunday',
+        dayOfWeek: WEEKDAY_NAMES[r.weekday] || 'Sunday',
         zoomPasscode,
         zoomJoinUrl,
         hostKey
@@ -90,7 +102,12 @@ export const timetableRepository = {
       )
       .first();
 
-    return row || (await db('timetable_slots').where({ id }).first());
+    const result = row || (await db('timetable_slots').where({ id }).first());
+    if (result && result.weekday) {
+      result.weekdayName = WEEKDAY_NAMES[result.weekday] || 'Sunday';
+      result.dayOfWeek = WEEKDAY_NAMES[result.weekday] || 'Sunday';
+    }
+    return result;
   },
 
   async checkSlotConflict({ classId, teacherId, weekday, startTime, endTime, excludeSlotId = null }) {
@@ -165,6 +182,8 @@ export const timetableRepository = {
         'zoom_meetings.config_notes as zoomConfigNotes',
         'timetable_lessons.session_state as sessionState',
         'timetable_lessons.teacher_joined_at as teacherJoinedAt',
+        'timetable_lessons.actual_start_at as actualStartAt',
+        'timetable_lessons.actual_end_at as actualEndAt',
         'timetable_lessons.handover_at as handoverAt',
         'timetable_lessons.teacher_notified_at as teacherNotifiedAt',
         'timetable_lessons.teacher_absence_alert_at as teacherAbsenceAlertAt',
@@ -209,8 +228,15 @@ export const timetableRepository = {
         zoomPasscode = '';
       }
       const hostKey = r.zoomConfigNotes ? (r.zoomConfigNotes.match(/(?:host\s*key|host\s*pin|key|pin)[:\s=]*([0-9]{6})/i)?.[1] || '884422') : '884422';
+      const lessonDate = r.lessonDate || (r.startAt ? String(r.startAt).split('T')[0] : '');
+      let dayOfWeek = '';
+      if (lessonDate) {
+        const dObj = new Date(lessonDate + 'T12:00:00Z');
+        dayOfWeek = dObj.toLocaleDateString('en-US', { weekday: 'long' });
+      }
       return {
         ...r,
+        dayOfWeek,
         startAt: formatUtc(r.startAt),
         endAt: formatUtc(r.endAt),
         sessionState: r.sessionState || (r.status === 'LIVE' ? 'LIVE' : r.status === 'COMPLETED' ? 'COMPLETED' : 'SCHEDULED'),

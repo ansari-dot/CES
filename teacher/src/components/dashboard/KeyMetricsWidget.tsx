@@ -22,10 +22,19 @@ export const KeyMetricsWidget: React.FC = () => {
   ).length;
   const pendingAssignmentsCount = taskPendingSum > 0 ? taskPendingSum : directPendingCount;
 
-  // 2. Upcoming lessons count (scheduled or live sessions)
-  const upcomingLessonsCount = lessons.filter(
-    (l) => l.status === 'scheduled' || l.status === 'started'
-  ).length || schoolSessions.filter((s) => s.status === 'scheduled' || s.status === 'live').length;
+  // 2. Upcoming lessons count for today (scheduled or live sessions)
+  const todayStr = new Intl.DateTimeFormat('en-CA').format(new Date());
+  const todayDayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+  const todayLessons = lessons.filter((l) => {
+    if (l.date) return l.date === todayStr;
+    return l.dayOfWeek?.toLowerCase() === todayDayName.toLowerCase();
+  });
+  const todaySchoolSessions = schoolSessions.filter(
+    (s) => s.dayOfWeek?.toLowerCase() === todayDayName.toLowerCase()
+  );
+  const upcomingLessonsCount =
+    todayLessons.filter((l) => l.status === 'scheduled' || l.status === 'live' || l.status === 'started').length ||
+    todaySchoolSessions.filter((s) => s.status === 'scheduled' || s.status === 'live').length;
 
   // 3. Student notifications count (unread alerts in the notification center)
   const studentNotificationsCount = notifications.filter((n) => !n.read).length;

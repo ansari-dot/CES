@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { setSelectedClassId, logout } from '../../store/slices/authSlice';
 import {
@@ -13,6 +13,8 @@ import {
   toggleMobileSidebar,
   addToast,
 } from '../../store/slices/uiSlice';
+import { changeTeacherTimezoneThunk, detectTeacherTimezoneThunk } from '../../store/slices/timetableSlice';
+import { COMMON_TIMEZONES } from '../../lib/timezone';
 
 export const Header: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -21,7 +23,28 @@ export const Header: React.FC = () => {
   const searchQuery = useAppSelector((state) => state.ui.searchQuery);
   const isNotificationsOpen = useAppSelector((state) => state.ui.isNotificationsOpen);
   const notifications = useAppSelector((state) => state.ui.notifications);
+  const teacherTimezone = useAppSelector((state) => state.timetable.timezone);
+  const timezoneSource = useAppSelector((state) => state.timetable.timezoneSource);
 
+  const [isTzOpen, setIsTzOpen] = useState(false);
+  const tzMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close timezone menu on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (tzMenuRef.current && !tzMenuRef.current.contains(event.target as Node)) {
+        setIsTzOpen(false);
+      }
+    }
+    if (isTzOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isTzOpen]);
+
+  const currentTimezoneInfo = COMMON_TIMEZONES.find((t) => t.value === teacherTimezone);
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
@@ -75,8 +98,115 @@ export const Header: React.FC = () => {
         </div>
       </div>
 
-      {/* Right controls: Notifications & Teacher Identity */}
-      <div className="flex items-center gap-4 relative">
+      {/* Right controls: Timezone Selector, Notifications & Teacher Identity */}
+      <div className="flex items-center gap-2.5 sm:gap-4 relative">
+        {/* Regional Timezone Selector */}
+        <div className="relative" ref={tzMenuRef}>
+          <button
+            onClick={() => setIsTzOpen((prev) => !prev)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#eff4ff] hover:bg-[#e0eaff] border border-indigo-100/80 text-[#121c2a] transition-all text-xs font-semibold shadow-xs"
+            title={`Timezone: ${currentTimezoneInfo ? currentTimezoneInfo.label : teacherTimezone} (${timezoneSource === 'manual' ? 'Manual Selection' : 'Auto-Detected'})`}
+          >
+            <span className="material-symbols-outlined text-[17px] text-[#3525cd]">schedule</span>
+            <span className="max-w-[85px] sm:max-w-[130px] truncate text-[11px] sm:text-xs">
+              {currentTimezoneInfo ? currentTimezoneInfo.label.split(' ')[0] : teacherTimezone.split('/')[1] || teacherTimezone}
+            </span>
+            <span className="text-[10px] font-mono px-1 py-0.5 rounded bg-indigo-100 text-[#3525cd] font-bold hidden sm:inline">
+              {currentTimezoneInfo?.offset || 'Local'}
+            </span>
+            <span className="material-symbols-outlined text-[14px] text-slate-400">
+              {isTzOpen ? 'expand_less' : 'expand_more'}
+            </span>
+          </button>
+
+          {isTzOpen && (
+            <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+              <div className="p-3 bg-[#eff4ff] border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px] text-[#3525cd]">public</span>
+                    <span className="font-bold text-xs text-[#121c2a]">Regional Timezone</span>
+                  </div>
+                  <p className="text-[10px] text-[#464555] mt-0.5">
+                    Schedule automatically adjusts to your local time
+                  </p>
+                </div>
+                {timezoneSource === 'manual' && (
+                  <button
+                    onClick={() => {
+                      dispatch(detectTeacherTimezoneThunk());
+                      setIsTzOpen(false);
+                      dispatch(
+                        addToast({
+                          title: 'Reset to Auto-Detect',
+                          message: 'Detecting your local regional timezone...',
+                          type: 'info',
+                        })
+                      );
+                    }}
+                    className="text-[10px] font-bold text-[#3525cd] hover:underline bg-white px-2 py-1 rounded-md border border-indigo-100 shrink-0"
+                    title="Auto-detect based on your current location/browser"
+                  >
+                    Auto-Detect
+                  </button>
+                )}
+              </div>
+
+              <div className="p-1.5 max-h-64 overflow-y-auto divide-y divide-slate-50">
+                {COMMON_TIMEZONES.map((tz) => {
+                  const isSelected = tz.value === teacherTimezone;
+                  return (
+                    <button
+                      key={tz.value}
+                      onClick={() => {
+                        dispatch(changeTeacherTimezoneThunk({ timezone: tz.value, source: 'manual' }));
+                        setIsTzOpen(false);
+                        dispatch(
+                          addToast({
+                            title: 'Timezone Updated',
+                            message: `Class schedule converted to ${tz.label} (${tz.offset})`,
+                            type: 'success',
+                          })
+                        );
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center justify-between transition-colors ${
+                        isSelected
+                          ? 'bg-[#3525cd] text-white font-bold'
+                          : 'hover:bg-slate-50 text-[#121c2a]'
+                      }`}
+                    >
+                      <div className="flex flex-col">
+                        <span>{tz.label}</span>
+                        <span
+                          className={`text-[10px] ${
+                            isSelected ? 'text-indigo-200' : 'text-[#777587]'
+                          }`}
+                        >
+                          {tz.value}
+                        </span>
+                      </div>
+                      <span
+                        className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                          isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-[#464555]'
+                        }`}
+                      >
+                        {tz.offset}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="p-2 bg-slate-50 border-t border-slate-100 text-[10px] text-slate-500 flex items-center justify-between">
+                <span>School Base: Asia/Karachi (PKT)</span>
+                <span className="font-semibold text-[#3525cd]">
+                  {timezoneSource === 'manual' ? 'Custom' : 'Auto (Detected)'}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Notification Bell */}
         <div className="relative">
           <button

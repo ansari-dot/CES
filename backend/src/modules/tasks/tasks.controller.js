@@ -54,12 +54,26 @@ export const tasksController = {
   async getTasks(req, res, next) {
     try {
       const { classId, subjectId, teacherId, status, sessionId } = req.query;
+      let finalClassId = classId ? Number(classId) : null;
+      let studentId = null;
+
+      if (req.user && req.user.role === 'STUDENT') {
+        const student = await db('students').where({ user_id: req.user.id }).first();
+        if (student) {
+          studentId = student.id;
+          if (!finalClassId && student.current_class_id) {
+            finalClassId = student.current_class_id;
+          }
+        }
+      }
+
       const tasks = await tasksService.getTasks({
-        classId: classId ? Number(classId) : null,
+        classId: finalClassId,
         subjectId: subjectId ? Number(subjectId) : null,
         teacherId: teacherId ? Number(teacherId) : null,
         status: status || null,
-        sessionId: sessionId ? Number(sessionId) : null
+        sessionId: sessionId ? Number(sessionId) : null,
+        studentId
       });
       return sendSuccess(res, tasks);
     } catch (error) {
@@ -112,8 +126,13 @@ export const tasksController = {
   async getSubmissions(req, res, next) {
     try {
       const taskId = req.params.id ? Number(req.params.id) : (req.query.taskId ? Number(req.query.taskId) : null);
-      const studentId = req.query.studentId ? Number(req.query.studentId) : null;
+      let studentId = req.query.studentId ? Number(req.query.studentId) : null;
       const status = req.query.status || null;
+
+      if (req.user?.role === 'STUDENT') {
+        const student = await db('students').where({ user_id: req.user.id }).first();
+        studentId = student ? student.id : -1;
+      }
 
       const submissions = await tasksService.getSubmissions({ taskId, studentId, status });
       return sendSuccess(res, submissions);

@@ -20,7 +20,7 @@ import { ProfileSettingsPage } from './pages/ProfileSettingsPage';
 
 // Import Live Backend Async Thunks
 import { checkTeacherSessionThunk } from './store/slices/authSlice';
-import { fetchTeacherLessonsThunk } from './store/slices/timetableSlice';
+import { fetchTeacherLessonsThunk, detectTeacherTimezoneThunk } from './store/slices/timetableSlice';
 import { fetchSchoolTimetable } from './store/slices/schoolTimetableSlice';
 import { fetchTasksThunk, fetchSubmissionsThunk } from './store/slices/tasksSlice';
 import { fetchResourcesThunk } from './store/slices/resourcesSlice';
@@ -40,14 +40,16 @@ export default function App() {
   // Active 5-minute pre-lesson notification reminder ticker
   useLessonReminderTicker();
 
-  // 1. Session verification on app startup
+  // 1. Session verification & regional timezone detection on app startup
   useEffect(() => {
     dispatch(checkTeacherSessionThunk());
+    dispatch(detectTeacherTimezoneThunk());
   }, [dispatch]);
 
   // 2. Hydrate all live academic data when authenticated
   useEffect(() => {
     if (isAuthenticated && !mustChangePassword) {
+      dispatch(detectTeacherTimezoneThunk());
       dispatch(fetchTeacherLessonsThunk());
       dispatch(fetchSchoolTimetable());
       dispatch(fetchTasksThunk());

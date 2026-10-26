@@ -5,6 +5,11 @@ import {
   SchoolClassSession,
 } from '../../types';
 import { requestApi } from '../../services/api';
+import {
+  DEFAULT_SCHOOL_TIMEZONE,
+  getBrowserTimeZone,
+  convertRecurringSlotToZoned,
+} from '../../lib/timezone';
 
 export interface SchoolTimetableState {
   isLoading: boolean;
@@ -20,112 +25,14 @@ export interface SchoolTimetableState {
   currentLivePeriodId: string | null;
 }
 
-const initialPeriods: PeriodInfo[] = [
-  {
-    id: 'P-0',
-    periodNumber: 0,
-    name: 'Morning Homeroom & Attendance',
-    startTime: '08:15 AM',
-    endTime: '08:50 AM',
-    durationMinutes: 35,
-    type: 'homeroom',
-    bellChime: true,
-    icon: 'meeting_room',
-    color: '#6366f1',
-  },
-  {
-    id: 'P-1',
-    periodNumber: 1,
-    name: 'Period 1 • Core Instruction',
-    startTime: '09:00 AM',
-    endTime: '09:45 AM',
-    durationMinutes: 45,
-    type: 'instructional',
-    bellChime: true,
-    icon: 'calculate',
-    color: '#3525cd',
-  },
-  {
-    id: 'P-BREAK-1',
-    periodNumber: 0,
-    name: 'Morning Nutrition & Recess',
-    startTime: '09:45 AM',
-    endTime: '10:15 AM',
-    durationMinutes: 30,
-    type: 'break',
-    bellChime: true,
-    icon: 'bakery_dining',
-    color: '#d97706',
-  },
-  {
-    id: 'P-2',
-    periodNumber: 2,
-    name: 'Period 2 • Science & Discovery',
-    startTime: '10:30 AM',
-    endTime: '11:15 AM',
-    durationMinutes: 45,
-    type: 'instructional',
-    bellChime: true,
-    icon: 'science',
-    color: '#059669',
-  },
-  {
-    id: 'P-LUNCH',
-    periodNumber: 0,
-    name: 'Midday Lunch & Recreation',
-    startTime: '11:15 AM',
-    endTime: '12:15 PM',
-    durationMinutes: 60,
-    type: 'break',
-    bellChime: true,
-    icon: 'restaurant',
-    color: '#ea580c',
-  },
-  {
-    id: 'P-3',
-    periodNumber: 3,
-    name: 'Period 3 • Applied STEM & Math',
-    startTime: '01:00 PM',
-    endTime: '01:45 PM',
-    durationMinutes: 45,
-    type: 'instructional',
-    bellChime: true,
-    icon: 'memory',
-    color: '#2563eb',
-  },
-  {
-    id: 'P-4',
-    periodNumber: 4,
-    name: 'Period 4 • Experiments & Lab Practicals',
-    startTime: '02:15 PM',
-    endTime: '03:00 PM',
-    durationMinutes: 45,
-    type: 'instructional',
-    bellChime: true,
-    icon: 'biotech',
-    color: '#7c3aed',
-  },
-  {
-    id: 'P-DUTY-DISMISSAL',
-    periodNumber: 5,
-    name: 'Campus Dismissal & Bus Lane Departure',
-    startTime: '03:00 PM',
-    endTime: '03:30 PM',
-    durationMinutes: 30,
-    type: 'duty',
-    bellChime: true,
-    icon: 'directions_bus',
-    color: '#0284c7',
-  },
-];
-
+const initialPeriods: PeriodInfo[] = [];
 const initialSessions: SchoolClassSession[] = [];
 const initialDutyRosters: TeacherDutyRosterItem[] = [];
 
 const initialState: SchoolTimetableState = {
   isLoading: false,
   lastFetchedAt: null,
-  activeDay: 'Wednesday',
+  activeDay: new Date().toLocaleDateString('en-US', { weekday: 'long' }),
   activeViewTab: 'sessions',
   selectedGrade: 'all',
   selectedPeriodId: 'all',
@@ -140,56 +47,98 @@ export const fetchSchoolTimetable = createAsyncThunk(
   'schoolTimetable/fetchSchoolTimetable',
   async (_, { getState, rejectWithValue }) => {
     try {
-      const data = await requestApi<any[]>('/api/v1/timetable/slots');
-      const daysMap: Record<number, string> = {
-        1: 'Monday',
-        2: 'Tuesday',
-        3: 'Wednesday',
-        4: 'Thursday',
-        5: 'Friday',
-        6: 'Saturday',
-        7: 'Sunday'
-      };
+      const state = getState() as any;
+      const teacherTz = state.timetable?.timezone || getBrowserTimeZone() || DEFAULT_SCHOOL_TIMEZONE;
+      const schoolTz = state.timetable?.schoolTimezone || DEFAULT_SCHOOL_TIMEZONE;
 
-      const sessions: SchoolClassSession[] = Array.isArray(data)
+      const data = await requestApi<any[]>('/api/v1/timetable/my-slots');
+
+      // Convert slots from school timezone to teacher's local timezone
+      const zonedSlots = Array.isArray(data)
         ? data.map((s: any) => {
-            const startH = parseInt(String(s.startTime).substring(0, 2), 10);
-            let periodNum = 1;
-            if (startH >= 14) periodNum = 4;
-            else if (startH >= 13) periodNum = 3;
-            else if (startH >= 10) periodNum = 2;
-
+            const zoned = convertRecurringSlotToZoned(
+              { weekday: s.weekday, startTime: s.startTime, endTime: s.endTime },
+              schoolTz,
+              teacherTz
+            );
             return {
-              id: `SLOT-${s.id}`,
-              periodId: `P-${periodNum}`,
-              periodNumber: periodNum,
-              classId: String(s.classId),
-              className: s.className || `Class ${s.classNumber}`,
-              grade: Number(s.classNumber),
-              section: 'A',
-              subject: s.subjectName,
-              subjectCode: s.subjectCode || 'SUB',
-              topic: 'Core Instruction & Live Lesson',
-              teacherId: String(s.teacherId),
-              teacherName: s.teacherName,
-              teacherAvatar: '',
-              roomNumber: `Online Live Classroom (Room ${s.classNumber})`,
-              roomType: 'virtual_zoom',
-              zoomMeetingId: s.zoomMeetingId || `900${s.classNumber}000${s.classNumber}`,
-              zoomPasscode: s.zoomPasscode || `CLASS${s.classNumber}#`,
-              dayOfWeek: daysMap[s.weekday] || 'Monday',
-              startTime: String(s.startTime).substring(0, 5),
-              endTime: String(s.endTime).substring(0, 5),
-              status: 'scheduled',
-              enrolledStudentsCount: 25,
-              colorTag: '#3525cd',
-              subjectIcon: 'school'
+              ...s,
+              dayOfWeek: zoned.dayOfWeek,
+              startTime: zoned.startTime,
+              endTime: zoned.endTime
             };
           })
         : [];
 
+      const periods: PeriodInfo[] = [];
+      const seenTimes = new Set<string>();
+      let pIdx = 1;
+      const sortedSlots = [...zonedSlots].sort((a: any, b: any) =>
+        String(a.startTime).localeCompare(String(b.startTime))
+      );
+
+      for (const s of sortedSlots) {
+        const timeKey = `${String(s.startTime).substring(0, 5)}-${String(s.endTime).substring(0, 5)}`;
+        if (!seenTimes.has(timeKey)) {
+          seenTimes.add(timeKey);
+          const sTime = String(s.startTime).substring(0, 5);
+          const eTime = String(s.endTime).substring(0, 5);
+          const [sh, sm] = sTime.split(':').map(Number);
+          const [eh, em] = eTime.split(':').map(Number);
+          const dur = (eh * 60 + em) - (sh * 60 + sm);
+
+          periods.push({
+            id: `P-${pIdx}`,
+            periodNumber: pIdx,
+            name: `Period ${pIdx} • ${s.className || `Class ${s.classNumber}`} (${s.subjectName})`,
+            startTime: sTime,
+            endTime: eTime,
+            durationMinutes: dur > 0 ? dur : 45,
+            type: 'instructional',
+            bellChime: true,
+            icon: 'school',
+            color: '#3525cd',
+          });
+          pIdx++;
+        }
+      }
+
+      const sessions: SchoolClassSession[] = zonedSlots.map((s: any) => {
+        const sTime = String(s.startTime).substring(0, 5);
+        const matchingPeriod = periods.find((p) => p.startTime === sTime);
+        const periodNum = matchingPeriod ? matchingPeriod.periodNumber : 1;
+
+        return {
+          id: `SLOT-${s.id}`,
+          periodId: `P-${periodNum}`,
+          periodNumber: periodNum,
+          classId: String(s.classId),
+          className: s.className || `Class ${s.classNumber}`,
+          grade: Number(s.classNumber),
+          section: 'A',
+          subject: s.subjectName,
+          subjectCode: s.subjectCode || 'SUB',
+          topic: 'Core Instruction & Live Lesson',
+          teacherId: String(s.teacherId),
+          teacherName: s.teacherName || 'Assigned Faculty',
+          teacherAvatar: '',
+          roomNumber: `Online Live Classroom (Room ${s.classNumber})`,
+          roomType: 'virtual_zoom',
+          zoomMeetingId: s.zoomMeetingId || `900${s.classNumber}000${s.classNumber}`,
+          zoomPasscode: s.zoomPasscode || `CLASS${s.classNumber}#`,
+          dayOfWeek: s.dayOfWeek || 'Monday',
+          startTime: String(s.startTime).substring(0, 5),
+          endTime: String(s.endTime).substring(0, 5),
+          status: 'scheduled',
+          enrolledStudentsCount: 25,
+          colorTag: '#3525cd',
+          subjectIcon: 'school'
+        };
+      });
+
       return {
         sessions,
+        periods,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
     } catch (err: any) {
@@ -253,6 +202,9 @@ export const schoolTimetableSlice = createSlice({
         state.lastFetchedAt = `Today at ${payload?.timestamp || ''}`;
         if (Array.isArray(payload?.sessions)) {
           state.sessions = payload.sessions;
+        }
+        if (Array.isArray(payload?.periods)) {
+          state.periods = payload.periods;
         }
       })
       .addCase(fetchSchoolTimetable.rejected, (state) => {

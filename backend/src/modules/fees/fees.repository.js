@@ -138,6 +138,82 @@ export const feesRepository = {
     );
   },
 
+  async getStudentFeeStructure(studentId) {
+    const student = await db('students')
+      .join('classes', 'students.current_class_id', 'classes.id')
+      .join('users', 'students.user_id', 'users.id')
+      .where('students.id', studentId)
+      .select(
+        'students.id',
+        'users.full_name as studentName',
+        'students.admission_no as admissionNo',
+        'students.roll_no as rollNo',
+        'students.current_class_id as classId',
+        'classes.grade_level as classNumber',
+        'classes.name as className'
+      )
+      .first();
+
+    if (!student) return null;
+
+    const structure = await db('fee_structures')
+      .join('academic_sessions', 'fee_structures.session_id', 'academic_sessions.id')
+      .where({ 'fee_structures.class_id': student.classId, 'fee_structures.status': 'ACTIVE' })
+      .select(
+        'fee_structures.id',
+        'fee_structures.session_id as sessionId',
+        'academic_sessions.name as academicSession',
+        'fee_structures.class_id as classId',
+        'fee_structures.total_monthly_recurring as totalMonthlyRecurring',
+        'fee_structures.effective_from as effectiveFrom',
+        'fee_structures.status'
+      )
+      .first();
+
+    let heads = [];
+    if (structure) {
+      heads = await db('fee_structure_heads')
+        .where({ fee_structure_id: structure.id })
+        .select('id', 'head_type as head', 'amount', 'is_recurring as isRecurring', 'description');
+    }
+
+    const concessions = await db('student_concessions')
+      .where({ student_id: student.id, status: 'ACTIVE' })
+      .select('id', 'concession_type as concessionType', 'value', 'reason', 'created_at as createdAt');
+
+    let totalRecurring = structure ? Number(structure.totalMonthlyRecurring) : 0;
+    let concessionDiscount = 0;
+    for (const c of concessions) {
+      if (c.concessionType === 'PERCENTAGE') {
+        concessionDiscount += (totalRecurring * Number(c.value)) / 100;
+      } else {
+        concessionDiscount += Number(c.value);
+      }
+    }
+    const netMonthlyRecurring = Math.max(0, totalRecurring - concessionDiscount);
+
+    return {
+      student,
+      structure: structure
+        ? {
+            ...structure,
+            totalMonthlyRecurring: Number(structure.totalMonthlyRecurring),
+            heads: heads.map((h) => ({
+              ...h,
+              amount: Number(h.amount),
+              isRecurring: Boolean(h.isRecurring)
+            }))
+          }
+        : null,
+      concessions: concessions.map((c) => ({
+        ...c,
+        value: Number(c.value)
+      })),
+      discountAmount: concessionDiscount,
+      netMonthlyRecurring
+    };
+  },
+
   // 2. Student Concessions
   async createConcession({ studentId, sessionId, concessionType, value, reason, approvedBy }) {
     const [id] = await db('student_concessions').insert({

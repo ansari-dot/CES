@@ -826,7 +826,8 @@ export const api = {
           3: 'Wednesday',
           4: 'Thursday',
           5: 'Friday',
-          6: 'Saturday'
+          6: 'Saturday',
+          7: 'Sunday'
         };
         return list.map((slot: any) => ({
           id: `SLOT-${slot.id}`,
@@ -835,7 +836,7 @@ export const api = {
           subjectName: slot.subjectName,
           teacherId: String(slot.teacherId),
           teacherName: slot.teacherName,
-          dayOfWeek: daysMap[slot.weekday] || 'Monday',
+          dayOfWeek: (slot.dayOfWeek as DayOfWeek) || daysMap[slot.weekday] || 'Sunday',
           startTime: String(slot.startTime).substring(0, 5),
           endTime: String(slot.endTime).substring(0, 5),
           timezone: 'Asia/Karachi',
@@ -1139,13 +1140,19 @@ export const api = {
           id: String(d.id),
           classNumber: Number(d.classNumber || d.classId),
           academicSession: d.academicSession || '2026-27',
-          heads: (d.heads || []).map((h: any) => ({
-            id: String(h.id || Math.random()),
-            head: h.head || 'Tuition',
-            amount: Number(h.amount),
-            isRecurring: Boolean(h.isRecurring),
-            description: h.description
-          })),
+          heads: (d.heads || []).map((h: any) => {
+            const raw = String(h.head || 'Tuition');
+            const normalized = raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
+            const valid = ['Tuition', 'Admission', 'Technology', 'Books', 'Examination', 'Other'];
+            const head = (valid.includes(normalized) ? normalized : 'Other') as ClassFeeStructure['heads'][0]['head'];
+            return {
+              id: String(h.id || Math.random()),
+              head,
+              amount: Number(h.amount),
+              isRecurring: Boolean(h.isRecurring),
+              description: h.description
+            };
+          }),
           totalMonthlyRecurring: Number(d.totalMonthlyRecurring),
           effectiveFrom: d.effectiveFrom || new Date().toISOString().split('T')[0],
           status: 'Active'
@@ -1161,18 +1168,28 @@ export const api = {
     try {
       const data = await requestApi<any[]>('/api/v1/fees/concessions');
       if (Array.isArray(data)) {
-        return data.map((c) => ({
-          id: String(c.id),
-          studentId: String(c.studentId),
-          studentName: c.studentName || 'Student',
-          classNumber: Number(c.classNumber || 1),
-          concessionType: (c.concessionType === 'PERCENTAGE' ? 'Percentage' : c.concessionType === 'SIBLING_DISCOUNT' ? 'Sibling Discount' : 'Fixed Amount') as any,
-          value: Number(c.value),
-          reason: c.reason || '',
-          approvedBy: c.approvedBy || 'Principal',
-          effectiveSession: c.effectiveSession || '2026-27',
-          status: (c.status === 'REVOKED' ? 'Revoked' : 'Active') as any
-        }));
+        return data.map((c) => {
+          let cType: StudentConcession['concessionType'] = 'Fixed Amount';
+          const raw = String(c.concessionType || '').toUpperCase();
+          if (raw === 'PERCENTAGE') cType = 'Percentage';
+          else if (raw === 'SIBLING_DISCOUNT') cType = 'Sibling Discount';
+          else if (raw === 'MERIT_SCHOLARSHIP') cType = 'Merit Scholarship' as any;
+          else if (raw === 'NEED_BASED') cType = 'Need Based' as any;
+          else cType = 'Fixed Amount';
+
+          return {
+            id: String(c.id),
+            studentId: String(c.studentId),
+            studentName: c.studentName || 'Student',
+            classNumber: Number(c.classNumber || 1),
+            concessionType: cType,
+            value: Number(c.value),
+            reason: c.reason || '',
+            approvedBy: c.approvedBy || 'Principal',
+            effectiveSession: c.effectiveSession || '2026-27',
+            status: (c.status === 'REVOKED' ? 'Revoked' : 'Active') as any
+          };
+        });
       }
     } catch {
       // Fallback
@@ -1214,10 +1231,12 @@ export const api = {
   },
 
   async addConcession(concessionData: Omit<StudentConcession, 'id' | 'approvedBy'>): Promise<StudentConcession> {
+    const rawId = String(concessionData.studentId);
+    const numericStudentId = parseInt(rawId.replace(/\D/g, ''), 10) || Number(rawId);
     const res = await requestApi<any>('/api/v1/fees/concessions', {
       method: 'POST',
       body: JSON.stringify({
-        studentId: Number(concessionData.studentId),
+        studentId: numericStudentId,
         concessionType: concessionData.concessionType.toUpperCase().replace(/\s+/g, '_'),
         value: Number(concessionData.value),
         reason: concessionData.reason
@@ -1229,6 +1248,12 @@ export const api = {
       id: String(res?.id || Date.now()),
       approvedBy: 'Prof. Tariq Mahmood'
     };
+  },
+
+  async revokeConcession(id: string | number): Promise<void> {
+    await requestApi(`/api/v1/fees/concessions/${id}/revoke`, {
+      method: 'POST'
+    });
   },
 
   // 11. Challans & Billing — Live Only

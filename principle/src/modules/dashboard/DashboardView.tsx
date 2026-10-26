@@ -45,7 +45,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
         api.getNotifications()
       ]);
       setMetrics(m);
-      setTodayLessons(lessons.filter((l) => l.dayOfWeek === 'Monday').slice(0, 5));
+      const currentDay = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date());
+      setTodayLessons(lessons.filter((l) => l.dayOfWeek === currentDay).slice(0, 5));
       setRecentNotices(notices.slice(0, 3));
       setNotifications(notifs.filter((n) => !n.isRead).slice(0, 4));
     } catch (err: unknown) {

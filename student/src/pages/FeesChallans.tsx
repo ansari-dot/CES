@@ -1,15 +1,20 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { Download, UploadCloud, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { Download, UploadCloud, CheckCircle2, Clock, AlertCircle, ShieldCheck, Tag, Building2, Calendar, Receipt } from 'lucide-react';
 import { RootState, AppDispatch } from '../store';
-import { submitPaymentProof } from '../store/slices/feesSlice';
+import { submitPaymentProof, fetchMyFeeStructure, fetchChallans } from '../store/slices/feesSlice';
 import { setToast } from '../store/slices/studentSlice';
 import StatusChip from '../components/common/StatusChip';
 
 export default function FeesChallans() {
   const dispatch = useDispatch<AppDispatch>();
-  const { summary, challans, proofStatus, submitting } = useSelector((state: RootState) => state.fees);
+  const { summary, challans, myStructure, structureLoading, proofStatus, submitting } = useSelector((state: RootState) => state.fees);
   const { profile } = useSelector((state: RootState) => state.student);
+
+  useEffect(() => {
+    dispatch(fetchMyFeeStructure());
+    dispatch(fetchChallans());
+  }, [dispatch]);
 
   const [selectedChallanId, setSelectedChallanId] = useState<number | null>(
     challans.find((c) => c.status !== 'Paid')?.challanId ?? null
@@ -49,6 +54,10 @@ export default function FeesChallans() {
     dispatch(setToast(`Downloading Challan PDF for ${challanCode}…`));
   };
 
+  const structure = myStructure?.structure;
+  const heads = structure?.heads || [];
+  const concessions = myStructure?.concessions || [];
+
   return (
     <div className="space-y-6">
       {/* 3 Summary Cards */}
@@ -56,24 +65,105 @@ export default function FeesChallans() {
         <div className="bg-navy text-white rounded-md p-5 shadow-sm">
           <div className="text-xs font-semibold opacity-70 uppercase tracking-wider">Outstanding Balance</div>
           <div className="text-3xl font-headings font-bold mt-1">{summary.outstandingBalance}</div>
-          <div className="text-xs opacity-75 mt-0.5">{summary.dueNotice}</div>
+          <div className="text-xs opacity-75 mt-0.5">{summary.dueNotice || 'Based on active billing cycle'}</div>
         </div>
         <div className="bg-card border border-border rounded-md p-5 shadow-sm">
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">This Month's Challan</div>
           <div className="text-3xl font-headings font-bold text-foreground mt-1">{summary.thisMonthChallan}</div>
-          <div className="mt-1"><StatusChip status={summary.thisMonthStatus} /></div>
+          <div className="mt-1"><StatusChip status={summary.thisMonthStatus || 'Paid'} /></div>
         </div>
         <div className="bg-card border border-border rounded-md p-5 shadow-sm">
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Last Payment</div>
-          <div className="text-3xl font-headings font-bold text-success mt-1">{summary.lastPaymentAmount}</div>
-          <div className="text-xs text-muted-foreground mt-0.5">{summary.lastPaymentDate}</div>
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Net Monthly Fee</div>
+          <div className="text-3xl font-headings font-bold text-success mt-1">
+            {myStructure ? `Rs. ${myStructure.netMonthlyRecurring.toLocaleString()}` : summary.lastPaymentAmount}
+          </div>
+          <div className="text-xs text-muted-foreground mt-0.5">
+            {concessions.length > 0 ? `Includes ${concessions[0].concessionType.toLowerCase().replace(/_/g, ' ')}` : 'Approved schedule rate'}
+          </div>
         </div>
+      </div>
+
+      {/* Dynamic Class Approved Fee Structure Card */}
+      <div className="bg-card border border-border rounded-md p-5 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-3">
+          <div>
+            <div className="font-headings font-bold text-base text-foreground flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-primary" />
+              <span>
+                {myStructure?.student?.className || 'Class'} Approved Fee Schedule
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Academic Session {structure?.academicSession || '2026-27'} · Effective From {structure?.effectiveFrom || 'Current Term'}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono font-bold text-primary bg-secondary px-3 py-1 rounded-sm">
+              Standard: Rs. {(structure?.totalMonthlyRecurring || 0).toLocaleString()} / mo
+            </span>
+            {myStructure && myStructure.discountAmount > 0 && (
+              <span className="text-xs font-mono font-bold text-success bg-success-bg px-2.5 py-1 rounded-sm border border-success/30">
+                Net: Rs. {myStructure.netMonthlyRecurring.toLocaleString()} / mo
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Fee Heads Grid */}
+        {structureLoading && !structure ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            {[1, 2, 3, 4].map((n) => (
+              <div key={n} className="bg-muted/40 h-20 rounded-md animate-pulse" />
+            ))}
+          </div>
+        ) : heads.length === 0 ? (
+          <div className="text-xs text-muted-foreground py-3">Fee schedule being finalized by administration.</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {heads.map((h) => {
+              const headTitle = h.head.charAt(0).toUpperCase() + h.head.slice(1).toLowerCase();
+              return (
+                <div key={h.id || h.head} className="p-3 rounded-md bg-muted/30 border border-border flex flex-col justify-between gap-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-foreground">{headTitle} Fee</span>
+                    <span className="text-[10px] text-muted-foreground font-mono">
+                      {h.isRecurring ? 'Monthly' : 'One-Time'}
+                    </span>
+                  </div>
+                  <div className="text-base font-bold font-mono text-primary">
+                    Rs. {Number(h.amount).toLocaleString()}
+                  </div>
+                  {h.description && (
+                    <div className="text-[10px] text-muted-foreground truncate">{h.description}</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Active Concessions Strip */}
+        {concessions.length > 0 && (
+          <div className="p-3 rounded-sm bg-emerald-50 border border-emerald-200/80 flex items-center justify-between text-xs text-emerald-900">
+            <div className="flex items-center gap-2">
+              <Tag className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>
+                <strong className="font-semibold">{concessions[0].concessionType.replace(/_/g, ' ')}: </strong>
+                {concessions[0].reason}
+              </span>
+            </div>
+            <span className="font-mono font-bold text-emerald-800">
+              -Rs. {myStructure?.discountAmount.toLocaleString()} discount
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Notice Banner */}
       <div className="bg-amber-50 border border-amber-200 rounded-md p-3.5 text-xs text-amber-800 flex items-center gap-2">
         <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-        <span>Your payment will be reflected as paid after the school accounts desk verifies your submitted proof.</span>
+        <span>Official 1Link 10-digit consumer numbers are assigned to each issued challan. Payments are verified by school accounts.</span>
       </div>
 
       {/* Challans List */}
@@ -88,7 +178,11 @@ export default function FeesChallans() {
           </button>
         </div>
         {challans.length === 0 ? (
-          <div className="text-sm text-muted-foreground py-4">No challans found.</div>
+          <div className="text-xs text-muted-foreground py-6 text-center space-y-1">
+            <Receipt className="w-8 h-8 text-muted-foreground/50 mx-auto mb-2" />
+            <div className="font-medium text-foreground">No active dues or overdue challans</div>
+            <div>All billing is currently settled up to date according to your approved class fee schedule.</div>
+          </div>
         ) : (
           <div className="divide-y divide-border">
             {challans.map((ch) => (

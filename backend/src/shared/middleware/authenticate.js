@@ -80,6 +80,7 @@ export async function authenticate(req, res, next) {
       id: user.id,
       username: user.username,
       role: user.role_code,
+      role_code: user.role_code,
       roleId: user.role_id,
       sid: decoded.sid,
       permissions

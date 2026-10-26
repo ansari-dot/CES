@@ -76,7 +76,7 @@ export interface TimetableDay {
   label: string; // "Mon 19"
 }
 
-export type TimezoneSource = 'ip' | 'browser' | 'fallback';
+export type TimezoneSource = 'ip' | 'browser' | 'fallback' | 'manual';
 
 interface ClassesState {
   nextClass: NextClass;

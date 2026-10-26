@@ -561,13 +561,15 @@ export const payrollRepository = {
   async getTeacherDutySummary({ teacherId, payrollMonth }) {
     const teacher = await db('teachers')
       .join('users', 'teachers.user_id', 'users.id')
-      .where('teachers.id', teacherId)
+      .where((qb) => {
+        qb.where('teachers.id', teacherId).orWhere('teachers.user_id', teacherId);
+      })
       .select('teachers.id', 'teachers.employee_no as staffIdentifier', 'users.full_name as teacherName')
       .first();
 
     if (!teacher) return null;
 
-    const lessons = await db('timetable_lessons').where('teacher_id', teacherId);
+    const lessons = await db('timetable_lessons').where('teacher_id', teacher.id);
 
     const scheduledLessons = lessons.length;
     const completedLessons = lessons.filter((l) => l.status === 'COMPLETED').length;

@@ -165,11 +165,15 @@ export default function Dashboard() {
                 <div key={t.id} className={`border border-border rounded-sm p-3 ${t.submissionStatus === 'PENDING' ? 'bg-warning-bg/50' : ''}`}>
                   <div className="text-sm font-semibold text-foreground">{t.title}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">{t.subjectName} · {t.maxMarks} marks</div>
-                  {t.submissionStatus === 'SUBMITTED' && (
+                  {t.submissionStatus === 'GRADED' ? (
                     <div className="text-xs text-success font-semibold flex items-center gap-1 mt-0.5">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Submitted
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Graded {t.marksAwarded != null ? `(${t.marksAwarded}/${t.maxMarks})` : ''}
                     </div>
-                  )}
+                  ) : t.submissionStatus === 'SUBMITTED' ? (
+                    <div className="text-xs text-info font-semibold flex items-center gap-1 mt-0.5">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Submitted (Awaiting Grade)
+                    </div>
+                  ) : null}
                 </div>
               ))
             )}

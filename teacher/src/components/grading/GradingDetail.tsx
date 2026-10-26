@@ -3,6 +3,9 @@ import { useAppDispatch, useAppSelector } from '../../store';
 import {
   gradeSubmission,
   returnForResubmission,
+  gradeSubmissionThunk,
+  fetchTasksThunk,
+  fetchSubmissionsThunk,
 } from '../../store/slices/tasksSlice';
 import { addToast } from '../../store/slices/uiSlice';
 
@@ -46,37 +49,53 @@ export const GradingDetail: React.FC = () => {
   const handlePublishGrade = async () => {
     setIsSubmitting(true);
     try {
-      const subNum = parseInt(submission.id.replace(/\D/g, ''), 10) || 1;
-      await fetch(`/api/v1/tasks/submissions/${subNum}/grade`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          marksAwarded: score,
-          rubricScores: { accuracy, steps, simplification },
-          feedback
-        })
-      });
-    } catch (err) {
-      console.warn('Backend grade submission failed, fallback to local state:', err);
-    }
-    setTimeout(() => {
-      dispatch(
-        gradeSubmission({
+      const result = await dispatch(
+        gradeSubmissionThunk({
           submissionId: submission.id,
           marksAwarded: score,
-          feedback,
           rubricScores: { accuracy, steps, simplification },
+          feedback,
         })
       );
+
+      if (gradeSubmissionThunk.fulfilled.match(result)) {
+        dispatch(
+          gradeSubmission({
+            submissionId: submission.id,
+            marksAwarded: score,
+            feedback,
+            rubricScores: { accuracy, steps, simplification },
+          })
+        );
+        dispatch(
+          addToast({
+            message: `Grade published for ${submission.studentName} (${score}/${submission.maxMarks}) and synced to Student Portal.`,
+            type: 'success',
+          })
+        );
+        // Refresh tasks and submissions so queue & class average update live
+        dispatch(fetchTasksThunk());
+        if (currentTask) {
+          dispatch(fetchSubmissionsThunk(currentTask.id));
+        }
+      } else {
+        dispatch(
+          addToast({
+            message: String(result.payload) || 'Failed to publish grade to server.',
+            type: 'error',
+          })
+        );
+      }
+    } catch (err: any) {
       dispatch(
         addToast({
-          message: `Grade published for ${submission.studentName} (${score}/${submission.maxMarks}) and synced to Student Portal.`,
-          type: 'success',
+          message: err.message || 'Error publishing grade.',
+          type: 'error',
         })
       );
+    } finally {
       setIsSubmitting(false);
-    }, 700);
+    }
   };
 
   const handleReturnResubmission = () => {

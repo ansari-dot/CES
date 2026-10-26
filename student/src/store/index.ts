@@ -6,6 +6,7 @@ import resourcesReducer from './slices/resourcesSlice';
 import feesReducer from './slices/feesSlice';
 import attendanceReducer from './slices/attendanceSlice';
 import notificationsReducer from './slices/notificationsSlice';
+import gradesReducer from './slices/gradesSlice';
 
 export const store = configureStore({
   reducer: {
@@ -16,6 +17,7 @@ export const store = configureStore({
     fees: feesReducer,
     attendance: attendanceReducer,
     notifications: notificationsReducer,
+    grades: gradesReducer,
   },
 });
 

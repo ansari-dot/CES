@@ -137,5 +137,24 @@ export const studentsController = {
     } catch (error) {
       next(error);
     }
+  },
+
+  async getMyGrades(req, res, next) {
+    try {
+      const grades = await studentsService.getStudentGrades(req.user.id, true);
+      return sendSuccess(res, grades);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getStudentGrades(req, res, next) {
+    try {
+      const studentId = Number(req.params.id);
+      const grades = await studentsService.getStudentGrades(studentId, false);
+      return sendSuccess(res, grades);
+    } catch (error) {
+      next(error);
+    }
   }
 };

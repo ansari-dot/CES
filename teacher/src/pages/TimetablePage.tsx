@@ -12,6 +12,13 @@ export const TimetablePage: React.FC = () => {
   const viewMode = useAppSelector((state) => state.timetable.viewMode);
   const dutyRosters = useAppSelector((state) => state.schoolTimetable.dutyRosters);
 
+  const todayStr = new Intl.DateTimeFormat('en-CA').format(new Date());
+  const todayDayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+  const todayLessons = lessons.filter((l) => {
+    if (l.date) return l.date === todayStr;
+    return l.dayOfWeek?.toLowerCase() === todayDayName.toLowerCase();
+  });
+
   return (
     <div className="flex flex-col w-full pb-10">
       {/* Visual Header with Action Chips */}
@@ -45,7 +52,7 @@ export const TimetablePage: React.FC = () => {
               <span className="text-[10px] text-[#777587] font-bold uppercase block">
                 Today&apos;s Load
               </span>
-              <span className="text-sm font-extrabold text-[#121c2a]">{lessons.length} Sessions</span>
+              <span className="text-sm font-extrabold text-[#121c2a]">{todayLessons.length} Sessions</span>
             </div>
           </div>
 
@@ -56,7 +63,7 @@ export const TimetablePage: React.FC = () => {
             <div>
               <span className="text-[10px] text-[#777587] font-bold uppercase block">Delivered</span>
               <span className="text-sm font-extrabold text-[#006c49]">
-                {lessons.filter((l) => l.deliveryLogged || l.status === 'completed').length} Done
+                {todayLessons.filter((l) => l.deliveryLogged || l.status === 'completed').length} Done
               </span>
             </div>
           </div>

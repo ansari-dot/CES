@@ -230,5 +230,22 @@ export const studentsService = {
       passcode: meeting.passcode,
       message: 'Class session link will be accessible 10 minutes prior to scheduled start time.'
     };
+  },
+
+  async getStudentGrades(identifier, isUserId = false) {
+    let studentId = identifier;
+    if (isUserId) {
+      const student = await studentsRepository.getStudentByUserId(identifier);
+      if (!student) {
+        throw new AppError('Student profile not found', 404, ErrorCodes.NOT_FOUND);
+      }
+      studentId = student.id;
+    }
+
+    const report = await studentsRepository.getStudentGrades(studentId);
+    if (!report) {
+      throw new AppError('Student not found', 404, ErrorCodes.NOT_FOUND);
+    }
+    return report;
   }
 };

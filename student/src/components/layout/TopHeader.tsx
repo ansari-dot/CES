@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { Search, Bell, ChevronDown, Menu } from 'lucide-react';
-import { useSelector } from 'react-redux';
+import React, { useState, useRef, useEffect } from 'react';
+import { Search, Bell, ChevronDown, Menu, Globe, Clock, Check } from 'lucide-react';
+import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { RootState } from '../../store';
+import { RootState, AppDispatch } from '../../store';
+import { setTimezone } from '../../store/slices/classesSlice';
+import { COMMON_TIMEZONES, getBrowserTimeZone } from '../../lib/timezone';
 import CommandPaletteModal from '../dialogs/CommandPaletteModal';
 
 interface TopHeaderProps {
@@ -13,9 +15,32 @@ interface TopHeaderProps {
 
 export default function TopHeader({ pageTitle, pageSubtitle, onToggleMobileNav }: TopHeaderProps) {
   const navigate = useNavigate();
+  const dispatch = useDispatch<AppDispatch>();
   const unreadCount = useSelector((state: RootState) => state.notifications.unreadCount);
   const profile = useSelector((state: RootState) => state.student.profile);
+  const studentTz = useSelector((state: RootState) => state.classes.timezone);
+  const timezoneSource = useSelector((state: RootState) => state.classes.timezoneSource);
+
   const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showTzMenu, setShowTzMenu] = useState(false);
+  const tzMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close timezone menu on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (tzMenuRef.current && !tzMenuRef.current.contains(event.target as Node)) {
+        setShowTzMenu(false);
+      }
+    }
+    if (showTzMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showTzMenu]);
+
+  const currentTzOption = COMMON_TIMEZONES.find((t) => t.value === studentTz);
 
   return (
     <>
@@ -34,7 +59,7 @@ export default function TopHeader({ pageTitle, pageSubtitle, onToggleMobileNav }
             {pageTitle}
           </div>
           <div className="text-sm text-muted-foreground hidden sm:block truncate">
-            {pageSubtitle || "Here's your learning overview for today · Mon, 19 Oct 2026"}
+            {pageSubtitle || "Here's your learning overview for today"}
           </div>
         </div>
 
@@ -42,15 +67,107 @@ export default function TopHeader({ pageTitle, pageSubtitle, onToggleMobileNav }
           {/* ⌘K Search Input */}
           <button
             onClick={() => setShowSearchModal(true)}
-            className="hidden md:flex items-center gap-2 bg-muted rounded-sm px-3 py-2 text-sm text-muted-foreground w-[240px] text-left hover:bg-muted/80 cursor-pointer transition"
+            className="hidden md:flex items-center gap-2 bg-muted rounded-sm px-3 py-2 text-sm text-muted-foreground w-[220px] lg:w-[240px] text-left hover:bg-muted/80 cursor-pointer transition"
           >
             <Search className="w-4 h-4 stroke-[2.2]" />
             <span>Search lessons, files…</span>
             <span className="ml-auto text-xs border border-border rounded-sm px-1.5 bg-card">⌘K</span>
           </button>
 
-          <div className="text-xs text-muted-foreground hidden lg:block">
-            Mon, 19 Oct 2026
+          {/* Regional Timezone Selector */}
+          <div className="relative" ref={tzMenuRef}>
+            <button
+              onClick={() => setShowTzMenu((prev) => !prev)}
+              className="flex items-center gap-1.5 bg-muted hover:bg-muted/80 border border-border rounded-sm px-2.5 py-2 text-xs font-medium text-foreground transition cursor-pointer"
+              title={`Active Timezone: ${currentTzOption?.label || studentTz} (${timezoneSource === 'manual' ? 'Custom' : 'Auto-detected'})`}
+              type="button"
+            >
+              <Clock className="w-3.5 h-3.5 text-primary stroke-[2.2]" />
+              <span className="max-w-[80px] sm:max-w-[120px] truncate">
+                {currentTzOption ? currentTzOption.label.split(' ')[0] : studentTz.split('/')[1] || studentTz}
+              </span>
+              <span className="text-[10px] font-mono px-1 py-0.2 bg-primary/10 text-primary font-bold rounded hidden sm:inline">
+                {currentTzOption?.offset || 'Local'}
+              </span>
+              <ChevronDown className="w-3 h-3 text-muted-foreground" />
+            </button>
+
+            {showTzMenu && (
+              <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-card rounded-md shadow-xl border border-border z-50 overflow-hidden">
+                <div className="p-3 bg-muted/50 border-b border-border flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5 text-foreground font-bold text-xs">
+                      <Globe className="w-3.5 h-3.5 text-primary" />
+                      <span>Regional Timezone</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      Class times automatically convert to your timezone
+                    </p>
+                  </div>
+                  {timezoneSource === 'manual' && (
+                    <button
+                      onClick={() => {
+                        const bTz = getBrowserTimeZone();
+                        dispatch(setTimezone({ timezone: bTz || 'Asia/Karachi', source: 'browser' }));
+                        setShowTzMenu(false);
+                      }}
+                      className="text-[10px] font-bold text-primary hover:underline bg-card px-2 py-1 rounded border border-border shrink-0 cursor-pointer"
+                      title="Reset to browser auto-detection"
+                    >
+                      Auto-Detect
+                    </button>
+                  )}
+                </div>
+
+                <div className="p-1 max-h-60 overflow-y-auto divide-y divide-border/30">
+                  {COMMON_TIMEZONES.map((tz) => {
+                    const isSelected = tz.value === studentTz;
+                    return (
+                      <button
+                        key={tz.value}
+                        onClick={() => {
+                          dispatch(setTimezone({ timezone: tz.value, source: 'manual' }));
+                          setShowTzMenu(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                          isSelected
+                            ? 'bg-primary text-primary-foreground font-semibold'
+                            : 'hover:bg-muted text-foreground'
+                        }`}
+                      >
+                        <div className="flex flex-col">
+                          <span>{tz.label}</span>
+                          <span
+                            className={`text-[10px] ${
+                              isSelected ? 'text-primary-foreground/75' : 'text-muted-foreground'
+                            }`}
+                          >
+                            {tz.value}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                              isSelected ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'
+                            }`}
+                          >
+                            {tz.offset}
+                          </span>
+                          {isSelected && <Check className="w-3.5 h-3.5 stroke-[2.5]" />}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="p-2 bg-muted/40 border-t border-border text-[10px] text-muted-foreground flex items-center justify-between">
+                  <span>School Time: Asia/Karachi (PKT)</span>
+                  <span className="font-semibold text-primary">
+                    {timezoneSource === 'manual' ? 'Custom Selected' : 'Auto (Detected)'}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Notifications Button */}

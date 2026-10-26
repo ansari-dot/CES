@@ -34,6 +34,29 @@ export const feesController = {
     }
   },
 
+  async getMyFeeStructure(req, res, next) {
+    try {
+      const student = await db('students').where({ user_id: req.user.id }).first();
+      if (!student) {
+        return sendSuccess(res, null);
+      }
+      const data = await feesService.getStudentFeeStructure(student.id);
+      return sendSuccess(res, data);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getStudentFeeStructure(req, res, next) {
+    try {
+      const id = Number(req.params.id);
+      const data = await feesService.getStudentFeeStructure(id);
+      return sendSuccess(res, data);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   // 2. Concessions
   async createConcession(req, res, next) {
     try {
@@ -109,9 +132,16 @@ export const feesController = {
   async getChallans(req, res, next) {
     try {
       const { classId, studentId, billingMonth, status, search } = req.query;
+      let finalStudentId = studentId ? Number(studentId) : null;
+
+      if (req.user && req.user.role === 'STUDENT') {
+        const student = await db('students').where({ user_id: req.user.id }).first();
+        if (student) finalStudentId = student.id;
+      }
+
       const challans = await feesService.getChallans({
         classId: classId ? Number(classId) : null,
-        studentId: studentId ? Number(studentId) : null,
+        studentId: finalStudentId,
         billingMonth: billingMonth || null,
         status: status || null,
         search: search || null

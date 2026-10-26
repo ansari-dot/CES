@@ -29,11 +29,52 @@ export interface ProofStatus {
   referenceNo?: string;
 }
 
+export interface FeeHeadItem {
+  id: number;
+  head: string;
+  amount: number;
+  isRecurring: boolean;
+  description?: string;
+}
+
+export interface StudentFeeStructure {
+  student: {
+    id: number;
+    studentName: string;
+    admissionNo: string;
+    rollNo: string;
+    classId: number;
+    classNumber: number;
+    className: string;
+  };
+  structure: {
+    id: number;
+    sessionId: number;
+    academicSession: string;
+    classId: number;
+    totalMonthlyRecurring: number;
+    effectiveFrom: string;
+    status: string;
+    heads: FeeHeadItem[];
+  } | null;
+  concessions: Array<{
+    id: number;
+    concessionType: string;
+    value: number;
+    reason: string;
+    createdAt?: string;
+  }>;
+  discountAmount: number;
+  netMonthlyRecurring: number;
+}
+
 interface FeesState {
   summary: FeeSummary;
   challans: ChallanItem[];
   proofStatus: ProofStatus;
+  myStructure: StudentFeeStructure | null;
   loading: boolean;
+  structureLoading: boolean;
   submitting: boolean;
 }
 
@@ -48,13 +89,23 @@ const initialState: FeesState = {
   },
   challans: [],
   proofStatus: { hasSubmitted: false, verifiedHistory: '' },
+  myStructure: null,
   loading: false,
+  structureLoading: false,
   submitting: false,
 };
 
 function formatRs(amount: number): string {
   return `Rs. ${Number(amount).toLocaleString('en-PK')}`;
 }
+
+export const fetchMyFeeStructure = createAsyncThunk('fees/fetchMyStructure', async (_, { rejectWithValue }) => {
+  try {
+    return await requestApi<StudentFeeStructure>('/api/v1/fees/my-structure');
+  } catch (err: any) {
+    return rejectWithValue(err.message || 'Failed to fetch fee schedule');
+  }
+});
 
 export const fetchChallans = createAsyncThunk('fees/fetchChallans', async (_, { rejectWithValue }) => {
   try {
@@ -159,6 +210,17 @@ const feesSlice = createSlice({
         if (action.payload?.transactionReference) {
           state.proofStatus.referenceNo = action.payload.transactionReference;
         }
+      })
+      // Fee Structure
+      .addCase(fetchMyFeeStructure.pending, (state) => {
+        state.structureLoading = true;
+      })
+      .addCase(fetchMyFeeStructure.fulfilled, (state, action) => {
+        state.structureLoading = false;
+        state.myStructure = action.payload;
+      })
+      .addCase(fetchMyFeeStructure.rejected, (state) => {
+        state.structureLoading = false;
       });
   },
 });

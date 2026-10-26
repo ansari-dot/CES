@@ -22,8 +22,9 @@ export const VisualTimetableHub: React.FC = () => {
     dutyRosters,
     isLoading,
   } = useAppSelector((state) => state.schoolTimetable);
+  const teacherTz = useAppSelector((state) => state.timetable.timezone);
 
-  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   const filteredSessions = sessions.filter((s) => {
     if (s.dayOfWeek.toLowerCase() !== activeDay.toLowerCase()) return false;
@@ -85,8 +86,14 @@ export const VisualTimetableHub: React.FC = () => {
           })}
         </div>
 
-        {/* Tab Buttons */}
-        <div className="flex items-center gap-1 bg-[#eff4ff] p-1 rounded-lg border border-indigo-100">
+        {/* Timezone badge & Tab Buttons */}
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-50/70 border border-indigo-100 text-[#3525cd] text-xs font-semibold">
+            <span className="material-symbols-outlined text-[15px]">schedule</span>
+            <span>{teacherTz}</span>
+          </div>
+
+          <div className="flex items-center gap-1 bg-[#eff4ff] p-1 rounded-lg border border-indigo-100">
           <button
             onClick={() => dispatch(setActiveViewTab('sessions'))}
             className={`px-3 py-1 rounded-md text-xs font-bold transition-colors flex items-center gap-1 ${
@@ -134,6 +141,7 @@ export const VisualTimetableHub: React.FC = () => {
             </span>
           </button>
         </div>
+        </div>
       </div>
 
       {/* VIEW 1: Clean Sessions Table (Rows) */}
@@ -146,8 +154,7 @@ export const VisualTimetableHub: React.FC = () => {
                   <th className="px-3 w-28">Time</th>
                   <th className="px-3 w-20">Class</th>
                   <th className="px-3 min-w-[150px]">Subject &amp; Topic</th>
-                  <th className="px-3 w-24">Room</th>
-                  <th className="px-3 w-24">Faculty</th>
+                  <th className="px-3 w-28">Room</th>
                   <th className="px-3 text-center w-20">Status</th>
                   <th className="px-3 text-right w-36">Actions</th>
                 </tr>
@@ -155,7 +162,7 @@ export const VisualTimetableHub: React.FC = () => {
               <tbody className="divide-y divide-slate-100">
                 {filteredSessions.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-[#777587]">
+                    <td colSpan={6} className="py-12 text-center text-[#777587]">
                       <span className="material-symbols-outlined text-3xl mb-1 text-slate-300">event_busy</span>
                       <p className="font-medium text-xs">No class sessions scheduled for {activeDay}.</p>
                     </td>
@@ -176,7 +183,7 @@ export const VisualTimetableHub: React.FC = () => {
                       <td className="px-3 font-mono font-bold text-[#121c2a]">
                         <div className="flex items-center gap-1">
                           <span className="material-symbols-outlined text-[14px] text-[#3525cd]">schedule</span>
-                          <span>{s.startTime.split(' ')[0]} - {s.endTime.split(' ')[0]}</span>
+                          <span>{s.startTime} - {s.endTime}</span>
                         </div>
                       </td>
 
@@ -208,18 +215,6 @@ export const VisualTimetableHub: React.FC = () => {
                           <span className="material-symbols-outlined text-[14px] text-[#777587]">meeting_room</span>
                           {s.roomNumber}
                         </span>
-                      </td>
-
-                      {/* Faculty */}
-                      <td className="px-3">
-                        <div className="flex items-center gap-1.5">
-                          <img
-                            src={s.teacherAvatar}
-                            alt={s.teacherName}
-                            className="w-5 h-5 rounded-full object-cover"
-                          />
-                          <span className="truncate max-w-[90px]">{s.teacherName.split(',')[0]}</span>
-                        </div>
                       </td>
 
                       {/* Status */}

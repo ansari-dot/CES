@@ -56,6 +56,7 @@ export function useTimezone() {
       if (cancelled || !next) return;
 
       const cur = currentRef.current;
+      if (cur.source === 'manual') return;
       if (next.timezone !== cur.timezone || next.source !== cur.source || next.schoolTimezone !== undefined) {
         dispatch(setTimezone(next));
       }

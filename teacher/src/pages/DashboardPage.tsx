@@ -1,26 +1,110 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
 import { toggleClockInOut } from '../store/slices/authSlice';
 import { setCurrentTab, addToast } from '../store/slices/uiSlice';
-import { openLessonModal, markLessonStarted } from '../store/slices/timetableSlice';
+import { openLessonModal, markLessonStarted, endLessonThunk } from '../store/slices/timetableSlice';
 import { KeyMetricsWidget } from '../components/dashboard/KeyMetricsWidget';
 import { requestApi } from '../services/api';
 import { TimetableLesson } from '../types';
+import { dateKeyInZone, dayOfWeekInZone } from '../lib/timezone';
 
 export const DashboardPage: React.FC = () => {
   const dispatch = useAppDispatch();
   const teacher = useAppSelector((state) => state.auth.teacher);
   const lessons = useAppSelector((state) => state.timetable.lessons);
+  const teacherTz = useAppSelector((state) => state.timetable.timezone);
   const tasks = useAppSelector((state) => state.tasks.tasks);
   const duty = useAppSelector((state) => state.duty.summary);
   const notices = useAppSelector((state) => state.notices.notices);
   const [startingLessonId, setStartingLessonId] = useState<string | null>(null);
 
-  const todayLessons = lessons.slice(0, 4);
-  const nextLesson = lessons.find((l) => l.status === 'scheduled' || l.status === 'live') || lessons[0];
+  // Live in-session duty tracking state
+  const [liveElapsedSeconds, setLiveElapsedSeconds] = useState<number>(0);
+  const [showEndModal, setShowEndModal] = useState<boolean>(false);
+  const [endTopic, setEndTopic] = useState<string>('');
+  const [endNotes, setEndNotes] = useState<string>('');
+  const [isEndingLesson, setIsEndingLesson] = useState<boolean>(false);
+
+  const todayStr = useMemo(() => {
+    return dateKeyInZone(new Date(), teacherTz || 'Asia/Karachi');
+  }, [teacherTz]);
+
+  const todayDayName = useMemo(() => {
+    return dayOfWeekInZone(new Date(), teacherTz || 'Asia/Karachi');
+  }, [teacherTz]);
+
+  const todayLessons = useMemo<TimetableLesson[]>(() => {
+    return lessons
+      .filter((l: TimetableLesson) => {
+        if (l.date) {
+          return l.date === todayStr;
+        }
+        return l.dayOfWeek?.toLowerCase() === todayDayName.toLowerCase();
+      })
+      .slice(0, 6);
+  }, [lessons, todayStr, todayDayName]);
+
+  const liveLesson = useMemo<TimetableLesson | undefined>(() => {
+    return todayLessons.find((l: TimetableLesson) => l.status === 'live');
+  }, [todayLessons]);
+
+  const nextLesson = useMemo<TimetableLesson | undefined>(() => {
+    return liveLesson || todayLessons.find((l: TimetableLesson) => l.status === 'scheduled') || todayLessons[0];
+  }, [liveLesson, todayLessons]);
+
+  // Active in-session stopwatch effect
+  useEffect(() => {
+    if (!liveLesson) {
+      setLiveElapsedSeconds(0);
+      return;
+    }
+
+    const getStartTimestamp = () => {
+      if (liveLesson.actualStartTime) {
+        const parsed = new Date(liveLesson.actualStartTime).getTime();
+        if (!isNaN(parsed) && parsed > 0) return parsed;
+      }
+      const todayStr = new Date().toISOString().split('T')[0];
+      let timeStr = (liveLesson.startTime || '').trim();
+      if (timeStr.includes('AM') || timeStr.includes('PM')) {
+        const [t, mod] = timeStr.split(' ');
+        let [h, m] = t.split(':').map(Number);
+        if (mod === 'PM' && h < 12) h += 12;
+        if (mod === 'AM' && h === 12) h = 0;
+        timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+      } else if (timeStr.length === 5) {
+        timeStr = `${timeStr}:00`;
+      }
+      const d = new Date(`${liveLesson.date || todayStr}T${timeStr}`);
+      if (!isNaN(d.getTime())) return d.getTime();
+      return Date.now();
+    };
+
+    const startMs = getStartTimestamp();
+    const updateElapsed = () => {
+      const diffSec = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+      setLiveElapsedSeconds(diffSec);
+    };
+
+    updateElapsed();
+    const timer = setInterval(updateElapsed, 1000);
+    return () => clearInterval(timer);
+  }, [liveLesson?.id, liveLesson?.actualStartTime, liveLesson?.status]);
+
+  const formatStopwatch = (totalSeconds: number) => {
+    const hrs = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+    if (hrs > 0) {
+      return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
+  const liveHoursAccrued = (liveElapsedSeconds / 3600).toFixed(2);
 
   const isStartingIn5Min = (() => {
-    if (!nextLesson) return false;
+    if (!nextLesson || liveLesson) return false;
     const now = Date.now();
     const todayStr = new Date().toISOString().split('T')[0];
     let timeStr = (nextLesson.startTime || '').trim();
@@ -38,6 +122,42 @@ export const DashboardPage: React.FC = () => {
     const diff = (d.getTime() - now) / 60000;
     return diff > 0 && diff <= 5;
   })();
+
+  const handleOpenEndModal = (lesson: TimetableLesson) => {
+    setEndTopic(lesson.topic || lesson.subject || 'Core Curriculum Instruction');
+    setEndNotes('');
+    setShowEndModal(true);
+  };
+
+  const handleConfirmEndLesson = async () => {
+    if (!liveLesson?.rawId) return;
+    try {
+      setIsEndingLesson(true);
+      await dispatch(
+        endLessonThunk({
+          lessonId: liveLesson.rawId,
+          topic: endTopic,
+          notes: endNotes,
+        })
+      ).unwrap();
+      setShowEndModal(false);
+      dispatch(
+        addToast({
+          message: `Class concluded! +${liveHoursAccrued} verified teaching hours credited to your payroll duty ledger.`,
+          type: 'success',
+        })
+      );
+    } catch (err: any) {
+      dispatch(
+        addToast({
+          message: err || 'Failed to conclude session. Please try again.',
+          type: 'error',
+        })
+      );
+    } finally {
+      setIsEndingLesson(false);
+    }
+  };
 
   const handleLaunchZoomLesson = async (lesson: TimetableLesson) => {
     try {
@@ -142,17 +262,29 @@ export const DashboardPage: React.FC = () => {
       <KeyMetricsWidget />
       {/* Duty & Campus Status Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        <div className="bg-white px-4 py-3 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+        <div className={`bg-white px-4 py-3 rounded-xl border shadow-xs flex items-center justify-between ${
+          liveLesson ? 'border-emerald-300 ring-2 ring-emerald-500/20 bg-gradient-to-r from-emerald-50/50 to-white' : 'border-slate-200'
+        }`}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#006c49] flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[20px]">schedule</span>
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+              liveLesson ? 'bg-emerald-600 text-white animate-pulse' : 'bg-emerald-50 text-[#006c49]'
+            }`}>
+              <span className="material-symbols-outlined text-[20px]">{liveLesson ? 'timer' : 'schedule'}</span>
             </div>
             <div>
-              <span className="text-[10px] font-bold text-[#777587] uppercase tracking-wider block">
-                Teaching Duty
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold text-[#777587] uppercase tracking-wider block">
+                  Teaching Duty
+                </span>
+                {liveLesson && (
+                  <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 text-[9px] font-extrabold rounded-full animate-pulse flex items-center gap-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping"></span>
+                    Live Now
+                  </span>
+                )}
+              </div>
               <span className="text-sm font-extrabold text-[#121c2a]">
-                {duty.totalDutyHours} / {duty.targetDutyHours}h Logged
+                {duty.totalDutyHours}h {liveLesson ? `(+${liveHoursAccrued}h)` : ''} / {duty.targetDutyHours}h Logged
               </span>
             </div>
           </div>
@@ -193,7 +325,9 @@ export const DashboardPage: React.FC = () => {
               <span className="text-[10px] font-bold text-[#777587] uppercase tracking-wider block">
                 School Timetable
               </span>
-              <span className="text-sm font-extrabold text-[#121c2a]">Wednesday • Term 2</span>
+              <span className="text-sm font-extrabold text-[#121c2a]">
+                {new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date())} • Term 2
+              </span>
             </div>
           </div>
           <button
@@ -205,33 +339,112 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Hero Banner: Up Next */}
-      {nextLesson ? (
+      {/* Prominent Live In-Session Duty Tracker Banner OR Up Next Hero */}
+      {liveLesson ? (
+        <div className="bg-gradient-to-r from-emerald-700 via-teal-800 to-indigo-900 rounded-2xl p-5 text-white shadow-lg border border-emerald-400/40 relative overflow-hidden">
+          <div className="absolute -right-12 -top-12 w-48 h-48 bg-white/5 rounded-full blur-2xl pointer-events-none"></div>
+          <div className="absolute right-32 -bottom-10 w-36 h-36 bg-emerald-400/10 rounded-full blur-xl pointer-events-none"></div>
+
+          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+            {/* Left Column: Live Status & Class Info */}
+            <div className="space-y-2.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/90 text-white text-[11px] font-black tracking-wider uppercase shadow-xs">
+                  <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
+                  CLASS IN PROGRESS • DUTY TIME TRACKER ACTIVE
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full bg-white/15 backdrop-blur-md text-[11px] font-semibold text-emerald-100 border border-white/10">
+                  Room: {liveLesson.zoomRoomId}
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-200 text-[11px] font-bold border border-amber-300/30">
+                  Host Key: {liveLesson.hostKey || '884422'}
+                </span>
+              </div>
+
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
+                  <span>{liveLesson.className}</span>
+                  <span className="text-emerald-300 font-bold">•</span>
+                  <span>{liveLesson.subject}</span>
+                </h2>
+                <p className="text-xs sm:text-sm text-emerald-100/90 font-medium mt-0.5 max-w-xl">
+                  {liveLesson.topic || 'Core Instruction & Practical Exercises'} • Started at {liveLesson.actualStartTime ? new Date(liveLesson.actualStartTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (liveLesson.startTime || 'Scheduled Time')}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs text-emerald-200">
+                <span className="material-symbols-outlined text-[16px] text-emerald-300">verified_user</span>
+                <span>Zoom Server-to-Server tracking active • Duration automatically logged to monthly Payroll ledger</span>
+              </div>
+            </div>
+
+            {/* Right Column: Running Stopwatch & Action Buttons */}
+            <div className="flex flex-col sm:flex-row sm:items-center lg:flex-col lg:items-end gap-3 shrink-0">
+              {/* Digital Stopwatch & Accruing Hours */}
+              <div className="bg-black/30 backdrop-blur-md px-4 py-2.5 rounded-xl border border-white/15 flex items-center gap-4">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-200 block">
+                    Elapsed Class Time
+                  </span>
+                  <span className="text-2xl sm:text-3xl font-black font-mono tracking-wider text-white">
+                    {formatStopwatch(liveElapsedSeconds)}
+                  </span>
+                </div>
+                <div className="h-8 w-px bg-white/20"></div>
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-200 block">
+                    Accruing Duty
+                  </span>
+                  <span className="text-xl sm:text-2xl font-extrabold text-amber-300">
+                    +{liveHoursAccrued}h
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => handleLaunchZoomLesson(liveLesson)}
+                  disabled={startingLessonId === liveLesson.id}
+                  className="px-4 py-2.5 bg-white hover:bg-emerald-50 text-emerald-950 text-xs font-black rounded-xl shadow-md flex items-center gap-1.5 transition-all transform hover:scale-[1.02]"
+                >
+                  <span className="material-symbols-outlined text-[18px] text-emerald-600">videocam</span>
+                  <span>Re-Join Classroom</span>
+                </button>
+
+                <button
+                  onClick={() => handleOpenEndModal(liveLesson)}
+                  className="px-3.5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl shadow-md flex items-center gap-1.5 transition-colors border border-red-400/40"
+                >
+                  <span className="material-symbols-outlined text-[18px]">stop_circle</span>
+                  <span>End Class &amp; Settle</span>
+                </button>
+
+                <button
+                  onClick={() => dispatch(setCurrentTab('student-attendance'))}
+                  className="px-3 py-2.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-xl border border-white/20 transition-colors"
+                >
+                  Attendance
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : nextLesson ? (
         <div className={`bg-white rounded-xl p-4 border shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 ${
-          nextLesson.status === 'live'
-            ? 'border-emerald-300 bg-gradient-to-r from-emerald-50/60 to-white'
-            : isStartingIn5Min
+          isStartingIn5Min
             ? 'border-amber-300 bg-gradient-to-r from-amber-50/80 to-white'
             : 'border-indigo-200 bg-gradient-to-r from-indigo-50/50 to-white'
         }`}>
           <div className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-xl text-white flex items-center justify-center shrink-0 ${
-              nextLesson.status === 'live'
-                ? 'bg-emerald-600 animate-pulse'
-                : isStartingIn5Min
-                ? 'bg-amber-600 animate-bounce'
-                : 'bg-[#4f46e5]'
+              isStartingIn5Min ? 'bg-amber-600 animate-bounce' : 'bg-[#4f46e5]'
             }`}>
               <span className="material-symbols-outlined text-[22px]">videocam</span>
             </div>
             <div>
               <div className="flex items-center gap-2">
-                {nextLesson.status === 'live' ? (
-                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 animate-pulse flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
-                    LIVE NOW • HOST ACTIVE
-                  </span>
-                ) : isStartingIn5Min ? (
+                {isStartingIn5Min ? (
                   <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 animate-pulse flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
                     STARTS IN 5 MIN • PREPARE TO HOST
@@ -256,9 +469,7 @@ export const DashboardPage: React.FC = () => {
               onClick={() => handleLaunchZoomLesson(nextLesson)}
               disabled={startingLessonId === nextLesson.id}
               className={`px-4 py-2 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 transition-all ${
-                nextLesson.status === 'live'
-                  ? 'bg-emerald-600 hover:bg-emerald-500'
-                  : isStartingIn5Min
+                isStartingIn5Min
                   ? 'bg-amber-600 hover:bg-amber-500 shadow-md ring-2 ring-amber-400/50'
                   : 'bg-[#4f46e5] hover:bg-[#3525cd]'
               }`}
@@ -266,7 +477,7 @@ export const DashboardPage: React.FC = () => {
               <span className={`material-symbols-outlined text-[16px] ${startingLessonId === nextLesson.id ? 'animate-spin' : ''}`}>
                 {startingLessonId === nextLesson.id ? 'sync' : 'videocam'}
               </span>
-              <span>{startingLessonId === nextLesson.id ? 'Launching...' : nextLesson.status === 'live' ? 'Re-Join Live Room' : 'Join Zoom Room'}</span>
+              <span>{startingLessonId === nextLesson.id ? 'Launching...' : 'Join Zoom Room'}</span>
             </button>
             <button
               onClick={() => dispatch(setCurrentTab('student-attendance'))}
@@ -302,6 +513,9 @@ export const DashboardPage: React.FC = () => {
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[#3525cd] text-[18px]">calendar_today</span>
             <h2 className="text-sm font-bold text-[#121c2a]">Today&apos;s Schedule</h2>
+            <span className="text-[10px] font-semibold text-[#3525cd] bg-white border border-indigo-100 px-2 py-0.5 rounded-full shadow-2xs">
+              {teacherTz}
+            </span>
           </div>
           <button
             onClick={() => dispatch(setCurrentTab('timetable'))}
@@ -338,7 +552,7 @@ export const DashboardPage: React.FC = () => {
                 todayLessons.map((l) => (
                   <tr key={l.id} className="hover:bg-slate-50 h-12 transition-colors">
                     <td className="px-3 font-mono font-bold text-[#121c2a]">
-                      {l.startTime.split(' ')[0]} - {l.endTime.split(' ')[0]}
+                      {l.startTime} - {l.endTime}
                     </td>
                     <td className="px-3">
                       <span className="px-2 py-0.5 rounded bg-[#eff4ff] text-[#3525cd] font-bold text-[11px] border border-indigo-100">
@@ -495,6 +709,112 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* End Lesson Confirmation & Duty Settlement Modal */}
+      {showEndModal && liveLesson && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-[22px]">stop_circle</span>
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#121c2a]">Conclude Live Class</h3>
+                  <p className="text-xs text-slate-500">{liveLesson.className} • {liveLesson.subject}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowEndModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            {/* Time tracked summary box */}
+            <div className="bg-emerald-50 rounded-xl p-3.5 border border-emerald-200/80 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold text-emerald-900 block uppercase tracking-wider">
+                  Verified Instruction Time
+                </span>
+                <span className="text-lg font-black text-emerald-800 font-mono">
+                  {formatStopwatch(liveElapsedSeconds)}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[11px] font-bold text-emerald-900 block uppercase tracking-wider">
+                  Payroll Credit
+                </span>
+                <span className="text-lg font-black text-emerald-700">
+                  +{liveHoursAccrued} hrs
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Concluding this session will stamp the leave time, submit verified teaching hours to your payroll record, and make the classroom link available for the next period instructor.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Topic Covered
+                </label>
+                <input
+                  type="text"
+                  value={endTopic}
+                  onChange={(e) => setEndTopic(e.target.value)}
+                  placeholder="e.g. Chapter 4 Practice Problems"
+                  className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-indigo-500 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Teaching / Handover Notes (Optional)
+                </label>
+                <textarea
+                  value={endNotes}
+                  onChange={(e) => setEndNotes(e.target.value)}
+                  placeholder="Notes for academic coordination or homework assigned..."
+                  rows={2}
+                  className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-indigo-500 font-medium resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowEndModal(false)}
+                disabled={isEndingLesson}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmEndLesson}
+                disabled={isEndingLesson}
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm flex items-center gap-1.5 transition-colors disabled:opacity-50"
+              >
+                {isEndingLesson ? (
+                  <>
+                    <span className="material-symbols-outlined text-[16px] animate-spin">sync</span>
+                    <span>Submitting...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                    <span>Confirm &amp; Settle Duty Hours</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -420,7 +420,8 @@ export const zoomService = {
     await timetableRepository.updateLesson(lesson.id, {
       status: 'LIVE',
       session_state: 'LIVE',
-      teacher_joined_at: db.fn.now(3),
+      actual_start_at: lesson.actual_start_at || db.fn.now(3),
+      teacher_joined_at: lesson.teacher_joined_at || db.fn.now(3),
       zoom_meeting_id: meeting.id
     });
 
@@ -501,7 +502,10 @@ export const zoomService = {
     await timetableRepository.updateLesson(lessonId, {
       status: 'COMPLETED',
       session_state: 'COMPLETED',
+      actual_end_at: db.fn.now(3),
       handover_at: db.fn.now(3),
+      topic_covered: topic || lesson.topic_covered,
+      teaching_notes: notes || lesson.teaching_notes,
       handover_notes: notes || 'Instruction concluded'
     });
 
@@ -852,7 +856,9 @@ export const zoomService = {
 
     const teacher = await db('teachers')
       .join('users', 'teachers.user_id', 'users.id')
-      .where('teachers.id', teacherId)
+      .where((qb) => {
+        qb.where('teachers.id', teacherId).orWhere('teachers.user_id', teacherId);
+      })
       .select('teachers.id', 'teachers.employee_no as staffId', 'users.full_name as name', 'users.email')
       .first();
 
@@ -863,7 +869,7 @@ export const zoomService = {
     const lessons = await db('timetable_lessons')
       .leftJoin('classes', 'timetable_lessons.class_id', 'classes.id')
       .leftJoin('subjects', 'timetable_lessons.subject_id', 'subjects.id')
-      .where('timetable_lessons.teacher_id', teacherId)
+      .where('timetable_lessons.teacher_id', teacher.id)
       .where('timetable_lessons.lesson_date', queryDate)
       .select(
         'timetable_lessons.id',
@@ -881,6 +887,7 @@ export const zoomService = {
       .orderBy('timetable_lessons.start_at', 'asc');
 
     let totalTrackedMinutes = 0;
+    let totalLiveMinutes = 0;
     let completedCount = 0;
 
     const detailedLessons = lessons.map((l) => {
@@ -890,6 +897,8 @@ export const zoomService = {
 
       if (start && end) {
         durationMinutes = Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000));
+      } else if (l.status === 'LIVE' && start) {
+        durationMinutes = Math.max(0, Math.round((Date.now() - new Date(start).getTime()) / 60000));
       } else {
         durationMinutes = 0;
       }
@@ -897,6 +906,8 @@ export const zoomService = {
       if (l.status === 'COMPLETED') {
         completedCount++;
         totalTrackedMinutes += durationMinutes;
+      } else if (l.status === 'LIVE') {
+        totalLiveMinutes += durationMinutes;
       }
 
       return {
@@ -909,12 +920,14 @@ export const zoomService = {
         actualJoinTime: l.teacher_joined_at || l.actual_start_at,
         actualLeaveTime: l.actual_end_at || l.handover_at,
         trackedMinutes: durationMinutes,
-        trackedHours: Number((durationMinutes / 60).toFixed(2))
+        trackedHours: Number((durationMinutes / 60).toFixed(2)),
+        isLive: l.status === 'LIVE'
       };
     });
 
     const totalTrackedHours = Number((totalTrackedMinutes / 60).toFixed(2));
-    const attendanceStatus = completedCount > 0 ? 'Present (Zoom Verified)' : (lessons.length > 0 ? 'Pending / Not Attended' : 'No Scheduled Lessons');
+    const totalLiveHours = Number((totalLiveMinutes / 60).toFixed(2));
+    const attendanceStatus = completedCount > 0 ? 'Present (Zoom Verified)' : (totalLiveMinutes > 0 ? 'Class in Session (Live)' : (lessons.length > 0 ? 'Pending / Not Attended' : 'No Scheduled Lessons'));
 
     return {
       teacherId: teacher.id,
@@ -926,6 +939,8 @@ export const zoomService = {
       totalCompletedLessons: completedCount,
       totalTrackedMinutes,
       totalTrackedHours,
+      totalLiveMinutes,
+      totalLiveHours,
       lessons: detailedLessons
     };
   }

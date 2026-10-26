@@ -81,6 +81,8 @@ export interface TimetableLesson {
   isCompleted?: boolean;
   actualStartTime?: string;
   actualEndTime?: string;
+  startAt?: string;
+  endAt?: string;
   notes?: string;
   resourceAttachmentUrl?: string;
 }
@@ -313,6 +315,8 @@ export interface DutySummary {
   targetDutyHours: number;
   payrollStatus: 'On Track' | 'Pending Review' | 'Adjusted';
   hourlyRate: string;
+  liveDutyHours?: number;
+  activeLiveCount?: number;
 }
 
 export interface DutyLogItem {

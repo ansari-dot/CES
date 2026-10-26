@@ -248,46 +248,8 @@ export async function seed(knex) {
     });
   }
 
-  // 9. Ensure Class 5 Fee Structure and Monthly Challans
-  let feeStructure = await knex('fee_structures').where({ class_id: class5.id, session_id: session.id }).first();
-  if (!feeStructure) {
-    const [fsId] = await knex('fee_structures').insert({
-      class_id: class5.id,
-      session_id: session.id,
-      total_monthly_recurring: 7500.0,
-      effective_from: '2026-08-01',
-      status: 'ACTIVE',
-      created_by: principalUser.id
-    });
-    feeStructure = { id: fsId };
+  // 9. Fee Structures and Challans are created dynamically by the Principal from the UI
 
-    await knex('fee_structure_heads').insert([
-      { fee_structure_id: fsId, head_type: 'TUITION', amount: 5000.0, is_recurring: 1 },
-      { fee_structure_id: fsId, head_type: 'TECHNOLOGY', amount: 1500.0, is_recurring: 1 },
-      { fee_structure_id: fsId, head_type: 'EXAMINATION', amount: 1000.0, is_recurring: 1 }
-    ]);
-  }
-
-  for (let i = 0; i < createdStudentIds.length; i++) {
-    const sId = createdStudentIds[i];
-    const challan = await knex('fee_challans').where({ student_id: sId, billing_month: '2026-10' }).first();
-    if (!challan) {
-      await knex('fee_challans').insert({
-        challan_number: `CHL-202610-${String(sId).padStart(4, '0')}`,
-        consumer_number: `1000${String(sId).padStart(3, '0')}55${i}`,
-        session_id: session.id,
-        student_id: sId,
-        class_id: class5.id,
-        billing_month: '2026-10',
-        issue_date: todayStr,
-        due_date: '2026-10-31',
-        valid_until: '2026-11-10',
-        total_payable: 7500.0,
-        paid_amount: i === 0 ? 7500.0 : 0.0,
-        status: i === 0 ? 'PAID' : 'UNPAID'
-      });
-    }
-  }
 
   // 10. Ensure Learning Tasks, Resources, and Notices
   const existingTask = await knex('learning_tasks').where({ class_id: class5.id }).first();
