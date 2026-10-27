@@ -6,6 +6,7 @@ import { authenticate } from '../../shared/middleware/authenticate.js';
 import { sendSuccess } from '../../shared/http/response.js';
 import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
+import { canAccessUploadedFile } from './uploads.access.js';
 
 const router = Router();
 
@@ -44,7 +45,8 @@ router.post('/', authenticate, upload.single('file'), (req, res, next) => {
 });
 
 // 2. Stream / Download File with Range Requests & Buffer Streaming
-router.get('/:filename', (req, res, next) => {
+// Requires a session, and the user must be entitled to the record that references the file.
+router.get('/:filename', authenticate, async (req, res, next) => {
   try {
     // Prevent directory traversal attacks
     const safeFilename = path.basename(req.params.filename);
@@ -52,6 +54,11 @@ router.get('/:filename', (req, res, next) => {
 
     if (!fs.existsSync(filePath)) {
       throw new AppError('File not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    const allowed = await canAccessUploadedFile(req.user, `/api/v1/uploads/${safeFilename}`);
+    if (!allowed) {
+      throw new AppError('You do not have access to this file', 403, ErrorCodes.FORBIDDEN);
     }
 
     return streamFile(req, res, filePath);
