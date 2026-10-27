@@ -27,9 +27,10 @@ export const ParentsView: React.FC = () => {
   const [regForm, setRegForm] = useState(emptyRegForm());
   const [registering, setRegistering] = useState(false);
 
-  // Modals
   const [selectedParent, setSelectedParent] = useState<Parent | null>(null);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [linkClass, setLinkClass] = useState<string>('');
+  const [linkSearch, setLinkSearch] = useState<string>('');
   const [selectedStudentToLink, setSelectedStudentToLink] = useState<string>('');
   const [linkReason, setLinkReason] = useState<string>('');
   const [linkSubmitting, setLinkSubmitting] = useState(false);
@@ -213,6 +214,10 @@ export const ParentsView: React.FC = () => {
           <button
             onClick={() => {
               setSelectedParent(p);
+              setLinkClass('');
+              setLinkSearch('');
+              setSelectedStudentToLink('');
+              setLinkReason('');
               setIsLinkModalOpen(true);
             }}
             title="Link Student to Guardian"
@@ -360,46 +365,101 @@ export const ParentsView: React.FC = () => {
         </form>
       </Modal>
 
-      {/* Link Parent to Student Modal */}
       {selectedParent && (
         <Modal
           isOpen={isLinkModalOpen}
           onClose={() => setIsLinkModalOpen(false)}
           title={`Link Student to Parent · ${selectedParent.name}`}
-          description={`Verify kinship before authorizing portal access to student academic & financial records.`}
+          description="Select a class, then find the student by name or roll number."
           maxWidth="md"
         >
           <div className="space-y-4 text-xs">
+
+            {/* Step 1 — Class selector */}
             <div>
-              <label className="block text-slate-700 font-medium mb-1">Select Student (Classes 1–8) *</label>
-              <select
-                value={selectedStudentToLink}
-                onChange={(e) => setSelectedStudentToLink(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 focus:bg-white"
-              >
-                <option value="">-- Choose Student to Link --</option>
-                {students
-                  .filter((s) => !selectedParent.linkedStudentIds.includes(s.id))
-                  .map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} (Class {s.classNumber} · Roll {s.rollNumber})
-                    </option>
-                  ))}
-              </select>
+              <label className="block text-slate-700 font-medium mb-1">Step 1 — Select Class *</label>
+              <div className="flex flex-wrap gap-1.5">
+                {[1,2,3,4,5,6,7,8].map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => { setLinkClass(String(c)); setLinkSearch(''); setSelectedStudentToLink(''); }}
+                    className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+                      linkClass === String(c)
+                        ? 'bg-amber-600 border-amber-600 text-white'
+                        : 'bg-white border-slate-200 text-slate-600 hover:border-amber-400 hover:text-amber-700'
+                    }`}
+                  >
+                    Class {c}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div>
-              <label className="block text-slate-700 font-medium mb-1">
-                Relationship Verification Justification <span className="text-rose-500">*</span>
-              </label>
-              <textarea
-                value={linkReason}
-                onChange={(e) => setLinkReason(e.target.value)}
-                rows={3}
-                placeholder="State basis of relationship verification (e.g. B-Form check, birth certificate, verified admission form)..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 focus:bg-white resize-none"
-              />
-            </div>
+            {/* Step 2 — Search + pick student */}
+            {linkClass && (() => {
+              const classStudents = students.filter(
+                (s) => String(s.classNumber) === linkClass && !selectedParent.linkedStudentIds.includes(s.id)
+              );
+              const q = linkSearch.toLowerCase().trim();
+              const filtered = q
+                ? classStudents.filter(
+                    (s) => s.name.toLowerCase().includes(q) || (s.rollNumber || '').toLowerCase().includes(q)
+                  )
+                : classStudents;
+
+              return (
+                <div>
+                  <label className="block text-slate-700 font-medium mb-1">Step 2 — Find Student *</label>
+                  <input
+                    type="text"
+                    value={linkSearch}
+                    onChange={(e) => { setLinkSearch(e.target.value); setSelectedStudentToLink(''); }}
+                    placeholder="Search by name or roll number..."
+                    className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-800 mb-2"
+                  />
+                  {filtered.length === 0 ? (
+                    <p className="text-slate-400 italic py-2 text-center">
+                      {classStudents.length === 0 ? 'No unlinked students in this class.' : 'No students match your search.'}
+                    </p>
+                  ) : (
+                    <div className="max-h-44 overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-100">
+                      {filtered.map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => setSelectedStudentToLink(s.id)}
+                          className={`w-full text-left px-3 py-2 flex items-center justify-between transition-colors ${
+                            selectedStudentToLink === s.id
+                              ? 'bg-amber-50 border-l-2 border-amber-500'
+                              : 'hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="font-medium text-slate-800">{s.name}</span>
+                          <span className="text-slate-400 font-mono text-[11px]">Roll {s.rollNumber || '—'}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Reason */}
+            {selectedStudentToLink && (
+              <div>
+                <label className="block text-slate-700 font-medium mb-1">
+                  Relationship Verification Justification <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  value={linkReason}
+                  onChange={(e) => setLinkReason(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. B-Form verified, birth certificate checked, admission form confirmed..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 focus:bg-white resize-none"
+                />
+              </div>
+            )}
 
             <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-800 leading-tight">
               Privacy Enforced: Parents may only view timetable, attendance, results, and fee challans for explicitly linked children.
@@ -416,8 +476,8 @@ export const ParentsView: React.FC = () => {
               <button
                 type="button"
                 onClick={handleLinkSubmit}
-                disabled={linkSubmitting || !selectedStudentToLink}
-                className="px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium shadow-xs"
+                disabled={linkSubmitting || !selectedStudentToLink || !linkReason.trim()}
+                className="px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium shadow-xs disabled:opacity-50"
               >
                 {linkSubmitting ? 'Linking...' : 'Confirm Linkage'}
               </button>
