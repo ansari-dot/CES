@@ -619,7 +619,7 @@ export const api = {
   },
 
   async addParent(data: { name: string; email: string; phone: string; cnic: string; relationship: string; password: string }): Promise<Parent> {
-    const created = await requestApi<any>('/api/v1/parents', {
+    const created = await requestApi<any>('/api/v1/parents/register', {
       method: 'POST',
       body: JSON.stringify({
         name: data.name.trim(),
