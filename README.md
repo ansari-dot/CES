@@ -128,6 +128,19 @@ npm install
 npm run dev          # Starts Teacher Portal on http://localhost:3001
 ```
 
+### 5. Student and Parent Portals
+```bash
+cd ../student
+npm install
+npm run dev          # Starts Student Portal on http://localhost:3002
+
+cd ../parent
+npm install
+npm run dev          # Starts Parent Portal on http://localhost:3003
+```
+
+Parents sign in with their own parent account. A parent sees only the children linked to that account by the school (Principal → Parents → verify and link), and every parent API call checks that link on the server.
+
 ---
 
 ## 🔑 Default Credentials & Demo Accounts
@@ -136,8 +149,8 @@ npm run dev          # Starts Teacher Portal on http://localhost:3001
 | :--- | :--- | :--- | :--- |
 | **Principal / Admin** | `http://localhost:3000` | `principal` (or `principal@school.pk`) | `PrincipalPassword123!` |
 | **Teacher** | `http://localhost:3001` | `teacher@school.pk` (or `teacher`) | `TeacherPassword123!` |
-| **Student** | Student Portal API | `student@school.pk` (or `student`) | `StudentPassword123!` |
-| **Parent** | Parent Portal API | `parent@school.pk` (or `parent`) | `ParentPassword123!` |
+| **Student** | `http://localhost:3002` | `student@school.pk` (or `student`) | `StudentPassword123!` |
+| **Parent** | `http://localhost:3003` | `parent@school.pk` (or `parent`) | `ParentPassword123!` |
 
 ---
 
