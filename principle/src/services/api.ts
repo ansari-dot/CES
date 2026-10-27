@@ -618,8 +618,16 @@ export const api = {
     return [];
   },
 
-  async addParent(data: { name: string; email: string; phone: string; cnic: string; relationship: string; password: string }): Promise<Parent> {
-    const created = await requestApi<any>('/api/v1/parents/register', {
+  // School-created parent account: the temporary password (typed or generated) is
+  // emailed to the parent and must be changed on first login.
+  async addParent(data: { name: string; email: string; phone: string; cnic: string; relationship: string; password: string }): Promise<{
+    parent: Parent;
+    username: string;
+    temporaryPassword: string;
+    emailSent: boolean;
+    emailStatus: string;
+  }> {
+    const created = await requestApi<any>('/api/v1/parents', {
       method: 'POST',
       body: JSON.stringify({
         name: data.name.trim(),
@@ -627,19 +635,25 @@ export const api = {
         phone: data.phone.trim(),
         cnic: data.cnic.trim(),
         relation: data.relationship.toUpperCase(),
-        password: data.password
+        password: data.password.trim() || undefined
       })
     });
     return {
-      id: created.code || `PRN-${String(created.id).padStart(2, '0')}`,
-      name: created.name || data.name,
-      email: created.email || data.email,
-      phone: created.phone || data.phone,
-      cnicOrIdNumber: created.cnic || data.cnic,
-      linkedStudentIds: [],
-      verificationStatus: 'Pending Verification',
-      accountStatus: 'Active',
-      relationship: data.relationship as any
+      parent: {
+        id: created.code || `PRN-${String(created.id).padStart(2, '0')}`,
+        name: created.name || data.name,
+        email: created.email || data.email,
+        phone: created.phone || data.phone,
+        cnicOrIdNumber: created.cnic || data.cnic,
+        linkedStudentIds: [],
+        verificationStatus: 'Verified',
+        accountStatus: 'Active',
+        relationship: data.relationship as any
+      },
+      username: created.username,
+      temporaryPassword: created.temporaryPassword,
+      emailSent: Boolean(created.emailSent),
+      emailStatus: created.emailStatus || ''
     };
   },
 

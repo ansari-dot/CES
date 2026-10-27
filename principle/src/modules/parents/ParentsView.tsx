@@ -26,6 +26,13 @@ export const ParentsView: React.FC = () => {
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [regForm, setRegForm] = useState(emptyRegForm());
   const [registering, setRegistering] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    name: string;
+    email: string;
+    username: string;
+    temporaryPassword: string;
+    emailSent: boolean;
+  } | null>(null);
 
   const [selectedParent, setSelectedParent] = useState<Parent | null>(null);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
@@ -61,10 +68,25 @@ export const ParentsView: React.FC = () => {
       toast.warning('Name, email and phone are required.');
       return;
     }
+    if (regForm.password.trim() && regForm.password.trim().length < 10) {
+      toast.warning('The temporary password must be at least 10 characters, or leave it blank to generate one.');
+      return;
+    }
     try {
       setRegistering(true);
-      await (api as any).addParent(regForm);
-      toast.success(`Parent account created for ${regForm.name}. They can now log in to the Parent Portal.`);
+      const result = await api.addParent(regForm);
+      setCreatedCredentials({
+        name: result.parent.name,
+        email: result.parent.email,
+        username: result.username,
+        temporaryPassword: result.temporaryPassword,
+        emailSent: result.emailSent
+      });
+      if (result.emailSent) {
+        toast.success(`Parent account created. Login credentials were emailed to ${result.parent.email}.`);
+      } else {
+        toast.warning('Parent account created, but the credentials email could not be sent. Share the temporary password manually.');
+      }
       setIsRegisterModalOpen(false);
       setRegForm(emptyRegForm());
       loadData();
@@ -276,7 +298,7 @@ export const ParentsView: React.FC = () => {
         isOpen={isRegisterModalOpen}
         onClose={() => setIsRegisterModalOpen(false)}
         title="Register New Parent / Guardian"
-        description="Create a portal account for the parent. They will use the email and password to log in to the Parent Portal."
+        description="Create a portal account for the parent. Their login credentials are emailed to them, and they set their own password on first login."
         maxWidth="md"
       >
         <form onSubmit={handleRegisterParent} className="space-y-3 text-xs">
@@ -341,18 +363,19 @@ export const ParentsView: React.FC = () => {
             </div>
           </div>
           <div>
-            <label className="block text-slate-700 font-medium mb-1">Initial Password *</label>
+            <label className="block text-slate-700 font-medium mb-1">Temporary Password</label>
             <input
               type="text"
-              required
+              minLength={10}
               value={regForm.password}
               onChange={(e) => setRegForm({ ...regForm, password: e.target.value })}
-              placeholder="Temporary password to share with parent"
+              placeholder="Leave blank to generate a secure password"
               className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-800 font-mono"
             />
+            <p className="text-[10px] text-slate-400 mt-0.5">At least 10 characters if entered.</p>
           </div>
           <p className="text-[11px] text-slate-500 leading-relaxed">
-            After registration, link this parent to their child(ren) using the Link button in the table. The parent can change their password after first login.
+            The login email and temporary password are emailed to the parent. On first login they must set a new password. After registration, link this parent to their child(ren) using the Link button in the table.
           </p>
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
             <button type="button" onClick={() => setIsRegisterModalOpen(false)} className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">
@@ -364,6 +387,54 @@ export const ParentsView: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Credentials issued for the new parent account */}
+      {createdCredentials && (
+        <Modal
+          isOpen={!!createdCredentials}
+          onClose={() => setCreatedCredentials(null)}
+          title="Parent Account Created"
+          description={
+            createdCredentials.emailSent
+              ? `The credentials below were emailed to ${createdCredentials.email}.`
+              : 'The credentials email could not be sent. Please share these credentials with the parent securely.'
+          }
+          maxWidth="md"
+        >
+          <div className="space-y-3 text-xs">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5 font-mono">
+              <div className="flex justify-between gap-3"><span className="text-slate-500 font-sans">Parent</span><span className="text-slate-900">{createdCredentials.name}</span></div>
+              <div className="flex justify-between gap-3"><span className="text-slate-500 font-sans">Login email</span><span className="text-slate-900">{createdCredentials.email}</span></div>
+              <div className="flex justify-between gap-3"><span className="text-slate-500 font-sans">Username</span><span className="text-slate-900">{createdCredentials.username}</span></div>
+              <div className="flex justify-between gap-3"><span className="text-slate-500 font-sans">Temporary password</span><span className="text-amber-700 font-bold">{createdCredentials.temporaryPassword}</span></div>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              This password is shown only once. The parent will be asked to set a new password on first login.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard
+                    ?.writeText(`Login email: ${createdCredentials.email}\nTemporary password: ${createdCredentials.temporaryPassword}`)
+                    .then(() => toast.success('Credentials copied.'))
+                    .catch(() => toast.error('Could not copy to clipboard.'));
+                }}
+                className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+              >
+                Copy Credentials
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreatedCredentials(null)}
+                className="px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium shadow-xs"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {selectedParent && (
         <Modal
