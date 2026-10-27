@@ -20,7 +20,7 @@ export default function Dashboard() {
   const { profile, dashboard, dashboardLoading } = useSelector((state: RootState) => state.student);
   const [showZoomModal, setShowZoomModal] = useState(false);
 
-  const attendanceRate = dashboard?.attendanceRate ?? 0;
+  const attendanceRate: number | null = dashboard?.attendanceRate ?? null;
   const outstandingFee = dashboard?.totalOutstandingFee ?? 0;
   const pendingTasks = (dashboard?.tasks ?? []).filter((t: any) => t.submissionStatus === 'PENDING').length;
 
@@ -105,7 +105,7 @@ export default function Dashboard() {
 
       {/* Metric Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard icon={CalendarCheck} title="Attendance" value={`${attendanceRate}%`} subtitle="Session total" colorScheme="success" />
+        <MetricCard icon={CalendarCheck} title="Attendance" value={attendanceRate != null ? `${attendanceRate}%` : '—'} subtitle={attendanceRate != null ? 'Session total' : 'Not recorded yet'} colorScheme="success" />
         <MetricCard icon={ClipboardList} title="Pending Tasks" value={String(pendingTasks)} subtitle="Active assignments" colorScheme="warning" />
         <MetricCard icon={TrendingUp} title="Stars Earned" value={String(profile.stars)} subtitle={`${profile.badges} badges`} colorScheme="secondary" />
         <MetricCard

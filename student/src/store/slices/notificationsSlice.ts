@@ -46,6 +46,24 @@ function mapCategory(type: string): string {
   return 'Notices';
 }
 
+/** Page that holds the record behind a notification; notices are read in place. */
+function linkFor(recordType: string | undefined, type: string): string {
+  switch (recordType) {
+    case 'Task':
+      return (type || '').toUpperCase().includes('RESULT') ? '/student/progress' : '/student/homework';
+    case 'Submission':
+      return '/student/progress';
+    case 'Resource':
+      return '/student/learning';
+    case 'Achievement':
+      return '/student/achievements';
+    case 'Notice':
+      return '';
+    default:
+      return '';
+  }
+}
+
 export const fetchNotifications = createAsyncThunk('notifications/fetch', async (_, { rejectWithValue }) => {
   try {
     return await requestApi<any[]>('/api/v1/notices/notifications');
@@ -99,16 +117,19 @@ const notificationsSlice = createSlice({
       .addCase(fetchNotifications.fulfilled, (state, action) => {
         state.loading = false;
         const list: any[] = Array.isArray(action.payload) ? action.payload : [];
-        state.items = list.map((n) => ({
-          id: String(n.id),
-          category: mapCategory(n.type || ''),
-          title: n.title || '',
-          description: n.message || '',
-          time: n.createdAt ? new Date(n.createdAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '',
-          read: Boolean(n.isRead || n.is_read),
-          iconType: mapIconType(n.type || ''),
-          link: '/student/notifications',
-        }));
+        state.items = list.map((n) => {
+          const when = n.createdAt || n.timestamp;
+          return {
+            id: String(n.id),
+            category: mapCategory(n.type || ''),
+            title: n.title || '',
+            description: n.fullMessage || n.message || '',
+            time: when ? new Date(when).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '',
+            read: Boolean(n.isRead || n.is_read),
+            iconType: mapIconType(n.type || ''),
+            link: linkFor(n.relatedRecordType, n.type),
+          };
+        });
         state.unreadCount = state.items.filter((i) => !i.read).length;
       });
 

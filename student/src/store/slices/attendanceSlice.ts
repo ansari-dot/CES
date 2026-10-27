@@ -58,9 +58,10 @@ const attendanceSlice = createSlice({
         const present = Number(d.present || d.presentCount || 0);
         const absent = Number(d.absent || d.absentCount || 0);
         const late = Number(d.late || d.lateCount || 0);
-        const leave = Number(d.leave || d.leaveCount || 0);
+        const leave = Number(d.leave || d.leaveCount || d.excused || 0);
         const total = present + absent + late + leave;
-        const rate = total > 0 ? Math.round((present / total) * 100) : 100;
+        // Same rule as the server and the parent portal: present + late over marked lessons
+        const rate = total > 0 ? Math.round(((present + late) / total) * 100) : 0;
 
         state.overallPercentage = rate;
         state.stats = {

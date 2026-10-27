@@ -70,3 +70,49 @@ export async function requestApi<T>(path: string, options: RequestInit = {}, isR
 
   return (json ? json.data : null) as T;
 }
+
+/**
+ * Opens (or downloads) a file served by the protected uploads endpoint. The file
+ * is fetched with the session cookie (refreshing the session if needed) so the
+ * server can check the user's access before anything is shown. External links
+ * are opened directly.
+ */
+export async function openProtectedFile(url: string, fileName?: string, download = false): Promise<void> {
+  if (!url) throw new Error('No file is attached');
+  if (/^https?:\/\//i.test(url)) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+
+  // Open the tab synchronously so pop-up blockers allow it, then fill it in
+  const viewer = download ? null : window.open('', '_blank');
+
+  let res = await fetch(url, { credentials: 'include' });
+  if (res.status === 401 && (await executeTokenRefresh())) {
+    res = await fetch(url, { credentials: 'include' });
+  }
+  if (!res.ok) {
+    viewer?.close();
+    let message = `Unable to open file (${res.status})`;
+    try {
+      const json = await res.json();
+      message = json?.error?.message || message;
+    } catch {
+      // non-JSON error body
+    }
+    throw new Error(message);
+  }
+
+  const blobUrl = URL.createObjectURL(await res.blob());
+  if (viewer) {
+    viewer.location.href = blobUrl;
+  } else {
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = fileName || url.split('/').pop() || 'download';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+}

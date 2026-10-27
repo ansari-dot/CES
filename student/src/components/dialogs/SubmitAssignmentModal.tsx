@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import Modal from '../common/Modal';
-import { UploadCloud, FileText, CheckCircle2 } from 'lucide-react';
+import { UploadCloud, FileText, CheckCircle2, Paperclip, AlertCircle } from 'lucide-react';
 import { useDispatch } from 'react-redux';
 import { AppDispatch } from '../../store';
-import { submitAssignment, AssignmentItem } from '../../store/slices/assignmentsSlice';
-import { submitTaskFile } from '../../store/slices/assignmentsSlice';
+import { AssignmentItem, submitTaskFile, fetchTasks } from '../../store/slices/assignmentsSlice';
 import { setToast } from '../../store/slices/studentSlice';
+import { openProtectedFile } from '../../services/api';
+
+const MAX_SUBMISSION_BYTES = 10 * 1024 * 1024;
 
 interface SubmitAssignmentModalProps {
   isOpen: boolean;
@@ -21,9 +23,45 @@ export default function SubmitAssignmentModal({ isOpen, onClose, assignment }: S
 
   if (!assignment) return null;
 
+  const openFile = async (url?: string, name?: string, download = false) => {
+    if (!url) return;
+    try {
+      await openProtectedFile(url, name, download);
+    } catch (err: any) {
+      dispatch(setToast(err.message || 'Unable to open the file.'));
+    }
+  };
+
+  const handoutRow = assignment.attachmentUrl ? (
+    <button
+      type="button"
+      onClick={() => openFile(assignment.attachmentUrl, assignment.attachment, true)}
+      className="w-full border border-border rounded-sm p-3 flex items-center justify-between text-xs bg-muted/30 hover:bg-muted/60 cursor-pointer"
+    >
+      <span className="flex items-center gap-2 text-foreground font-medium">
+        <Paperclip className="w-4 h-4 text-primary" />
+        <span className="truncate max-w-[280px]">{assignment.attachment || 'Assignment handout'}</span>
+      </span>
+      <span className="text-primary font-semibold shrink-0">Download</span>
+    </button>
+  ) : null;
+
+  const handleFileChosen = (chosen: File | undefined) => {
+    if (!chosen) return;
+    if (chosen.size > MAX_SUBMISSION_BYTES) {
+      dispatch(setToast('This file is larger than 10 MB. Please upload a smaller file.'));
+      return;
+    }
+    setFile(chosen);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!assignment.taskId) return;
+    if (!file && !notes.trim()) {
+      dispatch(setToast('Attach your work or add a note before submitting.'));
+      return;
+    }
     setIsSubmitting(true);
 
     const result = await dispatch(submitTaskFile({
@@ -35,14 +73,13 @@ export default function SubmitAssignmentModal({ isOpen, onClose, assignment }: S
     setIsSubmitting(false);
 
     if (submitTaskFile.fulfilled.match(result)) {
-      // optimistic local state update
-      dispatch(submitAssignment({ id: assignment.id, fileName: file?.name ?? 'submission' }));
       dispatch(setToast(`Submitted "${assignment.title}" successfully!`));
+      dispatch(fetchTasks());
       setFile(null);
       setNotes('');
       onClose();
     } else {
-      dispatch(setToast(String(result.payload) || 'Submission failed. Please try again.'));
+      dispatch(setToast(String(result.payload || 'Submission failed. Please try again.')));
     }
   };
 
@@ -70,9 +107,10 @@ export default function SubmitAssignmentModal({ isOpen, onClose, assignment }: S
                 <span className="text-sm font-normal text-muted-foreground ml-1">/ {assignment.marks}</span>
               </div>
               <div className="text-xs text-muted-foreground mt-0.5">
-                {assignment.score !== undefined
+                {assignment.score !== undefined && assignment.marks > 0
                   ? `${Math.round((assignment.score / assignment.marks) * 100)}% achieved`
                   : 'Score registered'}
+                {assignment.gradedAt ? ` · Graded ${assignment.gradedAt}` : ''}
               </div>
             </div>
             <div className="px-3 py-1.5 rounded-sm bg-success text-white text-xs font-bold uppercase tracking-wider">
@@ -125,12 +163,33 @@ export default function SubmitAssignmentModal({ isOpen, onClose, assignment }: S
               </div>
               <div className="text-xs text-muted-foreground mt-0.5">
                 Target Marks: {assignment.marks}
+                {assignment.submittedAt ? ` · Submitted ${assignment.submittedAt}` : ''}
+                {assignment.isLate ? ' · after the deadline' : ''}
               </div>
+              {assignment.receiptId && (
+                <div className="text-[11px] text-muted-foreground mt-0.5 font-mono">Receipt {assignment.receiptId}</div>
+              )}
             </div>
             <div className="px-3 py-1 rounded-sm bg-info text-white text-xs font-bold">
               In Review
             </div>
           </div>
+
+          {assignment.submittedFileUrl && (
+            <button
+              type="button"
+              onClick={() => openFile(assignment.submittedFileUrl, assignment.submittedFile)}
+              className="w-full border border-border rounded-sm p-3 flex items-center justify-between text-xs bg-muted/30 hover:bg-muted/60 cursor-pointer"
+            >
+              <span className="flex items-center gap-2 text-foreground font-medium">
+                <FileText className="w-4 h-4 text-error" />
+                <span className="truncate max-w-[280px]">{assignment.submittedFile || 'Your submission'}</span>
+              </span>
+              <span className="text-primary font-semibold shrink-0">View</span>
+            </button>
+          )}
+
+          {handoutRow}
 
           {assignment.instructions && (
             <div className="bg-muted p-3.5 rounded-sm text-xs text-muted-foreground">
@@ -151,9 +210,27 @@ export default function SubmitAssignmentModal({ isOpen, onClose, assignment }: S
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
+          {assignment.resubmitRequested && (
+            <div className="bg-warning-bg border border-warning/30 rounded-sm p-3.5 text-xs text-foreground flex gap-2">
+              <AlertCircle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold">Your teacher returned this for resubmission: </span>
+                {assignment.feedback || 'Please review and submit again.'}
+              </div>
+            </div>
+          )}
+
           {assignment.instructions && (
             <div className="bg-muted p-3.5 rounded-sm text-xs text-muted-foreground">
               <span className="font-semibold text-foreground">Teacher Instructions:</span> {assignment.instructions}
+            </div>
+          )}
+
+          {handoutRow}
+
+          {assignment.status === 'Overdue' && (
+            <div className="text-xs text-error font-semibold">
+              The deadline has passed. Your submission will be marked as late.
             </div>
           )}
 
@@ -167,7 +244,7 @@ export default function SubmitAssignmentModal({ isOpen, onClose, assignment }: S
                 type="file"
                 className="hidden"
                 accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                onChange={(e) => e.target.files?.[0] && setFile(e.target.files[0])}
+                onChange={(e) => handleFileChosen(e.target.files?.[0])}
               />
             </label>
           </div>

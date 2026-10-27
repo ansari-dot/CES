@@ -35,7 +35,7 @@ export interface DashboardData {
   schedule: any[];
   tasks: any[];
   totalOutstandingFee: number;
-  attendanceRate: number;
+  attendanceRate: number | null;
   achievements: any[];
   isRestricted?: boolean;
   suspensionReason?: string;
@@ -308,7 +308,7 @@ const studentSlice = createSlice({
           schedule: data.schedule || [],
           tasks: data.tasks || [],
           totalOutstandingFee: data.totalOutstandingFee ?? 0,
-          attendanceRate: data.attendanceRate ?? 100,
+          attendanceRate: data.attendanceRate ?? null,
           achievements: data.achievements || [],
           isRestricted: data.isRestricted || false,
           suspensionReason: data.suspensionReason,

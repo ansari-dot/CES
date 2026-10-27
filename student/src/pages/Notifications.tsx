@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { Video, ClipboardList, Receipt, CheckCircle, Calendar, Star } from 'lucide-react';
@@ -37,10 +37,15 @@ export default function Notifications() {
     }
   };
 
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   const handleClickItem = (item: NotificationItem) => {
-    dispatch(markAsRead(item.id));          // optimistic local update
-    dispatch(markNotificationRead(item.id)); // sync to backend
+    if (!item.read) {
+      dispatch(markAsRead(item.id));          // optimistic local update
+      dispatch(markNotificationRead(item.id)); // sync to backend
+    }
     if (item.link) navigate(item.link);
+    else setExpandedId((prev) => (prev === item.id ? null : item.id));
   };
 
   const handleMarkAll = () => {
@@ -95,12 +100,14 @@ export default function Notifications() {
                 <span className="text-sm font-semibold text-foreground truncate">{n.title}</span>
                 {!n.read && <span className="w-2 h-2 rounded-full bg-primary shrink-0" />}
               </div>
-              <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{n.description}</div>
+              <div className={`text-xs text-muted-foreground mt-0.5 ${expandedId === n.id ? 'whitespace-pre-wrap' : 'line-clamp-1'}`}>
+                {n.description}
+              </div>
               <div className="text-[11px] text-muted-foreground/75 mt-0.5">{n.time}</div>
             </div>
 
             <span className="text-xs font-semibold text-primary shrink-0 hover:underline">
-              Open
+              {n.link ? 'Open' : expandedId === n.id ? 'Less' : 'Read'}
             </span>
           </div>
         ))}

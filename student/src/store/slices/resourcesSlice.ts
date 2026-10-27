@@ -11,6 +11,8 @@ export interface ResourceItem {
   actionText: string;
   iconType: 'video' | 'pdf' | 'slides' | 'link';
   fileUrl?: string;
+  fileName?: string;
+  description?: string;
 }
 
 interface ResourcesState {
@@ -33,7 +35,8 @@ function mapIconType(resourceType: string): ResourceItem['iconType'] {
   switch ((resourceType || '').toUpperCase()) {
     case 'RECORDING': return 'video';
     case 'SLIDES': return 'slides';
-    case 'PDF': return 'pdf';
+    case 'PDF':
+    case 'DOCUMENT': return 'pdf';
     default: return 'link';
   }
 }
@@ -63,18 +66,24 @@ const resourcesSlice = createSlice({
         const list: any[] = Array.isArray(action.payload) ? action.payload : [];
         state.items = list.map((r) => {
           const iconType = mapIconType(r.resourceType || r.resource_type || '');
-          const isVideo = iconType === 'video';
-          const isPdf = iconType === 'pdf';
+          const isLink = String(r.resourceType || '').toUpperCase() === 'LINK';
+          const details = [
+            r.resourceType || 'File',
+            r.fileSize || '',
+            r.createdAt ? `Uploaded ${new Date(r.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : '',
+          ].filter(Boolean).join(' · ');
           return {
             id: String(r.id),
             title: r.title || '',
             subject: r.subjectName || r.subject_name || '',
             teacher: r.uploadedByName || r.uploaded_by_name || '',
             type: r.resourceType || r.resource_type || 'File',
-            details: `${r.resourceType || 'File'} · ${r.fileSize || ''} · ${r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''}`.replace(/\s·\s$/, ''),
-            actionText: isVideo ? 'Open' : isPdf ? 'Download' : 'Open',
+            details,
+            actionText: isLink ? 'Open Link' : iconType === 'video' ? 'Open' : 'Open / Download',
             iconType,
             fileUrl: r.fileUrl || r.file_url || '',
+            fileName: r.fileName || undefined,
+            description: r.description || '',
           };
         });
       });

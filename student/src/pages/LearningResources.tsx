@@ -4,12 +4,13 @@ import { Search, Play, FileText, Monitor, Link as LinkIcon, Filter, LayoutGrid }
 import { RootState } from '../store';
 import { setSearchQuery, setSelectedSubject, ResourceItem } from '../store/slices/resourcesSlice';
 import { setToast } from '../store/slices/studentSlice';
+import { openProtectedFile } from '../services/api';
 
 export default function LearningResources() {
   const dispatch = useDispatch();
   const { items, searchQuery, selectedSubject } = useSelector((state: RootState) => state.resources);
 
-  const subjects = ['All', 'Mathematics', 'Science', 'English', 'Urdu', 'Computer'];
+  const subjects = ['All', ...Array.from(new Set(items.map((i) => i.subject).filter(Boolean))).sort()];
 
   const filteredItems = items.filter((item) => {
     const matchSubject = selectedSubject === 'All' || item.subject === selectedSubject;
@@ -33,8 +34,16 @@ export default function LearningResources() {
     }
   };
 
-  const handleAction = (item: ResourceItem) => {
-    dispatch(setToast(`Opened: ${item.title}`));
+  const handleAction = async (item: ResourceItem) => {
+    if (!item.fileUrl) {
+      dispatch(setToast('This resource has no file attached.'));
+      return;
+    }
+    try {
+      await openProtectedFile(item.fileUrl, item.fileName);
+    } catch (err: any) {
+      dispatch(setToast(err.message || 'Unable to open this resource.'));
+    }
   };
 
   return (
@@ -88,6 +97,7 @@ export default function LearningResources() {
                 </div>
                 <div className="text-xs text-muted-foreground mb-4">
                   {res.subject} · {res.teacher}
+                  {res.description && <div className="mt-1 line-clamp-2">{res.description}</div>}
                   <div className="mt-0.5 text-[11px] text-muted-foreground/80">{res.details}</div>
                 </div>
               </div>

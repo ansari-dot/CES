@@ -21,6 +21,13 @@ export interface AssignmentItem {
   uploadProgress?: number;
   receiptId?: string;
   feedback?: string;
+  taskType?: string;
+  attachmentUrl?: string;
+  submittedAt?: string;
+  submittedFileUrl?: string;
+  isLate?: boolean;
+  resubmitRequested?: boolean;
+  gradedAt?: string;
 }
 
 export interface Milestone {
@@ -127,17 +134,6 @@ const assignmentsSlice = createSlice({
     setFilter: (state, action: PayloadAction<string>) => {
       state.filter = action.payload;
     },
-    // kept for optimistic local update after successful submit
-    submitAssignment: (state, action: PayloadAction<{ id: string; fileName: string }>) => {
-      const { id, fileName } = action.payload;
-      const item = state.items.find((i) => i.id === id);
-      if (item) {
-        item.status = 'Submitted';
-        item.submittedFile = fileName || 'submission_file.pdf';
-        item.uploadProgress = 100;
-        item.receiptId = `REC-${Math.floor(1000 + Math.random() * 9000)}`;
-      }
-    },
     toggleMilestone: (state, action: PayloadAction<{ projectId: string; milestoneId: string }>) => {
       const { projectId, milestoneId } = action.payload;
       const proj = state.projects.find((p) => p.id === projectId);
@@ -158,20 +154,32 @@ const assignmentsSlice = createSlice({
           const submissionStatus = t.submissionStatus || 'PENDING';
           const status = mapStatus(submissionStatus);
           const deadline = t.dueDate || t.deadline || '';
+          const dateTime = (v: string) =>
+            new Date(v).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
           return {
             id: String(t.id),
             taskId: t.id,
             title: t.title || '',
             subject: t.subjectName || '',
             teacher: t.teacherName || '',
-            dueDate: deadline ? new Date(deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '',
+            dueDate: deadline ? dateTime(deadline) : '',
             dueBadge: dueBadge(deadline, submissionStatus),
-            marks: t.maxMarks || t.totalMarks || t.total_marks || 20,
+            marks: Number(t.maxMarks || t.totalMarks || t.total_marks || 0),
             score: t.marksObtained != null ? Number(t.marksObtained) : undefined,
             status,
             instructions: t.instructions || '',
             feedback: t.feedback || '',
             hoursLeft: hoursUntil(deadline),
+            taskType: t.taskType || 'ASSIGNMENT',
+            attachment: t.handoutName || undefined,
+            attachmentUrl: t.handoutUrl || undefined,
+            submittedAt: t.submittedAt ? dateTime(t.submittedAt) : undefined,
+            submittedFile: t.submittedFileName || undefined,
+            submittedFileUrl: t.submittedFileUrl || undefined,
+            receiptId: t.submissionId ? `REC-${t.submissionId}` : undefined,
+            isLate: Boolean(t.isLate),
+            resubmitRequested: Boolean(t.resubmitRequested),
+            gradedAt: t.gradedAt ? dateTime(t.gradedAt) : undefined,
           };
         });
       });
@@ -188,10 +196,17 @@ const assignmentsSlice = createSlice({
           item.status = 'Submitted';
           item.receiptId = `REC-${sub.id}`;
           item.uploadProgress = 100;
+          item.resubmitRequested = false;
+          item.submittedFile = sub.fileName || undefined;
+          item.submittedFileUrl = sub.fileUrl || undefined;
+          item.isLate = Boolean(sub.isLate);
+          item.submittedAt = sub.submittedAt
+            ? new Date(sub.submittedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+            : undefined;
         }
       });
   },
 });
 
-export const { setFilter, submitAssignment, toggleMilestone } = assignmentsSlice.actions;
+export const { setFilter, toggleMilestone } = assignmentsSlice.actions;
 export default assignmentsSlice.reducer;
