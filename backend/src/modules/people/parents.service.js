@@ -27,7 +27,7 @@ export const parentsService = {
     const existing = await db('users').where({ email }).first();
     if (existing) {
       throw new AppError(
-        `The email "${email}" is already registered to another account. Use a different email for the parent — e.g. if the child uses umarc@gmail.com, register the parent with umarc+parent@gmail.com (Gmail delivers both to the same inbox).`,
+        `The email "${email}" is already registered. Please use a different email than the student's.`,
         409,
         'EMAIL_ALREADY_REGISTERED'
       );

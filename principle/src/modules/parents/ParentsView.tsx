@@ -310,9 +310,7 @@ export const ParentsView: React.FC = () => {
               placeholder="parent@example.com"
               className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-800"
             />
-            <p className="text-[10px] text-slate-400 mt-0.5">
-              Must be different from the child's email. If the parent's email is already used for a student account, use a Gmail alias — e.g. <span className="font-mono">name+parent@gmail.com</span> (delivers to the same inbox).
-            </p>
+            <p className="text-[10px] text-slate-400 mt-0.5">Use a different email than the student's.</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
