@@ -3,6 +3,8 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
+import { AppError } from '../errors/AppError.js';
+import { ErrorCodes } from '../errors/errorCodes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -50,7 +52,7 @@ const fileFilter = (req, file, cb) => {
   if (ALLOWED_MIME_TYPES.has(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error(`Unsupported file type: ${file.mimetype}. Allowed: PDF, Word, PowerPoint, Images, Videos, ZIP.`));
+    cb(new AppError(`Unsupported file type: ${file.mimetype}. Allowed: PDF, Word, PowerPoint, Images, Videos, ZIP.`, 422, ErrorCodes.VALIDATION_ERROR));
   }
 };
 

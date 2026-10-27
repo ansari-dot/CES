@@ -14,6 +14,10 @@ export function errorHandler(err, req, res, next) {
     code = err.code;
     message = err.message;
     details = err.details;
+  } else if (err.name === 'MulterError') {
+    statusCode = 422;
+    code = ErrorCodes.VALIDATION_ERROR;
+    message = err.code === 'LIMIT_FILE_SIZE' ? 'The uploaded file exceeds the maximum allowed size (100 MB).' : `File upload failed: ${err.message}`;
   } else if (err.name === 'ZodError') {
     statusCode = 400;
     code = ErrorCodes.VALIDATION_ERROR;
