@@ -1,79 +1,37 @@
+import fs from 'fs';
 import { tasksService } from './tasks.service.js';
-import { db } from '../../shared/db/knex.js';
 import { sendSuccess } from '../../shared/http/response.js';
+
+function optionalNumber(value) {
+  return value ? Number(value) : null;
+}
+
+/** Remove a just-uploaded file when the request fails, so no orphan file is left behind. */
+function discardUpload(req) {
+  if (req.file?.path) fs.promises.unlink(req.file.path).catch(() => {});
+}
 
 export const tasksController = {
   async createTask(req, res, next) {
     try {
-      const {
-        sessionId,
-        classId,
-        subjectId,
-        teacherId,
-        title,
-        instructions,
-        assignedDate,
-        deadline,
-        totalMarks,
-        gradingScale,
-        rubricCriteria,
-        handoutUrl,
-        handoutName
-      } = req.body;
-
-      // Find teacher ID if not provided explicitly
-      let finalTeacherId = teacherId ? Number(teacherId) : null;
-      if (!finalTeacherId) {
-        const t = await db('teachers').where({ user_id: req.user.id }).first();
-        finalTeacherId = t ? t.id : 1;
-      }
-
-      const task = await tasksService.createTask({
-        sessionId: Number(sessionId || 1),
-        classId: Number(classId),
-        subjectId: Number(subjectId),
-        teacherId: finalTeacherId,
-        title,
-        instructions,
-        assignedDate,
-        deadline,
-        totalMarks: totalMarks ? Number(totalMarks) : 20,
-        gradingScale,
-        rubricCriteria,
-        handoutUrl,
-        handoutName,
-        createdBy: req.user.id
-      });
-
+      const task = await tasksService.createTask(req.user, req.body, req.file || null);
       return sendSuccess(res, task, null, 201);
     } catch (error) {
+      discardUpload(req);
       next(error);
     }
   },
 
   async getTasks(req, res, next) {
     try {
-      const { classId, subjectId, teacherId, status, sessionId } = req.query;
-      let finalClassId = classId ? Number(classId) : null;
-      let studentId = null;
-
-      if (req.user && req.user.role === 'STUDENT') {
-        const student = await db('students').where({ user_id: req.user.id }).first();
-        if (student) {
-          studentId = student.id;
-          if (!finalClassId && student.current_class_id) {
-            finalClassId = student.current_class_id;
-          }
-        }
-      }
-
-      const tasks = await tasksService.getTasks({
-        classId: finalClassId,
-        subjectId: subjectId ? Number(subjectId) : null,
-        teacherId: teacherId ? Number(teacherId) : null,
+      const { classId, subjectId, teacherId, status, sessionId, taskType } = req.query;
+      const tasks = await tasksService.getTasks(req.user, {
+        classId: optionalNumber(classId),
+        subjectId: optionalNumber(subjectId),
+        teacherId: optionalNumber(teacherId),
         status: status || null,
-        sessionId: sessionId ? Number(sessionId) : null,
-        studentId
+        sessionId: optionalNumber(sessionId),
+        taskType: taskType ? String(taskType).toUpperCase() : null
       });
       return sendSuccess(res, tasks);
     } catch (error) {
@@ -83,8 +41,16 @@ export const tasksController = {
 
   async getTaskById(req, res, next) {
     try {
-      const id = Number(req.params.id);
-      const task = await tasksService.getTaskById(id);
+      const task = await tasksService.getTaskById(req.user, Number(req.params.id));
+      return sendSuccess(res, task);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async updateTaskStatus(req, res, next) {
+    try {
+      const task = await tasksService.updateTaskStatus(req.user, Number(req.params.id), req.body.status);
       return sendSuccess(res, task);
     } catch (error) {
       next(error);
@@ -93,48 +59,25 @@ export const tasksController = {
 
   async submitTask(req, res, next) {
     try {
-      const taskId = Number(req.params.id);
-      const student = await db('students').where({ user_id: req.user.id }).first();
-      const studentId = student ? student.id : (req.body.studentId ? Number(req.body.studentId) : null);
-
-      let fileUrl = req.body.fileUrl;
-      let fileName = req.body.fileName;
-      let fileSize = req.body.fileSize;
-
-      if (req.file) {
-        fileUrl = `/api/v1/uploads/${req.file.filename}`;
-        fileName = req.file.originalname;
-        fileSize = `${(req.file.size / (1024 * 1024)).toFixed(1)} MB`;
-      }
-
-      const { studentNotes } = req.body;
-      const submission = await tasksService.submitTask({
-        taskId,
-        studentId,
-        fileUrl,
-        fileName,
-        fileSize,
-        studentNotes
+      const submission = await tasksService.submitTask(req.user, Number(req.params.id), {
+        file: req.file || null,
+        studentNotes: req.body.studentNotes
       });
-
       return sendSuccess(res, submission, null, 201);
     } catch (error) {
+      discardUpload(req);
       next(error);
     }
   },
 
   async getSubmissions(req, res, next) {
     try {
-      const taskId = req.params.id ? Number(req.params.id) : (req.query.taskId ? Number(req.query.taskId) : null);
-      let studentId = req.query.studentId ? Number(req.query.studentId) : null;
-      const status = req.query.status || null;
-
-      if (req.user?.role === 'STUDENT') {
-        const student = await db('students').where({ user_id: req.user.id }).first();
-        studentId = student ? student.id : -1;
-      }
-
-      const submissions = await tasksService.getSubmissions({ taskId, studentId, status });
+      const taskId = req.params.id ? Number(req.params.id) : optionalNumber(req.query.taskId);
+      const submissions = await tasksService.getSubmissions(req.user, {
+        taskId,
+        studentId: optionalNumber(req.query.studentId),
+        status: req.query.status || null
+      });
       return sendSuccess(res, submissions);
     } catch (error) {
       next(error);
@@ -143,17 +86,43 @@ export const tasksController = {
 
   async gradeSubmission(req, res, next) {
     try {
-      const submissionId = Number(req.params.id);
-      const { marksAwarded, rubricScores, feedback } = req.body;
-
-      const result = await tasksService.gradeSubmission({
-        submissionId,
+      const { marksAwarded, rubricScores, feedback, publish } = req.body;
+      const result = await tasksService.gradeSubmission(req.user, Number(req.params.id), {
         marksAwarded,
         rubricScores,
         feedback,
-        gradedBy: req.user.id
+        publish
       });
+      return sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
 
+  async returnSubmission(req, res, next) {
+    try {
+      const result = await tasksService.returnSubmission(req.user, Number(req.params.id), req.body.note);
+      return sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getTaskRoster(req, res, next) {
+    try {
+      const result = await tasksService.getTaskRoster(req.user, Number(req.params.id));
+      return sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async recordMarks(req, res, next) {
+    try {
+      const result = await tasksService.recordMarks(req.user, Number(req.params.id), {
+        entries: req.body.entries,
+        publish: req.body.publish
+      });
       return sendSuccess(res, result);
     } catch (error) {
       next(error);
@@ -163,30 +132,10 @@ export const tasksController = {
   // Resources
   async createResource(req, res, next) {
     try {
-      let { classId, subjectId, title, description, resourceType, fileUrl, fileSize, isPublished } = req.body;
-
-      if (req.file) {
-        fileUrl = `/api/v1/uploads/${req.file.filename}`;
-        fileSize = `${(req.file.size / (1024 * 1024)).toFixed(1)} MB`;
-        if (!resourceType) {
-          const mime = req.file.mimetype;
-          resourceType = mime.startsWith('video') ? 'RECORDING' : mime.includes('presentation') ? 'SLIDES' : 'PDF';
-        }
-      }
-
-      const resource = await tasksService.createResource({
-        classId: Number(classId),
-        subjectId: Number(subjectId),
-        title,
-        description,
-        resourceType,
-        fileUrl,
-        fileSize,
-        isPublished,
-        uploadedBy: req.user.id
-      });
+      const resource = await tasksService.createResource(req.user, req.body, req.file || null);
       return sendSuccess(res, resource, null, 201);
     } catch (error) {
+      discardUpload(req);
       next(error);
     }
   },
@@ -194,9 +143,9 @@ export const tasksController = {
   async getResources(req, res, next) {
     try {
       const { classId, subjectId, resourceType } = req.query;
-      const resources = await tasksService.getResources({
-        classId: classId ? Number(classId) : null,
-        subjectId: subjectId ? Number(subjectId) : null,
+      const resources = await tasksService.getResources(req.user, {
+        classId: optionalNumber(classId),
+        subjectId: optionalNumber(subjectId),
         resourceType: resourceType || null
       });
       return sendSuccess(res, resources);
@@ -205,11 +154,20 @@ export const tasksController = {
     }
   },
 
+  async updateResource(req, res, next) {
+    try {
+      const { isPublished, title, description } = req.body;
+      const resource = await tasksService.updateResource(req.user, Number(req.params.id), { isPublished, title, description });
+      return sendSuccess(res, resource);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async deleteResource(req, res, next) {
     try {
-      const id = Number(req.params.id);
-      await tasksService.deleteResource(id);
-      return sendSuccess(res, { deleted: true, id });
+      const result = await tasksService.deleteResource(req.user, Number(req.params.id));
+      return sendSuccess(res, result);
     } catch (error) {
       next(error);
     }
@@ -218,17 +176,26 @@ export const tasksController = {
   // Achievements & Recognition (SRS Section 8.3 & 12)
   async awardAchievement(req, res, next) {
     try {
-      const { studentId, classId, badgeType, title, reason, starsCount } = req.body;
-      const achievement = await tasksService.awardAchievement({
-        studentId,
-        teacherUserId: req.user.id,
-        classId,
-        badgeType,
-        title,
-        reason,
-        starsCount
-      });
+      const achievement = await tasksService.awardAchievement(req.user, req.body);
       return sendSuccess(res, achievement, null, 201);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async updateAchievement(req, res, next) {
+    try {
+      const achievement = await tasksService.updateAchievement(req.user, Number(req.params.id), req.body);
+      return sendSuccess(res, achievement);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async deleteAchievement(req, res, next) {
+    try {
+      const result = await tasksService.deleteAchievement(req.user, Number(req.params.id));
+      return sendSuccess(res, result);
     } catch (error) {
       next(error);
     }
@@ -236,11 +203,10 @@ export const tasksController = {
 
   async getAchievements(req, res, next) {
     try {
-      const { studentId, classId, teacherId } = req.query;
-      const achievements = await tasksService.getAchievements({
-        studentId: studentId ? Number(studentId) : null,
-        classId: classId ? Number(classId) : null,
-        teacherId: teacherId ? Number(teacherId) : null
+      const { studentId, classId } = req.query;
+      const achievements = await tasksService.getAchievements(req.user, {
+        studentId: optionalNumber(studentId),
+        classId: optionalNumber(classId)
       });
       return sendSuccess(res, achievements);
     } catch (error) {
