@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { Video, ClipboardList, Receipt, CheckCircle, Calendar, Star } from 'lucide-react';
+import { Video, ClipboardList, Receipt, CheckCircle, Calendar, Star, X } from 'lucide-react';
 import { RootState, AppDispatch } from '../store';
 import { setFilter, markAsRead, markAllAsRead, NotificationItem } from '../store/slices/notificationsSlice';
 import { markNotificationRead, markAllNotificationsRead } from '../store/slices/notificationsSlice';
@@ -37,16 +37,17 @@ export default function Notifications() {
     }
   };
 
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [activeNotif, setActiveNotif] = useState<NotificationItem | null>(null);
 
   const handleClickItem = (item: NotificationItem) => {
     if (!item.read) {
-      dispatch(markAsRead(item.id));          // optimistic local update
-      dispatch(markNotificationRead(item.id)); // sync to backend
+      dispatch(markAsRead(item.id));
+      dispatch(markNotificationRead(item.id));
     }
-    if (item.link) navigate(item.link);
-    else setExpandedId((prev) => (prev === item.id ? null : item.id));
+    setActiveNotif(item);
   };
+
+  const closeModal = () => setActiveNotif(null);
 
   const handleMarkAll = () => {
     dispatch(markAllAsRead());               // optimistic
@@ -94,24 +95,55 @@ export default function Notifications() {
             <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center shrink-0">
               {getIcon(n.iconType)}
             </div>
-
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
                 <span className="text-sm font-semibold text-foreground truncate">{n.title}</span>
                 {!n.read && <span className="w-2 h-2 rounded-full bg-primary shrink-0" />}
               </div>
-              <div className={`text-xs text-muted-foreground mt-0.5 ${expandedId === n.id ? 'whitespace-pre-wrap' : 'line-clamp-1'}`}>
-                {n.description}
-              </div>
+              <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{n.description}</div>
               <div className="text-[11px] text-muted-foreground/75 mt-0.5">{n.time}</div>
             </div>
-
-            <span className="text-xs font-semibold text-primary shrink-0 hover:underline">
-              {n.link ? 'Open' : expandedId === n.id ? 'Less' : 'Read'}
-            </span>
+            <span className="text-xs font-semibold text-primary shrink-0 hover:underline">View</span>
           </div>
         ))}
       </div>
+
+      {/* Notification Detail Modal */}
+      {activeNotif && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={closeModal}>
+          <div className="bg-card border border-border rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+                  {getIcon(activeNotif.iconType)}
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-primary">{activeNotif.category}</p>
+                  <h3 className="text-sm font-bold text-foreground leading-snug">{activeNotif.title}</h3>
+                </div>
+              </div>
+              <button onClick={closeModal} className="p-1 rounded-lg hover:bg-muted text-muted-foreground transition-colors shrink-0">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{activeNotif.description}</p>
+            <p className="text-[11px] text-muted-foreground">{activeNotif.time}</p>
+            <div className="flex justify-end gap-2 pt-2 border-t border-border">
+              {activeNotif.link && (
+                <button
+                  onClick={() => { navigate(activeNotif.link); closeModal(); }}
+                  className="px-4 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold"
+                >
+                  Open
+                </button>
+              )}
+              <button onClick={closeModal} className="px-4 py-1.5 rounded-xl border border-border text-xs font-semibold text-muted-foreground hover:bg-muted">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

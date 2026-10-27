@@ -618,6 +618,31 @@ export const api = {
     return [];
   },
 
+  async addParent(data: { name: string; email: string; phone: string; cnic: string; relationship: string; password: string }): Promise<Parent> {
+    const created = await requestApi<any>('/api/v1/parents', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: data.name.trim(),
+        email: data.email.trim(),
+        phone: data.phone.trim(),
+        cnic: data.cnic.trim(),
+        relation: data.relationship.toUpperCase(),
+        password: data.password
+      })
+    });
+    return {
+      id: created.code || `PRN-${String(created.id).padStart(2, '0')}`,
+      name: created.name || data.name,
+      email: created.email || data.email,
+      phone: created.phone || data.phone,
+      cnicOrIdNumber: created.cnic || data.cnic,
+      linkedStudentIds: [],
+      verificationStatus: 'Pending Verification',
+      accountStatus: 'Active',
+      relationship: data.relationship as any
+    };
+  },
+
   async linkParentToStudent(parentId: string, studentId: string, reason: string): Promise<Parent> {
     const pNum = parseInt(parentId.replace(/\D/g, ''), 10);
     const sNum = parseInt(studentId.replace(/\D/g, ''), 10);

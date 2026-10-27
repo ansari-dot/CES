@@ -4,11 +4,27 @@ import { archiveNoticeThunk } from '../store/slices/noticesSlice';
 import { addToast } from '../store/slices/uiSlice';
 import { CreateNoticeModal } from '../components/notices/CreateNoticeModal';
 
+interface NoticeItem {
+  id: string;
+  title: string;
+  content: string;
+  category?: string;
+  targetClassName?: string;
+  date?: string;
+  author?: string;
+  isUrgent?: boolean;
+  isPublished?: boolean;
+  status?: string;
+  recipients?: string;
+  canManage?: boolean;
+}
+
 export const NoticesPage: React.FC = () => {
   const dispatch = useAppDispatch();
   const notices = useAppSelector((state) => state.notices.notices);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeNotice, setActiveNotice] = useState<NoticeItem | null>(null);
 
   const handleRemove = async (id: string) => {
     if (!window.confirm('Withdraw this notice from student and parent portals?')) return;
@@ -62,12 +78,13 @@ export const NoticesPage: React.FC = () => {
           notices.map((notice) => (
             <div
               key={notice.id}
-            className={`p-6 rounded-2xl shadow-sm border transition-all ${
-              notice.isUrgent
-                ? 'bg-red-50/40 border-red-200'
-                : 'bg-white border-slate-100 hover:shadow-md'
-            }`}
-          >
+              className={`p-6 rounded-2xl shadow-sm border transition-all cursor-pointer ${
+                notice.isUrgent
+                  ? 'bg-red-50/40 border-red-200 hover:shadow-md'
+                  : 'bg-white border-slate-100 hover:shadow-md'
+              }`}
+              onClick={() => setActiveNotice(notice as NoticeItem)}
+            >
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <span
@@ -122,6 +139,38 @@ export const NoticesPage: React.FC = () => {
       </div>
 
       <CreateNoticeModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+
+      {/* Notice Detail Modal */}
+      {activeNotice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setActiveNotice(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                  activeNotice.isUrgent ? 'bg-red-100 text-red-800' : 'bg-indigo-100 text-[#3525cd]'
+                }`}>{activeNotice.category}</span>
+                {activeNotice.targetClassName && <span className="text-xs text-slate-500">Target: {activeNotice.targetClassName}</span>}
+              </div>
+              <button onClick={() => setActiveNotice(null)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors shrink-0">
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+            <h2 className="text-lg font-bold text-[#121c2a] leading-snug">{activeNotice.title}</h2>
+            <p className="text-sm text-[#464555] leading-relaxed whitespace-pre-wrap">{activeNotice.content}</p>
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+              <span>By {activeNotice.author} · {activeNotice.date}</span>
+              {activeNotice.isPublished && (
+                <span className="text-[#006c49] font-semibold">Visible to {activeNotice.recipients || 'recipients'}</span>
+              )}
+            </div>
+            <div className="flex justify-end">
+              <button onClick={() => setActiveNotice(null)} className="px-4 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

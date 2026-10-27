@@ -6,13 +6,26 @@ import { StatusBadge } from '../../components/common/StatusBadge';
 import { Modal } from '../../components/common/Modal';
 import { LoadingState, ErrorState } from '../../components/common/StateViews';
 import { useToast } from '../../context/ToastContext';
-import { HeartHandshake, Link, Unlink, CheckCircle2, XCircle } from 'lucide-react';
+import { HeartHandshake, Link, Unlink, CheckCircle2, XCircle, UserPlus } from 'lucide-react';
+
+const emptyRegForm = () => ({
+  name: '',
+  email: '',
+  phone: '',
+  cnic: '',
+  relationship: 'Father' as 'Father' | 'Mother' | 'Guardian',
+  password: ''
+});
 
 export const ParentsView: React.FC = () => {
   const [parents, setParents] = useState<Parent[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [regForm, setRegForm] = useState(emptyRegForm());
+  const [registering, setRegistering] = useState(false);
 
   // Modals
   const [selectedParent, setSelectedParent] = useState<Parent | null>(null);
@@ -40,6 +53,26 @@ export const ParentsView: React.FC = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const handleRegisterParent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!regForm.name.trim() || !regForm.email.trim() || !regForm.phone.trim()) {
+      toast.warning('Name, email and phone are required.');
+      return;
+    }
+    try {
+      setRegistering(true);
+      await (api as any).addParent(regForm);
+      toast.success(`Parent account created for ${regForm.name}. They can now log in to the Parent Portal.`);
+      setIsRegisterModalOpen(false);
+      setRegForm(emptyRegForm());
+      loadData();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to register parent');
+    } finally {
+      setRegistering(false);
+    }
+  };
 
   const handleVerify = async (parent: Parent, status: 'Verified' | 'Rejected') => {
     try {
@@ -210,6 +243,13 @@ export const ParentsView: React.FC = () => {
           <span className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-medium shadow-2xs">
             {parents.length} Registered Guardians
           </span>
+          <button
+            onClick={() => setIsRegisterModalOpen(true)}
+            className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs"
+          >
+            <UserPlus className="w-3.5 h-3.5" strokeWidth={1.75} />
+            <span>Register New Parent</span>
+          </button>
         </div>
       </div>
 
@@ -225,6 +265,99 @@ export const ParentsView: React.FC = () => {
           p.cnicOrIdNumber.includes(q)
         }
       />
+
+      {/* Register New Parent Modal */}
+      <Modal
+        isOpen={isRegisterModalOpen}
+        onClose={() => setIsRegisterModalOpen(false)}
+        title="Register New Parent / Guardian"
+        description="Create a portal account for the parent. They will use the email and password to log in to the Parent Portal."
+        maxWidth="md"
+      >
+        <form onSubmit={handleRegisterParent} className="space-y-3 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-700 font-medium mb-1">Full Name *</label>
+              <input
+                type="text"
+                required
+                value={regForm.name}
+                onChange={(e) => setRegForm({ ...regForm, name: e.target.value })}
+                placeholder="e.g. Muhammad Tariq"
+                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-800"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-700 font-medium mb-1">Relationship</label>
+              <select
+                value={regForm.relationship}
+                onChange={(e) => setRegForm({ ...regForm, relationship: e.target.value as any })}
+                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-800"
+              >
+                <option value="Father">Father</option>
+                <option value="Mother">Mother</option>
+                <option value="Guardian">Guardian</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-slate-700 font-medium mb-1">Email Address *</label>
+            <input
+              type="email"
+              required
+              value={regForm.email}
+              onChange={(e) => setRegForm({ ...regForm, email: e.target.value })}
+              placeholder="parent@example.com"
+              className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-800"
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-700 font-medium mb-1">Phone *</label>
+              <input
+                type="text"
+                required
+                value={regForm.phone}
+                onChange={(e) => setRegForm({ ...regForm, phone: e.target.value })}
+                placeholder="03XX-XXXXXXX"
+                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-800"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-700 font-medium mb-1">CNIC</label>
+              <input
+                type="text"
+                value={regForm.cnic}
+                onChange={(e) => setRegForm({ ...regForm, cnic: e.target.value })}
+                placeholder="42101-XXXXXXX-X"
+                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-800"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-slate-700 font-medium mb-1">Initial Password *</label>
+            <input
+              type="text"
+              required
+              value={regForm.password}
+              onChange={(e) => setRegForm({ ...regForm, password: e.target.value })}
+              placeholder="Temporary password to share with parent"
+              className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-800 font-mono"
+            />
+          </div>
+          <p className="text-[11px] text-slate-500 leading-relaxed">
+            After registration, link this parent to their child(ren) using the Link button in the table. The parent can change their password after first login.
+          </p>
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <button type="button" onClick={() => setIsRegisterModalOpen(false)} className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">
+              Cancel
+            </button>
+            <button type="submit" disabled={registering} className="px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium shadow-xs">
+              {registering ? 'Registering...' : 'Create Parent Account'}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Link Parent to Student Modal */}
       {selectedParent && (

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Megaphone, Bell } from 'lucide-react';
+import { Megaphone, Bell, X } from 'lucide-react';
 import { useParent } from '../context/ParentContext';
 import { requestApi } from '../services/api';
 import { LoadingBlock, ErrorBlock, EmptyBlock } from '../components/common';
@@ -36,6 +36,7 @@ export default function Notices() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [activePopup, setActivePopup] = useState<NoticeRow | AlertRow | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,7 +61,7 @@ export default function Notices() {
   }, [load]);
 
   const openNotice = async (n: NoticeRow) => {
-    setExpanded((prev) => (prev === n.id ? null : n.id));
+    setActivePopup(n);
     if (n.isRead === false) {
       setNotices((prev) => prev.map((x) => (x.id === n.id ? { ...x, isRead: true } : x)));
       try {
@@ -73,7 +74,7 @@ export default function Notices() {
   };
 
   const openAlert = async (a: AlertRow) => {
-    setExpanded((prev) => (prev === a.id ? null : a.id));
+    setActivePopup(a);
     if (!a.isRead) {
       setAlerts((prev) => prev.map((x) => (x.id === a.id ? { ...x, isRead: true } : x)));
       try {
@@ -152,7 +153,7 @@ export default function Notices() {
                       {n.isRead === false && <span className="w-2 h-2 rounded-full bg-primary shrink-0" />}
                       {urgent && <span className="text-[10px] font-bold uppercase text-error">{n.priority}</span>}
                     </div>
-                    <div className={`text-xs text-muted-foreground mt-0.5 ${expanded === n.id ? 'whitespace-pre-wrap' : 'line-clamp-1'}`}>
+                    <div className={`text-xs text-muted-foreground mt-0.5 line-clamp-1`}>
                       {n.content}
                     </div>
                     <div className="text-[11px] text-muted-foreground/75 mt-0.5">
@@ -160,7 +161,7 @@ export default function Notices() {
                       {n.expiryDate ? ` · until ${formatDate(n.expiryDate)}` : ''}
                     </div>
                   </div>
-                  <span className="text-xs font-semibold text-primary shrink-0 hover:underline">{expanded === n.id ? 'Less' : 'Read'}</span>
+                  <span className="text-xs font-semibold text-primary shrink-0 hover:underline">View</span>
                 </div>
               );
             })}
@@ -184,7 +185,7 @@ export default function Notices() {
                   <span className="text-sm font-semibold text-foreground">{a.title}</span>
                   {!a.isRead && <span className="w-2 h-2 rounded-full bg-primary shrink-0" />}
                 </div>
-                <div className={`text-xs text-muted-foreground mt-0.5 ${expanded === a.id ? 'whitespace-pre-wrap' : 'line-clamp-1'}`}>{a.message}</div>
+                <div className={`text-xs text-muted-foreground mt-0.5 line-clamp-1`}>{a.message}</div>
                 <div className="text-[11px] text-muted-foreground/75 mt-0.5">{formatDateTime(a.createdAt)}</div>
               </div>
             </div>
@@ -195,6 +196,51 @@ export default function Notices() {
       <p className="text-[11px] text-muted-foreground">
         Notices are delivered inside this portal. Email, SMS and WhatsApp delivery are not part of this feature.
       </p>
+
+      {/* Notification / Notice Detail Modal */}
+      {activePopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setActivePopup(null)}>
+          <div className="bg-card border border-border rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+                  {'content' in activePopup ? (
+                    <Megaphone className={`w-4 h-4 ${activePopup.priority !== 'Normal' ? 'text-error' : 'text-primary'}`} />
+                  ) : (
+                    <Bell className="w-4 h-4 text-primary" />
+                  )}
+                </div>
+                <div>
+                  {'priority' in activePopup && activePopup.priority !== 'Normal' && (
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-error">{activePopup.priority}</p>
+                  )}
+                  <h3 className="text-sm font-bold text-foreground leading-snug">{activePopup.title}</h3>
+                </div>
+              </div>
+              <button onClick={() => setActivePopup(null)} className="p-1 rounded-lg hover:bg-muted text-muted-foreground transition-colors shrink-0">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
+              {'content' in activePopup ? activePopup.content : activePopup.message}
+            </p>
+            {'content' in activePopup && (
+              <p className="text-[11px] text-muted-foreground">
+                {[activePopup.category, activePopup.audience, `By ${activePopup.createdBy}`, formatDate(activePopup.publishDate)].filter(Boolean).join(' · ')}
+                {activePopup.expiryDate ? ` · until ${formatDate(activePopup.expiryDate)}` : ''}
+              </p>
+            )}
+            {'createdAt' in activePopup && (
+              <p className="text-[11px] text-muted-foreground">{formatDateTime(activePopup.createdAt)}</p>
+            )}
+            <div className="flex justify-end pt-2 border-t border-border">
+              <button onClick={() => setActivePopup(null)} className="px-4 py-1.5 rounded-xl border border-border text-xs font-semibold text-muted-foreground hover:bg-muted">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
