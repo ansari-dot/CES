@@ -59,9 +59,12 @@ export const reportsController = {
 
   async getAcademicPerformances(req, res, next) {
     try {
-      const { sessionId } = req.query;
+      const { sessionId, subjectId, taskType, term } = req.query;
       const data = await reportsService.getAcademicPerformances({
-        sessionId: sessionId ? Number(sessionId) : 1
+        sessionId: sessionId ? Number(sessionId) : null,
+        subjectId: subjectId ? Number(subjectId) : null,
+        taskType: taskType ? String(taskType).toUpperCase() : null,
+        term: term || undefined
       });
       return sendSuccess(res, data);
     } catch (error) {
@@ -75,11 +78,56 @@ export const reportsController = {
       const { sessionId, term } = req.body;
       const result = await reportsService.approveResultPublication({
         classNumber,
-        sessionId: sessionId ? Number(sessionId) : 1,
-        term: term || 'Mid-Year 2026',
+        sessionId: sessionId ? Number(sessionId) : null,
+        term: term || undefined,
         userId: req.user.id
       });
       return sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getStudentRecordsReport(req, res, next) {
+    try {
+      const { classId, status, sessionId } = req.query;
+      const data = await reportsService.getStudentRecordsReport({
+        classId: classId ? Number(classId) : null,
+        status: status || null,
+        sessionId: sessionId ? Number(sessionId) : null
+      });
+      return sendSuccess(res, data);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getStudentMarksReport(req, res, next) {
+    try {
+      const { classId, subjectId, taskType, sessionId } = req.query;
+      const data = await reportsService.getStudentMarksReport({
+        classId: classId ? Number(classId) : null,
+        subjectId: subjectId ? Number(subjectId) : null,
+        taskType: taskType ? String(taskType).toUpperCase() : null,
+        sessionId: sessionId ? Number(sessionId) : null
+      });
+      return sendSuccess(res, data);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async logReportExport(req, res, next) {
+    try {
+      const { reportType, format, filters, rowCount } = req.body;
+      const result = await reportsService.logClientExport({
+        reportType,
+        format,
+        filters,
+        rowCount,
+        userId: req.user.id
+      });
+      return sendSuccess(res, result, null, 201);
     } catch (error) {
       next(error);
     }

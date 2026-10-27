@@ -20,6 +20,9 @@ export const reportsService = {
   },
 
   async getAcademicPerformances(filters) {
+    if (filters.taskType && !['ASSIGNMENT', 'QUIZ', 'TEST', 'EXAM'].includes(filters.taskType)) {
+      throw new AppError('Invalid assessment type', 422, ErrorCodes.VALIDATION_ERROR);
+    }
     return await reportsRepository.getAcademicPerformances(filters);
   },
 
@@ -34,9 +37,30 @@ export const reportsService = {
       userId
     });
     if (!result) {
-      throw new AppError('Class not found', 404, ErrorCodes.NOT_FOUND);
+      throw new AppError('Class or academic session not found', 404, ErrorCodes.NOT_FOUND);
     }
     return result;
+  },
+
+  async getStudentRecordsReport(filters) {
+    return await reportsRepository.getStudentRecordsReport(filters);
+  },
+
+  async getStudentMarksReport(filters) {
+    return await reportsRepository.getStudentMarksReport(filters);
+  },
+
+  async logClientExport({ reportType, format = 'CSV', filters = {}, rowCount = 0, userId }) {
+    if (!reportType) {
+      throw new AppError('Report type is required', 422, ErrorCodes.VALIDATION_ERROR);
+    }
+    return await reportsRepository.logReportExport({
+      reportType: String(reportType).slice(0, 60),
+      exportFormat: String(format || 'CSV').slice(0, 20),
+      filterParameters: filters,
+      rowCount: Number(rowCount) || 0,
+      userId
+    });
   },
 
   async exportReportData({ reportType, format = 'csv', filters = {}, userId }) {
@@ -83,25 +107,17 @@ export const reportsService = {
       };
     }
 
-    // Default: CSV format
-    const csvRows = [headers.join(',')];
+    // Default: CSV format (RFC 4180 quoting; embedded quotes are doubled)
+    const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const csvRows = [headers.map(escapeCsv).join(',')];
     for (const r of rows) {
-      const line = [
-        `"${r.col1 || ''}"`,
-        `"${r.col2 || ''}"`,
-        `"${r.col3 || ''}"`,
-        `"${r.col4 || ''}"`,
-        `"${r.col5 || ''}"`,
-        `"${r.col6 || ''}"`,
-        `"${r.col7 || ''}"`
-      ];
-      csvRows.push(line.join(','));
+      csvRows.push([r.col1, r.col2, r.col3, r.col4, r.col5, r.col6, r.col7].map(escapeCsv).join(','));
     }
 
     return {
-      filename: `report_${reportType}_${Date.now()}.csv`,
-      contentType: 'text/csv',
-      content: csvRows.join('\n'),
+      filename: `report_${reportType}_${new Date().toISOString().split('T')[0]}.csv`,
+      contentType: 'text/csv; charset=utf-8',
+      content: `﻿${csvRows.join('\r\n')}`,
       rowCount: rows.length
     };
   }
