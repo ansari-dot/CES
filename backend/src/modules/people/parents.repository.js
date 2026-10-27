@@ -1,4 +1,5 @@
 import { db } from '../../shared/db/knex.js';
+import { computeAttendanceRate } from './students.repository.js';
 
 export const parentsRepository = {
   async getAllParents({ status = null } = {}) {
@@ -183,10 +184,9 @@ export const parentsRepository = {
 
     const children = await Promise.all(
       childrenLinks.map(async (child) => {
-        // 1. Attendance stats
+        // 1. Attendance stats (same rule as the attendance module: present + late)
         const attRecords = await db('lesson_attendance').where('student_id', child.studentId);
-        const presentCount = attRecords.filter((a) => a.status === 'PRESENT').length;
-        const attRate = attRecords.length > 0 ? Math.round((presentCount / attRecords.length) * 100) : 100;
+        const attRate = computeAttendanceRate(attRecords);
 
         // 2. Pending tasks
         const tasks = await db('learning_tasks').where({ class_id: child.classId, status: 'ACTIVE' });
@@ -225,11 +225,12 @@ export const parentsRepository = {
           )
           .orderBy('timetable_lessons.start_at', 'asc');
 
-        // 5. Achievements
+        // 5. Achievements (teacher-only internal notes are never shared with parents)
         const achievements = await db('student_achievements')
           .join('teachers', 'student_achievements.teacher_id', 'teachers.id')
           .join('users as teacher_users', 'teachers.user_id', 'teacher_users.id')
           .where('student_achievements.student_id', child.studentId)
+          .where('student_achievements.visibility', 'PUBLISHED')
           .select(
             'student_achievements.id',
             'student_achievements.badge_type as badgeType',
@@ -301,6 +302,105 @@ export const parentsRepository = {
       paidAmount: Number(c.paidAmount),
       outstandingBalance: Math.max(0, Number(c.totalPayable) - Number(c.paidAmount))
     }));
+  },
+
+  async getChildAttendanceRecords(studentId, { startDate = null, endDate = null } = {}) {
+    let query = db('lesson_attendance')
+      .join('timetable_lessons', 'lesson_attendance.lesson_id', 'timetable_lessons.id')
+      .join('subjects', 'timetable_lessons.subject_id', 'subjects.id')
+      .join('teachers', 'timetable_lessons.teacher_id', 'teachers.id')
+      .join('users as teacher_users', 'teachers.user_id', 'teacher_users.id')
+      .where('lesson_attendance.student_id', studentId)
+      .select(
+        'lesson_attendance.id',
+        'timetable_lessons.lesson_date as lessonDate',
+        'timetable_lessons.start_at as startAt',
+        'subjects.name as subjectName',
+        'teacher_users.full_name as teacherName',
+        'lesson_attendance.status',
+        'lesson_attendance.remarks'
+      )
+      .orderBy('timetable_lessons.lesson_date', 'desc')
+      .orderBy('timetable_lessons.start_at', 'desc');
+
+    if (startDate) query = query.where('timetable_lessons.lesson_date', '>=', startDate);
+    if (endDate) query = query.where('timetable_lessons.lesson_date', '<=', endDate);
+
+    return await query.limit(500);
+  },
+
+  async getChildChallanDetail(studentId, challanId) {
+    const challan = await db('fee_challans')
+      .join('classes', 'fee_challans.class_id', 'classes.id')
+      .join('academic_sessions', 'fee_challans.session_id', 'academic_sessions.id')
+      .join('students', 'fee_challans.student_id', 'students.id')
+      .join('users', 'students.user_id', 'users.id')
+      .where({ 'fee_challans.id': challanId, 'fee_challans.student_id': studentId })
+      .select(
+        'fee_challans.*',
+        'classes.name as className',
+        'academic_sessions.name as academicSession',
+        'users.full_name as studentName',
+        'students.admission_no as admissionNo',
+        'students.roll_no as rollNo'
+      )
+      .first();
+
+    if (!challan) return null;
+
+    const proofs = await db('fee_payment_proofs')
+      .where('challan_id', challanId)
+      .select(
+        'id',
+        'submitted_amount as submittedAmount',
+        'bank_or_wallet as bankOrWallet',
+        'transaction_reference as transactionReference',
+        'payment_date as paymentDate',
+        'status',
+        'verified_amount as verifiedAmount',
+        'receipt_number as receiptNumber',
+        'review_decision_note as reviewNote',
+        'created_at as submittedAt',
+        'reviewed_at as reviewedAt'
+      )
+      .orderBy('created_at', 'desc');
+
+    const num = (v) => Number(v || 0);
+    return {
+      id: challan.id,
+      challanNumber: challan.challan_number,
+      consumerNumber: challan.consumer_number,
+      billingMonth: challan.billing_month,
+      academicSession: challan.academicSession,
+      className: challan.className,
+      studentName: challan.studentName,
+      admissionNo: challan.admissionNo,
+      rollNo: challan.rollNo,
+      issueDate: challan.issue_date,
+      dueDate: challan.due_date,
+      validUntil: challan.valid_until,
+      breakdown: {
+        tuition: num(challan.tuition_amount),
+        technology: num(challan.technology_amount),
+        examination: num(challan.examination_amount),
+        books: num(challan.books_amount),
+        admission: num(challan.admission_amount),
+        other: num(challan.other_amount),
+        gross: num(challan.gross_amount),
+        concession: num(challan.concession_amount),
+        arrears: num(challan.arrears_amount),
+        lateFee: num(challan.late_fee_amount)
+      },
+      totalPayable: num(challan.total_payable),
+      paidAmount: num(challan.paid_amount),
+      outstandingBalance: Math.max(0, num(challan.total_payable) - num(challan.paid_amount)),
+      status: challan.status,
+      payments: proofs.map((p) => ({
+        ...p,
+        submittedAmount: num(p.submittedAmount),
+        verifiedAmount: p.verifiedAmount != null ? num(p.verifiedAmount) : null
+      }))
+    };
   },
 
   async verifyParentStudentLink(parentId, studentId) {

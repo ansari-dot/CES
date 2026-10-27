@@ -1,7 +1,30 @@
 import { db } from '../../shared/db/knex.js';
+import { studentTaskView } from '../tasks/tasks.repository.js';
+
+/**
+ * Attendance percentage used across portals: present + late over all marked
+ * lessons (same rule as the attendance statistics endpoint). Null when no
+ * attendance has been recorded yet.
+ */
+export function computeAttendanceRate(records) {
+  if (!records || records.length === 0) return null;
+  const attended = records.filter((a) => a.status === 'PRESENT' || a.status === 'LATE').length;
+  return Math.round((attended / records.length) * 100);
+}
+
+/** Letter grade from a percentage — the single grading scale used by every portal and report. */
+export function letterGrade(pct) {
+  if (pct == null) return '—';
+  if (pct >= 90) return 'A+';
+  if (pct >= 80) return 'A';
+  if (pct >= 70) return 'B+';
+  if (pct >= 60) return 'B';
+  if (pct >= 50) return 'C';
+  return 'F';
+}
 
 export const studentsRepository = {
-  async getAllStudents({ classId = null, status = null } = {}) {
+  async getAllStudents({ classId = null, classIds = null, status = null } = {}) {
     let query = db('students')
       .join('users', 'students.user_id', 'users.id')
       .join('classes', 'students.current_class_id', 'classes.id')
@@ -26,6 +49,9 @@ export const studentsRepository = {
 
     if (classId) {
       query = query.where('students.current_class_id', classId);
+    }
+    if (classIds) {
+      query = query.whereIn('students.current_class_id', classIds);
     }
     if (status) {
       query = query.where('students.status', status);
@@ -305,6 +331,8 @@ export const studentsRepository = {
         'learning_tasks.id',
         'learning_tasks.title',
         'learning_tasks.instructions',
+        'learning_tasks.task_type as taskType',
+        'learning_tasks.deadline',
         'learning_tasks.deadline as dueDate',
         'learning_tasks.total_marks as maxMarks',
         'subjects.name as subjectName'
@@ -314,13 +342,14 @@ export const studentsRepository = {
     const subs = await db('task_submissions').where('student_id', student.id);
     const subsMap = new Map(subs.map((s) => [s.task_id, s]));
 
+    // Marks/feedback are only shown once the teacher has published the grade
     const mappedTasks = tasks.map((t) => {
-      const sub = subsMap.get(t.id);
+      const view = studentTaskView(t, subsMap.get(t.id));
       return {
         ...t,
-        submissionStatus: sub ? sub.status : 'PENDING',
-        marksObtained: sub?.marks_awarded !== null && sub?.marks_awarded !== undefined ? Number(sub.marks_awarded) : null,
-        feedback: sub?.feedback || null
+        submissionStatus: view.submissionStatus === 'OVERDUE' ? 'PENDING' : view.submissionStatus,
+        marksObtained: view.marksObtained,
+        feedback: view.feedback || null
       };
     });
 
@@ -335,20 +364,22 @@ export const studentsRepository = {
 
     // 4. Attendance rate
     const attRecords = await db('lesson_attendance').where('student_id', student.id);
-    const presentCount = attRecords.filter((a) => a.status === 'PRESENT').length;
-    const attRate = attRecords.length > 0 ? Math.round((presentCount / attRecords.length) * 100) : 100;
+    const attRate = computeAttendanceRate(attRecords);
 
-    // 5. Achievements & badges (SRS Section 8.3 & 12)
+    // 5. Achievements & badges (SRS Section 8.3 & 12) — teacher-only notes excluded
     const achievements = await db('student_achievements')
       .join('teachers', 'student_achievements.teacher_id', 'teachers.id')
       .join('users as teacher_users', 'teachers.user_id', 'teacher_users.id')
+      .leftJoin('subjects', 'student_achievements.subject_id', 'subjects.id')
       .where('student_achievements.student_id', student.id)
+      .where('student_achievements.visibility', 'PUBLISHED')
       .select(
         'student_achievements.id',
         'student_achievements.badge_type as badgeType',
         'student_achievements.title',
         'student_achievements.reason',
         'student_achievements.stars_count as starsCount',
+        'subjects.name as subjectName',
         'teacher_users.full_name as awardedByTeacher',
         'student_achievements.created_at as awardedAt'
       )
@@ -397,7 +428,7 @@ export const studentsRepository = {
       .leftJoin('teachers', 'learning_tasks.teacher_id', 'teachers.id')
       .leftJoin('users as teacher_users', 'teachers.user_id', 'teacher_users.id')
       .where('learning_tasks.class_id', student.classId)
-      .whereIn('learning_tasks.status', ['ACTIVE', 'PUBLISHED'])
+      .whereIn('learning_tasks.status', ['ACTIVE', 'ARCHIVED'])
       .select(
         'learning_tasks.id',
         'learning_tasks.subject_id as subjectId',
@@ -425,6 +456,7 @@ export const studentsRepository = {
         'task_submissions.submitted_at as submittedAt',
         'task_submissions.graded_at as gradedAt',
         'learning_tasks.title',
+        'learning_tasks.task_type as taskType',
         'learning_tasks.total_marks as maxMarks',
         'learning_tasks.subject_id as subjectId',
         'subjects.name as subjectName',
@@ -434,8 +466,7 @@ export const studentsRepository = {
 
     // 5. Attendance
     const attRecords = await db('lesson_attendance').where('student_id', studentId);
-    const presentCount = attRecords.filter((a) => a.status === 'PRESENT').length;
-    const attendanceRate = attRecords.length > 0 ? Math.round((presentCount / attRecords.length) * 100) : 94;
+    const attendanceRate = computeAttendanceRate(attRecords);
 
     // 6. Term publication status
     const evaluation = await db('class_academic_evaluations')
@@ -444,15 +475,7 @@ export const studentsRepository = {
       .first();
     const evaluationStatus = evaluation ? evaluation.published_status : 'PUBLISHED';
 
-    function getGrade(pct) {
-      if (pct == null) return '—';
-      if (pct >= 90) return 'A+';
-      if (pct >= 80) return 'A';
-      if (pct >= 70) return 'B+';
-      if (pct >= 60) return 'B';
-      if (pct >= 50) return 'C';
-      return 'F';
-    }
+    const getGrade = letterGrade;
 
     function getGpa(pct) {
       if (pct == null) return 0.0;
@@ -510,6 +533,7 @@ export const studentsRepository = {
           submissionId: sub.submissionId,
           taskId: sub.taskId,
           title: sub.title,
+          taskType: sub.taskType || 'ASSIGNMENT',
           subjectName: sub.subjectName,
           teacherName: sub.teacherName || 'Faculty',
           marksAwarded: marksAwardedNum,

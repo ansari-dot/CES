@@ -73,6 +73,64 @@ export const parentsController = {
     }
   },
 
+  async getChildAttendance(req, res, next) {
+    try {
+      const { startDate, endDate } = req.query;
+      const data = await parentsService.getChildAttendance(req.user.id, Number(req.params.studentId), {
+        startDate: startDate || null,
+        endDate: endDate || null
+      });
+      return sendSuccess(res, data);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getChildChallanDetail(req, res, next) {
+    try {
+      const data = await parentsService.getChildChallanDetail(req.user.id, Number(req.params.studentId), Number(req.params.challanId));
+      return sendSuccess(res, data);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getChildResults(req, res, next) {
+    try {
+      const data = await parentsService.getChildResults(req.user.id, Number(req.params.studentId));
+      return sendSuccess(res, data);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getChildAssignments(req, res, next) {
+    try {
+      const data = await parentsService.getChildAssignments(req.user.id, Number(req.params.studentId));
+      return sendSuccess(res, data);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getChildResources(req, res, next) {
+    try {
+      const data = await parentsService.getChildResources(req.user.id, Number(req.params.studentId));
+      return sendSuccess(res, data);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getChildAchievements(req, res, next) {
+    try {
+      const data = await parentsService.getChildAchievements(req.user.id, Number(req.params.studentId));
+      return sendSuccess(res, data);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async payChildChallan(req, res, next) {
     try {
       const studentId = Number(req.params.studentId);

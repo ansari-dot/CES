@@ -2,12 +2,31 @@ import { studentsService } from './students.service.js';
 import { sendSuccess } from '../../shared/http/response.js';
 import { db } from '../../shared/db/knex.js';
 import { timetableRepository } from '../timetable/timetable.repository.js';
+import { assertCanViewStudent, getTeacherScope, isStaff, forbidden } from '../../shared/services/accessScope.js';
 
 export const studentsController = {
   async getAllStudents(req, res, next) {
     try {
       const classId = req.query.classId ? Number(req.query.classId) : null;
       const status = req.query.status || null;
+
+      // Teachers only see students of the classes they teach
+      if (req.user.role === 'TEACHER') {
+        const scope = await getTeacherScope(req.user.id);
+        const allowed = Array.from(scope.classIds);
+        if (classId && !scope.classIds.has(classId)) return sendSuccess(res, []);
+        const students = await studentsService.getAllStudents({
+          classId,
+          classIds: classId ? null : allowed,
+          status: status || 'ACTIVE'
+        });
+        return sendSuccess(res, students);
+      }
+
+      if (!isStaff(req.user)) {
+        throw forbidden('You are not allowed to list student records.');
+      }
+
       const students = await studentsService.getAllStudents({ classId, status });
       return sendSuccess(res, students);
     } catch (error) {
@@ -17,6 +36,7 @@ export const studentsController = {
 
   async getStudentById(req, res, next) {
     try {
+      await assertCanViewStudent(req.user, Number(req.params.id));
       const student = await studentsService.getStudentById(Number(req.params.id));
       return sendSuccess(res, student);
     } catch (error) {
@@ -151,6 +171,7 @@ export const studentsController = {
   async getStudentGrades(req, res, next) {
     try {
       const studentId = Number(req.params.id);
+      await assertCanViewStudent(req.user, studentId);
       const grades = await studentsService.getStudentGrades(studentId, false);
       return sendSuccess(res, grades);
     } catch (error) {

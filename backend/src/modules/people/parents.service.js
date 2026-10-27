@@ -5,6 +5,8 @@ import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
 
 import { feesService } from '../fees/fees.service.js';
+import { tasksRepository } from '../tasks/tasks.repository.js';
+import { attendanceRepository } from '../attendance/attendance.repository.js';
 
 export const parentsService = {
   async getAllParents(filter = {}) {
@@ -91,6 +93,87 @@ export const parentsService = {
     return challans;
   },
 
+  /** Verifies the parent-child link and returns the child's basic record. */
+  async getLinkedChild(userId, studentId) {
+    const parent = await parentsRepository.getParentByUserId(userId);
+    if (!parent) {
+      throw new AppError('Parent profile not found', 404, ErrorCodes.NOT_FOUND);
+    }
+    const isLinked = await parentsRepository.verifyParentStudentLink(parent.id, Number(studentId));
+    if (!isLinked) {
+      throw new AppError('Access denied. Student is not linked to your parent account.', 403, ErrorCodes.FORBIDDEN);
+    }
+    const student = await studentsRepository.getStudentById(Number(studentId));
+    if (!student) throw new AppError('Student not found', 404, ErrorCodes.NOT_FOUND);
+    return { parent, student };
+  },
+
+  async getChildAttendance(userId, studentId, { startDate = null, endDate = null } = {}) {
+    const { student } = await this.getLinkedChild(userId, studentId);
+    const [stats, records] = await Promise.all([
+      attendanceRepository.getAttendanceStats({ studentId: student.id, startDate, endDate }),
+      parentsRepository.getChildAttendanceRecords(student.id, { startDate, endDate })
+    ]);
+    return {
+      studentId: student.id,
+      ...stats,
+      attendanceRate: stats.total > 0 ? stats.attendanceRate : null,
+      records
+    };
+  },
+
+  async getChildChallanDetail(userId, studentId, challanId) {
+    const { student } = await this.getLinkedChild(userId, studentId);
+    const challan = await parentsRepository.getChildChallanDetail(student.id, Number(challanId));
+    if (!challan) throw new AppError('Challan not found', 404, ErrorCodes.NOT_FOUND);
+    return challan;
+  },
+
+  async getChildResults(userId, studentId) {
+    const { student } = await this.getLinkedChild(userId, studentId);
+    return await studentsRepository.getStudentGrades(student.id);
+  },
+
+  async getChildAssignments(userId, studentId) {
+    const { student } = await this.getLinkedChild(userId, studentId);
+    const tasks = await tasksRepository.getTasks({
+      classId: student.currentClassId,
+      statuses: ['ACTIVE', 'ARCHIVED'],
+      studentId: student.id
+    });
+    return tasks.map((t) => ({
+      id: t.id,
+      title: t.title,
+      instructions: t.instructions,
+      taskType: t.taskType,
+      subjectName: t.subjectName,
+      teacherName: t.teacherName,
+      assignedDate: t.assignedDate,
+      deadline: t.deadline,
+      totalMarks: t.totalMarks,
+      status: t.status,
+      handoutName: t.handoutName,
+      handoutUrl: t.handoutUrl,
+      submissionStatus: t.submissionStatus,
+      resubmitRequested: t.resubmitRequested,
+      submittedAt: t.submittedAt,
+      isLate: t.isLate,
+      marksAwarded: t.marksAwarded,
+      feedback: t.feedback,
+      gradedAt: t.gradedAt
+    }));
+  },
+
+  async getChildResources(userId, studentId) {
+    const { student } = await this.getLinkedChild(userId, studentId);
+    return await tasksRepository.getResources({ classId: student.currentClassId, publishedOnly: true });
+  },
+
+  async getChildAchievements(userId, studentId) {
+    const { student } = await this.getLinkedChild(userId, studentId);
+    return await tasksRepository.getAchievements({ studentId: student.id, publishedOnly: true });
+  },
+
   async payChildChallan(userId, studentId, challanId, paymentData) {
     const parent = await parentsRepository.getParentByUserId(userId);
     if (!parent) {
@@ -100,6 +183,15 @@ export const parentsService = {
     const isLinked = await parentsRepository.verifyParentStudentLink(parent.id, Number(studentId));
     if (!isLinked) {
       throw new AppError('Access denied. Student is not linked to your parent account.', 403, ErrorCodes.FORBIDDEN);
+    }
+
+    // The challan must belong to this child
+    const challan = await parentsRepository.getChildChallanDetail(Number(studentId), Number(challanId));
+    if (!challan) {
+      throw new AppError('Challan not found for this student', 404, ErrorCodes.NOT_FOUND);
+    }
+    if (challan.status === 'PAID') {
+      throw new AppError('This challan is already fully paid', 422, ErrorCodes.VALIDATION_ERROR);
     }
 
     return await feesService.submitPaymentProof({

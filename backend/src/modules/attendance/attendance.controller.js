@@ -1,5 +1,7 @@
 import { attendanceService } from './attendance.service.js';
 import { sendSuccess } from '../../shared/http/response.js';
+import { getStudentByUserId, assertCanViewStudent, forbidden } from '../../shared/services/accessScope.js';
+import { parentsRepository } from '../people/parents.repository.js';
 
 export const attendanceController = {
   async getLessonRoster(req, res, next) {
@@ -117,13 +119,32 @@ export const attendanceController = {
 
   async getStats(req, res, next) {
     try {
-      const { classId, studentId, startDate, endDate } = req.query;
+      const { classId, startDate, endDate } = req.query;
+      let { studentId } = req.query;
+
+      // Students only get their own statistics; parents only their linked children's
+      if (req.user.role === 'STUDENT') {
+        const self = await getStudentByUserId(req.user.id);
+        studentId = self ? self.id : -1;
+      } else if (req.user.role === 'PARENT') {
+        if (!studentId) throw forbidden('Select one of your children to view attendance.');
+        await assertCanViewStudent(req.user, Number(studentId));
+      }
+
       const stats = await attendanceService.getAttendanceStats({
-        classId: classId ? Number(classId) : null,
+        classId: classId && !['STUDENT', 'PARENT'].includes(req.user.role) ? Number(classId) : null,
         studentId: studentId ? Number(studentId) : null,
         startDate: startDate || null,
         endDate: endDate || null
       });
+
+      // Personal views also get the date-wise history
+      if (['STUDENT', 'PARENT'].includes(req.user.role) && Number(studentId) > 0) {
+        stats.records = await parentsRepository.getChildAttendanceRecords(Number(studentId), {
+          startDate: startDate || null,
+          endDate: endDate || null
+        });
+      }
       return sendSuccess(res, stats);
     } catch (error) {
       next(error);
