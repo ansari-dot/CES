@@ -20,7 +20,6 @@ router.get('/me/children/:studentId/challans/:challanId', ...parentOnly, parents
 router.post('/me/children/:studentId/challans/:challanId/pay', ...parentOnly, upload.single('proof'), parentsController.payChildChallan);
 router.get('/me/children/:studentId/results', ...parentOnly, parentsController.getChildResults);
 router.get('/me/children/:studentId/assignments', ...parentOnly, parentsController.getChildAssignments);
-router.get('/me/children/:studentId/resources', ...parentOnly, parentsController.getChildResources);
 router.get('/me/children/:studentId/achievements', ...parentOnly, parentsController.getChildAchievements);
 
 // Protected routes (Admin / Principal)
