@@ -5,18 +5,42 @@ export const noticesController = {
   // Notices
   async createNotice(req, res, next) {
     try {
-      const { title, content, audience, targetRoles, priority, status, expiryDate } = req.body;
-      const notice = await noticesService.createNotice({
+      const { title, content, audience, targetRoles, targetClassIds, classId, category, priority, status, publishDate, expiryDate } = req.body;
+      const notice = await noticesService.createNotice(req.user, {
         title,
         content,
         audience,
         targetRoles,
+        targetClassIds,
+        classId,
+        category,
         priority,
         status,
-        expiryDate,
-        userId: req.user.id
+        publishDate,
+        expiryDate
       });
       return sendSuccess(res, notice, null, 201);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async updateNotice(req, res, next) {
+    try {
+      const { title, content, audience, targetRoles, targetClassIds, category, priority, status, publishDate, expiryDate } = req.body;
+      const notice = await noticesService.updateNotice(req.user, req.params.id, {
+        title,
+        content,
+        audience,
+        targetRoles,
+        targetClassIds,
+        category,
+        priority,
+        status,
+        publishDate,
+        expiryDate
+      });
+      return sendSuccess(res, notice);
     } catch (error) {
       next(error);
     }
@@ -25,7 +49,7 @@ export const noticesController = {
   async getNotices(req, res, next) {
     try {
       const { audience, role, status, search } = req.query;
-      const notices = await noticesService.getNotices({
+      const notices = await noticesService.getNotices(req.user, {
         audience: audience || null,
         role: role || null,
         status: status || null,
@@ -39,9 +63,17 @@ export const noticesController = {
 
   async getNoticeById(req, res, next) {
     try {
-      const id = req.params.id;
-      const notice = await noticesService.getNoticeById(id);
+      const notice = await noticesService.getNoticeById(req.user, req.params.id);
       return sendSuccess(res, notice);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async markNoticeRead(req, res, next) {
+    try {
+      const result = await noticesService.markNoticeRead(req.user, req.params.id);
+      return sendSuccess(res, result);
     } catch (error) {
       next(error);
     }
@@ -49,8 +81,7 @@ export const noticesController = {
 
   async archiveNotice(req, res, next) {
     try {
-      const id = req.params.id;
-      const notice = await noticesService.archiveNotice(id);
+      const notice = await noticesService.archiveNotice(req.user, req.params.id);
       return sendSuccess(res, notice);
     } catch (error) {
       next(error);
@@ -79,10 +110,8 @@ export const noticesController = {
 
   async getNotifications(req, res, next) {
     try {
-      const { role, isRead } = req.query;
-      const notifs = await noticesService.getNotifications({
-        userId: req.user.id,
-        role: role || (req.user.roleCode || null),
+      const { isRead } = req.query;
+      const notifs = await noticesService.getNotifications(req.user, {
         isRead: isRead !== undefined ? isRead === 'true' : null
       });
       return sendSuccess(res, notifs);
@@ -93,8 +122,7 @@ export const noticesController = {
 
   async markNotificationRead(req, res, next) {
     try {
-      const id = req.params.id;
-      const result = await noticesService.markNotificationRead(id);
+      const result = await noticesService.markNotificationRead(req.user, req.params.id);
       return sendSuccess(res, result);
     } catch (error) {
       next(error);
@@ -103,10 +131,7 @@ export const noticesController = {
 
   async markAllNotificationsRead(req, res, next) {
     try {
-      const result = await noticesService.markAllNotificationsRead({
-        userId: req.user.id,
-        role: req.user.roleCode
-      });
+      const result = await noticesService.markAllNotificationsRead(req.user);
       return sendSuccess(res, result);
     } catch (error) {
       next(error);
