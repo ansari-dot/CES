@@ -202,9 +202,9 @@ export const timetableRepository = {
           .orWhere('timetable_lessons.substitute_teacher_id', teacherId);
       });
     }
-    if (date) query = query.where('timetable_lessons.lesson_date', date);
-    if (startDate) query = query.where('timetable_lessons.lesson_date', '>=', startDate);
-    if (endDate) query = query.where('timetable_lessons.lesson_date', '<=', endDate);
+    if (date) query = query.whereRaw('DATE(timetable_lessons.lesson_date) = ?', [date]);
+    if (startDate) query = query.whereRaw('DATE(timetable_lessons.lesson_date) >= ?', [startDate]);
+    if (endDate) query = query.whereRaw('DATE(timetable_lessons.lesson_date) <= ?', [endDate]);
     if (status) query = query.where('timetable_lessons.status', status);
 
     const rows = await query;
@@ -228,7 +228,9 @@ export const timetableRepository = {
         zoomPasscode = '';
       }
       const hostKey = r.zoomConfigNotes ? (r.zoomConfigNotes.match(/(?:host\s*key|host\s*pin|key|pin)[:\s=]*([0-9]{6})/i)?.[1] || '884422') : '884422';
-      const lessonDate = r.lessonDate || (r.startAt ? String(r.startAt).split('T')[0] : '');
+      const lessonDate = r.lessonDate
+        ? String(r.lessonDate).split('T')[0]
+        : (r.startAt ? String(r.startAt).split('T')[0] : '');
       let dayOfWeek = '';
       if (lessonDate) {
         const dObj = new Date(lessonDate + 'T12:00:00Z');

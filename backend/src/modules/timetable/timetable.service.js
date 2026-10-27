@@ -199,11 +199,12 @@ export const timetableService = {
 
     const futureLessons = await db('timetable_lessons')
       .where({ slot_id: slotId })
-      .where('lesson_date', '>=', todayStr);
+      .whereRaw('DATE(lesson_date) >= ?', [todayStr]);
 
     for (const fl of futureLessons) {
+      const flDateStr = String(fl.lesson_date).split('T')[0];
       const flWeekdayParts = new Intl.DateTimeFormat('en-US', { timeZone: schoolTz, weekday: 'short' })
-        .format(new Date(fl.lesson_date + 'T12:00:00Z'));
+        .format(new Date(flDateStr + 'T12:00:00Z'));
       const flWeekday = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 }[flWeekdayParts];
 
       const newWeekday = weekday !== undefined ? weekday : existing.weekday;
@@ -215,8 +216,8 @@ export const timetableService = {
       } else {
         const newStart = startTime || existing.startTime || existing.start_time;
         const newEnd = endTime || existing.endTime || existing.end_time;
-        const startAt = new Date(wallClockToUtc(fl.lesson_date, newStart, schoolTz));
-        const endAt = new Date(wallClockToUtc(fl.lesson_date, newEnd, schoolTz));
+        const startAt = new Date(wallClockToUtc(flDateStr, newStart, schoolTz));
+        const endAt = new Date(wallClockToUtc(flDateStr, newEnd, schoolTz));
         await timetableRepository.updateLesson(fl.id, {
           class_id: classId || existing.classId || existing.class_id,
           subject_id: subjectId || existing.subjectId || existing.subject_id,
@@ -261,7 +262,7 @@ export const timetableService = {
 
     await db('timetable_lessons')
       .where({ slot_id: slotId, status: 'SCHEDULED' })
-      .where('lesson_date', '>=', todayStr)
+      .whereRaw('DATE(lesson_date) >= ?', [todayStr])
       .update({
         status: 'CANCELLED',
         cancel_reason: reason || 'Timetable slot archived'
@@ -337,7 +338,7 @@ export const timetableService = {
             subject_id: slot.subjectId,
             teacher_id: slot.teacherId,
             zoom_meeting_id: classMeeting ? classMeeting.id : null,
-            lesson_date: dateString,
+            lesson_date: db.raw('?', [dateString]),
             start_at: startAt,
             end_at: endAt,
             status: 'SCHEDULED'
@@ -347,7 +348,7 @@ export const timetableService = {
           // If lesson already exists for this slot on this date, synchronize its parameters
           try {
             await db('timetable_lessons')
-              .where({ slot_id: slot.id, lesson_date: dateString })
+              .whereRaw('slot_id = ? AND DATE(lesson_date) = ?', [slot.id, dateString])
               .update({
                 class_id: slot.classId,
                 subject_id: slot.subjectId,
