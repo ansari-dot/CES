@@ -3,6 +3,7 @@ import { studentsRepository } from './students.repository.js';
 import { hashPassword } from '../../shared/crypto/password.js';
 import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
+import { db } from '../../shared/db/knex.js';
 
 import { feesService } from '../fees/fees.service.js';
 import { tasksRepository } from '../tasks/tasks.repository.js';
@@ -22,6 +23,16 @@ export const parentsService = {
   },
 
   async registerParent({ name, email, phone, cnic, relation, password }) {
+    // Check for duplicate email upfront with a clear message
+    const existing = await db('users').where({ email }).first();
+    if (existing) {
+      throw new AppError(
+        `The email "${email}" is already registered to another account. Use a different email for the parent — e.g. if the child uses umarc@gmail.com, register the parent with umarc+parent@gmail.com (Gmail delivers both to the same inbox).`,
+        409,
+        'EMAIL_ALREADY_REGISTERED'
+      );
+    }
+
     const username = email.toLowerCase().replace(/[^a-z0-9]/g, '_') || `prn_${Date.now()}`;
     const passwordHash = await hashPassword(password || 'ParentPassword123!');
 
