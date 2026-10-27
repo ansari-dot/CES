@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../../store';
-import { addNotice } from '../../store/slices/noticesSlice';
+import { createNoticeThunk } from '../../store/slices/noticesSlice';
 import { addToast } from '../../store/slices/uiSlice';
 import { Modal } from '../common/Modal';
-import { AcademicNotice } from '../../types';
 
 interface CreateNoticeModalProps {
   isOpen: boolean;
@@ -13,43 +12,57 @@ interface CreateNoticeModalProps {
 export const CreateNoticeModal: React.FC<CreateNoticeModalProps> = ({ isOpen, onClose }) => {
   const dispatch = useAppDispatch();
   const assignedClasses = useAppSelector((state) => state.auth.teacher.assignedClasses);
-  const teacher = useAppSelector((state) => state.auth.teacher);
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [targetClassId, setTargetClassId] = useState('all');
   const [isUrgent, setIsUrgent] = useState(false);
   const [category, setCategory] = useState('Homework & Reminders');
+  const [sending, setSending] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // One entry per class (assignments are listed per subject)
+  const classOptions = useMemo(() => {
+    const map = new Map<number, string>();
+    assignedClasses.forEach((c) => map.set(Number(c.classId || c.id), c.className || c.name.split(' - ')[0]));
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [assignedClasses]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || !content.trim()) return;
 
-    const targetCls = assignedClasses.find((c) => c.id === targetClassId);
+    const targetClassIds = targetClassId === 'all' ? classOptions.map((c) => c.id) : [Number(targetClassId)];
+    if (targetClassIds.length === 0) {
+      dispatch(addToast({ message: 'You have no assigned classes to notify.', type: 'error' }));
+      return;
+    }
 
-    const newNotice: AcademicNotice = {
-      id: `NOT-${Date.now().toString().slice(-4)}`,
-      title,
-      content,
-      author: teacher.name,
-      date: 'Today',
-      targetClassId,
-      targetClassName: targetCls ? targetCls.name : 'All Assigned Classes',
-      isUrgent,
-      isPublished: true,
-      category,
-    };
-
-    dispatch(addNotice(newNotice));
-    dispatch(
-      addToast({
-        message: `Notice broadcasted to ${newNotice.targetClassName}.`,
-        type: 'success',
+    setSending(true);
+    const result = await dispatch(
+      createNoticeThunk({
+        title: title.trim(),
+        content: content.trim(),
+        priority: isUrgent ? 'High' : 'Normal',
+        category,
+        targetClassIds,
       })
     );
-    setTitle('');
-    setContent('');
-    onClose();
+    setSending(false);
+
+    if (createNoticeThunk.fulfilled.match(result)) {
+      dispatch(
+        addToast({
+          message: `Notice sent to students and parents of ${result.payload?.audience || 'your classes'}.`,
+          type: 'success',
+        })
+      );
+      setTitle('');
+      setContent('');
+      setIsUrgent(false);
+      onClose();
+    } else {
+      dispatch(addToast({ message: String(result.payload || 'Failed to publish notice.'), type: 'error' }));
+    }
   };
 
   return (
@@ -83,7 +96,7 @@ export const CreateNoticeModal: React.FC<CreateNoticeModalProps> = ({ isOpen, on
               className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none"
             >
               <option value="all">All Assigned Classes</option>
-              {assignedClasses.map((c) => (
+              {classOptions.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
@@ -141,9 +154,10 @@ export const CreateNoticeModal: React.FC<CreateNoticeModalProps> = ({ isOpen, on
           </button>
           <button
             type="submit"
-            className="px-5 py-2 rounded-lg bg-[#3525cd] hover:bg-[#4f46e5] text-white font-semibold text-xs shadow-md transition-all"
+            disabled={sending}
+            className="px-5 py-2 rounded-lg bg-[#3525cd] hover:bg-[#4f46e5] text-white font-semibold text-xs shadow-md transition-all disabled:opacity-60"
           >
-            Publish Notice
+            {sending ? 'Publishing…' : 'Publish Notice'}
           </button>
         </div>
       </form>

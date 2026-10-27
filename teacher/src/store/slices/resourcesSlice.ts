@@ -11,6 +11,42 @@ interface ResourcesState {
 
 const initialResources: LearningResource[] = [];
 
+// Backend resource types <-> portal resource types
+const TYPE_TO_UI: Record<string, LearningResource['type']> = {
+  PDF: 'pdf',
+  SLIDES: 'slides',
+  RECORDING: 'recording',
+  DOCUMENT: 'notes',
+  LINK: 'link',
+};
+
+const TYPE_TO_API: Record<LearningResource['type'], string> = {
+  pdf: 'PDF',
+  slides: 'SLIDES',
+  recording: 'RECORDING',
+  notes: 'DOCUMENT',
+  link: 'LINK',
+};
+
+function mapResource(r: any): LearningResource {
+  return {
+    id: String(r.id),
+    title: r.title,
+    description: r.description || '',
+    classId: String(r.classId),
+    className: r.className || `Class ${r.classNumber || r.classId}`,
+    subject: r.subjectName || 'General',
+    type: TYPE_TO_UI[String(r.resourceType || '').toUpperCase()] || 'pdf',
+    fileUrl: r.fileUrl || '',
+    fileName: r.fileName || undefined,
+    fileSize: r.fileSize || undefined,
+    uploadDate: r.createdAt
+      ? new Date(r.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+      : '—',
+    isPublished: Boolean(r.isPublished),
+  };
+}
+
 export const fetchResourcesThunk = createAsyncThunk(
   'resources/fetchResources',
   async (filters: { classId?: number; subjectId?: number } | void, { rejectWithValue }) => {
@@ -28,44 +64,54 @@ export const createResourceThunk = createAsyncThunk(
   'resources/createResource',
   async (
     payload: {
-      classId: number | string;
-      subjectId?: number | string;
+      classId: number;
+      subjectId: number;
       title: string;
       description?: string;
-      resourceType: string;
-      fileUrl?: string;
-      fileSize?: string;
-      isPublished?: boolean;
+      type: LearningResource['type'];
+      file?: File | null;
+      linkUrl?: string;
+      isPublished: boolean;
     },
     { rejectWithValue }
   ) => {
     try {
-      const res = await requestApi<any>('/api/v1/tasks/resources', {
-        method: 'POST',
-        body: JSON.stringify({
-          classId: Number(payload.classId) || 5,
-          subjectId: Number(payload.subjectId) || 1,
-          title: payload.title,
-          description: payload.description || '',
-          resourceType: payload.resourceType.toUpperCase(),
-          fileUrl: payload.fileUrl || 'https://resources.edupulse.org/notes/sample_doc.pdf',
-          fileSize: payload.fileSize || '1.5 MB',
-          isPublished: payload.isPublished !== undefined ? payload.isPublished : true,
-        }),
-      });
-      return res;
+      const fd = new FormData();
+      fd.append('classId', String(payload.classId));
+      fd.append('subjectId', String(payload.subjectId));
+      fd.append('title', payload.title);
+      fd.append('description', payload.description || '');
+      fd.append('resourceType', TYPE_TO_API[payload.type]);
+      fd.append('isPublished', String(payload.isPublished));
+      if (payload.file) fd.append('file', payload.file);
+      else if (payload.linkUrl) fd.append('fileUrl', payload.linkUrl);
+
+      return await requestApi<any>('/api/v1/tasks/resources', { method: 'POST', body: fd });
     } catch (err: any) {
-      return rejectWithValue(err.message || 'Failed to create resource');
+      return rejectWithValue(err.message || 'Failed to upload resource');
+    }
+  }
+);
+
+export const toggleResourcePublishThunk = createAsyncThunk(
+  'resources/togglePublish',
+  async (payload: { id: string; isPublished: boolean }, { rejectWithValue }) => {
+    try {
+      return await requestApi<any>(`/api/v1/tasks/resources/${Number(payload.id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isPublished: payload.isPublished }),
+      });
+    } catch (err: any) {
+      return rejectWithValue(err.message || 'Failed to update resource');
     }
   }
 );
 
 export const deleteResourceThunk = createAsyncThunk(
   'resources/deleteResource',
-  async (id: number | string, { rejectWithValue }) => {
+  async (id: string, { rejectWithValue }) => {
     try {
-      const numId = typeof id === 'string' ? parseInt(id.replace(/\D/g, ''), 10) || 1 : id;
-      await requestApi(`/api/v1/tasks/resources/${numId}`, { method: 'DELETE' });
+      await requestApi(`/api/v1/tasks/resources/${Number(id)}`, { method: 'DELETE' });
       return String(id);
     } catch (err: any) {
       return rejectWithValue(err.message || 'Failed to delete resource');
@@ -87,18 +133,6 @@ export const resourcesSlice = createSlice({
     setSelectedType: (state, action: PayloadAction<string>) => {
       state.selectedType = action.payload;
     },
-    addResource: (state, action: PayloadAction<LearningResource>) => {
-      state.resources.unshift(action.payload);
-    },
-    togglePublish: (state, action: PayloadAction<string>) => {
-      const res = state.resources.find((r) => r.id === action.payload);
-      if (res) {
-        res.isPublished = !res.isPublished;
-      }
-    },
-    deleteResource: (state, action: PayloadAction<string>) => {
-      state.resources = state.resources.filter((r) => r.id !== action.payload);
-    },
   },
   extraReducers: (builder) => {
     builder
@@ -108,43 +142,19 @@ export const resourcesSlice = createSlice({
       })
       .addCase(fetchResourcesThunk.fulfilled, (state, action) => {
         state.loading = false;
-        if (Array.isArray(action.payload)) {
-          state.resources = action.payload.map((r: any) => ({
-            id: String(r.id),
-            title: r.title,
-            description: r.description || '',
-            classId: String(r.classId),
-            className: r.className || `Class ${r.classNumber || r.classId}`,
-            subject: r.subjectName || 'General',
-            type: (r.resourceType ? r.resourceType.toLowerCase() : 'pdf') as any,
-            fileUrl: r.fileUrl || '',
-            fileSize: r.fileSize || '1.0 MB',
-            uploadDate: r.createdAt ? new Date(r.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent',
-            isPublished: Boolean(r.isPublished),
-          }));
-        }
+        state.resources = action.payload.map(mapResource);
       })
       .addCase(fetchResourcesThunk.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
       .addCase(createResourceThunk.fulfilled, (state, action) => {
-        if (action.payload) {
-          const r = action.payload;
-          state.resources.unshift({
-            id: String(r.id),
-            title: r.title,
-            description: r.description || '',
-            classId: String(r.classId),
-            className: r.className || `Class ${r.classNumber || r.classId}`,
-            subject: r.subjectName || 'General',
-            type: (r.resourceType ? r.resourceType.toLowerCase() : 'pdf') as any,
-            fileUrl: r.fileUrl || '',
-            fileSize: r.fileSize || '1.0 MB',
-            uploadDate: 'Today',
-            isPublished: Boolean(r.isPublished),
-          });
-        }
+        if (action.payload) state.resources.unshift(mapResource(action.payload));
+      })
+      .addCase(toggleResourcePublishThunk.fulfilled, (state, action) => {
+        if (!action.payload) return;
+        const updated = mapResource(action.payload);
+        state.resources = state.resources.map((r) => (r.id === updated.id ? updated : r));
       })
       .addCase(deleteResourceThunk.fulfilled, (state, action) => {
         state.resources = state.resources.filter((r) => r.id !== action.payload);
@@ -152,5 +162,5 @@ export const resourcesSlice = createSlice({
   },
 });
 
-export const { setSelectedType, addResource, togglePublish, deleteResource } = resourcesSlice.actions;
+export const { setSelectedType } = resourcesSlice.actions;
 export default resourcesSlice.reducer;

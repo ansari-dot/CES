@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../../store';
-import { createNewTask } from '../../store/slices/tasksSlice';
+import { createTaskThunk, fetchTasksThunk } from '../../store/slices/tasksSlice';
 import { addToast } from '../../store/slices/uiSlice';
 import { Task } from '../../types';
-import { requestApi } from '../../services/api';
+
+const MAX_HANDOUT_BYTES = 25 * 1024 * 1024;
 
 export const CreateTaskForm: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -37,7 +38,10 @@ export const CreateTaskForm: React.FC = () => {
   const [totalMarks, setTotalMarks] = useState<number>(20);
   const [gradingScale, setGradingScale] = useState<'numeric' | 'letter' | 'rubric' | 'passfail'>('numeric');
   const [notifyParents, setNotifyParents] = useState(true);
-  const [attachedFile, setAttachedFile] = useState<string | null>(null);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [taskType, setTaskType] = useState<Task['taskType']>('ASSIGNMENT');
+  const [saving, setSaving] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Sync targetClassId with teacher's assigned classes
   React.useEffect(() => {
@@ -87,73 +91,82 @@ export const CreateTaskForm: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) return;
-
-    const classNum = Number(targetClassId) || (uniqueAssignedClasses[0]?.classId || 1);
-    const selectedSubjObj = availableSubjects.find((s) => s.name === subject);
-    const subjectNum = selectedSubjObj?.id || 1;
-
-    try {
-      await requestApi('/api/v1/tasks', {
-        method: 'POST',
-        body: JSON.stringify({
-          classId: classNum,
-          subjectId: subjectNum,
-          title: title.trim(),
-          instructions: instructions || 'Complete all assignment questions with step-by-step working.',
-          deadline,
-          totalMarks,
-          gradingScale: gradingScale.toUpperCase()
-        })
-      });
-    } catch (err) {
-      console.warn('Backend task create failed, fallback to local state:', err);
+  const saveTask = async (status: 'ACTIVE' | 'DRAFT') => {
+    if (!title.trim()) {
+      dispatch(addToast({ message: 'Please enter an assignment title.', type: 'error' }));
+      return;
+    }
+    if (!instructions.trim()) {
+      dispatch(addToast({ message: 'Please enter instructions for students.', type: 'error' }));
+      return;
+    }
+    if (!deadline || Number.isNaN(new Date(deadline).getTime())) {
+      dispatch(addToast({ message: 'Please choose a valid due date and time.', type: 'error' }));
+      return;
+    }
+    if (!Number.isInteger(totalMarks) || totalMarks < 1) {
+      dispatch(addToast({ message: 'Maximum marks must be a whole number of at least 1.', type: 'error' }));
+      return;
     }
 
     const selectedCls = uniqueAssignedClasses.find((c) => c.id === targetClassId);
+    const selectedSubjObj = availableSubjects.find((s) => s.name === subject);
+    if (!selectedCls || !selectedSubjObj) {
+      dispatch(addToast({ message: 'Select one of your assigned classes and subjects.', type: 'error' }));
+      return;
+    }
 
-    const newTask: Task = {
-      id: `TASK-${Date.now().toString().slice(-4)}`,
-      title: title.trim(),
-      instructions: instructions || 'Complete all assignment questions with step-by-step working.',
-      classId: targetClassId,
-      className: selectedCls ? selectedCls.name : `Class ${classNum}`,
-      subject: subject || 'General',
-      assignedDate: 'Today',
-      deadline: deadline ? new Date(deadline).toLocaleDateString([], {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      }) : 'No deadline',
-      totalMarks,
-      gradingScale,
-      status: 'active',
-      submittedCount: 0,
-      totalStudents: assignedClasses.find(c => String(c.classId || c.id) === targetClassId)?.enrolledCount || 0,
-      gradedCount: 0,
-      pendingCount: 0,
-      lateCount: 0,
-      missingCount: assignedClasses.find(c => String(c.classId || c.id) === targetClassId)?.enrolledCount || 0,
-      handoutName: attachedFile || undefined,
-    };
-
-    dispatch(createNewTask(newTask));
-    dispatch(
-      addToast({
-        message: `Assignment "${title}" published to ${newTask.className} (${newTask.subject}). ${
-          notifyParents ? 'Guardian broadcast sent.' : ''
-        }`,
-        type: 'success',
+    setSaving(true);
+    const result = await dispatch(
+      createTaskThunk({
+        classId: selectedCls.classId,
+        subjectId: selectedSubjObj.id,
+        title: title.trim(),
+        instructions: instructions.trim(),
+        deadline,
+        totalMarks,
+        gradingScale: gradingScale === 'passfail' ? 'NUMERIC' : gradingScale.toUpperCase(),
+        taskType,
+        status,
+        notifyParents,
+        handout: attachedFile,
       })
     );
+    setSaving(false);
 
-    // Reset fields
-    setTitle('');
-    setInstructions('');
-    setAttachedFile(null);
+    if (createTaskThunk.fulfilled.match(result)) {
+      dispatch(
+        addToast({
+          message:
+            status === 'DRAFT'
+              ? `"${title.trim()}" saved as a draft. Students cannot see it until you publish it.`
+              : `"${title.trim()}" published to ${selectedCls.name} (${subject}).${notifyParents ? ' Parents were notified in their portal.' : ''}`,
+          type: 'success',
+        })
+      );
+      dispatch(fetchTasksThunk());
+      // Reset fields
+      setTitle('');
+      setInstructions('');
+      setAttachedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } else {
+      dispatch(addToast({ message: String(result.payload || 'Failed to save the assignment.'), type: 'error' }));
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    saveTask('ACTIVE');
+  };
+
+  const handleFileChosen = (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > MAX_HANDOUT_BYTES) {
+      dispatch(addToast({ message: 'The handout exceeds the 25 MB limit.', type: 'error' }));
+      return;
+    }
+    setAttachedFile(file);
   };
 
   return (
@@ -254,8 +267,22 @@ export const CreateTaskForm: React.FC = () => {
           ></textarea>
         </div>
 
-        {/* Row 3: Due Date, Total Marks, Grading Scale */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Row 3: Assessment Type, Due Date, Total Marks, Grading Scale */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-[#121c2a]">Assessment Type</label>
+            <select
+              value={taskType}
+              onChange={(e) => setTaskType(e.target.value as Task['taskType'])}
+              className="w-full bg-[#eff4ff] px-3.5 py-2 rounded-lg text-[#121c2a] focus:outline-none focus:ring-2 focus:ring-[#3525cd]/20 cursor-pointer border border-indigo-100/60"
+            >
+              <option value="ASSIGNMENT">Assignment / Homework</option>
+              <option value="QUIZ">Quiz</option>
+              <option value="TEST">Class Test</option>
+              <option value="EXAM">Examination</option>
+            </select>
+          </div>
+
           <div className="space-y-1">
             <label className="text-xs font-semibold text-[#121c2a]">Due Date &amp; Deadline</label>
             <input
@@ -301,12 +328,19 @@ export const CreateTaskForm: React.FC = () => {
           <label className="text-xs font-semibold text-[#121c2a]">
             Task Handout / Reference Worksheet Upload
           </label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept=".pdf,.doc,.docx,.ppt,.pptx,.png,.jpg,.jpeg,.webp,.txt,.zip"
+            onChange={(e) => handleFileChosen(e.target.files?.[0])}
+          />
           <div
-            onClick={() => {
-              if (!attachedFile) {
-                setAttachedFile('Worksheet_Handout.pdf');
-                dispatch(addToast({ message: 'Worksheet attached: Worksheet_Handout.pdf', type: 'info' }));
-              }
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              handleFileChosen(e.dataTransfer.files?.[0]);
             }}
             className="bg-[#eff4ff] p-5 rounded-xl flex flex-col items-center justify-center text-center cursor-pointer hover:bg-[#dee9fc]/70 transition-all border border-dashed border-indigo-200"
           >
@@ -317,18 +351,19 @@ export const CreateTaskForm: React.FC = () => {
               Click to upload worksheet or drag &amp; drop document
             </p>
             <p className="text-[11px] text-[#777587] mt-0.5">
-              Supports PDF, DOCX, PNG or Google Drive links (Max 25 MB per file)
+              Supports PDF, Word, PowerPoint, images or ZIP (Max 25 MB per file)
             </p>
             {attachedFile ? (
               <div className="flex items-center gap-2 mt-2">
                 <span className="px-2 py-0.5 rounded bg-indigo-100 text-[11px] font-semibold text-[#3525cd] font-mono">
-                  {attachedFile}
+                  {attachedFile.name} ({(attachedFile.size / (1024 * 1024)).toFixed(1)} MB)
                 </span>
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     setAttachedFile(null);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
                   }}
                   className="text-xs text-rose-500 hover:text-rose-700 underline font-medium"
                 >
@@ -362,17 +397,19 @@ export const CreateTaskForm: React.FC = () => {
           <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
             <button
               type="button"
-              onClick={() => dispatch(addToast({ message: 'Task saved to drafts.', type: 'info' }))}
-              className="px-4 py-2.5 rounded-lg bg-[#e6eeff] text-[#121c2a] hover:bg-[#dee9fc] text-xs font-semibold"
+              disabled={saving}
+              onClick={() => saveTask('DRAFT')}
+              className="px-4 py-2.5 rounded-lg bg-[#e6eeff] text-[#121c2a] hover:bg-[#dee9fc] text-xs font-semibold disabled:opacity-60"
             >
               Save as Draft
             </button>
             <button
               type="submit"
-              className="px-6 py-2.5 rounded-lg bg-[#3525cd] hover:bg-[#4f46e5] text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5 active:scale-98"
+              disabled={saving}
+              className="px-6 py-2.5 rounded-lg bg-[#3525cd] hover:bg-[#4f46e5] text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5 active:scale-98 disabled:opacity-60"
             >
               <span className="material-symbols-outlined text-[18px]">send</span>
-              Publish Task to Class
+              {saving ? 'Saving...' : 'Publish Task to Class'}
             </button>
           </div>
         </div>

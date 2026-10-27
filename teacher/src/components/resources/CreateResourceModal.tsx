@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppDispatch, useAppSelector } from '../../store';
-import { addResource } from '../../store/slices/resourcesSlice';
+import { createResourceThunk } from '../../store/slices/resourcesSlice';
 import { addToast } from '../../store/slices/uiSlice';
 import { Modal } from '../common/Modal';
-import { LearningResource } from '../../types';
-import { requestApi } from '../../services/api';
+
+const ACCEPT_BY_TYPE: Record<string, string> = {
+  pdf: '.pdf',
+  slides: '.ppt,.pptx,.pdf',
+  recording: '.mp4,.webm,.mov,.mkv,.ogg',
+  notes: '.pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.webp,.zip',
+};
 
 interface CreateResourceModalProps {
   isOpen: boolean;
@@ -37,6 +42,10 @@ export const CreateResourceModal: React.FC<CreateResourceModalProps> = ({ isOpen
   const [subject, setSubject] = useState<string>('');
   const [type, setType] = useState<'pdf' | 'recording' | 'slides' | 'notes' | 'link'>('pdf');
   const [fileUrl, setFileUrl] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [isPublished, setIsPublished] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Keep target class in sync with teacher's assigned classes
   useEffect(() => {
@@ -90,55 +99,57 @@ export const CreateResourceModal: React.FC<CreateResourceModalProps> = ({ isOpen
     e.preventDefault();
     if (!title.trim()) return;
 
-    const classNum = Number(targetClassId) || (uniqueAssignedClasses[0]?.classId || 1);
+    const selectedCls = uniqueAssignedClasses.find((c) => c.id === targetClassId);
     const selectedSubjObj = availableSubjects.find((s) => s.name === subject);
-    const subjectNum = selectedSubjObj?.id || 1;
-    const finalFileUrl = fileUrl.trim() || 'https://edupulse.org/resources/sample-handout.pdf';
-
-    try {
-      await requestApi('/api/v1/tasks/resources', {
-        method: 'POST',
-        body: JSON.stringify({
-          classId: classNum,
-          subjectId: subjectNum,
-          title: title.trim(),
-          description: description.trim(),
-          resourceType: type.toUpperCase(),
-          fileUrl: finalFileUrl,
-          fileSize: '1.2 MB'
-        })
-      });
-    } catch (err) {
-      console.warn('Backend resource create failed, fallback to local state:', err);
+    if (!selectedCls || !selectedSubjObj) {
+      dispatch(addToast({ message: 'Select one of your assigned classes and subjects.', type: 'error' }));
+      return;
     }
 
-    const selectedCls = uniqueAssignedClasses.find((c) => c.id === targetClassId);
+    const isLink = type === 'link';
+    if (isLink && !/^https?:\/\/\S+$/i.test(fileUrl.trim())) {
+      dispatch(addToast({ message: 'Enter a valid link starting with http:// or https://', type: 'error' }));
+      return;
+    }
+    if (!isLink && !file) {
+      dispatch(addToast({ message: 'Please choose a file to upload.', type: 'error' }));
+      return;
+    }
 
-    const newRes: LearningResource = {
-      id: `RES-${Date.now().toString().slice(-4)}`,
-      title: title.trim(),
-      description: description.trim(),
-      classId: targetClassId,
-      className: selectedCls ? selectedCls.name : `Class ${classNum}`,
-      subject: subject || 'General',
-      type,
-      fileUrl: finalFileUrl,
-      fileSize: '1.2 MB',
-      uploadDate: 'Today',
-      isPublished: true,
-    };
-
-    dispatch(addResource(newRes));
-    dispatch(
-      addToast({
-        message: `Learning resource "${title}" published to ${newRes.className} (${newRes.subject}).`,
-        type: 'success',
+    setUploading(true);
+    const result = await dispatch(
+      createResourceThunk({
+        classId: selectedCls.classId,
+        subjectId: selectedSubjObj.id,
+        title: title.trim(),
+        description: description.trim(),
+        type,
+        file: isLink ? null : file,
+        linkUrl: isLink ? fileUrl.trim() : undefined,
+        isPublished,
       })
     );
-    setTitle('');
-    setDescription('');
-    setFileUrl('');
-    onClose();
+    setUploading(false);
+
+    if (createResourceThunk.fulfilled.match(result)) {
+      dispatch(
+        addToast({
+          message: isPublished
+            ? `Learning resource "${title.trim()}" published to ${selectedCls.name} (${subject}).`
+            : `Learning resource "${title.trim()}" saved as a draft (not visible to students).`,
+          type: 'success',
+        })
+      );
+      setTitle('');
+      setDescription('');
+      setFileUrl('');
+      setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      onClose();
+    } else {
+      // Nothing is shown as uploaded unless the server accepted the file
+      dispatch(addToast({ message: String(result.payload || 'Upload failed. Please try again.'), type: 'error' }));
+    }
   };
 
   return (
@@ -232,17 +243,44 @@ export const CreateResourceModal: React.FC<CreateResourceModalProps> = ({ isOpen
             </select>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-[#121c2a] mb-1">File / Access URL</label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. https://... or /materials/unit1.pdf"
-              value={fileUrl}
-              onChange={(e) => setFileUrl(e.target.value)}
-              className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none"
-            />
-          </div>
+          {type === 'link' ? (
+            <div>
+              <label className="block text-xs font-semibold text-[#121c2a] mb-1">Access URL</label>
+              <input
+                type="url"
+                required
+                placeholder="e.g. https://..."
+                value={fileUrl}
+                onChange={(e) => setFileUrl(e.target.value)}
+                className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none"
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-semibold text-[#121c2a] mb-1">File</label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                required
+                accept={ACCEPT_BY_TYPE[type]}
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                className="w-full h-10 px-2 py-2 bg-white border border-slate-200 rounded-lg text-[#121c2a] text-xs focus:border-[#3525cd] focus:outline-none file:mr-2 file:px-2 file:py-0.5 file:rounded file:border-0 file:bg-[#eff4ff] file:text-[#3525cd] file:font-semibold"
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="resourcePublishCheck"
+            checked={isPublished}
+            onChange={(e) => setIsPublished(e.target.checked)}
+            className="w-4 h-4 rounded accent-[#3525cd] cursor-pointer"
+          />
+          <label htmlFor="resourcePublishCheck" className="text-xs text-[#464555] cursor-pointer font-medium">
+            Publish now (visible to students of the selected class)
+          </label>
         </div>
 
         <div className="pt-2 flex items-center justify-end gap-2">
@@ -255,9 +293,10 @@ export const CreateResourceModal: React.FC<CreateResourceModalProps> = ({ isOpen
           </button>
           <button
             type="submit"
-            className="px-5 py-2 rounded-lg bg-[#3525cd] hover:bg-[#4f46e5] text-white font-semibold text-xs shadow-md transition-all"
+            disabled={uploading}
+            className="px-5 py-2 rounded-lg bg-[#3525cd] hover:bg-[#4f46e5] text-white font-semibold text-xs shadow-md transition-all disabled:opacity-60"
           >
-            Publish Resource
+            {uploading ? 'Uploading…' : isPublished ? 'Publish Resource' : 'Save Resource'}
           </button>
         </div>
       </form>

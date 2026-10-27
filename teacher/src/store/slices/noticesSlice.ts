@@ -1,4 +1,4 @@
-import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { AcademicNotice } from '../../types';
 import { requestApi } from '../../services/api';
 
@@ -9,6 +9,28 @@ interface NoticesState {
 }
 
 const initialNotices: AcademicNotice[] = [];
+
+function mapNotice(n: any): AcademicNotice {
+  const roles: string[] = Array.isArray(n.targetRoles) ? n.targetRoles : [];
+  const classIds: number[] | null = Array.isArray(n.targetClassIds) ? n.targetClassIds : null;
+  return {
+    id: String(n.id),
+    title: n.title,
+    content: n.content,
+    author: n.createdBy || 'Administration',
+    date: n.publishDate
+      ? new Date(`${n.publishDate}T00:00:00`).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+      : '—',
+    targetClassId: classIds && classIds.length === 1 ? String(classIds[0]) : 'all',
+    targetClassName: n.audience || 'School-Wide',
+    isUrgent: n.priority === 'Urgent' || n.priority === 'High',
+    isPublished: n.status === 'Published',
+    status: n.status,
+    category: n.category || 'General',
+    canManage: Boolean(n.canManage),
+    recipients: roles.length === 3 ? 'Everyone' : roles.map((r) => `${r}s`).join(' & '),
+  };
+}
 
 export const fetchNoticesThunk = createAsyncThunk(
   'notices/fetchNotices',
@@ -28,26 +50,38 @@ export const createNoticeThunk = createAsyncThunk(
     payload: {
       title: string;
       content: string;
-      priority?: string;
-      audience?: string;
-      classId?: number;
+      priority: 'Normal' | 'High';
+      category: string;
+      targetClassIds: number[];
     },
     { rejectWithValue }
   ) => {
     try {
-      const res = await requestApi<any>('/api/v1/notices', {
+      return await requestApi<any>('/api/v1/notices', {
         method: 'POST',
         body: JSON.stringify({
           title: payload.title,
           content: payload.content,
-          priority: payload.priority || 'NORMAL',
-          audience: payload.audience || 'ALL',
-          classId: payload.classId || null,
+          priority: payload.priority,
+          category: payload.category,
+          targetClassIds: payload.targetClassIds,
+          targetRoles: ['Student', 'Parent'],
         }),
       });
-      return res;
     } catch (err: any) {
       return rejectWithValue(err.message || 'Failed to create notice');
+    }
+  }
+);
+
+export const archiveNoticeThunk = createAsyncThunk(
+  'notices/archiveNotice',
+  async (id: string, { rejectWithValue }) => {
+    try {
+      await requestApi(`/api/v1/notices/${Number(id)}/archive`, { method: 'POST' });
+      return id;
+    } catch (err: any) {
+      return rejectWithValue(err.message || 'Failed to remove notice');
     }
   }
 );
@@ -61,14 +95,7 @@ const initialState: NoticesState = {
 export const noticesSlice = createSlice({
   name: 'notices',
   initialState,
-  reducers: {
-    addNotice: (state, action: PayloadAction<AcademicNotice>) => {
-      state.notices.unshift(action.payload);
-    },
-    deleteNotice: (state, action: PayloadAction<string>) => {
-      state.notices = state.notices.filter((n) => n.id !== action.payload);
-    },
-  },
+  reducers: {},
   extraReducers: (builder) => {
     builder
       .addCase(fetchNoticesThunk.pending, (state) => {
@@ -77,44 +104,20 @@ export const noticesSlice = createSlice({
       })
       .addCase(fetchNoticesThunk.fulfilled, (state, action) => {
         state.loading = false;
-        if (Array.isArray(action.payload)) {
-          state.notices = action.payload.map((n: any) => ({
-            id: String(n.id),
-            title: n.title,
-            content: n.content,
-            author: n.createdByName || n.createdBy || 'Administration',
-            date: n.createdAt ? new Date(n.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recent',
-            targetClassId: n.classId ? String(n.classId) : 'all',
-            targetClassName: n.classId ? `Class ${n.classId}` : 'All Assigned Classes',
-            isUrgent: n.priority === 'URGENT' || n.priority === 'HIGH',
-            isPublished: n.status === 'PUBLISHED',
-            category: n.category || 'General',
-          }));
-        }
+        // Archived notices remain in the school history but are not shown in the stream
+        state.notices = action.payload.filter((n: any) => n.status !== 'Archived').map(mapNotice);
       })
       .addCase(fetchNoticesThunk.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
       .addCase(createNoticeThunk.fulfilled, (state, action) => {
-        if (action.payload) {
-          const n = action.payload;
-          state.notices.unshift({
-            id: String(n.id),
-            title: n.title,
-            content: n.content,
-            author: n.createdByName || 'Faculty Member',
-            date: 'Today',
-            targetClassId: n.classId ? String(n.classId) : 'all',
-            targetClassName: n.classId ? `Class ${n.classId}` : 'All Assigned Classes',
-            isUrgent: n.priority === 'URGENT' || n.priority === 'HIGH',
-            isPublished: true,
-            category: 'General',
-          });
-        }
+        if (action.payload) state.notices.unshift(mapNotice(action.payload));
+      })
+      .addCase(archiveNoticeThunk.fulfilled, (state, action) => {
+        state.notices = state.notices.filter((n) => n.id !== action.payload);
       });
   },
 });
 
-export const { addNotice, deleteNotice } = noticesSlice.actions;
 export default noticesSlice.reducer;

@@ -218,6 +218,10 @@ export interface Task {
   lateCount: number;
   missingCount: number;
   handoutName?: string;
+  handoutUrl?: string;
+  taskType: 'ASSIGNMENT' | 'QUIZ' | 'TEST' | 'EXAM';
+  subjectId?: string;
+  deadlineRaw?: string;
 }
 
 export interface Submission {
@@ -236,6 +240,9 @@ export interface Submission {
   fileName?: string;
   fileSize?: string;
   fileUrl?: string;
+  studentNotes?: string;
+  className?: string;
+  isLate?: boolean;
   feedback?: string;
   rubricScores?: {
     accuracy: number;
@@ -276,6 +283,7 @@ export interface LearningResource {
   subject: string;
   type: 'pdf' | 'recording' | 'slides' | 'notes' | 'link';
   fileUrl: string;
+  fileName?: string;
   fileSize?: string;
   uploadDate: string;
   isPublished: boolean;
@@ -292,6 +300,9 @@ export interface AcademicNotice {
   isUrgent: boolean;
   isPublished: boolean;
   category: string;
+  canManage?: boolean;
+  recipients?: string;
+  status?: string;
 }
 
 export interface AchievementItem {
@@ -300,11 +311,14 @@ export interface AchievementItem {
   studentName: string;
   classId: string;
   className: string;
-  badgeType: 'star' | 'medal' | 'trophy' | 'certificate';
+  badgeType: 'star' | 'medal' | 'trophy' | 'certificate' | 'feedback';
   title: string;
   reason: string;
   awardedDate: string;
   starsCount: number;
+  subjectId?: string;
+  subjectName?: string;
+  visibility?: 'PUBLISHED' | 'INTERNAL';
 }
 
 export interface DutySummary {

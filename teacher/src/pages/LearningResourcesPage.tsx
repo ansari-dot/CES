@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
-import { setSelectedType, togglePublish } from '../store/slices/resourcesSlice';
+import { setSelectedType, toggleResourcePublishThunk, deleteResourceThunk } from '../store/slices/resourcesSlice';
 import { addToast } from '../store/slices/uiSlice';
 import { CreateResourceModal } from '../components/resources/CreateResourceModal';
+import { openProtectedFile } from '../services/api';
 
 export const LearningResourcesPage: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -22,6 +23,33 @@ export const LearningResourcesPage: React.FC = () => {
     }
     return true;
   });
+
+  const handleTogglePublish = async (id: string, title: string, publish: boolean) => {
+    const result = await dispatch(toggleResourcePublishThunk({ id, isPublished: publish }));
+    if (toggleResourcePublishThunk.fulfilled.match(result)) {
+      dispatch(addToast({ message: `"${title}" is now ${publish ? 'visible to students' : 'hidden from students'}.`, type: 'info' }));
+    } else {
+      dispatch(addToast({ message: String(result.payload || 'Failed to update resource.'), type: 'error' }));
+    }
+  };
+
+  const handleDelete = async (id: string, title: string) => {
+    if (!window.confirm(`Delete "${title}"? Students will no longer be able to access it.`)) return;
+    const result = await dispatch(deleteResourceThunk(id));
+    if (deleteResourceThunk.fulfilled.match(result)) {
+      dispatch(addToast({ message: `"${title}" deleted.`, type: 'info' }));
+    } else {
+      dispatch(addToast({ message: String(result.payload || 'Failed to delete resource.'), type: 'error' }));
+    }
+  };
+
+  const handleOpen = async (url: string, fileName?: string) => {
+    try {
+      await openProtectedFile(url, fileName);
+    } catch (err: any) {
+      dispatch(addToast({ message: err.message || 'Unable to open this resource.', type: 'error' }));
+    }
+  };
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -157,15 +185,7 @@ export const LearningResourcesPage: React.FC = () => {
                   <td className="px-3 text-right">
                     <div className="flex items-center justify-end gap-1.5">
                       <button
-                        onClick={() => {
-                          dispatch(togglePublish(res.id));
-                          dispatch(
-                            addToast({
-                              message: `Toggled publication for "${res.title}"`,
-                              type: 'info',
-                            })
-                          );
-                        }}
+                        onClick={() => handleTogglePublish(res.id, res.title, !res.isPublished)}
                         className="p-1 text-[#464555] hover:text-[#121c2a] hover:bg-[#eff4ff] rounded transition-colors"
                         title={res.isPublished ? 'Unpublish' : 'Publish'}
                       >
@@ -174,9 +194,14 @@ export const LearningResourcesPage: React.FC = () => {
                         </span>
                       </button>
                       <button
-                        onClick={() =>
-                          dispatch(addToast({ message: `Accessing ${res.fileUrl}`, type: 'info' }))
-                        }
+                        onClick={() => handleDelete(res.id, res.title)}
+                        className="p-1 text-[#464555] hover:text-[#ba1a1a] hover:bg-[#eff4ff] rounded transition-colors"
+                        title="Delete resource"
+                      >
+                        <span className="material-symbols-outlined text-[17px]">delete</span>
+                      </button>
+                      <button
+                        onClick={() => handleOpen(res.fileUrl, res.fileName)}
                         className="px-2.5 py-1 rounded-lg bg-[#eff4ff] hover:bg-[#dee9fc] text-[#3525cd] font-bold text-[11px] flex items-center gap-1"
                       >
                         <span className="material-symbols-outlined text-[14px]">open_in_new</span>

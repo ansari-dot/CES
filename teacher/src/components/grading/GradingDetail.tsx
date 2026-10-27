@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../../store';
 import {
-  gradeSubmission,
-  returnForResubmission,
   gradeSubmissionThunk,
+  returnSubmissionThunk,
   fetchTasksThunk,
   fetchSubmissionsThunk,
 } from '../../store/slices/tasksSlice';
 import { addToast } from '../../store/slices/uiSlice';
+import { openProtectedFile } from '../../services/api';
 
 export const GradingDetail: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -16,8 +16,8 @@ export const GradingDetail: React.FC = () => {
   const tasks = useAppSelector((state) => state.tasks.tasks);
   const selectedTaskId = useAppSelector((state) => state.tasks.selectedTaskId);
 
-  const currentTask = tasks.find((t) => t.id === selectedTaskId) || tasks[0];
   const submission = submissions.find((s) => s.id === selectedSubmissionId) || submissions[0];
+  const currentTask = tasks.find((t) => t.id === submission?.taskId) || tasks.find((t) => t.id === selectedTaskId);
 
   const [score, setScore] = useState<number>(submission?.marksAwarded ?? 0);
   const [accuracy, setAccuracy] = useState<number>(submission?.rubricScores?.accuracy ?? 0);
@@ -46,7 +46,20 @@ export const GradingDetail: React.FC = () => {
     );
   }
 
-  const handlePublishGrade = async () => {
+  const refreshGradebook = () => {
+    // Refresh tasks and submissions so queue & class average update live
+    dispatch(fetchTasksThunk());
+    dispatch(fetchSubmissionsThunk(submission.taskId));
+  };
+
+  const handlePublishGrade = async (publish: boolean) => {
+    if (!Number.isFinite(score) || score < 0 || score > submission.maxMarks) {
+      dispatch(
+        addToast({ message: `Marks must be a number between 0 and ${submission.maxMarks}.`, type: 'error' })
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const result = await dispatch(
@@ -55,64 +68,62 @@ export const GradingDetail: React.FC = () => {
           marksAwarded: score,
           rubricScores: { accuracy, steps, simplification },
           feedback,
+          publish,
         })
       );
 
       if (gradeSubmissionThunk.fulfilled.match(result)) {
         dispatch(
-          gradeSubmission({
-            submissionId: submission.id,
-            marksAwarded: score,
-            feedback,
-            rubricScores: { accuracy, steps, simplification },
-          })
-        );
-        dispatch(
           addToast({
-            message: `Grade published for ${submission.studentName} (${score}/${submission.maxMarks}) and synced to Student Portal.`,
+            message: publish
+              ? `Grade published for ${submission.studentName} (${score}/${submission.maxMarks}). The student and parents can now see it.`
+              : `Draft grade saved for ${submission.studentName}. It stays hidden from the student until published.`,
             type: 'success',
           })
         );
-        // Refresh tasks and submissions so queue & class average update live
-        dispatch(fetchTasksThunk());
-        if (currentTask) {
-          dispatch(fetchSubmissionsThunk(currentTask.id));
-        }
+        refreshGradebook();
       } else {
         dispatch(
           addToast({
-            message: String(result.payload) || 'Failed to publish grade to server.',
+            message: String(result.payload || 'Failed to save the grade.'),
             type: 'error',
           })
         );
       }
-    } catch (err: any) {
-      dispatch(
-        addToast({
-          message: err.message || 'Error publishing grade.',
-          type: 'error',
-        })
-      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleReturnResubmission = () => {
-    const note = prompt(
-      'Enter instructions for resubmission (e.g. Please correct problem #7 and resubmit by tomorrow):',
-      'Please re-solve item #7 with inverted divisor and resubmit by Oct 24.'
-    );
-    if (note) {
-      dispatch(returnForResubmission({ submissionId: submission.id, note }));
+  const handleReturnResubmission = async () => {
+    const note = prompt('Enter instructions for the student explaining what to correct before resubmitting:', '');
+    if (!note || !note.trim()) return;
+
+    const result = await dispatch(returnSubmissionThunk({ submissionId: submission.id, note: note.trim() }));
+    if (returnSubmissionThunk.fulfilled.match(result)) {
       dispatch(
         addToast({
           message: `Submission returned to ${submission.studentName} for resubmission.`,
           type: 'info',
         })
       );
+      refreshGradebook();
+    } else {
+      dispatch(addToast({ message: String(result.payload || 'Failed to return the submission.'), type: 'error' }));
     }
   };
+
+  const handleOpenFile = async (download: boolean) => {
+    if (!submission.fileUrl) return;
+    try {
+      await openProtectedFile(submission.fileUrl, submission.fileName, download);
+    } catch (err: any) {
+      dispatch(addToast({ message: err.message || 'Unable to open the submitted file.', type: 'error' }));
+    }
+  };
+
+  const isPublished = submission.status === 'graded';
+  const hasDraftGrade = !isPublished && submission.marksAwarded !== undefined;
 
   const handleInsertQuickPhrase = () => {
     setFeedback((prev) =>
@@ -141,14 +152,28 @@ export const GradingDetail: React.FC = () => {
               </span>
             </div>
             <div className="flex items-center gap-2 text-xs text-[#777587] mt-0.5">
-              <span>Class 5-A</span>
+              <span>{submission.className || currentTask?.className || '—'}</span>
               <span>•</span>
               <span>Roll {submission.studentRoll}</span>
               <span>•</span>
-              <span className="text-[#006c49] font-bold flex items-center gap-1">
-                <span className="material-symbols-outlined text-[14px]">verified</span> Attempt #
-                {submission.attemptNumber || 1}
-              </span>
+              {isPublished ? (
+                <span className="text-[#006c49] font-bold flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">verified</span> Grade published
+                </span>
+              ) : submission.status === 'resubmit_requested' ? (
+                <span className="text-[#ba1a1a] font-bold flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">undo</span> Returned for resubmission
+                </span>
+              ) : hasDraftGrade ? (
+                <span className="text-[#684000] font-bold flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">edit_note</span> Draft grade (not visible to student)
+                </span>
+              ) : (
+                <span className="text-[#3525cd] font-bold flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">schedule</span> Awaiting review
+                  {submission.isLate ? ' · Late' : ''}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -184,7 +209,7 @@ export const GradingDetail: React.FC = () => {
           </span>
           <span className="text-[11px] text-[#006c49] font-semibold flex items-center gap-1">
             <span className="material-symbols-outlined text-[14px]">verified_user</span>
-            Verified File Scan
+            File type checked on upload
           </span>
         </div>
 
@@ -206,14 +231,14 @@ export const GradingDetail: React.FC = () => {
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
-                onClick={() => dispatch(addToast({ message: 'Opening interactive PDF annotator viewer...', type: 'info' }))}
+                onClick={() => handleOpenFile(false)}
                 className="px-3 py-1.5 rounded-lg bg-white text-[#3525cd] text-xs font-bold hover:bg-[#dee9fc] shadow-xs flex items-center gap-1"
               >
                 <span className="material-symbols-outlined text-[16px]">visibility</span> Preview
               </button>
               <button
                 type="button"
-                onClick={() => dispatch(addToast({ message: 'Downloading PDF document...', type: 'info' }))}
+                onClick={() => handleOpenFile(true)}
                 className="px-3 py-1.5 rounded-lg bg-white text-[#464555] text-xs font-bold hover:text-[#121c2a] hover:bg-[#dee9fc] shadow-xs flex items-center gap-1"
               >
                 <span className="material-symbols-outlined text-[16px]">download</span> Download
@@ -223,6 +248,13 @@ export const GradingDetail: React.FC = () => {
         ) : (
           <div className="p-4 bg-[#eff4ff] rounded-xl text-center text-xs text-[#777587] border border-indigo-100/60">
             No attached document for this submission.
+          </div>
+        )}
+
+        {submission.studentNotes && (
+          <div className="p-3 bg-[#eff4ff] rounded-xl text-xs text-[#121c2a] border border-indigo-100/60">
+            <span className="font-bold text-[#464555]">Student note: </span>
+            {submission.studentNotes}
           </div>
         )}
       </div>
@@ -349,15 +381,17 @@ export const GradingDetail: React.FC = () => {
         <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
           <button
             type="button"
-            onClick={() => dispatch(addToast({ message: 'Grade review saved as draft.', type: 'info' }))}
-            className="flex-1 sm:flex-initial px-4 py-2.5 rounded-lg bg-[#e6eeff] text-[#121c2a] hover:bg-[#dee9fc] font-semibold text-xs sm:text-sm transition-all"
+            disabled={isSubmitting || isPublished}
+            title={isPublished ? 'This grade is already published' : undefined}
+            onClick={() => handlePublishGrade(false)}
+            className="flex-1 sm:flex-initial px-4 py-2.5 rounded-lg bg-[#e6eeff] text-[#121c2a] hover:bg-[#dee9fc] font-semibold text-xs sm:text-sm transition-all disabled:opacity-50"
           >
             Save Draft
           </button>
           <button
             type="button"
             disabled={isSubmitting}
-            onClick={handlePublishGrade}
+            onClick={() => handlePublishGrade(true)}
             className="flex-1 sm:flex-initial px-6 py-2.5 rounded-lg bg-[#3525cd] hover:bg-[#4f46e5] text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-98"
           >
             <span className="material-symbols-outlined text-[18px]">publish</span>

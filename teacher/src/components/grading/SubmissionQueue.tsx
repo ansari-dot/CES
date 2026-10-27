@@ -130,7 +130,10 @@ export const SubmissionQueue: React.FC<SubmissionQueueProps> = ({
                   ) : sub.status === 'late' ? (
                     <span className="px-2 py-0.5 rounded-full bg-[#ffddb8] text-[#92400e] text-[11px] font-bold flex items-center gap-0.5">
                       <span className="material-symbols-outlined text-[12px]">warning</span> Late
-                      (+8h)
+                    </span>
+                  ) : sub.status === 'resubmit_requested' ? (
+                    <span className="px-2 py-0.5 rounded-full bg-[#fee2e2] text-[#991b1b] text-[11px] font-bold flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[13px]">undo</span> Returned
                     </span>
                   ) : sub.status === 'missing' ? (
                     <span className="px-2 py-0.5 rounded-full bg-[#fee2e2] text-[#991b1b] text-[11px] font-bold flex items-center gap-1">

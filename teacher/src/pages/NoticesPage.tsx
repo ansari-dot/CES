@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
-import { deleteNotice } from '../store/slices/noticesSlice';
+import { archiveNoticeThunk } from '../store/slices/noticesSlice';
 import { addToast } from '../store/slices/uiSlice';
 import { CreateNoticeModal } from '../components/notices/CreateNoticeModal';
 
@@ -9,6 +9,16 @@ export const NoticesPage: React.FC = () => {
   const notices = useAppSelector((state) => state.notices.notices);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleRemove = async (id: string) => {
+    if (!window.confirm('Withdraw this notice from student and parent portals?')) return;
+    const result = await dispatch(archiveNoticeThunk(id));
+    if (archiveNoticeThunk.fulfilled.match(result)) {
+      dispatch(addToast({ message: 'Notice removed from broadcast stream.', type: 'info' }));
+    } else {
+      dispatch(addToast({ message: String(result.payload || 'Failed to remove notice.'), type: 'error' }));
+    }
+  };
 
   return (
     <div className="flex flex-col w-full pb-10">
@@ -75,16 +85,15 @@ export const NoticesPage: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-2 self-end sm:self-auto">
-                <button
-                  onClick={() => {
-                    dispatch(deleteNotice(notice.id));
-                    dispatch(addToast({ message: 'Notice removed from broadcast stream.', type: 'info' }));
-                  }}
-                  className="p-1 rounded-lg text-slate-400 hover:text-red-600 transition-colors"
-                  title="Delete Notice"
-                >
-                  <span className="material-symbols-outlined text-[18px]">delete</span>
-                </button>
+                {notice.canManage && (
+                  <button
+                    onClick={() => handleRemove(notice.id)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-red-600 transition-colors"
+                    title="Delete Notice"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -95,10 +104,17 @@ export const NoticesPage: React.FC = () => {
 
             <div className="mt-4 pt-3 border-t border-slate-100/80 flex items-center justify-between text-xs text-[#777587]">
               <span>Published by: {notice.author}</span>
-              <span className="inline-flex items-center gap-1 text-[#006c49] font-semibold">
-                <span className="material-symbols-outlined text-[14px]">check_circle</span>
-                Delivered to Student &amp; Parent Portals
-              </span>
+              {notice.isPublished ? (
+                <span className="inline-flex items-center gap-1 text-[#006c49] font-semibold">
+                  <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                  Visible to {notice.recipients || 'recipients'} in their portals
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 font-semibold">
+                  <span className="material-symbols-outlined text-[14px]">draft</span>
+                  {notice.status || 'Not published'}
+                </span>
+              )}
             </div>
           </div>
         ))

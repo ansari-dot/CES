@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
-import { setCurrentSubTab } from '../store/slices/tasksSlice';
+import { setCurrentSubTab, setSelectedTaskId, fetchSubmissionsThunk } from '../store/slices/tasksSlice';
 import { addToast } from '../store/slices/uiSlice';
 import { SubmissionQueue } from '../components/grading/SubmissionQueue';
 import { GradingDetail } from '../components/grading/GradingDetail';
 import { CreateTaskForm } from '../components/grading/CreateTaskForm';
+import { QuickGradeModal } from '../components/grading/QuickGradeModal';
+
+const csvField = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
 
 export const SubmissionsGradingPage: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -13,27 +16,86 @@ export const SubmissionsGradingPage: React.FC = () => {
   const submissions = useAppSelector((state) => state.tasks.submissions);
   const selectedTaskId = useAppSelector((state) => state.tasks.selectedTaskId);
   const teacher = useAppSelector((state) => state.auth.teacher);
-  const currentTask = tasks.find((t) => t.id === selectedTaskId) || tasks[0];
-
-  const pendingGradingCount = submissions.filter((s) => s.status === 'pending' || s.status === 'late').length;
-  const gradedCount = submissions.filter((s) => s.status === 'graded').length;
-  const gradedSubs = submissions.filter((s) => s.status === 'graded' && s.marksAwarded != null);
-  const classAvg = gradedSubs.length > 0
-    ? (gradedSubs.reduce((acc, s) => acc + (s.marksAwarded! / s.maxMarks) * 100, 0) / gradedSubs.length).toFixed(1) + '%'
-    : '—';
 
   const [classFilter, setClassFilter] = useState('all');
   const [subjectFilter, setSubjectFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchFilter, setSearchFilter] = useState('');
+  const [quickGradeOpen, setQuickGradeOpen] = useState(false);
+
+  const classOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    teacher.assignedClasses.forEach((c) => map.set(String(c.classId || c.id), c.className || c.name.split(' - ')[0]));
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [teacher.assignedClasses]);
+
+  const subjectOptions = useMemo(
+    () => Array.from(new Set(tasks.map((t) => t.subject))).sort(),
+    [tasks]
+  );
+
+  // Gradable assessments narrowed by the class and subject filters (drafts have no submissions)
+  const filteredTasks = useMemo(
+    () =>
+      tasks.filter(
+        (t) =>
+          t.status !== 'draft' &&
+          (classFilter === 'all' || t.classId === classFilter) &&
+          (subjectFilter === 'all' || t.subject === subjectFilter)
+      ),
+    [tasks, classFilter, subjectFilter]
+  );
+
+  const currentTask = tasks.find((t) => t.id === selectedTaskId) || filteredTasks[0];
+
+  // Keep the selected assessment within the active filters
+  useEffect(() => {
+    if (filteredTasks.length > 0 && !filteredTasks.some((t) => t.id === selectedTaskId)) {
+      dispatch(setSelectedTaskId(filteredTasks[0].id));
+    }
+  }, [filteredTasks, selectedTaskId, dispatch]);
+
+  // Load the submissions of the selected assessment
+  useEffect(() => {
+    if (selectedTaskId) dispatch(fetchSubmissionsThunk(selectedTaskId));
+  }, [selectedTaskId, dispatch]);
+
+  const pendingGradingCount = submissions.filter((s) => s.status === 'pending' || s.status === 'late').length;
+  const gradedCount = submissions.filter((s) => s.status === 'graded').length;
+  const missingCount = submissions.filter((s) => s.status === 'missing').length;
+  const gradedSubs = submissions.filter((s) => s.status === 'graded' && s.marksAwarded != null && s.maxMarks > 0);
+  const classAvg = gradedSubs.length > 0
+    ? (gradedSubs.reduce((acc, s) => acc + (s.marksAwarded! / s.maxMarks) * 100, 0) / gradedSubs.length).toFixed(1) + '%'
+    : '—';
 
   const handleExportGradeSheet = () => {
-    dispatch(
-      addToast({
-        message: 'Gradebook CSV exported with audit-stamped rubric scores.',
-        type: 'info',
-      })
-    );
+    if (!currentTask || submissions.length === 0) {
+      dispatch(addToast({ message: 'There are no submissions to export for this assessment.', type: 'info' }));
+      return;
+    }
+    const header = ['Admission No', 'Roll', 'Student', 'Assessment', 'Submitted', 'Status', 'Marks', 'Max Marks', 'Feedback'];
+    const rows = submissions.map((s) => [
+      s.studentAdmissionId,
+      s.studentRoll,
+      s.studentName,
+      s.taskTitle,
+      s.submittedAt,
+      s.status === 'graded' ? 'Published' : s.marksAwarded !== undefined ? 'Draft grade' : s.status,
+      s.marksAwarded ?? '',
+      s.maxMarks,
+      s.feedback || '',
+    ]);
+    const csv = [header, ...rows].map((r) => r.map(csvField).join(',')).join('\r\n');
+    const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `gradebook_${currentTask.className}_${currentTask.title}`.replace(/[^\w-]+/g, '_') + '.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    dispatch(addToast({ message: `Exported ${rows.length} gradebook rows.`, type: 'success' }));
   };
 
   return (
@@ -126,7 +188,7 @@ export const SubmissionsGradingPage: React.FC = () => {
 
         <div className="hidden lg:flex items-center gap-1.5 pr-3 text-xs text-[#777587]">
           <span className="material-symbols-outlined text-[16px] text-[#006c49]">cloud_done</span>
-          Auto-saved 2m ago
+          Saved to gradebook on submit
         </div>
       </div>
 
@@ -146,9 +208,9 @@ export const SubmissionsGradingPage: React.FC = () => {
                 className="bg-transparent text-xs font-bold text-[#121c2a] focus:outline-none cursor-pointer truncate"
               >
                 <option value="all">All Assigned Classes</option>
-                {teacher.assignedClasses.map((c) => (
+                {classOptions.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name} ({c.subject})
+                    {c.name}
                   </option>
                 ))}
               </select>
@@ -167,9 +229,10 @@ export const SubmissionsGradingPage: React.FC = () => {
                 onChange={(e) => setSubjectFilter(e.target.value)}
                 className="bg-transparent text-xs font-bold text-[#121c2a] focus:outline-none cursor-pointer truncate"
               >
-                <option value="math">Mathematics</option>
-                <option value="science">General Science</option>
                 <option value="all">All Subjects</option>
+                {subjectOptions.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -187,9 +250,9 @@ export const SubmissionsGradingPage: React.FC = () => {
                 className="bg-transparent text-xs font-bold text-[#121c2a] focus:outline-none cursor-pointer truncate"
               >
                 <option value="all">All Statuses</option>
-                <option value="pending">Pending Review (2)</option>
-                <option value="graded">Graded (1)</option>
-                <option value="overdue">Missing / Overdue (1)</option>
+                <option value="pending">Pending Review ({pendingGradingCount})</option>
+                <option value="graded">Graded ({gradedCount})</option>
+                <option value="overdue">Missing / Overdue ({missingCount})</option>
               </select>
             </div>
           </div>
@@ -242,9 +305,18 @@ export const SubmissionsGradingPage: React.FC = () => {
                     Due: {currentTask.deadline}
                   </div>
                 </div>
-                <h2 className="text-base font-bold text-[#121c2a] mb-1 leading-snug">
-                  {currentTask.title}
-                </h2>
+                <select
+                  value={currentTask.id}
+                  onChange={(e) => dispatch(setSelectedTaskId(e.target.value))}
+                  className="w-full mb-1 bg-transparent text-base font-bold text-[#121c2a] leading-snug focus:outline-none cursor-pointer truncate relative"
+                  title="Switch assessment"
+                >
+                  {(filteredTasks.some((t) => t.id === currentTask.id) ? filteredTasks : [currentTask, ...filteredTasks]).map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.title} ({t.className} · {t.subject})
+                    </option>
+                  ))}
+                </select>
                 <div className="flex items-center gap-3 text-xs text-[#777587] mb-4">
                   <span className="flex items-center gap-1 font-semibold text-[#121c2a]">
                     <span className="material-symbols-outlined text-[16px] text-[#3525cd]">
@@ -352,8 +424,9 @@ export const SubmissionsGradingPage: React.FC = () => {
             <div className="p-3 bg-[#eff4ff] rounded-xl border border-indigo-100/60 flex items-center justify-between">
               <span className="text-xs text-[#464555]">Need batch evaluation?</span>
               <button
-                onClick={() => dispatch(addToast({ message: 'Batch Quick-Grade table opened.', type: 'info' }))}
-                className="text-[#3525cd] text-xs font-bold hover:underline flex items-center gap-1"
+                onClick={() => setQuickGradeOpen(true)}
+                disabled={!currentTask}
+                className="text-[#3525cd] text-xs font-bold hover:underline flex items-center gap-1 disabled:opacity-50"
               >
                 <span className="material-symbols-outlined text-[16px]">speed</span> Quick-Grade
                 Table
@@ -367,6 +440,8 @@ export const SubmissionsGradingPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      <QuickGradeModal isOpen={quickGradeOpen} onClose={() => setQuickGradeOpen(false)} task={currentTask} />
 
       {/* BOTTOM SECTION: 'Create New Assignment' Trigger Card (visible when not in create tab) */}
       {currentSubTab !== 'create' && (

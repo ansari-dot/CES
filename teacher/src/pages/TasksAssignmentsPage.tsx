@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
-import { setSelectedTaskId, setCurrentSubTab } from '../store/slices/tasksSlice';
+import { setSelectedTaskId, setCurrentSubTab, updateTaskStatusThunk } from '../store/slices/tasksSlice';
 import { setCurrentTab, addToast } from '../store/slices/uiSlice';
 import { CreateTaskForm } from '../components/grading/CreateTaskForm';
+import { openProtectedFile } from '../services/api';
+
+const TYPE_LABELS: Record<string, string> = { ASSIGNMENT: 'Assignment', QUIZ: 'Quiz', TEST: 'Class Test', EXAM: 'Examination' };
 
 export const TasksAssignmentsPage: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -29,6 +32,24 @@ export const TasksAssignmentsPage: React.FC = () => {
     dispatch(setSelectedTaskId(taskId));
     dispatch(setCurrentSubTab('pending_grading'));
     dispatch(setCurrentTab('submissions-grading'));
+  };
+
+  const handleOpenHandout = async (url?: string, name?: string) => {
+    if (!url) return;
+    try {
+      await openProtectedFile(url, name, true);
+    } catch (err: any) {
+      dispatch(addToast({ message: err.message || 'Unable to download the handout.', type: 'error' }));
+    }
+  };
+
+  const handlePublishDraft = async (taskId: string, taskTitle: string) => {
+    const result = await dispatch(updateTaskStatusThunk({ taskId, status: 'ACTIVE' }));
+    if (updateTaskStatusThunk.fulfilled.match(result)) {
+      dispatch(addToast({ message: `"${taskTitle}" is now visible to the class.`, type: 'success' }));
+    } else {
+      dispatch(addToast({ message: String(result.payload || 'Failed to publish the task.'), type: 'error' }));
+    }
   };
 
   return (
@@ -104,9 +125,14 @@ export const TasksAssignmentsPage: React.FC = () => {
                 filteredTasks.map((task) => (
                   <tr key={task.id} className="hover:bg-slate-50 h-13 transition-colors">
                     <td className="px-3">
-                      <span className="font-bold text-[#121c2a] block">{task.title}</span>
+                      <span className="font-bold text-[#121c2a] block">
+                        {task.title}
+                        {task.status === 'draft' && (
+                          <span className="ml-1.5 px-1.5 py-0.5 rounded bg-slate-100 text-[#777587] text-[10px] font-bold uppercase">Draft</span>
+                        )}
+                      </span>
                       <span className="text-[11px] text-[#777587] truncate max-w-[280px] block">
-                        {task.instructions}
+                        {TYPE_LABELS[task.taskType] || 'Assignment'} · {task.instructions}
                       </span>
                     </td>
 
@@ -150,20 +176,28 @@ export const TasksAssignmentsPage: React.FC = () => {
                     <td className="px-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         <button
-                          onClick={() =>
-                            dispatch(addToast({ message: `Downloaded ${task.handoutName}`, type: 'info' }))
-                          }
-                          className="p-1 text-[#464555] hover:text-[#121c2a] hover:bg-[#eff4ff] rounded transition-colors"
-                          title="Download Handout"
+                          onClick={() => handleOpenHandout(task.handoutUrl, task.handoutName)}
+                          disabled={!task.handoutUrl}
+                          className="p-1 text-[#464555] hover:text-[#121c2a] hover:bg-[#eff4ff] rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          title={task.handoutUrl ? `Download ${task.handoutName || 'handout'}` : 'No handout attached'}
                         >
                           <span className="material-symbols-outlined text-[17px]">attachment</span>
                         </button>
-                        <button
-                          onClick={() => handleOpenGrading(task.id)}
-                          className="px-3 py-1 rounded-lg bg-[#4f46e5] hover:bg-[#3525cd] text-white font-bold text-[11px] shadow-xs"
-                        >
-                          Grade
-                        </button>
+                        {task.status === 'draft' ? (
+                          <button
+                            onClick={() => handlePublishDraft(task.id, task.title)}
+                            className="px-3 py-1 rounded-lg bg-[#006c49] hover:bg-[#065f46] text-white font-bold text-[11px] shadow-xs"
+                          >
+                            Publish
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleOpenGrading(task.id)}
+                            className="px-3 py-1 rounded-lg bg-[#4f46e5] hover:bg-[#3525cd] text-white font-bold text-[11px] shadow-xs"
+                          >
+                            Grade
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
