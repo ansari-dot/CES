@@ -9,32 +9,7 @@ import { LoadingState, ErrorState } from '../../components/common/StateViews';
 import { useToast } from '../../context/ToastContext';
 import { Plus, Eye, Pencil, Archive } from 'lucide-react';
 
-type RecipientOption = 'everyone' | 'students' | 'teachers' | 'parents' | 'students_parents';
-
-const RECIPIENT_ROLES: Record<RecipientOption, NoticeRecipientRole[]> = {
-  everyone: ['Student', 'Teacher', 'Parent'],
-  students: ['Student'],
-  teachers: ['Teacher'],
-  parents: ['Parent'],
-  students_parents: ['Student', 'Parent']
-};
-
-const RECIPIENT_LABELS: Record<RecipientOption, string> = {
-  everyone: 'Everyone (Students, Teachers & Parents)',
-  students: 'Students Only',
-  teachers: 'Teachers Only',
-  parents: 'Parents Only',
-  students_parents: 'Students & Parents'
-};
-
-function rolesToOption(roles: NoticeRecipientRole[]): RecipientOption {
-  const set = new Set(roles);
-  if (set.size === 3) return 'everyone';
-  if (set.size === 1 && set.has('Student')) return 'students';
-  if (set.size === 1 && set.has('Teacher')) return 'teachers';
-  if (set.size === 1 && set.has('Parent')) return 'parents';
-  return 'students_parents';
-}
+const ALL_ROLES: NoticeRecipientRole[] = ['Student', 'Teacher', 'Parent'];
 
 function recipientSummary(roles: NoticeRecipientRole[]): string {
   if (roles.length === 3) return 'Everyone';
@@ -50,7 +25,7 @@ const emptyForm = () => ({
   title: '',
   content: '',
   audience: 'School-Wide' as NoticeAudience,
-  recipients: 'everyone' as RecipientOption,
+  recipientRoles: ['Student', 'Teacher', 'Parent'] as NoticeRecipientRole[],
   priority: 'Normal' as NoticePriority,
   status: 'Published' as 'Published' | 'Draft',
   publishDate: todayStr(),
@@ -74,9 +49,9 @@ export const NoticesModule: React.FC = () => {
   // Create / Edit Modal
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingNotice, setEditingNotice] = useState<SchoolNotice | null>(null);
-  const [originalTargeting, setOriginalTargeting] = useState<{ audience: NoticeAudience; recipients: RecipientOption }>({
+  const [originalTargeting, setOriginalTargeting] = useState<{ audience: NoticeAudience; recipientRoles: NoticeRecipientRole[] }>({
     audience: 'School-Wide',
-    recipients: 'everyone'
+    recipientRoles: ['Student', 'Teacher', 'Parent']
   });
   const [form, setForm] = useState(emptyForm());
   const [creating, setCreating] = useState(false);
@@ -115,14 +90,14 @@ export const NoticesModule: React.FC = () => {
 
   const openEdit = (n: SchoolNotice) => {
     const audience: NoticeAudience = /^Class \d$/.test(n.audience) ? n.audience : 'School-Wide';
-    const recipients = rolesToOption(n.targetRoles);
+    const recipientRoles: NoticeRecipientRole[] = n.targetRoles.length ? n.targetRoles : ['Student', 'Teacher', 'Parent'];
     setEditingNotice(n);
-    setOriginalTargeting({ audience, recipients });
+    setOriginalTargeting({ audience, recipientRoles });
     setForm({
       title: n.title,
       content: n.content,
       audience,
-      recipients,
+      recipientRoles,
       priority: n.priority,
       status: n.status === 'Draft' ? 'Draft' : 'Published',
       publishDate: n.publishDate,
@@ -137,6 +112,10 @@ export const NoticesModule: React.FC = () => {
       toast.warning('Please provide a title and notice content.');
       return;
     }
+    if (form.recipientRoles.length === 0) {
+      toast.warning('Please select at least one recipient group.');
+      return;
+    }
     if (form.expiryDate && form.publishDate && form.expiryDate < form.publishDate) {
       toast.warning('The expiry date cannot be before the publication date.');
       return;
@@ -146,7 +125,7 @@ export const NoticesModule: React.FC = () => {
       title: form.title.trim(),
       content: form.content.trim(),
       audience: form.audience,
-      targetRoles: RECIPIENT_ROLES[form.recipients],
+      targetRoles: form.recipientRoles,
       priority: form.priority,
       status: form.status,
       publishDate: form.publishDate || undefined,
@@ -156,10 +135,10 @@ export const NoticesModule: React.FC = () => {
     try {
       setCreating(true);
       if (editingNotice) {
-        // Only re-target when the audience or recipients were actually changed
         const { audience, targetRoles, ...rest } = payload;
         const targetingChanged =
-          form.audience !== originalTargeting.audience || form.recipients !== originalTargeting.recipients;
+          form.audience !== originalTargeting.audience ||
+          JSON.stringify([...form.recipientRoles].sort()) !== JSON.stringify([...originalTargeting.recipientRoles].sort());
         await api.updateNotice(editingNotice.id, {
           ...rest,
           ...(targetingChanged ? { audience, targetRoles } : {}),
@@ -355,16 +334,28 @@ export const NoticesModule: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-slate-700 font-medium mb-1">Recipients *</label>
-              <select
-                value={form.recipients}
-                onChange={(e) => setForm({ ...form, recipients: e.target.value as RecipientOption })}
-                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-800 font-semibold"
-              >
-                {(Object.keys(RECIPIENT_LABELS) as RecipientOption[]).map((key) => (
-                  <option key={key} value={key}>{RECIPIENT_LABELS[key]}</option>
+              <label className="block text-slate-700 font-medium mb-1">Visible To *</label>
+              <div className="flex flex-col gap-1.5 mt-1">
+                {ALL_ROLES.map((role) => (
+                  <label key={role} className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={form.recipientRoles.includes(role)}
+                      onChange={(e) => {
+                        const next = e.target.checked
+                          ? [...form.recipientRoles, role]
+                          : form.recipientRoles.filter((r) => r !== role);
+                        setForm({ ...form, recipientRoles: next });
+                      }}
+                      className="w-3.5 h-3.5 rounded border-slate-300 accent-amber-600"
+                    />
+                    <span className="text-slate-700 font-medium">{role}s</span>
+                  </label>
                 ))}
-              </select>
+              </div>
+              {form.recipientRoles.length === 0 && (
+                <p className="text-[10px] text-rose-500 mt-1">Select at least one group.</p>
+              )}
             </div>
           </div>
 
