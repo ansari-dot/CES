@@ -103,7 +103,12 @@ export const parentsRepository = {
     return parent;
   },
 
-  async registerParentWithUser({ user, parent }) {
+  /**
+   * Creates the user + parent rows together. Accounts created by the school
+   * carry a temporary password (mustChangePassword) and are pre-verified by
+   * the creating principal; self-registered accounts stay PENDING.
+   */
+  async registerParentWithUser({ user, parent, mustChangePassword = false, verifiedBy = null }) {
     return await db.transaction(async (trx) => {
       // 1. Insert user (Role 5 = PARENT)
       const [userId] = await trx('users').insert({
@@ -114,7 +119,7 @@ export const parentsRepository = {
         full_name: user.full_name,
         password_hash: user.password_hash,
         status: 'ACTIVE',
-        must_change_password: 0
+        must_change_password: mustChangePassword ? 1 : 0
       });
 
       // 2. Insert parent record
@@ -122,7 +127,9 @@ export const parentsRepository = {
         user_id: userId,
         cnic_or_id_no: parent.cnic || null,
         relation_default: parent.relation || 'GUARDIAN',
-        verification_status: 'PENDING'
+        verification_status: verifiedBy ? 'APPROVED' : 'PENDING',
+        verified_by: verifiedBy,
+        verified_at: verifiedBy ? trx.fn.now(3) : null
       });
 
       return { userId, parentId };

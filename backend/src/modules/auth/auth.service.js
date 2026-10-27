@@ -350,17 +350,31 @@ export const authService = {
       throw new AppError('User not found', 404, ErrorCodes.NOT_FOUND);
     }
 
-    const isValid = await verifyPassword(user.password_hash, currentPassword);
-    if (!isValid) {
-      throw new AppError('Current password is incorrect', 400, ErrorCodes.VALIDATION_ERROR);
+    // First login: this session was just opened with the temporary password, so the
+    // current password is not asked again. Otherwise it must be confirmed.
+    const isFirstLogin = Boolean(user.must_change_password);
+    if (!isFirstLogin) {
+      if (!currentPassword) {
+        throw new AppError('Current password is required', 400, ErrorCodes.VALIDATION_ERROR);
+      }
+      const isValid = await verifyPassword(user.password_hash, currentPassword);
+      if (!isValid) {
+        throw new AppError('Current password is incorrect', 400, ErrorCodes.VALIDATION_ERROR);
+      }
     }
 
-    if (currentPassword === newPassword) {
+    // The new password may not reuse the current (or temporary) one
+    if (await verifyPassword(user.password_hash, newPassword)) {
       throw new AppError('New password must be different from current password', 400, ErrorCodes.VALIDATION_ERROR);
     }
 
     const newHash = await hashPassword(newPassword);
     await authRepository.updateUserPassword(userId, newHash);
+
+    // Clear the first-login flag if it was set
+    if (user.must_change_password) {
+      await db('users').where({ id: userId }).update({ must_change_password: 0 });
+    }
   },
 
   async getMe({ userId }) {

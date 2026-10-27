@@ -38,6 +38,24 @@ export const parentsController = {
     }
   },
 
+  async createParent(req, res, next) {
+    try {
+      const { name, email, phone, cnic, relation, password } = req.body;
+      const parent = await parentsService.createParentByStaff({
+        name,
+        email,
+        phone,
+        cnic,
+        relation,
+        password,
+        createdBy: req.user.id
+      });
+      return sendSuccess(res, parent, null, 201);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async approveParent(req, res, next) {
     try {
       const parentId = Number(req.params.id);

@@ -9,7 +9,8 @@ export const loginSchema = {
 
 export const changePasswordSchema = {
   body: z.object({
-    currentPassword: z.string().min(1, 'Current password is required'),
+    // Optional only for first-login accounts; the service enforces it otherwise
+    currentPassword: z.string().optional().nullable(),
     newPassword: z
       .string()
       .min(10, 'New password must be at least 10 characters long')

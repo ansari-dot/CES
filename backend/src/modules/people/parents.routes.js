@@ -24,6 +24,7 @@ router.get('/me/children/:studentId/achievements', ...parentOnly, parentsControl
 
 // Protected routes (Admin / Principal)
 router.get('/', authenticate, authorize('users.manage'), parentsController.getAllParents);
+router.post('/', authenticate, authorize('users.manage'), parentsController.createParent);
 router.get('/:id', authenticate, authorize('users.manage'), parentsController.getParentById);
 router.post('/:id/approve', authenticate, authorize('users.manage'), parentsController.approveParent);
 
