@@ -39,8 +39,10 @@ export default function LearningResources() {
       dispatch(setToast('This resource has no file attached.'));
       return;
     }
+    // Videos and external links open in a new tab; everything else is downloaded
+    const shouldDownload = item.iconType !== 'video' && item.iconType !== 'link';
     try {
-      await openProtectedFile(item.fileUrl, item.fileName);
+      await openProtectedFile(item.fileUrl, item.fileName, shouldDownload);
     } catch (err: any) {
       dispatch(setToast(err.message || 'Unable to open this resource.'));
     }
@@ -105,7 +107,9 @@ export default function LearningResources() {
                 onClick={() => handleAction(res)}
                 className="w-full py-2 border border-primary/20 bg-secondary/50 hover:bg-secondary text-primary rounded-sm text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <span>{res.actionText}</span>
+                <span>
+                  {res.iconType === 'video' ? 'Open' : res.iconType === 'link' ? 'Open Link' : 'Download'}
+                </span>
               </button>
             </div>
           ))}
