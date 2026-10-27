@@ -26,6 +26,10 @@ import {
   OperationalNotification,
   AuditLogEntry,
   AcademicClassPerformance,
+  AcademicOversightFilters,
+  StudentRecordReportRow,
+  StudentMarksReportRow,
+  NoticeFormPayload,
   UserProfile,
   AccountStatus
 } from '../types';
@@ -1536,47 +1540,69 @@ export const api = {
   },
 
   // 14. Academic Oversight — Live Only
-  async getAcademicPerformances(): Promise<AcademicClassPerformance[]> {
-    try {
-      const data = await requestApi<AcademicClassPerformance[]>('/api/v1/reports/academic-performance');
-      if (Array.isArray(data) && data.length > 0) {
-        return data;
-      }
-    } catch {
-      // Fallback
-    }
-    return [];
+  async getAcademicPerformances(filters: AcademicOversightFilters = {}): Promise<AcademicClassPerformance[]> {
+    const params = new URLSearchParams();
+    if (filters.subjectId) params.set('subjectId', String(filters.subjectId));
+    if (filters.taskType) params.set('taskType', filters.taskType);
+    const qs = params.toString();
+    const data = await requestApi<AcademicClassPerformance[]>(
+      `/api/v1/reports/academic-performance${qs ? `?${qs}` : ''}`
+    );
+    return Array.isArray(data) ? data : [];
   },
 
   async approveResultPublication(classNumber: number): Promise<void> {
-    try {
-      await requestApi(`/api/v1/reports/academic-performance/${classNumber}/publish`, {
-        method: 'POST'
-      });
-    } catch {
-      // Fallback
-    }
+    await requestApi(`/api/v1/reports/academic-performance/${classNumber}/publish`, {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+  },
+
+  // Student records & marks reports (Reports & Export)
+  async getStudentRecordsReport(classId?: number | null): Promise<StudentRecordReportRow[]> {
+    const qs = classId ? `?classId=${classId}` : '';
+    const data = await requestApi<StudentRecordReportRow[]>(`/api/v1/reports/student-records${qs}`);
+    return Array.isArray(data) ? data : [];
+  },
+
+  async getStudentMarksReport(classId?: number | null): Promise<StudentMarksReportRow[]> {
+    const qs = classId ? `?classId=${classId}` : '';
+    const data = await requestApi<StudentMarksReportRow[]>(`/api/v1/reports/student-marks${qs}`);
+    return Array.isArray(data) ? data : [];
+  },
+
+  async logReportExport(entry: { reportType: string; format: string; filters: Record<string, unknown>; rowCount: number }): Promise<void> {
+    await requestApi('/api/v1/reports/export-log', {
+      method: 'POST',
+      body: JSON.stringify(entry)
+    });
   },
 
   // 15. Notices — Live Only
   async getNotices(): Promise<SchoolNotice[]> {
-    try {
-      const data = await requestApi<SchoolNotice[]>('/api/v1/notices');
-      if (Array.isArray(data) && data.length > 0) {
-        return data;
-      }
-    } catch {
-      // Fallback
-    }
-    return [];
+    const data = await requestApi<SchoolNotice[]>('/api/v1/notices');
+    return Array.isArray(data) ? data : [];
   },
 
-  async createNotice(noticeData: Omit<SchoolNotice, 'id' | 'createdBy' | 'publishDate'>): Promise<SchoolNotice> {
+  async createNotice(noticeData: NoticeFormPayload): Promise<SchoolNotice> {
     const created = await requestApi<SchoolNotice>('/api/v1/notices', {
       method: 'POST',
       body: JSON.stringify(noticeData)
     });
     return created;
+  },
+
+  async updateNotice(id: string, noticeData: Partial<NoticeFormPayload>): Promise<SchoolNotice> {
+    return await requestApi<SchoolNotice>(`/api/v1/notices/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(noticeData)
+    });
+  },
+
+  async archiveNotice(id: string): Promise<SchoolNotice> {
+    return await requestApi<SchoolNotice>(`/api/v1/notices/${id}/archive`, {
+      method: 'POST'
+    });
   },
 
   // 16. Notifications — Live Only

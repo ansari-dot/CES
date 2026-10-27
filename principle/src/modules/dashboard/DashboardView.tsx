@@ -41,7 +41,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
       const [m, lessons, notices, notifs] = await Promise.all([
         api.getDashboardMetrics(),
         api.getTimetableLessons(),
-        api.getNotices(),
+        api.getNotices().catch(() => []),
         api.getNotifications()
       ]);
       setMetrics(m);

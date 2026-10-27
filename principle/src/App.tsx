@@ -121,28 +121,32 @@ function PrincipalPortalApp() {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 text-slate-800 font-sans antialiased overflow-hidden">
+    <div className="flex h-screen bg-slate-50 text-slate-800 font-sans antialiased overflow-hidden print:block print:h-auto print:overflow-visible print:bg-white">
       {/* Grouped Sidebar Navigation */}
-      <Sidebar
-        activeModule={activeModule}
-        onSelectModule={setActiveModule}
-        pendingCounts={pendingCounts}
-      />
-
-      {/* Main Viewport */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50">
-        <Header
+      <div className="contents print:hidden">
+        <Sidebar
           activeModule={activeModule}
           onSelectModule={setActiveModule}
-          onDataReset={() => {
-            refreshBadges();
-            setActiveModule('dashboard');
-          }}
+          pendingCounts={pendingCounts}
         />
+      </div>
+
+      {/* Main Viewport */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50 print:block print:overflow-visible print:bg-white">
+        <div className="contents print:hidden">
+          <Header
+            activeModule={activeModule}
+            onSelectModule={setActiveModule}
+            onDataReset={() => {
+              refreshBadges();
+              setActiveModule('dashboard');
+            }}
+          />
+        </div>
 
         {/* Scrollable Content Container */}
-        <main className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-7xl mx-auto">
+        <main className="flex-1 overflow-y-auto p-6 print:overflow-visible print:p-0">
+          <div className="max-w-7xl mx-auto print:max-w-none">
             {renderModuleContent()}
           </div>
         </main>
