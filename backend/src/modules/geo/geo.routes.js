@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate } from '../../shared/middleware/authenticate.js';
+import { authenticateOptional } from '../../shared/middleware/authenticate.js';
 import { sendSuccess } from '../../shared/http/response.js';
 import { timezoneResolver } from './geo.service.js';
 
@@ -9,9 +9,9 @@ const router = Router();
  * GET /api/v1/geo/timezone?browserTz=Europe/London
  * Detected IANA timezone for the requesting client's public IP, with the
  * browser timezone and then the school timezone as fallbacks.
- * Requires a session so the endpoint cannot be used as an open lookup proxy.
+ * Uses optional authentication so pre-login portal pages can resolve timezone.
  */
-router.get('/timezone', authenticate, async (req, res, next) => {
+router.get('/timezone', authenticateOptional, async (req, res, next) => {
   try {
     const result = await timezoneResolver.resolve({
       ip: req.ip || '',

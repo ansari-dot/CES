@@ -6,7 +6,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(5000),
   APP_BASE_URL: z.string().default('http://localhost:5000'),
   ALLOWED_ORIGINS: z.string().default('http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:5173,http://localhost:5174'),
-  
+
   DB_HOST: z.string().default('127.0.0.1'),
   DB_PORT: z.coerce.number().default(3306),
   DB_NAME: z.string().default('school_db'),
@@ -45,7 +45,20 @@ const envSchema = z.object({
   ZOOM_ACCOUNT_ID: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
   ZOOM_CLIENT_ID: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
   ZOOM_CLIENT_SECRET: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
-  ZOOM_WEBHOOK_SECRET_TOKEN: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional())
+  ZOOM_WEBHOOK_SECRET_TOKEN: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  // Max allowed clock skew (seconds) for the x-zm-request-timestamp header
+  ZOOM_WEBHOOK_TOLERANCE_SEC: z.coerce.number().int().positive().default(300),
+  // Background reconciliation against Zoom participant reports (needs API credentials)
+  ZOOM_RECONCILE_ENABLED: z.enum(['true', 'false']).default('true'),
+
+  // Teacher duty policy. These are policy knobs, NOT school-approved values: confirm them with the
+  // school before the first real payroll run. Defaults are deliberately conservative.
+  //  - minutes of presence BEFORE the scheduled start that still count toward the lesson
+  DUTY_EARLY_JOIN_GRACE_MIN: z.coerce.number().min(0).default(0),
+  //  - minutes of presence AFTER the scheduled end that still count toward the lesson
+  DUTY_LATE_LEAVE_GRACE_MIN: z.coerce.number().min(0).default(0),
+  //  - a lesson counts as "completed" for PER_LESSON/HYBRID pay when verified presence >= this % of scheduled time
+  DUTY_MIN_PRESENCE_PERCENT: z.coerce.number().min(1).max(100).default(50)
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -58,9 +71,18 @@ if (!parsed.success) {
 export const config = {
   ...parsed.data,
   isProduction: parsed.data.NODE_ENV === 'production',
-  isTest: parsed.data.NODE_ENV === 'test',
+  isTest:
+    parsed.data.NODE_ENV === 'test' ||
+    process.env.NODE_ENV === 'test' ||
+    process.argv.some((a) => typeof a === 'string' && (a.includes('test') || a.includes('node:test'))),
   allowedOrigins: parsed.data.ALLOWED_ORIGINS.split(',').map((o) => o.trim()),
   cookieSecure: parsed.data.COOKIE_SECURE === 'true',
   feeSchedulerEnabled: parsed.data.FEE_SCHEDULER_ENABLED === 'true',
-  zoomApiConfigured: Boolean(parsed.data.ZOOM_ACCOUNT_ID && parsed.data.ZOOM_CLIENT_ID && parsed.data.ZOOM_CLIENT_SECRET)
+  zoomApiConfigured: Boolean(parsed.data.ZOOM_ACCOUNT_ID && parsed.data.ZOOM_CLIENT_ID && parsed.data.ZOOM_CLIENT_SECRET),
+  zoomReconcileEnabled: parsed.data.ZOOM_RECONCILE_ENABLED === 'true',
+  dutyPolicy: {
+    earlyJoinGraceMin: parsed.data.DUTY_EARLY_JOIN_GRACE_MIN,
+    lateLeaveGraceMin: parsed.data.DUTY_LATE_LEAVE_GRACE_MIN,
+    minPresencePercent: parsed.data.DUTY_MIN_PRESENCE_PERCENT
+  }
 };

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authController } from './auth.controller.js';
-import { authenticate } from '../../shared/middleware/authenticate.js';
+import { authenticate, authenticateOptional } from '../../shared/middleware/authenticate.js';
 import { validate } from '../../shared/middleware/validate.js';
 import {
   loginSchema,
@@ -15,9 +15,8 @@ const router = Router();
 router.post('/login', validate(loginSchema), authController.login);
 router.post('/refresh', authController.refresh);
 
-// CSRF token refresh — requires a valid session so the token is bound to the
-// real session familyId, not 'anonymous'
-router.get('/csrf', authenticate, authController.getCsrf);
+// CSRF token retrieval — optional authentication binds to session familyId if present, else anonymous
+router.get('/csrf', authenticateOptional, authController.getCsrf);
 
 // Protected auth endpoints
 router.post('/logout', authenticate, authController.logout);

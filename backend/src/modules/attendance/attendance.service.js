@@ -4,11 +4,24 @@ import { notificationService } from '../../shared/services/notificationService.j
 import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
 
+import { db } from '../../shared/db/knex.js';
+
 export const attendanceService = {
   async getLessonRoster(lessonId) {
-    const data = await attendanceRepository.getLessonRoster(lessonId);
+    let data = await attendanceRepository.getLessonRoster(lessonId);
     if (!data) {
-      throw new AppError('Lesson not found', 404, ErrorCodes.NOT_FOUND);
+      const slot = await db('timetable_slots').where({ id: lessonId }).first();
+      if (slot?.class_id) {
+        data = await attendanceRepository.getClassRoster(slot.class_id);
+      } else {
+        const cls = await db('classes').where({ id: lessonId }).first();
+        if (cls) {
+          data = await attendanceRepository.getClassRoster(cls.id);
+        }
+      }
+    }
+    if (!data) {
+      throw new AppError('Lesson or class roster not found', 404, ErrorCodes.NOT_FOUND);
     }
     return data;
   },

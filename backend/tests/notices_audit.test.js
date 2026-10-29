@@ -45,6 +45,7 @@ describe('Module 8: Notices, Operational Notifications & Audit Logs Tests', () =
         targetRoles: ['Teacher', 'Student', 'Parent'],
         priority: 'High',
         status: 'Published',
+        publishDate: '2026-04-15',
         expiryDate: '2026-05-01'
       });
 

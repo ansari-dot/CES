@@ -33,6 +33,7 @@ export const Sidebar: React.FC = () => {
   const teacher = useAppSelector((state) => state.auth.teacher);
   const submissions = useAppSelector((state) => state.tasks.submissions);
   const isAttendanceLocked = useAppSelector((state) => state.attendance.isLocked);
+  const hasLiveClass = useAppSelector((state) => state.timetable.lessons.some((l) => l.status === 'live'));
 
   const pendingGradingCount = submissions.filter((s) => s.status === 'pending' || s.status === 'late').length;
 
@@ -131,18 +132,18 @@ export const Sidebar: React.FC = () => {
         {/* Bottom Duty Indicator */}
         <div className="p-3 border-t border-slate-200 bg-[#f8f9ff] space-y-2">
           <div className="flex items-center justify-between text-xs mb-1">
-            <span className="text-[#464555] font-medium">Duty Session:</span>
+            <span className="text-[#464555] font-medium">Zoom S2S Duty:</span>
             <span
               className={`font-semibold flex items-center gap-1 ${
-                teacher.isDutyClockedIn ? 'text-[#006c49]' : 'text-[#684000]'
+                hasLiveClass ? 'text-[#006c49]' : 'text-slate-600'
               }`}
             >
               <span
                 className={`w-2 h-2 rounded-full ${
-                  teacher.isDutyClockedIn ? 'bg-[#006c49] animate-pulse' : 'bg-[#684000]'
+                  hasLiveClass ? 'bg-[#006c49] animate-pulse' : 'bg-emerald-500'
                 }`}
               ></span>
-              {teacher.isDutyClockedIn ? 'Clocked In' : 'On Break'}
+              {hasLiveClass ? 'In Session' : 'Auto-Ready'}
             </span>
           </div>
           <p className="text-[11px] text-[#777587] truncate">Faculty ID: {teacher.employeeId}</p>

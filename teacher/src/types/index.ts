@@ -85,6 +85,7 @@ export interface TimetableLesson {
   endAt?: string;
   notes?: string;
   resourceAttachmentUrl?: string;
+  verifiedDutyMinutes?: number;
 }
 
 export type PeriodType = 'instructional' | 'break' | 'duty' | 'assembly' | 'homeroom';
@@ -321,16 +322,35 @@ export interface AchievementItem {
   visibility?: 'PUBLISHED' | 'INTERNAL';
 }
 
+export interface DailyDutyItem {
+  date: string;
+  dayName: string;
+  totalScheduledLessons: number;
+  completedLessons: number;
+  totalDutyMinutes: number;
+  totalDutyHours: number;
+  isToday: boolean;
+  lessons?: any[];
+}
+
 export interface DutySummary {
   payrollPeriod: string;
   scheduledLessonsCount: number;
   completedLessonsCount: number;
   totalDutyHours: number;
   targetDutyHours: number;
-  payrollStatus: 'On Track' | 'Pending Review' | 'Adjusted';
+  payrollStatus: 'On Track' | 'Pending Review' | 'Adjusted' | 'No Records';
   hourlyRate: string;
+  baseSalary?: number;
+  salaryModel?: string;
+  perLessonRate?: number;
+  perHourRate?: number;
   liveDutyHours?: number;
   activeLiveCount?: number;
+  todayTeachingHours?: number;
+  todayTeachingMinutes?: number;
+  todayCompletedCount?: number;
+  todayScheduledCount?: number;
 }
 
 export interface DutyLogItem {
@@ -341,7 +361,13 @@ export interface DutyLogItem {
   subject: string;
   scheduledTime: string;
   durationMinutes: number;
-  status: 'verified' | 'pending' | 'disputed';
+  scheduledMinutes?: number;
+  status: 'verified' | 'pending' | 'disputed' | 'unverified' | 'flagged' | 'live';
+  verificationStatus?: 'VERIFIED' | 'UNVERIFIED' | 'FLAGGED' | 'REQUIRES_REVIEW' | 'REJECTED' | 'ABSENT' | 'LIVE';
+  verificationReason?: string;
+  isLive?: boolean;
+  actualJoinTime?: string;
+  actualLeaveTime?: string;
 }
 
 export interface NotificationItem {

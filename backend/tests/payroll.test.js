@@ -36,6 +36,7 @@ describe('Module 7: Teacher Payroll & Duty Tracking Tests', () => {
     activeTeacher = await db('teachers')
       .join('users', 'teachers.user_id', 'users.id')
       .where('teachers.employment_status', 'ACTIVE')
+      .where('users.status', 'ACTIVE')
       .select('teachers.id', 'teachers.user_id', 'teachers.employee_no as staffIdentifier', 'users.full_name as teacherName')
       .first();
 

@@ -997,7 +997,12 @@ export const api = {
           passcode: m.passcode || `CLASS${m.classNumber || m.classId}#`,
           joinUrl: m.joinUrl || `https://zoom.us/j/${m.zoomMeetingId}`,
           hostKey: m.hostKey || '884422',
-          accountEmail: m.accountEmail || `Class ${m.classNumber || m.classId} Zoom Pro`,
+          accountEmail: m.hostEmail || m.accountEmail || `zoom.class${m.classNumber || m.classId}@school.pk`,
+          hostName: m.hostName || `Class ${m.classNumber || m.classId} Dedicated Licensed Host`,
+          hostZoomUserId: m.hostZoomUserId || null,
+          concurrencySlot: m.concurrencySlot || Number(m.classNumber || m.classId),
+          webhookVerifiedAt: m.webhookVerifiedAt || null,
+          lastWebhookEventAt: m.lastWebhookEventAt || null,
           configNotes: m.configNotes || '',
           status: m.status === 'ACTIVE' ? 'Active' : 'Expired',
           createdDate: m.createdAt ? new Date(m.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
@@ -1027,6 +1032,13 @@ export const api = {
 
   async deleteZoomMeeting(classNumber: number): Promise<any> {
     const res = await requestApi(`/api/v1/zoom/class-meetings/${classNumber}`, {
+      method: 'DELETE'
+    });
+    return res;
+  },
+
+  async deleteAllZoomMeetings(): Promise<any> {
+    const res = await requestApi('/api/v1/zoom/class-meetings', {
       method: 'DELETE'
     });
     return res;
@@ -1087,6 +1099,37 @@ export const api = {
     const rawId = typeof teacherId === 'string' ? teacherId.replace(/\D/g, '') : teacherId;
     const query = date ? `?date=${encodeURIComponent(date)}` : '';
     const res = await requestApi<any>(`/api/v1/zoom/teachers/${rawId}/daily-duty${query}`);
+    return res?.data || res;
+  },
+
+  async testClassEventDelivery(classNumber: number): Promise<any> {
+    const res = await requestApi<any>(`/api/v1/zoom/class-meetings/${classNumber}/test-event`, {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+    return res?.data || res;
+  },
+
+  async listLicensedZoomUsers(): Promise<any> {
+    const res = await requestApi<any>('/api/v1/zoom/licensed-users');
+    return res?.data || res;
+  },
+
+  async getAttendanceReviews(params?: { status?: string; limit?: number }): Promise<any[]> {
+    const q = new URLSearchParams();
+    if (params?.status) q.set('status', params.status);
+    if (params?.limit) q.set('limit', String(params.limit));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    const res = await requestApi<any>(`/api/v1/zoom/attendance-reviews${qs}`);
+    return Array.isArray(res) ? res : res?.data || [];
+  },
+
+  async resolveAttendanceReview(logId: number | string, data: { decision: 'APPROVE' | 'REJECT'; reviewNote?: string }): Promise<any> {
+    const rawId = typeof logId === 'string' ? logId.replace(/\D/g, '') : logId;
+    const res = await requestApi<any>(`/api/v1/zoom/attendance-reviews/${rawId}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
     return res?.data || res;
   },
 
@@ -1516,10 +1559,11 @@ export const api = {
   },
 
   // 13. Teacher Payroll & Duty — Live Only
-  async getSalaryDrafts(): Promise<TeacherSalaryDraft[]> {
+  async getSalaryDrafts(payrollMonth?: string): Promise<TeacherSalaryDraft[]> {
     try {
-      const data = await requestApi<TeacherSalaryDraft[]>('/api/v1/payroll/drafts');
-      if (Array.isArray(data) && data.length > 0) {
+      const query = payrollMonth ? `?payrollMonth=${encodeURIComponent(payrollMonth)}` : '';
+      const data = await requestApi<TeacherSalaryDraft[]>(`/api/v1/payroll/drafts${query}`);
+      if (Array.isArray(data)) {
         return data;
       }
     } catch {
@@ -1576,6 +1620,15 @@ export const api = {
       body: JSON.stringify(paymentDetails)
     });
     return updated;
+  },
+
+  async getTeacherDutySummary(teacherId: number | string, payrollMonth?: string): Promise<any> {
+    try {
+      const query = payrollMonth ? `?payrollMonth=${encodeURIComponent(payrollMonth)}` : '';
+      return await requestApi<any>(`/api/v1/payroll/duty-summary/${teacherId}${query}`);
+    } catch {
+      return null;
+    }
   },
 
   // 14. Academic Oversight — Live Only

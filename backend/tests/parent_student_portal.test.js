@@ -2,6 +2,7 @@ import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { db } from '../src/shared/db/knex.js';
 import { hashPassword } from '../src/shared/crypto/password.js';
+import { zoomRepository } from '../src/modules/zoom/zoom.repository.js';
 
 describe('Module 10: Parent Portal & Student Access Verification Tests', () => {
   let app;
@@ -49,13 +50,15 @@ describe('Module 10: Parent Portal & Student Access Verification Tests', () => {
     alternateClass = classes[1] || classes[0];
 
     // 3. Ensure Zoom meetings exist for classes
-    const existingMeeting = await db('zoom_meetings').where({ class_id: activeClass.id }).first();
+    let existingMeeting = await db('zoom_meetings').where({ class_id: activeClass.id, status: 'ACTIVE' }).first();
     if (!existingMeeting) {
-      await request(app)
-        .post('/api/v1/zoom/classes/setup')
-        .set('Cookie', principalCookies)
-        .set('X-CSRF-Token', principalCsrf)
-        .send({});
+      await zoomRepository.configureClassMeeting({
+        classId: activeClass.id,
+        zoomMeetingId: `9200000000${activeClass.id}`.slice(-10),
+        joinUrl: `https://zoom.us/j/9200000000${activeClass.id}`,
+        passcode: 'CLASS1#',
+        topic: `Class ${activeClass.id} Portal Room`
+      });
     }
 
     // 4. Create Active Student User
@@ -403,7 +406,7 @@ describe('Module 10: Parent Portal & Student Access Verification Tests', () => {
 
       // Verify participant log was recorded in database
       const log = await db('zoom_participant_log')
-        .where({ lesson_id: activeLesson.id, user_id: activeStudent.id })
+        .where({ lesson_id: activeLesson.id, user_id: activeStudent.userId })
         .first();
       expect(log).toBeDefined();
       expect(log.source).toBe('PORTAL');

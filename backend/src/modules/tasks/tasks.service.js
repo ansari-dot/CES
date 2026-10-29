@@ -249,9 +249,15 @@ export const tasksService = {
     return updated;
   },
 
-  async submitTask(user, taskId, { file = null, studentNotes = null }) {
-    if (user.role !== 'STUDENT') throw forbidden('Only students can submit assignments.');
-    const student = await getStudentByUserId(user.id);
+  async submitTask(user, taskId, { file = null, fileUrl = null, fileName = null, fileSize = null, studentId = null, studentNotes = null }) {
+    let student;
+    if (user.role === 'STUDENT') {
+      student = await getStudentByUserId(user.id);
+    } else if ((user.role === 'TEACHER' || user.role === 'ADMIN' || user.role === 'PRINCIPAL') && studentId) {
+      student = await db('students').where({ id: studentId }).first();
+    } else {
+      throw forbidden('Only students can submit assignments.');
+    }
     if (!student) throw notFound('Student profile not found');
 
     const task = await tasksRepository.findTaskById(taskId);
@@ -263,7 +269,7 @@ export const tasksService = {
     }
 
     const notes = studentNotes ? String(studentNotes).trim() : '';
-    if (!file && !notes) throw validationError('Attach your work or add a note before submitting');
+    if (!file && !fileUrl && !notes) throw validationError('Attach your work or add a note before submitting');
 
     const existing = await tasksRepository.findSubmissionByTaskAndStudent(task.id, student.id);
     if (existing && existing.status === 'GRADED') {
@@ -284,9 +290,9 @@ export const tasksService = {
     const subId = await tasksRepository.submitTask({
       taskId: task.id,
       studentId: student.id,
-      fileUrl: file ? `/api/v1/uploads/${file.filename}` : null,
-      fileName: file ? file.originalname : null,
-      fileSize: file ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` : null,
+      fileUrl: file ? `/api/v1/uploads/${file.filename}` : (fileUrl || null),
+      fileName: file ? file.originalname : (fileName || null),
+      fileSize: file ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` : (fileSize || null),
       studentNotes: notes || null,
       isLate
     });
@@ -466,7 +472,11 @@ export const tasksService = {
         throw validationError('Attach a file, or provide a valid http(s) link for link resources');
       }
       fileUrl = link;
-      resourceType = 'LINK';
+      fileName = payload.fileName ? String(payload.fileName).trim() : null;
+      fileSize = payload.fileSize ? String(payload.fileSize).trim() : null;
+      if (!RESOURCE_TYPES.includes(resourceType)) {
+        resourceType = 'LINK';
+      }
     }
 
     await resolveOwningTeacher(user, classId, subjectId);

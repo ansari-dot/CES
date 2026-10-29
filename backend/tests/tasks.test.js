@@ -243,8 +243,9 @@ describe('Module 5: Learning Tasks, Submissions & Resources Tests', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data.some((r) => r.id === createdResourceId)).toBe(true);
-      expect(res.body.data[0].resourceType).toBe('SLIDES');
+      const createdRes = res.body.data.find((r) => r.id === createdResourceId);
+      expect(createdRes).toBeDefined();
+      expect(createdRes.resourceType).toBe('SLIDES');
     });
 
     it('should delete a learning resource', async () => {

@@ -15,9 +15,8 @@ export function csrfProtection(options = {}) {
       return next();
     }
 
-    // In development, skip CSRF — double-submit cookie only guards against
-    // cross-site attacks which cannot occur on localhost.
-    if (!config.isProduction) {
+    // In development mode, skip CSRF for local testing; enforce in test and production
+    if (config.NODE_ENV === 'development') {
       return next();
     }
 

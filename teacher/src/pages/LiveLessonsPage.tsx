@@ -130,6 +130,41 @@ export const LiveLessonsPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Real-time Active Live Session Notification Banner */}
+      {lessons.filter((l) => l.status === 'live').length > 0 && (
+        <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-red-600 via-indigo-700 to-blue-700 text-white shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-red-400/30 animate-in fade-in duration-300">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 border border-white/30">
+              <span className="material-symbols-outlined text-white text-[24px] animate-pulse">videocam</span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping"></span>
+                <span className="text-xs font-black uppercase tracking-wider text-red-200">Real-Time WebSocket Sync</span>
+              </div>
+              <h2 className="text-base sm:text-lg font-extrabold text-white mt-0.5">
+                {lessons.filter((l) => l.status === 'live')[0].className} ({lessons.filter((l) => l.status === 'live')[0].subject}) is LIVE right now!
+              </h2>
+              <p className="text-xs text-indigo-100 mt-0.5">
+                Room ID: <span className="font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded">{lessons.filter((l) => l.status === 'live')[0].zoomRoomId}</span> • Passcode: <span className="font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded">{lessons.filter((l) => l.status === 'live')[0].zoomPasscode}</span>
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              onClick={() => {
+                const target = lessons.filter((l) => l.status === 'live')[0];
+                handleLaunchRoom(target.className, target.zoomRoomId, target.joinUrl, target.zoomPasscode, target.hostKey || '884422');
+              }}
+              className="w-full sm:w-auto px-5 py-2.5 bg-white text-indigo-700 hover:bg-slate-100 font-extrabold text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 active:scale-95"
+            >
+              <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+              Join Host Classroom
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Persistent Rooms Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
         {assignedClasses.length === 0 ? (
@@ -139,81 +174,101 @@ export const LiveLessonsPage: React.FC = () => {
             <p className="text-xs text-[#777587] mt-1">No active classrooms or live sessions are assigned to your faculty profile.</p>
           </div>
         ) : (
-          assignedClasses.map((cls) => (
-          <div
-            key={cls.id}
-            className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md transition-all"
-          >
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-[#3525cd] text-xs font-bold">
-                  {cls.name}
-                </span>
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#006c49]">
-                  <span className="w-2 h-2 rounded-full bg-[#006c49] animate-pulse"></span>
-                  Ready to Host
-                </span>
-              </div>
+          assignedClasses.map((cls) => {
+            const classLive = lessons.find(
+              (l) => (l.className === cls.name || l.classId?.includes(String(cls.id))) && l.status === 'live'
+            );
+            const isLive = Boolean(classLive);
 
-              <h2 className="text-lg font-bold text-[#121c2a]">{cls.subject}</h2>
-              <p className="text-xs text-[#777587] mt-0.5">Physical Hub: {cls.roomName}</p>
-
-              <div className="mt-4 p-3 bg-[#eff4ff] rounded-xl space-y-1.5 text-xs border border-indigo-100/60">
-                <div className="flex items-center justify-between">
-                  <span className="text-[#464555]">Persistent Meeting ID:</span>
-                  <span className="font-mono font-bold text-[#121c2a]">{cls.zoomRoomId}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[#464555]">Security Passcode:</span>
-                  <span className="font-mono font-bold text-[#3525cd]">{cls.zoomPasscode}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[#464555]">Host Key (Claim Host):</span>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-mono font-bold text-amber-800 bg-amber-100/70 px-2 py-0.5 rounded border border-amber-300">
-                      {cls.hostKey || '884422'}
+            return (
+              <div
+                key={cls.id}
+                className={`bg-white rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-all ${
+                  isLive ? 'border-2 border-red-500 ring-2 ring-red-100 shadow-lg' : 'border border-slate-100'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-[#3525cd] text-xs font-bold">
+                      {cls.name}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard?.writeText(cls.hostKey || '884422');
-                        dispatch(addToast({ message: `Copied Host Key: ${cls.hostKey || '884422'}`, type: 'info' }));
-                      }}
-                      className="text-amber-800 hover:text-amber-950 p-0.5 rounded hover:bg-amber-100 transition-colors"
-                      title="Copy Host Key"
-                    >
-                      <span className="material-symbols-outlined text-[15px]">content_copy</span>
-                    </button>
+                    {isLive ? (
+                      <span className="inline-flex items-center gap-1.5 text-[11px] font-black text-red-700 bg-red-100/90 px-3 py-1 rounded-full border border-red-300 shadow-xs">
+                        <span className="w-2 h-2 rounded-full bg-red-600 animate-ping"></span>
+                        LIVE IN SESSION
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#006c49]">
+                        <span className="w-2 h-2 rounded-full bg-[#006c49] animate-pulse"></span>
+                        Ready to Host
+                      </span>
+                    )}
+                  </div>
+
+                  <h2 className="text-lg font-bold text-[#121c2a]">{cls.subject}</h2>
+                  <p className="text-xs text-[#777587] mt-0.5">Physical Hub: {cls.roomName}</p>
+
+                  <div className="mt-4 p-3 bg-[#eff4ff] rounded-xl space-y-1.5 text-xs border border-indigo-100/60">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#464555]">Persistent Meeting ID:</span>
+                      <span className="font-mono font-bold text-[#121c2a]">{cls.zoomRoomId}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#464555]">Security Passcode:</span>
+                      <span className="font-mono font-bold text-[#3525cd]">{cls.zoomPasscode}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#464555]">Host Key (Claim Host):</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-bold text-amber-800 bg-amber-100/70 px-2 py-0.5 rounded border border-amber-300">
+                          {cls.hostKey || '884422'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard?.writeText(cls.hostKey || '884422');
+                            dispatch(addToast({ message: `Copied Host Key: ${cls.hostKey || '884422'}`, type: 'info' }));
+                          }}
+                          className="text-amber-800 hover:text-amber-950 p-0.5 rounded hover:bg-amber-100 transition-colors"
+                          title="Copy Host Key"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">content_copy</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#464555]">Enrolled Student Capacity:</span>
+                      <span className="font-bold text-[#121c2a]">{cls.enrolledCount} Seats</span>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[#464555]">Enrolled Student Capacity:</span>
-                  <span className="font-bold text-[#121c2a]">{cls.enrolledCount} Seats</span>
+
+                <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard?.writeText(classLive?.joinUrl || cls.joinUrl || `https://zoom.us/j/${cls.zoomRoomId.replace(/-/g, '')}`);
+                      dispatch(addToast({ message: `Copied Zoom link for ${cls.name}`, type: 'info' }));
+                    }}
+                    className="px-3 py-2 text-xs font-semibold text-[#464555] hover:text-[#121c2a] hover:bg-[#eff4ff] rounded-lg transition-colors flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">content_copy</span>
+                    Copy Link
+                  </button>
+                  <button
+                    onClick={() => handleLaunchRoom(cls.name, cls.zoomRoomId, classLive?.joinUrl || cls.joinUrl, cls.zoomPasscode, cls.hostKey || '884422')}
+                    className={`px-5 py-2 text-white text-xs font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 active:scale-98 ${
+                      isLive
+                        ? 'bg-gradient-to-r from-red-600 to-indigo-600 hover:from-red-500 hover:to-indigo-500 animate-pulse'
+                        : 'bg-[#3525cd] hover:bg-[#4f46e5]'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">videocam</span>
+                    {isLive ? 'Enter Active Host Session' : 'Launch Host Session'}
+                  </button>
                 </div>
               </div>
-            </div>
-
-            <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
-              <button
-                onClick={() => {
-                  navigator.clipboard?.writeText(cls.joinUrl || `https://zoom.us/j/${cls.zoomRoomId.replace(/-/g, '')}`);
-                  dispatch(addToast({ message: `Copied Zoom link for ${cls.name}`, type: 'info' }));
-                }}
-                className="px-3 py-2 text-xs font-semibold text-[#464555] hover:text-[#121c2a] hover:bg-[#eff4ff] rounded-lg transition-colors flex items-center gap-1"
-              >
-                <span className="material-symbols-outlined text-[16px]">content_copy</span>
-                Copy Link
-              </button>
-              <button
-                onClick={() => handleLaunchRoom(cls.name, cls.zoomRoomId, cls.joinUrl, cls.zoomPasscode, cls.hostKey || '884422')}
-                className="px-5 py-2 bg-[#3525cd] hover:bg-[#4f46e5] text-white text-xs font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 active:scale-98"
-              >
-                <span className="material-symbols-outlined text-[18px]">videocam</span>
-                Launch Host Session
-              </button>
-            </div>
-          </div>
-        ))
+            );
+          })
         )}
       </div>
 

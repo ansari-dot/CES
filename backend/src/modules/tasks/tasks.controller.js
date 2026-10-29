@@ -61,6 +61,10 @@ export const tasksController = {
     try {
       const submission = await tasksService.submitTask(req.user, Number(req.params.id), {
         file: req.file || null,
+        fileUrl: req.body.fileUrl,
+        fileName: req.body.fileName,
+        fileSize: req.body.fileSize,
+        studentId: req.body.studentId ? Number(req.body.studentId) : null,
         studentNotes: req.body.studentNotes
       });
       return sendSuccess(res, submission, null, 201);

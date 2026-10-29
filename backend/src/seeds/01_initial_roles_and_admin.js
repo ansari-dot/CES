@@ -81,7 +81,9 @@ export async function seed(knex) {
       email: 'admin@school.pk',
       phone: '+923001234567',
       full_name: 'System Administrator',
-      password_hash: passwordHash,
+      password_hash: passwor
+      
+      dHash,
       must_change_password: 0,
       status: 'ACTIVE',
       token_version: 0

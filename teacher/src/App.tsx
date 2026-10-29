@@ -28,7 +28,9 @@ import { fetchNoticesThunk } from './store/slices/noticesSlice';
 import { fetchPerformanceDataThunk } from './store/slices/performanceSlice';
 import { fetchLessonRosterThunk, fetchCorrectionVouchersThunk } from './store/slices/attendanceSlice';
 import { fetchDutySummaryThunk } from './store/slices/dutySlice';
+import { fetchTeacherNotificationsThunk } from './store/slices/uiSlice';
 import { useLessonReminderTicker } from './hooks/useLessonReminderTicker';
+import { useTeacherRealtime } from './hooks/useTeacherRealtime';
 
 export default function App() {
   const dispatch = useAppDispatch();
@@ -39,6 +41,9 @@ export default function App() {
 
   // Active 5-minute pre-lesson notification reminder ticker
   useLessonReminderTicker();
+
+  // Active Real-Time WebSocket Listener for live links, class updates, notices & schedule changes
+  useTeacherRealtime();
 
   // 1. Session verification & regional timezone detection on app startup
   useEffect(() => {
@@ -56,6 +61,7 @@ export default function App() {
       dispatch(fetchSubmissionsThunk());
       dispatch(fetchResourcesThunk());
       dispatch(fetchNoticesThunk());
+      dispatch(fetchTeacherNotificationsThunk());
       dispatch(fetchPerformanceDataThunk());
       dispatch(fetchCorrectionVouchersThunk());
       dispatch(fetchLessonRosterThunk(1));

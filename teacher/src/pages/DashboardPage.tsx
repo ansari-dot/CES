@@ -1,16 +1,33 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
-import { toggleClockInOut } from '../store/slices/authSlice';
 import { setCurrentTab, addToast } from '../store/slices/uiSlice';
-import { openLessonModal, markLessonStarted, endLessonThunk } from '../store/slices/timetableSlice';
+import { openLessonModal, markLessonStarted, endLessonThunk, fetchTeacherLessonsThunk } from '../store/slices/timetableSlice';
+import { fetchDutySummaryThunk } from '../store/slices/dutySlice';
 import { KeyMetricsWidget } from '../components/dashboard/KeyMetricsWidget';
 import { requestApi } from '../services/api';
 import { TimetableLesson } from '../types';
 import { dateKeyInZone, dayOfWeekInZone } from '../lib/timezone';
+import { useSocketEvent } from '../hooks/useSocket';
+import { RealtimeEvents } from '../services/socketService';
 
 export const DashboardPage: React.FC = () => {
   const dispatch = useAppDispatch();
   const teacher = useAppSelector((state) => state.auth.teacher);
+
+  useSocketEvent(RealtimeEvents.CLASS_STATUS_UPDATED, () => {
+    dispatch(fetchTeacherLessonsThunk());
+    dispatch(fetchDutySummaryThunk());
+  });
+
+  useSocketEvent(RealtimeEvents.TEACHER_DUTY_UPDATED, () => {
+    dispatch(fetchTeacherLessonsThunk());
+    dispatch(fetchDutySummaryThunk());
+  });
+
+  useSocketEvent(RealtimeEvents.TEACHER_ATTENDANCE_UPDATED, () => {
+    dispatch(fetchTeacherLessonsThunk());
+    dispatch(fetchDutySummaryThunk());
+  });
   const lessons = useAppSelector((state) => state.timetable.lessons);
   const teacherTz = useAppSelector((state) => state.timetable.timezone);
   const tasks = useAppSelector((state) => state.tasks.tasks);
@@ -91,6 +108,19 @@ export const DashboardPage: React.FC = () => {
     return () => clearInterval(timer);
   }, [liveLesson?.id, liveLesson?.actualStartTime, liveLesson?.status]);
 
+  // Proactive S2S sync while class is live (syncs every 10s so leaving Zoom stops timer automatically)
+  useEffect(() => {
+    if (!liveLesson) return;
+
+    const syncLiveStatus = () => {
+      dispatch(fetchTeacherLessonsThunk());
+      dispatch(fetchDutySummaryThunk());
+    };
+
+    const interval = setInterval(syncLiveStatus, 10000);
+    return () => clearInterval(interval);
+  }, [liveLesson?.id, dispatch]);
+
   const formatStopwatch = (totalSeconds: number) => {
     const hrs = Math.floor(totalSeconds / 3600);
     const mins = Math.floor((totalSeconds % 3600) / 60);
@@ -102,6 +132,26 @@ export const DashboardPage: React.FC = () => {
   };
 
   const liveHoursAccrued = (liveElapsedSeconds / 3600).toFixed(2);
+
+  // Exact daily teaching hours calculation (combining completed lessons + live session)
+  const completedLessonsToday = useMemo(() => {
+    return todayLessons.filter((l) => l.status === 'completed');
+  }, [todayLessons]);
+
+  const todayCompletedDutyMinutes = useMemo(() => {
+    if (duty.todayTeachingMinutes && duty.todayTeachingMinutes > 0) {
+      return duty.todayTeachingMinutes;
+    }
+    return completedLessonsToday.reduce((acc, l) => {
+      return acc + (l.verifiedDutyMinutes || 45);
+    }, 0);
+  }, [duty.todayTeachingMinutes, completedLessonsToday]);
+
+  const liveMinutesCurrent = Math.floor(liveElapsedSeconds / 60);
+  const totalTodayMinutes = todayCompletedDutyMinutes + (liveLesson ? liveMinutesCurrent : 0);
+  const exactTodayHours = Math.floor(totalTodayMinutes / 60);
+  const exactTodayMins = totalTodayMinutes % 60;
+  const exactTodayHoursDecimal = (totalTodayMinutes / 60).toFixed(2);
 
   const isStartingIn5Min = (() => {
     if (!nextLesson || liveLesson) return false;
@@ -205,19 +255,9 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
-  const handleClockToggle = () => {
-    dispatch(toggleClockInOut());
-    dispatch(
-      addToast({
-        message: teacher.isDutyClockedIn ? 'Clocked out for break' : 'Clocked in active',
-        type: 'info',
-      })
-    );
-  };
-
   return (
     <div className="flex flex-col w-full pb-8 space-y-5">
-      {/* Top Header: Simple greeting & 2 fast action buttons */}
+      {/* Top Header: Simple greeting & real-time automated tracking status */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <img
@@ -232,22 +272,37 @@ export const DashboardPage: React.FC = () => {
             <div className="flex items-center gap-2 text-xs text-[#777587]">
               <span>{teacher.employeeId}</span>
               <span>•</span>
-              <span className="flex items-center gap-1 font-semibold text-[#006c49]">
-                <span className="w-2 h-2 rounded-full bg-[#006c49] animate-pulse"></span>
-                {teacher.isDutyClockedIn ? 'Clocked In' : 'On Break'}
-              </span>
+              {liveLesson ? (
+                <span className="flex items-center gap-1.5 font-bold text-emerald-800 bg-emerald-100/80 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                  <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping"></span>
+                  Zoom Class Active • Auto-Tracking
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 font-semibold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  Zoom S2S Auto-Duty Ready
+                </span>
+              )}
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleClockToggle}
-            className="px-3.5 py-2 bg-white hover:bg-slate-50 text-[#121c2a] text-xs font-semibold rounded-xl border border-slate-200 shadow-xs flex items-center gap-1.5 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[17px]">timer</span>
-            <span>{teacher.isDutyClockedIn ? 'Clock Out' : 'Clock In'}</span>
-          </button>
+          {/* Real-time Daily Teaching Hours Metric Pill (No manual buttons) */}
+          <div className="px-3.5 py-2 bg-white text-[#121c2a] text-xs font-semibold rounded-xl border border-slate-200 shadow-xs flex items-center gap-2.5">
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+              liveLesson ? 'bg-emerald-600 text-white animate-pulse' : 'bg-indigo-50 text-[#3525cd]'
+            }`}>
+              <span className="material-symbols-outlined text-[17px]">{liveLesson ? 'timer' : 'timelapse'}</span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-[#777587] block leading-none">Today's Teaching</span>
+              <span className="text-xs font-extrabold text-[#121c2a]">
+                {exactTodayHours}h {exactTodayMins}m {liveLesson ? `(+${liveHoursAccrued}h)` : ''}
+              </span>
+            </div>
+          </div>
+
           <button
             onClick={() => dispatch(setCurrentTab('live-lessons'))}
             className="px-4 py-2 bg-[#4f46e5] hover:bg-[#3525cd] text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-colors"
@@ -274,7 +329,7 @@ export const DashboardPage: React.FC = () => {
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] font-bold text-[#777587] uppercase tracking-wider block">
-                  Teaching Duty
+                  Today's Teaching
                 </span>
                 {liveLesson && (
                   <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 text-[9px] font-extrabold rounded-full animate-pulse flex items-center gap-0.5">
@@ -284,7 +339,10 @@ export const DashboardPage: React.FC = () => {
                 )}
               </div>
               <span className="text-sm font-extrabold text-[#121c2a]">
-                {duty.totalDutyHours}h {liveLesson ? `(+${liveHoursAccrued}h)` : ''} / {duty.targetDutyHours}h Logged
+                {exactTodayHours}h {exactTodayMins}m {liveLesson ? `(+${liveHoursAccrued}h)` : ''} • {completedLessonsToday.length}/{todayLessons.length} Done
+              </span>
+              <span className="text-[10px] text-[#777587] block font-medium">
+                Cycle: {duty.totalDutyHours}h / {duty.targetDutyHours}h target
               </span>
             </div>
           </div>
@@ -412,12 +470,17 @@ export const DashboardPage: React.FC = () => {
                   <span>Re-Join Classroom</span>
                 </button>
 
+                <div className="px-3.5 py-2.5 bg-emerald-500/25 text-emerald-100 text-xs font-bold rounded-xl border border-emerald-400/40 flex items-center gap-1.5 shadow-xs">
+                  <span className="material-symbols-outlined text-[17px] text-emerald-300">auto_mode</span>
+                  <span>Auto-Stops When You Leave Zoom</span>
+                </div>
+
                 <button
                   onClick={() => handleOpenEndModal(liveLesson)}
-                  className="px-3.5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl shadow-md flex items-center gap-1.5 transition-colors border border-red-400/40"
+                  className="px-3 py-2.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-xl border border-white/20 flex items-center gap-1.5 transition-colors"
                 >
-                  <span className="material-symbols-outlined text-[18px]">stop_circle</span>
-                  <span>End Class &amp; Settle</span>
+                  <span className="material-symbols-outlined text-[17px]">edit_note</span>
+                  <span>Lesson Notes</span>
                 </button>
 
                 <button

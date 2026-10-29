@@ -208,8 +208,8 @@ export const SubmissionsGradingPage: React.FC = () => {
                 className="bg-transparent text-xs font-bold text-[#121c2a] focus:outline-none cursor-pointer truncate"
               >
                 <option value="all">All Assigned Classes</option>
-                {classOptions.map((c) => (
-                  <option key={c.id} value={c.id}>
+                {classOptions.map((c, idx) => (
+                  <option key={`${c.id}-${idx}`} value={c.id}>
                     {c.name}
                   </option>
                 ))}

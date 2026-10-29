@@ -1,16 +1,38 @@
-import React, { useState } from 'react';
-import { useSelector } from 'react-redux';
+import React, { useState, useEffect } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import { Video, PhoneCall, PlayCircle, FileText, XCircle, Info } from 'lucide-react';
-import { RootState } from '../store';
+import { RootState, AppDispatch } from '../store';
+import { fetchTimetable, fetchStudentZoomSession } from '../store/slices/classesSlice';
 import StatusChip from '../components/common/StatusChip';
 import ZoomMeetingModal from '../components/dialogs/ZoomMeetingModal';
+import { useSocketEvent, useClassRoomSubscription } from '../hooks/useSocket';
+import { RealtimeEvents } from '../services/socketService';
 
 export default function LiveClasses() {
+  const dispatch = useDispatch<AppDispatch>();
   const nextClass = useSelector((state: RootState) => state.classes.nextClass);
   const todayClasses = useSelector((state: RootState) => state.classes.todayClasses);
   const recentlyCompleted = useSelector((state: RootState) => state.classes.recentlyCompleted);
   const profile = useSelector((state: RootState) => state.student.profile);
   const [showModal, setShowModal] = useState(false);
+
+  const classId = profile?.currentClassId || (profile as any)?.class_id;
+  useClassRoomSubscription(classId);
+
+  useSocketEvent(RealtimeEvents.CLASS_STATUS_UPDATED, () => {
+    dispatch(fetchTimetable());
+    dispatch(fetchStudentZoomSession());
+  });
+
+  useSocketEvent(RealtimeEvents.CLASS_PERIOD_ACTIVATED, () => {
+    dispatch(fetchTimetable());
+    dispatch(fetchStudentZoomSession());
+  });
+
+  useSocketEvent(RealtimeEvents.STUDENT_ATTENDANCE_UPDATED, () => {
+    dispatch(fetchTimetable());
+    dispatch(fetchStudentZoomSession());
+  });
 
   const upcomingClasses = todayClasses.filter((c) => c.status !== 'Completed');
   const classLabel = profile?.grade || nextClass.className || nextClass.grade || 'Classroom';

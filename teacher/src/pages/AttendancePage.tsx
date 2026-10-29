@@ -79,10 +79,15 @@ export const AttendancePage: React.FC = () => {
   // When selected class or class lessons change, pick the most relevant lesson and fetch roster
   useEffect(() => {
     if (classLessons.length > 0) {
-      const firstLesson = classLessons[0];
-      const targetId = firstLesson.rawId || firstLesson.id;
-      setActiveLessonId(targetId);
-      dispatch(fetchLessonRosterThunk(targetId));
+      const realLesson = classLessons.find((l) => typeof l.id === 'string' && l.id.startsWith('LES-'));
+      if (realLesson) {
+        const targetId = realLesson.rawId || realLesson.id;
+        setActiveLessonId(targetId);
+        dispatch(fetchLessonRosterThunk(targetId));
+      } else if (selectedClassId) {
+        setActiveLessonId(`CLASS-${selectedClassId}`);
+        dispatch(fetchClassRosterThunk(Number(selectedClassId)));
+      }
     } else if (selectedClassId) {
       // If no timetable lesson exists for this class, fetch the class roster directly
       setActiveLessonId(`CLASS-${selectedClassId}`);
@@ -100,7 +105,14 @@ export const AttendancePage: React.FC = () => {
 
   const handleSelectLesson = (lessonIdentifier: string | number) => {
     setActiveLessonId(lessonIdentifier);
-    dispatch(fetchLessonRosterThunk(lessonIdentifier));
+    if (typeof lessonIdentifier === 'string' && lessonIdentifier.startsWith('CLASS-')) {
+      const cid = parseInt(lessonIdentifier.replace('CLASS-', ''), 10) || Number(selectedClassId);
+      dispatch(fetchClassRosterThunk(cid));
+    } else if (typeof lessonIdentifier === 'string' && lessonIdentifier.startsWith('SLOT-')) {
+      dispatch(fetchClassRosterThunk(Number(selectedClassId)));
+    } else {
+      dispatch(fetchLessonRosterThunk(lessonIdentifier));
+    }
   };
 
   const handleMarkAllPresent = () => {
@@ -185,11 +197,11 @@ export const AttendancePage: React.FC = () => {
               Loading faculty class assignments...
             </span>
           ) : (
-            uniqueClasses.map((cls) => {
+            uniqueClasses.map((cls, idx) => {
               const isSelected = selectedClassId === cls.id;
               return (
                 <button
-                  key={cls.id}
+                  key={`att-cls-${cls.id}-${cls.classId || idx}`}
                   type="button"
                   onClick={() => handleSelectClass(cls.id)}
                   className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
@@ -221,8 +233,8 @@ export const AttendancePage: React.FC = () => {
               onChange={(e) => handleSelectLesson(e.target.value)}
               className="bg-[#eff4ff] text-xs font-bold text-[#121c2a] border border-indigo-100 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
             >
-              {classLessons.map((l) => (
-                <option key={l.id} value={l.rawId || l.id}>
+              {classLessons.map((l, idx) => (
+                <option key={`att-les-${l.id}-${l.rawId || idx}`} value={l.rawId || l.id}>
                   {l.className} • {l.subject} ({l.startTime} – {l.endTime})
                 </option>
               ))}

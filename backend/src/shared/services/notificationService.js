@@ -1,4 +1,5 @@
 import { noticesRepository } from '../../modules/notices/notices.repository.js';
+import { emitRealtimeEvent, RealtimeEvents } from '../realtime/eventEmitter.js';
 
 export const notificationService = {
   /**
@@ -27,6 +28,26 @@ export const notificationService = {
         relatedRecordType,
         priority
       });
+
+      emitRealtimeEvent(
+        RealtimeEvents.NOTIFICATION_CREATED,
+        {
+          id: created?.id,
+          title,
+          message,
+          type,
+          priority,
+          targetRole,
+          userId,
+          relatedRecordId,
+          relatedRecordType,
+          createdAt: new Date().toISOString()
+        },
+        {
+          userIds: userId ? [userId] : undefined,
+          roles: targetRole && targetRole !== 'ALL' ? [targetRole] : undefined
+        }
+      );
 
       return created;
     } catch (err) {

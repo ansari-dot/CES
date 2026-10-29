@@ -312,24 +312,26 @@ const classesSlice = createSlice({
     builder.addCase(fetchStudentZoomSession.fulfilled, (state, action) => {
       const d = action.payload;
       if (d) {
+        const resolvedMeetingId = d.meetingId || d.zoomMeetingId || null;
+        const resolvedMessage = d.statusMessage || d.message || null;
         state.zoomSession = {
           joinUrl: d.joinUrl || null,
           passcode: d.passcode || null,
-          meetingId: d.meetingId || null,
+          meetingId: resolvedMeetingId,
           sessionState: d.sessionState || null,
-          statusMessage: d.statusMessage || null,
+          statusMessage: resolvedMessage,
           inWindow: d.inWindow ?? false,
           canJoin: d.canJoin ?? Boolean(d.joinUrl),
         };
-        if (d.joinUrl || d.passcode || d.meetingId) {
+        if (d.joinUrl || d.passcode || resolvedMeetingId) {
           state.nextClass = {
             ...state.nextClass,
             zoomLink: d.joinUrl || state.nextClass.zoomLink,
             joinUrl: d.joinUrl || state.nextClass.joinUrl,
             passcode: d.passcode || state.nextClass.passcode,
-            meetingId: d.meetingId || state.nextClass.meetingId,
+            meetingId: resolvedMeetingId || state.nextClass.meetingId,
             sessionState: d.sessionState || state.nextClass.sessionState,
-            statusMessage: d.statusMessage || state.nextClass.statusMessage,
+            statusMessage: resolvedMessage || state.nextClass.statusMessage,
           };
         }
       }
@@ -338,24 +340,26 @@ const classesSlice = createSlice({
     builder.addCase(joinLesson.fulfilled, (state, action) => {
       const d = action.payload;
       if (d) {
+        const resolvedMeetingId = d.meetingId || d.zoomMeetingId || null;
+        const resolvedMessage = d.message || d.statusMessage || null;
         state.zoomSession = {
           joinUrl: d.joinUrl || null,
           passcode: d.passcode || null,
-          meetingId: d.meetingId || null,
+          meetingId: resolvedMeetingId,
           sessionState: d.sessionState || null,
-          statusMessage: d.message || null,
+          statusMessage: resolvedMessage,
           inWindow: d.inWindow ?? true,
           canJoin: d.canJoin ?? Boolean(d.joinUrl),
         };
-        if (d.joinUrl || d.passcode || d.meetingId) {
+        if (d.joinUrl || d.passcode || resolvedMeetingId) {
           state.nextClass = {
             ...state.nextClass,
             zoomLink: d.joinUrl || state.nextClass.zoomLink,
             joinUrl: d.joinUrl || state.nextClass.joinUrl,
             passcode: d.passcode || state.nextClass.passcode,
-            meetingId: d.meetingId || state.nextClass.meetingId,
+            meetingId: resolvedMeetingId || state.nextClass.meetingId,
             sessionState: d.sessionState || state.nextClass.sessionState,
-            statusMessage: d.message || state.nextClass.statusMessage,
+            statusMessage: resolvedMessage || state.nextClass.statusMessage,
           };
         }
       }

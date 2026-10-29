@@ -2,6 +2,8 @@ import { zoomService } from './zoom.service.js';
 import { zoomRepository } from './zoom.repository.js';
 import { db } from '../../shared/db/knex.js';
 import { sendSuccess } from '../../shared/http/response.js';
+import { AppError } from '../../shared/errors/AppError.js';
+import { ErrorCodes } from '../../shared/errors/errorCodes.js';
 
 export const zoomController = {
   async setupClassMeetings(req, res, next) {
@@ -27,7 +29,21 @@ export const zoomController = {
   async configureClassMeeting(req, res, next) {
     try {
       const classId = Number(req.params.classId);
-      const { zoomMeetingId, joinUrl, passcode, hostKey, accountEmail, topic, configNotes, reason } = req.body;
+      const {
+        zoomMeetingId,
+        joinUrl,
+        passcode,
+        hostKey,
+        accountEmail,
+        hostName,
+        hostZoomUserId,
+        accountId,
+        concurrencySlot,
+        topic,
+        configNotes,
+        reason
+      } = req.body;
+
       const meeting = await zoomService.configureClassMeeting({
         classId,
         zoomMeetingId,
@@ -35,6 +51,10 @@ export const zoomController = {
         passcode,
         hostKey,
         accountEmail,
+        hostName,
+        hostZoomUserId,
+        accountId,
+        concurrencySlot: concurrencySlot ? Number(concurrencySlot) : undefined,
         topic,
         configNotes,
         reason,
@@ -50,6 +70,15 @@ export const zoomController = {
     try {
       const classId = Number(req.params.classId);
       const result = await zoomService.deleteClassMeeting(classId, req.user?.id);
+      return sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async deleteAllClassMeetings(req, res, next) {
+    try {
+      const result = await zoomService.deleteAllClassMeetings(req.user?.id);
       return sendSuccess(res, result);
     } catch (error) {
       next(error);
@@ -156,9 +185,21 @@ export const zoomController = {
 
   async getStudentClassSession(req, res, next) {
     try {
-      // Find student record for logged-in user
       const student = await db('students').where({ user_id: req.user.id }).first();
-      const classId = student ? student.current_class_id : Number(req.query.classId || 1);
+      let classId;
+
+      if (student || req.user?.role === 'STUDENT') {
+        if (!student?.current_class_id) {
+          throw new AppError('Student is not enrolled in an active class', 403, ErrorCodes.FORBIDDEN);
+        }
+        if (req.query.classId && Number(req.query.classId) !== Number(student.current_class_id)) {
+          throw new AppError('Forbidden: You can only access your enrolled class session', 403, ErrorCodes.FORBIDDEN);
+        }
+        classId = Number(student.current_class_id);
+      } else {
+        classId = Number(req.query.classId || 1);
+      }
+
       const studentId = student ? student.id : req.user.id;
 
       const result = await zoomService.getStudentClassSession({
@@ -212,18 +253,50 @@ export const zoomController = {
 
   async handleWebhook(req, res) {
     try {
-      const result = await zoomService.handleWebhookEvent(req.body);
+      const result = await zoomService.handleWebhookEvent(req.body, req);
       return res.status(200).json(result);
     } catch (error) {
+      if (error.statusCode === 401 || error.statusCode === 403) {
+        return res.status(error.statusCode).json({ success: false, error: error.message });
+      }
       console.error('Zoom webhook handling error:', error);
       return res.status(200).json({ received: false, error: error.message });
+    }
+  },
+
+  async testClassEventDelivery(req, res, next) {
+    try {
+      const classId = Number(req.params.classId);
+      const result = await zoomService.testClassEventDelivery(classId);
+      return sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async listLicensedUsers(req, res, next) {
+    try {
+      const users = await zoomService.listLicensedUsers();
+      return sendSuccess(res, users);
+    } catch (error) {
+      next(error);
     }
   },
 
   async syncLessonAttendance(req, res, next) {
     try {
       const lessonId = Number(req.params.id);
-      const result = await zoomService.syncLessonAttendanceFromZoom(lessonId);
+      const result = await zoomService.reconcileLessonAttendance(lessonId);
+      return sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async reconcileLessonAttendance(req, res, next) {
+    try {
+      const lessonId = Number(req.params.id);
+      const result = await zoomService.reconcileLessonAttendance(lessonId);
       return sendSuccess(res, result);
     } catch (error) {
       next(error);
@@ -235,6 +308,35 @@ export const zoomController = {
       const teacherId = Number(req.params.teacherId);
       const { date } = req.query;
       const result = await zoomService.getTeacherDailyDutySummary(teacherId, date);
+      return sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getAttendanceReviews(req, res, next) {
+    try {
+      const { status, limit } = req.query;
+      const reviews = await zoomService.getAttendanceReviews({
+        status: status || null,
+        limit: limit ? Number(limit) : 50
+      });
+      return sendSuccess(res, reviews);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async resolveAttendanceReview(req, res, next) {
+    try {
+      const logId = Number(req.params.id);
+      const { decision, reviewNote } = req.body;
+      const result = await zoomService.resolveAttendanceReview({
+        logId,
+        decision,
+        reviewerUserId: req.user?.id,
+        reviewNote
+      });
       return sendSuccess(res, result);
     } catch (error) {
       next(error);

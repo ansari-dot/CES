@@ -1,6 +1,8 @@
 import { db } from '../../shared/db/knex.js';
 import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
+import { parsePayrollMonthRange, currentPayrollMonthLabel } from '../../shared/utils/dutyCalculation.js';
+import { getTeacherDutyForPeriod } from '../../shared/utils/teacherDutyQuery.js';
 
 function mapSalaryModelToFrontend(model) {
   switch (model) {
@@ -115,9 +117,20 @@ export const payrollRepository = {
 
       let generatedCount = 0;
       let skippedCount = 0;
+      const skippedNoSalaryProfile = [];
+      const teachersWithPendingReview = [];
+
+      const monthRange = parsePayrollMonthRange(payrollMonth);
+      if (!monthRange) {
+        throw new AppError(
+          `Unrecognised payroll month "${payrollMonth}". Use a format such as "April 2026" or "2026-04".`,
+          400,
+          ErrorCodes.BAD_REQUEST
+        );
+      }
 
       for (const t of teachers) {
-        // 1. Atomically check if draft already exists
+        // 1. Atomically check if draft already exists (approved / paid drafts are never regenerated)
         const existing = await trx('teacher_payroll_drafts')
           .where({ teacher_id: t.teacherId, payroll_month: payrollMonth })
           .first();
@@ -127,54 +140,55 @@ export const payrollRepository = {
           continue;
         }
 
-        // 2. Fetch salary profile (or default to FIXED)
+        // 2. Salary profile: rates come ONLY from the approved profile. No profile -> no draft.
         const profile = await trx('teacher_salary_profiles')
           .where('teacher_id', t.teacherId)
           .orderBy('effective_from', 'desc')
           .first();
 
-        const model = profile ? profile.model : 'FIXED';
-        const baseMonthlySalary = profile ? Number(profile.base_amount || 0) : 50000;
-        const perLessonRate = profile ? Number(profile.per_lesson_rate || 0) : 1500;
-        const perHourRate = profile ? Number(profile.per_hour_rate || 0) : 1200;
+        if (!profile) {
+          skippedNoSalaryProfile.push({ teacherId: t.teacherId, teacherName: t.teacherName });
+          continue;
+        }
 
-        let allowances = 5000;
-        let standardDeductions = 2500;
-        if (profile && profile.rules) {
+        const model = profile.model;
+        const baseMonthlySalary = Number(profile.base_amount || 0);
+        const perLessonRate = Number(profile.per_lesson_rate || 0);
+        const perHourRate = Number(profile.per_hour_rate || 0);
+
+        let allowances = 0;
+        let standardDeductions = 0;
+        if (profile.rules) {
           try {
             const parsed = typeof profile.rules === 'string' ? JSON.parse(profile.rules) : profile.rules;
-            if (parsed.allowances !== undefined) allowances = Number(parsed.allowances);
-            if (parsed.standardDeductions !== undefined) standardDeductions = Number(parsed.standardDeductions);
+            if (parsed.allowances !== undefined) allowances = Number(parsed.allowances) || 0;
+            if (parsed.standardDeductions !== undefined) standardDeductions = Number(parsed.standardDeductions) || 0;
           } catch {
             // ignore json parse error
           }
         }
 
-        // 3. Compute duty metrics from timetable_lessons
-        const lessons = await trx('timetable_lessons').where('teacher_id', t.teacherId);
-
-        const scheduledLessons = lessons.length;
-        const completedLessons = lessons.filter((l) => l.status === 'COMPLETED').length;
-        const cancelledLessons = lessons.filter((l) => l.status === 'CANCELLED').length;
-        const missedLessons = lessons.filter((l) => l.status === 'MISSED').length;
-        const approvedLeaveDays = 0;
-
-        // Exact verified hours from Zoom Server-to-Server tracking (join to leave)
-        let verifiedHours = 0;
-        for (const l of lessons.filter((l) => l.status === 'COMPLETED')) {
-          const start = l.actual_start_at || l.teacher_joined_at;
-          const end = l.actual_end_at || l.handover_at;
-          if (start && end) {
-            const startMs = new Date(start).getTime();
-            const endMs = new Date(end).getTime();
-            const diffHours = (endMs - startMs) / (1000 * 60 * 60);
-            verifiedHours += diffHours > 0 ? diffHours : 0;
-          } else {
-            // Strict verified attendance: no free hours if actual join/leave was not recorded
-            verifiedHours += 0;
-          }
+        // 3. Duty metrics: SAME shared calculation the teacher dashboard uses, limited to the selected month
+        const dutyResult = await getTeacherDutyForPeriod(trx, {
+          teacherId: t.teacherId,
+          startDate: monthRange.startDate,
+          endDate: monthRange.endDate
+        });
+        const periodDuty = dutyResult.duty;
+        if (periodDuty.pendingReviewLessons > 0) {
+          teachersWithPendingReview.push({
+            teacherId: t.teacherId,
+            teacherName: t.teacherName,
+            pendingReviewLessons: periodDuty.pendingReviewLessons
+          });
         }
-        verifiedHours = Number(verifiedHours.toFixed(2));
+
+        const scheduledLessons = periodDuty.totalScheduledLessons;
+        const completedLessons = periodDuty.completedLessons;
+        const cancelledLessons = periodDuty.cancelledLessons;
+        const missedLessons = periodDuty.missedLessons;
+        const approvedLeaveDays = 0;
+        const verifiedHours = periodDuty.verifiedTeachingHours;
 
         // 4. Calculate Earnings per Salary Model
         let basePay = 0;
@@ -222,7 +236,9 @@ export const payrollRepository = {
           lesson_or_hourly_earning: lessonOrHourlyEarning,
           allowances,
           standard_deductions: standardDeductions,
-          calculation_formula: calculationFormula,
+          calculation_formula: periodDuty.pendingReviewLessons > 0
+            ? `${calculationFormula} [${periodDuty.pendingReviewLessons} lesson(s) with unresolved attendance review were NOT paid]`.slice(0, 480)
+            : calculationFormula,
           gross_amount: grossAmount,
           net_payable: netPayable,
           status: 'SUBMITTED_FOR_APPROVAL',
@@ -243,9 +259,11 @@ export const payrollRepository = {
       }
 
       return {
-        message: `Generated ${generatedCount} payroll drafts for ${payrollMonth}. ${skippedCount} teachers skipped (drafts exist).`,
+        message: `Generated ${generatedCount} payroll drafts for ${payrollMonth}. ${skippedCount} teachers skipped (drafts exist). ${skippedNoSalaryProfile.length} skipped (no approved salary profile).`,
         generatedCount,
-        skippedCount
+        skippedCount,
+        skippedNoSalaryProfile,
+        teachersWithPendingReview
       };
     });
   },
@@ -294,7 +312,11 @@ export const payrollRepository = {
 
     if (draftId) query = query.where('teacher_payroll_drafts.id', draftId);
     if (payrollMonth) query = query.where('teacher_payroll_drafts.payroll_month', payrollMonth);
-    if (teacherId) query = query.where('teacher_payroll_drafts.teacher_id', teacherId);
+    if (teacherId) {
+      query = query.where((qb) => {
+        qb.where('teacher_payroll_drafts.teacher_id', teacherId).orWhere('teachers.user_id', teacherId);
+      });
+    }
     if (status) query = query.where('teacher_payroll_drafts.status', mapStatusToBackend(status));
 
     const rows = await query;
@@ -558,50 +580,72 @@ export const payrollRepository = {
   },
 
   // 6. Duty Summary for Teacher
-  async getTeacherDutySummary({ teacherId, payrollMonth }) {
-    const teacher = await db('teachers')
-      .join('users', 'teachers.user_id', 'users.id')
+  async getTeacherDutySummary(teacherIdOrObj, payrollMonthArg = null) {
+    const tId = typeof teacherIdOrObj === 'object' && teacherIdOrObj !== null
+      ? teacherIdOrObj.teacherId
+      : teacherIdOrObj;
+    const queryMonth = (typeof teacherIdOrObj === 'object' && teacherIdOrObj !== null
+      ? teacherIdOrObj.payrollMonth
+      : payrollMonthArg) || currentPayrollMonthLabel();
+
+    // Accept either the teachers.id or the owning users.id
+    const teacherRow = await db('teachers')
       .where((qb) => {
-        qb.where('teachers.id', teacherId).orWhere('teachers.user_id', teacherId);
+        qb.where('id', tId).orWhere('user_id', tId);
       })
-      .select('teachers.id', 'teachers.employee_no as staffIdentifier', 'users.full_name as teacherName')
+      .select('id', 'user_id', 'employee_no')
       .first();
 
-    if (!teacher) return null;
+    if (!teacherRow) return null;
 
-    const lessons = await db('timetable_lessons').where('teacher_id', teacher.id);
+    const monthRange = parsePayrollMonthRange(queryMonth);
+    const result = await getTeacherDutyForPeriod(db, {
+      teacherId: teacherRow.id,
+      startDate: monthRange ? monthRange.startDate : null,
+      endDate: monthRange ? monthRange.endDate : null
+    });
+    if (!result) return null;
+    const { teacher, duty: periodDuty } = result;
 
-    const scheduledLessons = lessons.length;
-    const completedLessons = lessons.filter((l) => l.status === 'COMPLETED').length;
-    const cancelledLessons = lessons.filter((l) => l.status === 'CANCELLED').length;
-    const missedLessons = lessons.filter((l) => l.status === 'MISSED').length;
+    const salaryProfile = await db('teacher_salary_profiles')
+      .where('teacher_id', teacherRow.id)
+      .whereNull('effective_to')
+      .orderBy('effective_from', 'desc')
+      .first();
 
-    let verifiedTeachingHours = 0;
-    for (const l of lessons.filter((l) => l.status === 'COMPLETED')) {
-      const start = l.actual_start_at || l.teacher_joined_at || l.start_at;
-      const end = l.actual_end_at || l.handover_at || l.end_at;
-      if (start && end) {
-        const startMs = new Date(start).getTime();
-        const endMs = new Date(end).getTime();
-        const diffHours = (endMs - startMs) / (1000 * 60 * 60);
-        verifiedTeachingHours += diffHours > 0 ? diffHours : 0.75;
-      } else {
-        verifiedTeachingHours += 0.75;
-      }
-    }
+    const hourlyRateFormatted = salaryProfile && Number(salaryProfile.per_hour_rate) > 0
+      ? `Rs. ${Number(salaryProfile.per_hour_rate).toLocaleString()} / hr`
+      : salaryProfile && Number(salaryProfile.per_lesson_rate) > 0
+      ? `Rs. ${Number(salaryProfile.per_lesson_rate).toLocaleString()} / lesson`
+      : 'Standard Faculty';
 
     return {
-      teacherId: String(teacherId),
+      teacherId: String(teacher.id),
       staffIdentifier: teacher.staffIdentifier,
       teacherName: teacher.teacherName,
-      payrollMonth,
-      scheduledLessons,
-      completedLessons,
-      cancelledLessons,
-      missedLessons,
+      payrollMonth: queryMonth,
+      salaryModel: salaryProfile ? mapSalaryModelToFrontend(salaryProfile.model) : 'Standard Fixed/Hybrid',
+      baseSalary: salaryProfile ? Number(salaryProfile.base_amount) : 45000,
+      hourlyRate: hourlyRateFormatted,
+      perHourRate: salaryProfile ? Number(salaryProfile.per_hour_rate) : 0,
+      perLessonRate: salaryProfile ? Number(salaryProfile.per_lesson_rate) : 1500,
+      scheduledLessons: periodDuty.totalScheduledLessons,
+      completedLessons: periodDuty.completedLessons,
+      cancelledLessons: periodDuty.cancelledLessons,
+      missedLessons: periodDuty.missedLessons,
       approvedLeaveDays: 0,
-      verifiedTeachingHours: Number(verifiedTeachingHours.toFixed(2)),
-      pendingDutyCorrections: 0
+      totalDutyMinutes: periodDuty.totalDutyMinutes,
+      verifiedTeachingHours: periodDuty.verifiedTeachingHours,
+      liveDutyHours: periodDuty.liveDutyHours,
+      activeLiveCount: periodDuty.activeLiveCount,
+      pendingReviewLessons: periodDuty.pendingReviewLessons,
+      pendingDutyCorrections: periodDuty.pendingReviewLessons,
+      todayTeachingHours: periodDuty.todayDuty?.totalDutyHours || 0,
+      todayTeachingMinutes: periodDuty.todayDuty?.totalDutyMinutes || 0,
+      todayCompletedCount: periodDuty.todayDuty?.completedLessons || 0,
+      todayScheduledCount: periodDuty.todayDuty?.totalScheduledLessons || 0,
+      dailyBreakdown: periodDuty.dailyBreakdown || [],
+      detailedLessons: periodDuty.detailedLessons || []
     };
   }
 };

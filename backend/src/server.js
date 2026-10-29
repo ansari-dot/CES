@@ -1,11 +1,17 @@
+import http from 'node:http';
 import { createApp } from './app.js';
 import { config } from './config/index.js';
 import { testDbConnection, db } from './shared/db/knex.js';
 import { startFeeScheduler } from './modules/fees/fees.scheduler.js';
 import { startZoomScheduler } from './modules/zoom/zoom.scheduler.js';
+import { initSocketServer } from './shared/realtime/socket.js';
 
 async function bootstrap() {
   const app = createApp();
+  const server = http.createServer(app);
+
+  // Initialize WebSockets (Socket.IO)
+  initSocketServer(server);
 
   // Test DB connection
   const isDbConnected = await testDbConnection();
@@ -17,8 +23,9 @@ async function bootstrap() {
 
   let stopFeeScheduler = null;
   let stopZoomScheduler = null;
-  const server = app.listen(config.PORT, () => {
+  server.listen(config.PORT, () => {
     console.log(`🚀 School Backend API server running on port ${config.PORT} [${config.NODE_ENV}]`);
+    console.log(`⚡ Real-time WebSocket server initialized.`);
     if (!config.isTest) {
       if (config.feeSchedulerEnabled) {
         stopFeeScheduler = startFeeScheduler();

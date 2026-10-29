@@ -2,6 +2,7 @@ import { timetableRepository } from './timetable.repository.js';
 import { zoomRepository } from '../zoom/zoom.repository.js';
 import { db } from '../../shared/db/knex.js';
 import { notificationService } from '../../shared/services/notificationService.js';
+import { emitRealtimeEvent, RealtimeEvents } from '../../shared/realtime/eventEmitter.js';
 import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
 import { config } from '../../config/index.js';
@@ -121,6 +122,13 @@ export const timetableService = {
     } catch (e) {
       console.warn('[TimetableService] Auto-publish on slot creation warning:', e.message);
     }
+
+    emitRealtimeEvent(RealtimeEvents.TIMETABLE_CHANGE, {
+      type: 'SLOT_CREATED',
+      slotId,
+      classId,
+      teacherId
+    }, { classIds: [classId], teacherIds: [teacherId], roles: ['TEACHER'] });
 
     return await timetableRepository.findSlotById(slotId);
   },
@@ -245,6 +253,13 @@ export const timetableService = {
       console.warn('[TimetableService] Auto-publish on slot update warning:', e.message);
     }
 
+    emitRealtimeEvent(RealtimeEvents.TIMETABLE_CHANGE, {
+      type: 'SLOT_UPDATED',
+      slotId,
+      classId: targetClassId,
+      teacherId: targetTeacherId
+    }, { classIds: [targetClassId], teacherIds: [targetTeacherId], roles: ['TEACHER'] });
+
     return await timetableRepository.findSlotById(slotId);
   },
 
@@ -276,6 +291,13 @@ export const timetableService = {
       reason,
       changedBy: userId
     });
+
+    emitRealtimeEvent(RealtimeEvents.TIMETABLE_CHANGE, {
+      type: 'SLOT_DELETED',
+      slotId,
+      classId: existing.classId || existing.class_id,
+      teacherId: existing.teacherId || existing.teacher_id
+    }, { roles: ['TEACHER'] });
 
     return { slotId, status: 'ARCHIVED' };
   },
@@ -389,6 +411,12 @@ export const timetableService = {
       priority: 'Medium'
     });
 
+    emitRealtimeEvent(RealtimeEvents.TIMETABLE_CHANGE, {
+      type: 'TIMETABLE_PUBLISHED',
+      sessionId,
+      days
+    }, { roles: ['TEACHER', 'STUDENT'] });
+
     return {
       message: `Generated ${generatedLessons.length} new lessons (${totalScheduledCount} total active) for ${days} days rolling window`,
       count: totalScheduledCount,
@@ -423,6 +451,13 @@ export const timetableService = {
       relatedRecordType: 'Timetable',
       priority: 'High'
     });
+
+    emitRealtimeEvent(RealtimeEvents.CLASS_STATUS_UPDATED, {
+      lessonId,
+      classId: lesson.class_id,
+      teacherId: lesson.teacher_id,
+      status: 'CANCELLED'
+    }, { classIds: [lesson.class_id], teacherIds: [lesson.teacher_id] });
 
     return { lessonId, status: 'CANCELLED' };
   },

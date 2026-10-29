@@ -15,7 +15,10 @@ export default {
     },
     pool: {
       min: 2,
-      max: 20
+      max: 20,
+      afterCreate: (conn, done) => {
+        conn.query("SET time_zone = '+00:00'", (err) => done(err, conn));
+      }
     },
     migrations: {
       directory: './src/migrations',
@@ -39,7 +42,10 @@ export default {
     },
     pool: {
       min: 2,
-      max: 10
+      max: 10,
+      afterCreate: (conn, done) => {
+        conn.query("SET time_zone = '+00:00'", (err) => done(err, conn));
+      }
     },
     migrations: {
       directory: './src/migrations',
@@ -64,7 +70,10 @@ export default {
     },
     pool: {
       min: 5,
-      max: 30
+      max: 30,
+      afterCreate: (conn, done) => {
+        conn.query("SET time_zone = '+00:00'", (err) => done(err, conn));
+      }
     },
     migrations: {
       directory: './src/migrations',

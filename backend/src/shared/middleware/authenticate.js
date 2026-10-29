@@ -91,3 +91,45 @@ export async function authenticate(req, res, next) {
     next(error);
   }
 }
+
+export async function authenticateOptional(req, res, next) {
+  try {
+    const cookieNames = getCookieNames();
+    const token = req.cookies[cookieNames.accessToken] || req.cookies['sms_at'];
+
+    if (!token) {
+      return next();
+    }
+
+    let decoded;
+    try {
+      decoded = verifyAccessToken(token);
+    } catch {
+      return next();
+    }
+
+    const userId = Number(decoded.sub);
+    const user = await authRepository.findUserById(userId);
+
+    if (!user || user.status === 'DEACTIVATED' || user.token_version !== decoded.tv) {
+      return next();
+    }
+
+    const permissions = await authRepository.getRolePermissions(user.role_id);
+
+    req.user = {
+      id: user.id,
+      username: user.username,
+      role: user.role_code,
+      role_code: user.role_code,
+      roleId: user.role_id,
+      sid: decoded.sid,
+      permissions
+    };
+
+    next();
+  } catch {
+    next();
+  }
+}
+

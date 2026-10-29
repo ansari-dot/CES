@@ -1,4 +1,3 @@
-import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { db } from '../src/shared/db/knex.js';
 import { zoomService } from '../src/modules/zoom/zoom.service.js';
@@ -14,7 +13,7 @@ describe('Zoom Server-to-Server Duty & Payroll Tracking', () => {
   let testLessonId;
   const meetingId = '90010001001';
 
-  before(async () => {
+  beforeAll(async () => {
     try {
     await db('users').where({ username: 'test_zoom_teacher' }).del().catch(() => {});
 
@@ -83,14 +82,20 @@ describe('Zoom Server-to-Server Duty & Payroll Tracking', () => {
     }
   });
 
-  after(async () => {
+  afterAll(async () => {
     // Clean up test records
     await db('zoom_participant_log').where({ lesson_id: testLessonId }).del().catch(() => {});
     await db('zoom_events').where({ zoom_meeting_id: meetingId }).del().catch(() => {});
     await db('teacher_payroll_drafts').where({ teacher_id: testTeacherId }).del().catch(() => {});
     await db('teacher_salary_profiles').where({ teacher_id: testTeacherId }).del().catch(() => {});
-    await db('timetable_lessons').where({ id: testLessonId }).del().catch(() => {});
     await db('zoom_meetings').where({ zoom_meeting_id: meetingId }).del().catch(() => {});
+    await zoomRepository.configureClassMeeting({
+      classId: testClassId,
+      zoomMeetingId: `8800000000${testClassId}`.slice(-10),
+      joinUrl: `https://zoom.us/j/8800000000${testClassId}`,
+      passcode: 'CLASS1#',
+      topic: `Class ${testClassId} Standard Room`
+    }).catch(() => {});
     await db('teachers').where({ id: testTeacherId }).del().catch(() => {});
     await db('audit_logs').where({ actor_id: testTeacherUserId }).del().catch(() => {});
     await db('users').where({ id: testTeacherUserId }).del().catch(() => {});
@@ -106,7 +111,8 @@ describe('Zoom Server-to-Server Duty & Payroll Tracking', () => {
   });
 
   it('2. Records teacher join time via Server-to-Server webhook and marks status LIVE', async () => {
-    const joinTime = new Date('2026-10-24T09:01:00Z').toISOString();
+    const today = new Date().toISOString().split('T')[0];
+    const joinTime = new Date(`${today}T09:01:00Z`).toISOString();
     await zoomService.handleWebhookEvent({
       event: 'meeting.participant_joined',
       payload: {
@@ -128,7 +134,8 @@ describe('Zoom Server-to-Server Duty & Payroll Tracking', () => {
   });
 
   it('3. Records teacher leave time via Server-to-Server webhook, marks status COMPLETED, and sets actual end', async () => {
-    const leaveTime = new Date('2026-10-24T09:46:00Z').toISOString();
+    const today = new Date().toISOString().split('T')[0];
+    const leaveTime = new Date(`${today}T09:46:00Z`).toISOString();
     await zoomService.handleWebhookEvent({
       event: 'meeting.participant_left',
       payload: {

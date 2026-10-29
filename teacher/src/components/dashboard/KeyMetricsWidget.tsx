@@ -11,6 +11,7 @@ export const KeyMetricsWidget: React.FC = () => {
   const lessons = useAppSelector((state) => state.timetable.lessons);
   const schoolSessions = useAppSelector((state) => state.schoolTimetable.sessions);
   const notifications = useAppSelector((state) => state.ui.notifications);
+  const duty = useAppSelector((state) => state.duty.summary);
 
   // 1. Pending assignments count (total submissions awaiting review across tasks + direct pending submissions)
   const taskPendingSum = tasks.reduce(
@@ -41,16 +42,16 @@ export const KeyMetricsWidget: React.FC = () => {
 
   const metrics = [
     {
-      id: 'pending-assignments',
-      title: 'Pending Assignments',
-      count: pendingAssignmentsCount,
-      unit: 'To Grade',
-      icon: 'assignment_turned_in',
-      iconBg: 'bg-rose-50 text-rose-600 ring-1 ring-rose-200/60',
-      badgeText: 'Review Queue',
-      badgeColor: 'bg-rose-100 text-rose-800',
-      targetTab: 'submissions-grading' as const,
-      subtext: `${tasks.length} active assignments`,
+      id: 'today-duty-hours',
+      title: "Today's Teaching Duty",
+      count: `${duty.todayTeachingHours || 0}h`,
+      unit: `${duty.todayTeachingMinutes || 0} mins`,
+      icon: 'timer',
+      iconBg: 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200/60',
+      badgeText: 'Zoom Duty',
+      badgeColor: 'bg-emerald-100 text-emerald-800',
+      targetTab: 'duty-salary' as const,
+      subtext: `${duty.todayCompletedCount || 0}/${duty.todayScheduledCount || 0} classes delivered today`,
     },
     {
       id: 'upcoming-lessons',
@@ -63,6 +64,18 @@ export const KeyMetricsWidget: React.FC = () => {
       badgeColor: 'bg-indigo-100 text-indigo-800',
       targetTab: 'timetable' as const,
       subtext: upcomingLessonsCount > 0 ? `${upcomingLessonsCount} classes scheduled` : 'No upcoming classes',
+    },
+    {
+      id: 'pending-assignments',
+      title: 'Pending Assignments',
+      count: pendingAssignmentsCount,
+      unit: 'To Grade',
+      icon: 'assignment_turned_in',
+      iconBg: 'bg-rose-50 text-rose-600 ring-1 ring-rose-200/60',
+      badgeText: 'Review Queue',
+      badgeColor: 'bg-rose-100 text-rose-800',
+      targetTab: 'submissions-grading' as const,
+      subtext: `${tasks.length} active assignments`,
     },
     {
       id: 'student-notifications',
@@ -90,7 +103,7 @@ export const KeyMetricsWidget: React.FC = () => {
         <span className="text-[11px] font-semibold text-[#777587]">Live Sync</span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {metrics.map((metric) => (
           <div
             key={metric.id}

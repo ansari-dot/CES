@@ -1,6 +1,7 @@
 import { timetableService } from './timetable.service.js';
 import { sendSuccess } from '../../shared/http/response.js';
 import { db } from '../../shared/db/knex.js';
+import { zoomService } from '../zoom/zoom.service.js';
 
 const parseWeekday = (val) => {
   if (val === undefined || val === null) return undefined;
@@ -36,7 +37,19 @@ export const timetableController = {
       if (!teacher) return sendSuccess(res, []);
       const startDate = req.query.startDate || null;
       const endDate = req.query.endDate || null;
-      const lessons = await timetableService.getLessons({ teacherId: teacher.id, startDate, endDate });
+      let lessons = await timetableService.getLessons({ teacherId: teacher.id, startDate, endDate });
+
+      for (const l of lessons) {
+        if (l.status === 'LIVE') {
+          const resCheck = await zoomService.checkAndAutoConcludeIfMeetingEnded(l.id);
+          if (resCheck && resCheck.concluded) {
+            l.status = 'COMPLETED';
+            l.sessionState = 'COMPLETED';
+            l.verifiedDutyMinutes = resCheck.verifiedMinutes;
+          }
+        }
+      }
+
       return sendSuccess(res, lessons);
     } catch (error) {
       next(error);

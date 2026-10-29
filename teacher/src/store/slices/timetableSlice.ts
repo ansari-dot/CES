@@ -343,6 +343,40 @@ export const timetableSlice = createSlice({
         lesson.status = 'started';
       }
     },
+    updateLessonRealtimeStatus: (
+      state,
+      action: PayloadAction<{
+        lessonId: number | string;
+        status: string;
+        sessionState?: string;
+        actualStartTime?: string;
+        actualEndTime?: string;
+        joinUrl?: string;
+      }>
+    ) => {
+      const idNum = Number(action.payload.lessonId);
+      const lesson = state.lessons.find(
+        (l) =>
+          Number(l.rawId) === idNum ||
+          l.id === String(action.payload.lessonId) ||
+          l.id === `LES-${String(idNum).padStart(2, '0')}`
+      );
+      if (lesson) {
+        if (action.payload.status === 'LIVE') {
+          lesson.status = 'live';
+          lesson.sessionState = 'LIVE';
+          if (action.payload.actualStartTime) lesson.actualStartTime = action.payload.actualStartTime;
+          if (action.payload.joinUrl) lesson.joinUrl = action.payload.joinUrl;
+        } else if (action.payload.status === 'COMPLETED') {
+          lesson.status = 'completed';
+          lesson.sessionState = 'COMPLETED';
+          if (action.payload.actualEndTime) lesson.actualEndTime = action.payload.actualEndTime;
+        } else if (action.payload.status === 'CANCELLED') {
+          lesson.status = 'cancelled' as any;
+          lesson.sessionState = 'CANCELLED';
+        }
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -389,6 +423,7 @@ export const {
   closeProblemModal,
   markLessonCompleted,
   markLessonStarted,
+  updateLessonRealtimeStatus,
 } = timetableSlice.actions;
 
 export default timetableSlice.reducer;

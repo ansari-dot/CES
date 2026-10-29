@@ -69,8 +69,8 @@ export const Header: React.FC = () => {
             className="bg-transparent text-xs sm:text-sm font-semibold text-[#121c2a] focus:outline-none cursor-pointer truncate pr-1"
           >
             <option value="all">All Classes</option>
-            {teacher.assignedClasses.map((cls) => (
-              <option key={cls.id} value={cls.id}>
+            {teacher.assignedClasses.map((cls, idx) => (
+              <option key={`${cls.id}-${cls.classId || idx}`} value={cls.id}>
                 {cls.name}
               </option>
             ))}

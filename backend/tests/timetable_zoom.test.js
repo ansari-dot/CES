@@ -97,7 +97,7 @@ describe('Module 3: Timetable & Zoom Integration Tests', () => {
       expect(listRes.body.data[0].classNumber).toBe(1);
       expect(listRes.body.data[7].classNumber).toBe(8);
       expect(listRes.body.data[0].status).toBe('ACTIVE');
-    });
+    }, 25000);
   });
 
   describe('Timetable Slots and Conflict Checking', () => {

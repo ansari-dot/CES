@@ -9,8 +9,10 @@ import { RootState, AppDispatch } from '../store';
 import StatusChip from '../components/common/StatusChip';
 import MetricCard from '../components/common/MetricCard';
 import ZoomMeetingModal from '../components/dialogs/ZoomMeetingModal';
-import { joinLesson } from '../store/slices/classesSlice';
-import { setToast } from '../store/slices/studentSlice';
+import { joinLesson, fetchTimetable, fetchStudentZoomSession } from '../store/slices/classesSlice';
+import { setToast, fetchDashboard } from '../store/slices/studentSlice';
+import { useSocketEvent, useClassRoomSubscription } from '../hooks/useSocket';
+import { RealtimeEvents } from '../services/socketService';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -19,6 +21,27 @@ export default function Dashboard() {
   const todayClasses = useSelector((state: RootState) => state.classes.todayClasses);
   const { profile, dashboard, dashboardLoading } = useSelector((state: RootState) => state.student);
   const [showZoomModal, setShowZoomModal] = useState(false);
+
+  const classId = profile?.currentClassId || (profile as any)?.class_id;
+  useClassRoomSubscription(classId);
+
+  useSocketEvent(RealtimeEvents.CLASS_STATUS_UPDATED, () => {
+    dispatch(fetchTimetable());
+    dispatch(fetchStudentZoomSession());
+    dispatch(fetchDashboard());
+  });
+
+  useSocketEvent(RealtimeEvents.CLASS_PERIOD_ACTIVATED, () => {
+    dispatch(fetchTimetable());
+    dispatch(fetchStudentZoomSession());
+    dispatch(fetchDashboard());
+  });
+
+  useSocketEvent(RealtimeEvents.STUDENT_ATTENDANCE_UPDATED, () => {
+    dispatch(fetchTimetable());
+    dispatch(fetchStudentZoomSession());
+    dispatch(fetchDashboard());
+  });
 
   const attendanceRate: number | null = dashboard?.attendanceRate ?? null;
   const outstandingFee = dashboard?.totalOutstandingFee ?? 0;

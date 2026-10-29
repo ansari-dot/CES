@@ -74,7 +74,14 @@ export function createApp() {
 
   // 5. Body and Cookie parsers
   app.use(cookieParser());
-  app.use(express.json({ limit: '100kb' }));
+  app.use(
+    express.json({
+      limit: '100kb',
+      verify: (req, _res, buf) => {
+        req.rawBody = buf;
+      }
+    })
+  );
   app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 
   // 6. CSRF verification for state-changing requests
