@@ -5,7 +5,7 @@ import Sidebar from './Sidebar';
 import TopHeader from './TopHeader';
 import Toast from '../common/Toast';
 import { AppDispatch, RootState } from '../../store';
-import { logoutStudent, fetchDashboard } from '../../store/slices/studentSlice';
+import { logoutStudent, fetchDashboard, setToast } from '../../store/slices/studentSlice';
 import { fetchTimetable, fetchStudentZoomSession } from '../../store/slices/classesSlice';
 import { fetchTasks } from '../../store/slices/assignmentsSlice';
 import { fetchResources } from '../../store/slices/resourcesSlice';
@@ -15,6 +15,8 @@ import { fetchNotifications } from '../../store/slices/notificationsSlice';
 import RestrictedNotice from '../common/RestrictedNotice';
 import { useTimezone } from '../../hooks/useTimezone';
 import { zoneAbbreviation } from '../../lib/timezone';
+import { useSocketEvent } from '../../hooks/useSocket';
+import { RealtimeEvents } from '../../services/socketService';
 
 export default function PortalLayout() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -50,6 +52,18 @@ export default function PortalLayout() {
   useEffect(() => {
     loadDashboardThenData();
   }, [loadDashboardThenData]);
+
+  // Real-time: toast on any new notification and refresh the bell counter.
+  useSocketEvent(RealtimeEvents.NOTIFICATION_CREATED, (data: any) => {
+    dispatch(fetchNotifications());
+    dispatch(
+      setToast(
+        data?.title
+          ? `New notification: ${data.title} — click the bell to view it.`
+          : 'You have a new notification — click the bell to view it.'
+      )
+    );
+  });
 
   const isRestricted = Boolean(dashboard?.isRestricted);
   const showRestriction = isRestricted && location.pathname !== '/student/profile';

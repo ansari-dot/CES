@@ -163,7 +163,7 @@ export default function Dashboard() {
                   </div>
                   <StatusChip status={item.status} />
                   {item.joinable && (
-                    <button onClick={handleJoinClass} className="text-xs font-semibold bg-muted hover:bg-primary hover:text-white text-muted-foreground px-3 py-1.5 rounded-sm transition cursor-pointer">
+                    <button onClick={handleJoinClass} className="text-xs font-semibold bg-muted hover:bg-[#ffc53a] hover:text-[#1b1a47] text-muted-foreground px-3 py-1.5 rounded-sm transition cursor-pointer">
                       Join
                     </button>
                   )}

@@ -133,7 +133,7 @@ export default function SetPasswordModal() {
           <button
             type="submit"
             disabled={saving}
-            className="w-full bg-primary hover:bg-primary/90 text-white text-sm font-semibold py-2.5 rounded-sm transition cursor-pointer disabled:opacity-60"
+            className="w-full bg-primary hover:bg-primary-hover text-white text-sm font-semibold py-2.5 rounded-sm transition cursor-pointer disabled:opacity-60"
           >
             {saving ? 'Saving…' : 'Save password & continue'}
           </button>

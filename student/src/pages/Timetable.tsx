@@ -130,7 +130,7 @@ export default function Timetable() {
               ) : (
                 <button
                   onClick={() => setActiveModalLesson(lesson)}
-                  className="w-full bg-muted hover:bg-muted/80 text-foreground py-2 text-xs font-bold rounded-sm transition text-center cursor-pointer"
+                  className="w-full bg-muted hover:bg-[#ffc53a] text-foreground py-2 text-xs font-bold rounded-sm transition text-center cursor-pointer"
                 >
                   Details
                 </button>

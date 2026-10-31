@@ -67,7 +67,7 @@ export default function TopHeader({ pageTitle, pageSubtitle, onToggleMobileNav }
           {/* ⌘K Search Input */}
           <button
             onClick={() => setShowSearchModal(true)}
-            className="hidden md:flex items-center gap-2 bg-muted rounded-sm px-3 py-2 text-sm text-muted-foreground w-[220px] lg:w-[240px] text-left hover:bg-muted/80 cursor-pointer transition"
+            className="hidden md:flex items-center gap-2 bg-muted rounded-sm px-3 py-2 text-sm text-muted-foreground w-[220px] lg:w-[240px] text-left hover:bg-[#ffc53a] cursor-pointer transition"
           >
             <Search className="w-4 h-4 stroke-[2.2]" />
             <span>Search lessons, files…</span>
@@ -78,7 +78,7 @@ export default function TopHeader({ pageTitle, pageSubtitle, onToggleMobileNav }
           <div className="relative" ref={tzMenuRef}>
             <button
               onClick={() => setShowTzMenu((prev) => !prev)}
-              className="flex items-center gap-1.5 bg-muted hover:bg-muted/80 border border-border rounded-sm px-2.5 py-2 text-xs font-medium text-foreground transition cursor-pointer"
+              className="flex items-center gap-1.5 bg-muted hover:bg-[#ffc53a] border border-border rounded-sm px-2.5 py-2 text-xs font-medium text-foreground transition cursor-pointer"
               title={`Active Timezone: ${currentTzOption?.label || studentTz} (${timezoneSource === 'manual' ? 'Custom' : 'Auto-detected'})`}
               type="button"
             >
@@ -173,7 +173,7 @@ export default function TopHeader({ pageTitle, pageSubtitle, onToggleMobileNav }
           {/* Notifications Button */}
           <button
             onClick={() => navigate('/student/notifications')}
-            className="relative w-10 h-10 rounded-sm bg-muted flex items-center justify-center text-foreground hover:bg-muted/80 transition cursor-pointer"
+            className="relative w-10 h-10 rounded-sm bg-muted flex items-center justify-center text-foreground hover:bg-[#ffc53a] transition cursor-pointer"
             type="button"
             aria-label="View notifications"
           >

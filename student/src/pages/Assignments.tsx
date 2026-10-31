@@ -123,7 +123,7 @@ export default function Assignments() {
                 className={`text-xs font-bold px-4 py-1.5 rounded-sm transition cursor-pointer ${
                   item.status === 'Pending'
                     ? "bg-primary text-white hover:bg-primary-hover"
-                    : "bg-muted text-foreground hover:bg-muted/80"
+                    : "bg-muted text-foreground hover:bg-[#ffc53a]"
                 }`}
               >
                 {item.status === 'Pending' ? 'Start' : 'View'}

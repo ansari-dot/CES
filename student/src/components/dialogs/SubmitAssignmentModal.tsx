@@ -202,7 +202,7 @@ export default function SubmitAssignmentModal({ isOpen, onClose, assignment }: S
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2 bg-muted text-foreground text-xs font-bold rounded-sm hover:bg-muted/80 cursor-pointer"
+              className="px-5 py-2 bg-muted text-foreground text-xs font-bold rounded-sm hover:bg-[#ffc53a] cursor-pointer"
             >
               Close
             </button>
