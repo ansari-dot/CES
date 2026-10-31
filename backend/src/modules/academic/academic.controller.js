@@ -20,6 +20,87 @@ export const academicController = {
     }
   },
 
+  async updateSession(req, res, next) {
+    try {
+      const session = await academicService.updateSession(Number(req.params.id), req.body);
+      return sendSuccess(res, session);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async activateSession(req, res, next) {
+    try {
+      const session = await academicService.activateSession(Number(req.params.id), req.user);
+      return sendSuccess(res, session);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async closeSession(req, res, next) {
+    try {
+      const session = await academicService.closeSession(Number(req.params.id), req.user);
+      return sendSuccess(res, session);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getSessionStats(req, res, next) {
+    try {
+      const stats = await academicService.getSessionStats(Number(req.params.id));
+      return sendSuccess(res, stats);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getTerms(req, res, next) {
+    try {
+      const terms = await academicService.getTerms(Number(req.params.id));
+      return sendSuccess(res, terms);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async createTerm(req, res, next) {
+    try {
+      const term = await academicService.createTerm(Number(req.params.id), req.body);
+      return sendSuccess(res, term, null, 201);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async updateTerm(req, res, next) {
+    try {
+      const term = await academicService.updateTerm(Number(req.params.id), req.body);
+      return sendSuccess(res, term);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getPromotionPolicy(req, res, next) {
+    try {
+      const policy = await academicService.getPromotionPolicy(req.query.sessionId);
+      return sendSuccess(res, policy);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async savePromotionPolicy(req, res, next) {
+    try {
+      const policy = await academicService.savePromotionPolicy(req.body.sessionId, req.body, req.user);
+      return sendSuccess(res, policy);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async getClasses(req, res, next) {
     try {
       const classes = await academicService.getAllClasses();

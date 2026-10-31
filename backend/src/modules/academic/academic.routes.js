@@ -5,9 +5,22 @@ import { authorize } from '../../shared/middleware/authorize.js';
 
 const router = Router();
 
-// Sessions
+// Sessions (academic years)
 router.get('/sessions', authenticate, academicController.getSessions);
 router.post('/sessions', authenticate, authorize('academic.setup.manage'), academicController.createSession);
+router.patch('/sessions/:id', authenticate, authorize('academic.setup.manage'), academicController.updateSession);
+router.post('/sessions/:id/activate', authenticate, authorize('academic.setup.manage'), academicController.activateSession);
+router.post('/sessions/:id/close', authenticate, authorize('academic.setup.manage'), academicController.closeSession);
+router.get('/sessions/:id/stats', authenticate, authorize('reports.view'), academicController.getSessionStats);
+
+// Academic terms
+router.get('/sessions/:id/terms', authenticate, academicController.getTerms);
+router.post('/sessions/:id/terms', authenticate, authorize('academic.setup.manage'), academicController.createTerm);
+router.patch('/terms/:id', authenticate, authorize('academic.setup.manage'), academicController.updateTerm);
+
+// Promotion policy
+router.get('/promotion-policy', authenticate, academicController.getPromotionPolicy);
+router.put('/promotion-policy', authenticate, authorize('academic.setup.manage'), academicController.savePromotionPolicy);
 
 // Classes & Subjects
 router.get('/classes', authenticate, academicController.getClasses);
