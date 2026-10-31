@@ -3,6 +3,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../store';
 import { fetchMyGrades } from '../store/slices/gradesSlice';
 import { MessageSquareQuote, RefreshCw, AlertCircle, Award, CheckCircle2, BookOpen } from 'lucide-react';
+import TermResultsSection from '../components/results/TermResultsSection';
 
 export default function ResultsProgress() {
   const dispatch = useDispatch<AppDispatch>();
@@ -244,6 +245,9 @@ export default function ResultsProgress() {
           </div>
         </div>
       </div>
+
+      {/* Official term results, promotion status & academic year history */}
+      <TermResultsSection studentName={summary?.studentName} />
     </div>
   );
 }
