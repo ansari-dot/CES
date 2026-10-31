@@ -43,14 +43,14 @@ export const SubmissionQueue: React.FC<SubmissionQueueProps> = ({
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
-      <div className="p-4 bg-[#eff4ff]/60 flex items-center justify-between border-b border-slate-100">
+      <div className="p-4 bg-[#f1f1fa]/60 flex items-center justify-between border-b border-slate-100">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-[#121c2a]">Roster Queue</span>
-          <span className="px-2 py-0.5 rounded-full bg-[#dee9fc] text-[#464555] text-xs font-semibold">
+          <span className="text-sm font-bold text-[#292929]">Roster Queue</span>
+          <span className="px-2 py-0.5 rounded-full bg-[#dfdff2] text-[#545454] text-xs font-semibold">
             {filteredSubmissions.length} Shown
           </span>
         </div>
-        <div className="flex items-center gap-1 text-xs text-[#464555]">
+        <div className="flex items-center gap-1 text-xs text-[#545454]">
           <span className="material-symbols-outlined text-[16px]">swap_vert</span>
           <span className="font-semibold">Sort: Roll #</span>
         </div>
@@ -60,7 +60,7 @@ export const SubmissionQueue: React.FC<SubmissionQueueProps> = ({
         {filteredSubmissions.length === 0 ? (
           <div className="py-10 text-center text-[#777587]">
             <span className="material-symbols-outlined text-3xl mb-1 text-slate-300">inbox</span>
-            <p className="font-semibold text-xs text-[#121c2a]">No Submissions in Queue</p>
+            <p className="font-semibold text-xs text-[#292929]">No Submissions in Queue</p>
             <p className="text-[11px] text-[#777587] mt-0.5">There are no student submissions matching the filter criteria.</p>
           </div>
         ) : (
@@ -74,11 +74,11 @@ export const SubmissionQueue: React.FC<SubmissionQueueProps> = ({
               className={`p-3 rounded-xl transition-all cursor-pointer relative ${
                 isSelected
                   ? 'bg-indigo-50/70 shadow-sm border border-indigo-200'
-                  : 'bg-white hover:bg-[#eff4ff]/60 border border-transparent'
+                  : 'bg-white hover:bg-[#fff4d6]/60 border border-transparent'
               }`}
             >
               {isSelected && (
-                <div className="absolute left-0 top-3 bottom-3 w-1 bg-[#3525cd] rounded-r"></div>
+                <div className="absolute left-0 top-3 bottom-3 w-1 bg-[#36348e] rounded-r"></div>
               )}
               <div className="flex items-start justify-between gap-2 pl-2">
                 <div className="flex items-center gap-3">
@@ -95,16 +95,16 @@ export const SubmissionQueue: React.FC<SubmissionQueueProps> = ({
                         sub.status === 'graded'
                           ? 'bg-[#006c49]'
                           : sub.status === 'late'
-                          ? 'bg-[#ffb95f]'
+                          ? 'bg-[#ffc53a]'
                           : sub.status === 'missing'
                           ? 'bg-[#ba1a1a]'
-                          : 'bg-[#4f46e5]'
+                          : 'bg-[#4543a8]'
                       }`}
                     ></span>
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5">
-                      <h4 className="text-xs sm:text-sm font-bold text-[#121c2a]">
+                      <h4 className="text-xs sm:text-sm font-bold text-[#292929]">
                         {sub.studentName}
                       </h4>
                       <span className="text-[11px] font-mono text-[#777587]">
@@ -128,7 +128,7 @@ export const SubmissionQueue: React.FC<SubmissionQueueProps> = ({
                       {sub.marksAwarded} / {sub.maxMarks}
                     </span>
                   ) : sub.status === 'late' ? (
-                    <span className="px-2 py-0.5 rounded-full bg-[#ffddb8] text-[#92400e] text-[11px] font-bold flex items-center gap-0.5">
+                    <span className="px-2 py-0.5 rounded-full bg-[#ffe9b0] text-[#8a6400] text-[11px] font-bold flex items-center gap-0.5">
                       <span className="material-symbols-outlined text-[12px]">warning</span> Late
                     </span>
                   ) : sub.status === 'resubmit_requested' ? (
@@ -140,8 +140,8 @@ export const SubmissionQueue: React.FC<SubmissionQueueProps> = ({
                       <span className="material-symbols-outlined text-[13px]">schedule</span> Missing
                     </span>
                   ) : (
-                    <span className="px-2 py-0.5 rounded-full bg-[#dee9fc] text-[#3525cd] text-[11px] font-bold flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#3525cd] animate-pulse"></span>
+                    <span className="px-2 py-0.5 rounded-full bg-[#dfdff2] text-[#36348e] text-[11px] font-bold flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#36348e] animate-pulse"></span>
                       Pending Review
                     </span>
                   )}

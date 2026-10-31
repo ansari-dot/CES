@@ -37,13 +37,13 @@ export const ZoomProblemModal: React.FC = () => {
     >
       <form onSubmit={handleSubmit} className="space-y-4 text-xs sm:text-sm">
         <div>
-          <label className="block text-xs font-semibold text-[#121c2a] mb-1">
+          <label className="block text-xs font-semibold text-[#292929] mb-1">
             Issue Classification
           </label>
           <select
             value={issueType}
             onChange={(e) => setIssueType(e.target.value)}
-            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none"
+            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none"
           >
             <option>Host SSO Authentication Failed</option>
             <option>Audio / Echo Interference</option>
@@ -55,13 +55,13 @@ export const ZoomProblemModal: React.FC = () => {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-[#121c2a] mb-1">Urgency Level</label>
+          <label className="block text-xs font-semibold text-[#292929] mb-1">Urgency Level</label>
           <div className="grid grid-cols-2 gap-2">
             <label
               className={`flex items-center gap-2 p-2.5 rounded-lg cursor-pointer border transition-colors ${
                 urgency === 'medium'
-                  ? 'border-[#684000] bg-amber-50 text-[#92400e]'
-                  : 'border-slate-200 bg-[#eff4ff] text-[#464555]'
+                  ? 'border-[#7a5b00] bg-amber-50 text-[#8a6400]'
+                  : 'border-slate-200 bg-[#f1f1fa] text-[#545454]'
               }`}
             >
               <input
@@ -69,7 +69,7 @@ export const ZoomProblemModal: React.FC = () => {
                 name="urgency"
                 checked={urgency === 'medium'}
                 onChange={() => setUrgency('medium')}
-                className="accent-[#684000]"
+                className="accent-[#7a5b00]"
               />
               <span className="text-xs font-semibold">Post-Lesson (Log only)</span>
             </label>
@@ -78,7 +78,7 @@ export const ZoomProblemModal: React.FC = () => {
               className={`flex items-center gap-2 p-2.5 rounded-lg cursor-pointer border transition-colors ${
                 urgency === 'critical'
                   ? 'border-[#ba1a1a] bg-red-50 text-[#ba1a1a]'
-                  : 'border-slate-200 bg-[#eff4ff] text-[#464555]'
+                  : 'border-slate-200 bg-[#f1f1fa] text-[#545454]'
               }`}
             >
               <input
@@ -94,7 +94,7 @@ export const ZoomProblemModal: React.FC = () => {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-[#121c2a] mb-1">
+          <label className="block text-xs font-semibold text-[#292929] mb-1">
             Diagnostic Details
           </label>
           <textarea
@@ -102,7 +102,7 @@ export const ZoomProblemModal: React.FC = () => {
             value={details}
             onChange={(e) => setDetails(e.target.value)}
             placeholder="Include error codes, affected student names, or device info..."
-            className="w-full p-3 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none"
+            className="w-full p-3 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none"
           ></textarea>
         </div>
 
@@ -110,7 +110,7 @@ export const ZoomProblemModal: React.FC = () => {
           <button
             type="button"
             onClick={() => dispatch(closeProblemModal())}
-            className="px-4 py-2 rounded-lg bg-[#e6eeff] text-[#121c2a] hover:bg-[#dee9fc] text-xs font-semibold"
+            className="px-4 py-2 rounded-lg bg-[#e8e8f6] text-[#292929] hover:bg-[#ffedc2] text-xs font-semibold"
           >
             Cancel
           </button>

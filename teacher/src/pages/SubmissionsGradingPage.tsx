@@ -104,16 +104,16 @@ export const SubmissionsGradingPage: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="text-[11px] uppercase tracking-wider text-[#3525cd] font-bold">
+            <span className="text-[11px] uppercase tracking-wider text-[#36348e] font-bold">
               Assessment &amp; Evaluation
             </span>
             <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
             <span className="text-xs text-[#777587]">Term 2 Academic Cycle</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#121c2a] tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#292929] tracking-tight">
             Tasks, Submissions &amp; Grading
           </h1>
-          <p className="text-xs sm:text-sm text-[#464555] max-w-2xl">
+          <p className="text-xs sm:text-sm text-[#545454] max-w-2xl">
             Manage homework, evaluate student work, assign marks, and provide written feedback with
             synchronized gradebook reporting.
           </p>
@@ -124,25 +124,25 @@ export const SubmissionsGradingPage: React.FC = () => {
           <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-xs border border-slate-100">
             <span className="w-2.5 h-2.5 rounded-full bg-[#006c49]"></span>
             <span className="text-xs text-[#777587]">Class Avg:</span>
-            <span className="text-xs font-bold text-[#121c2a]">{classAvg}</span>
+            <span className="text-xs font-bold text-[#292929]">{classAvg}</span>
           </div>
           <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-xs border border-slate-100">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#684000]"></span>
+            <span className="w-2.5 h-2.5 rounded-full bg-[#7a5b00]"></span>
             <span className="text-xs text-[#777587]">To Grade:</span>
-            <span className="text-xs font-bold text-[#684000]">{pendingGradingCount} papers</span>
+            <span className="text-xs font-bold text-[#7a5b00]">{pendingGradingCount} papers</span>
           </div>
         </div>
       </div>
 
       {/* Top Navigation Sub-Tabs */}
-      <div className="flex items-center justify-between bg-[#eff4ff] p-1.5 rounded-2xl mb-6 overflow-x-auto shadow-xs border border-indigo-100">
+      <div className="flex items-center justify-between bg-[#f1f1fa] p-1.5 rounded-2xl mb-6 overflow-x-auto shadow-xs border border-indigo-100">
         <div className="flex items-center gap-1 min-w-max">
           <button
             onClick={() => dispatch(setCurrentSubTab('active'))}
             className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 ${
               currentSubTab === 'active'
-                ? 'bg-[#4f46e5] text-white shadow-xs'
-                : 'text-[#464555] hover:text-[#121c2a] hover:bg-white/60'
+                ? 'bg-[#ffc53a] text-[#1b1a47] shadow-xs'
+                : 'text-[#545454] hover:text-[#292929] hover:bg-white/60'
             }`}
           >
             <span className="material-symbols-outlined text-[18px]">assignment_turned_in</span>
@@ -153,8 +153,8 @@ export const SubmissionsGradingPage: React.FC = () => {
             onClick={() => dispatch(setCurrentSubTab('pending_grading'))}
             className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 ${
               currentSubTab === 'pending_grading'
-                ? 'bg-[#4f46e5] text-white shadow-xs'
-                : 'text-[#464555] hover:text-[#121c2a] hover:bg-white/60'
+                ? 'bg-[#ffc53a] text-[#1b1a47] shadow-xs'
+                : 'text-[#545454] hover:text-[#292929] hover:bg-white/60'
             }`}
           >
             <span className="material-symbols-outlined text-[18px]">rate_review</span>
@@ -165,8 +165,8 @@ export const SubmissionsGradingPage: React.FC = () => {
             onClick={() => dispatch(setCurrentSubTab('archive'))}
             className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 ${
               currentSubTab === 'archive'
-                ? 'bg-[#4f46e5] text-white shadow-xs'
-                : 'text-[#464555] hover:text-[#121c2a] hover:bg-white/60'
+                ? 'bg-[#ffc53a] text-[#1b1a47] shadow-xs'
+                : 'text-[#545454] hover:text-[#292929] hover:bg-white/60'
             }`}
           >
             <span className="material-symbols-outlined text-[18px]">inventory_2</span>
@@ -177,8 +177,8 @@ export const SubmissionsGradingPage: React.FC = () => {
             onClick={() => dispatch(setCurrentSubTab('create'))}
             className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 ${
               currentSubTab === 'create'
-                ? 'bg-[#4f46e5] text-white shadow-xs'
-                : 'text-[#464555] hover:text-[#121c2a] hover:bg-white/60'
+                ? 'bg-[#ffc53a] text-[#1b1a47] shadow-xs'
+                : 'text-[#545454] hover:text-[#292929] hover:bg-white/60'
             }`}
           >
             <span className="material-symbols-outlined text-[18px]">add_circle</span>
@@ -196,7 +196,7 @@ export const SubmissionsGradingPage: React.FC = () => {
       <div className="bg-white p-4 rounded-xl shadow-xs border border-slate-100 mb-6 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1">
           {/* Class Filter */}
-          <div className="flex items-center gap-2 bg-[#eff4ff] px-3 py-2 rounded-lg border border-indigo-100/60">
+          <div className="flex items-center gap-2 bg-[#f1f1fa] px-3 py-2 rounded-lg border border-indigo-100/60">
             <span className="material-symbols-outlined text-[18px] text-[#777587]">groups</span>
             <div className="flex flex-col flex-1 min-w-0">
               <label className="text-[10px] uppercase text-[#777587] font-bold leading-none">
@@ -205,7 +205,7 @@ export const SubmissionsGradingPage: React.FC = () => {
               <select
                 value={classFilter}
                 onChange={(e) => setClassFilter(e.target.value)}
-                className="bg-transparent text-xs font-bold text-[#121c2a] focus:outline-none cursor-pointer truncate"
+                className="bg-transparent text-xs font-bold text-[#292929] focus:outline-none cursor-pointer truncate"
               >
                 <option value="all">All Assigned Classes</option>
                 {classOptions.map((c, idx) => (
@@ -218,7 +218,7 @@ export const SubmissionsGradingPage: React.FC = () => {
           </div>
 
           {/* Subject Filter */}
-          <div className="flex items-center gap-2 bg-[#eff4ff] px-3 py-2 rounded-lg border border-indigo-100/60">
+          <div className="flex items-center gap-2 bg-[#f1f1fa] px-3 py-2 rounded-lg border border-indigo-100/60">
             <span className="material-symbols-outlined text-[18px] text-[#777587]">auto_stories</span>
             <div className="flex flex-col flex-1 min-w-0">
               <label className="text-[10px] uppercase text-[#777587] font-bold leading-none">
@@ -227,7 +227,7 @@ export const SubmissionsGradingPage: React.FC = () => {
               <select
                 value={subjectFilter}
                 onChange={(e) => setSubjectFilter(e.target.value)}
-                className="bg-transparent text-xs font-bold text-[#121c2a] focus:outline-none cursor-pointer truncate"
+                className="bg-transparent text-xs font-bold text-[#292929] focus:outline-none cursor-pointer truncate"
               >
                 <option value="all">All Subjects</option>
                 {subjectOptions.map((s) => (
@@ -238,7 +238,7 @@ export const SubmissionsGradingPage: React.FC = () => {
           </div>
 
           {/* Status Filter */}
-          <div className="flex items-center gap-2 bg-[#eff4ff] px-3 py-2 rounded-lg border border-indigo-100/60">
+          <div className="flex items-center gap-2 bg-[#f1f1fa] px-3 py-2 rounded-lg border border-indigo-100/60">
             <span className="material-symbols-outlined text-[18px] text-[#777587]">tune</span>
             <div className="flex flex-col flex-1 min-w-0">
               <label className="text-[10px] uppercase text-[#777587] font-bold leading-none">
@@ -247,7 +247,7 @@ export const SubmissionsGradingPage: React.FC = () => {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-transparent text-xs font-bold text-[#121c2a] focus:outline-none cursor-pointer truncate"
+                className="bg-transparent text-xs font-bold text-[#292929] focus:outline-none cursor-pointer truncate"
               >
                 <option value="all">All Statuses</option>
                 <option value="pending">Pending Review ({pendingGradingCount})</option>
@@ -269,12 +269,12 @@ export const SubmissionsGradingPage: React.FC = () => {
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
               placeholder="Search student, roll #, or title..."
-              className="w-full bg-[#eff4ff] pl-9 pr-3 py-2 rounded-lg text-xs sm:text-sm text-[#121c2a] placeholder:text-[#777587] focus:outline-none focus:ring-2 focus:ring-indigo-200 border border-indigo-100/60"
+              className="w-full bg-[#f1f1fa] pl-9 pr-3 py-2 rounded-lg text-xs sm:text-sm text-[#292929] placeholder:text-[#777587] focus:outline-none focus:ring-2 focus:ring-indigo-200 border border-indigo-100/60"
             />
           </div>
           <button
             onClick={handleExportGradeSheet}
-            className="p-2 bg-[#eff4ff] hover:bg-[#dee9fc] rounded-lg text-[#464555] transition-colors border border-indigo-100"
+            className="p-2 bg-[#f1f1fa] hover:bg-[#ffedc2] rounded-lg text-[#545454] transition-colors border border-indigo-100"
             title="Export Grade Sheet"
           >
             <span className="material-symbols-outlined text-[20px]">ios_share</span>
@@ -295,11 +295,11 @@ export const SubmissionsGradingPage: React.FC = () => {
               <div className="bg-white p-5 rounded-xl shadow-xs border border-slate-100 relative overflow-hidden">
                 <div className="absolute right-0 top-0 w-32 h-32 bg-indigo-50 rounded-full blur-2xl pointer-events-none"></div>
                 <div className="flex items-start justify-between gap-2 mb-2">
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#eff4ff] text-[#3525cd] text-xs font-bold border border-indigo-100">
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#f1f1fa] text-[#36348e] text-xs font-bold border border-indigo-100">
                     {currentTask.className}
                   </span>
                   <div className="flex items-center gap-1 text-xs text-[#777587]">
-                    <span className="material-symbols-outlined text-[16px] text-[#684000]">
+                    <span className="material-symbols-outlined text-[16px] text-[#7a5b00]">
                       calendar_clock
                     </span>
                     Due: {currentTask.deadline}
@@ -308,7 +308,7 @@ export const SubmissionsGradingPage: React.FC = () => {
                 <select
                   value={currentTask.id}
                   onChange={(e) => dispatch(setSelectedTaskId(e.target.value))}
-                  className="w-full mb-1 bg-transparent text-base font-bold text-[#121c2a] leading-snug focus:outline-none cursor-pointer truncate relative"
+                  className="w-full mb-1 bg-transparent text-base font-bold text-[#292929] leading-snug focus:outline-none cursor-pointer truncate relative"
                   title="Switch assessment"
                 >
                   {(filteredTasks.some((t) => t.id === currentTask.id) ? filteredTasks : [currentTask, ...filteredTasks]).map((t) => (
@@ -318,8 +318,8 @@ export const SubmissionsGradingPage: React.FC = () => {
                   ))}
                 </select>
                 <div className="flex items-center gap-3 text-xs text-[#777587] mb-4">
-                  <span className="flex items-center gap-1 font-semibold text-[#121c2a]">
-                    <span className="material-symbols-outlined text-[16px] text-[#3525cd]">
+                  <span className="flex items-center gap-1 font-semibold text-[#292929]">
+                    <span className="material-symbols-outlined text-[16px] text-[#36348e]">
                       military_tech
                     </span>
                     Max Marks: <strong>{currentTask.totalMarks}</strong>
@@ -332,18 +332,18 @@ export const SubmissionsGradingPage: React.FC = () => {
                 </div>
 
                 {/* Submission Progress Bar */}
-                <div className="space-y-1.5 bg-[#eff4ff] p-3 rounded-xl border border-indigo-100/60">
+                <div className="space-y-1.5 bg-[#f1f1fa] p-3 rounded-xl border border-indigo-100/60">
                   <div className="flex justify-between items-center text-xs font-medium">
-                    <span className="text-[#464555]">
+                    <span className="text-[#545454]">
                       Class Turnout: {currentTask.submittedCount} / {currentTask.totalStudents}
                     </span>
-                    <span className="font-bold text-[#121c2a]">
+                    <span className="font-bold text-[#292929]">
                       {currentTask.totalStudents > 0
                         ? Math.round((currentTask.submittedCount / currentTask.totalStudents) * 100)
                         : 0}%
                     </span>
                   </div>
-                  <div className="w-full h-2 bg-[#dee9fc] rounded-full overflow-hidden flex">
+                  <div className="w-full h-2 bg-[#dfdff2] rounded-full overflow-hidden flex">
                     <div
                       className="h-full bg-[#006c49]"
                       style={{
@@ -356,7 +356,7 @@ export const SubmissionsGradingPage: React.FC = () => {
                       title="Graded"
                     ></div>
                     <div
-                      className="h-full bg-[#4f46e5]"
+                      className="h-full bg-[#4543a8]"
                       style={{
                         width: `${
                           currentTask.totalStudents > 0
@@ -367,7 +367,7 @@ export const SubmissionsGradingPage: React.FC = () => {
                       title="Pending Review"
                     ></div>
                     <div
-                      className="h-full bg-[#ffb95f]"
+                      className="h-full bg-[#ffc53a]"
                       style={{
                         width: `${
                           currentTask.totalStudents > 0
@@ -395,11 +395,11 @@ export const SubmissionsGradingPage: React.FC = () => {
                       {currentTask.gradedCount} Graded
                     </span>
                     <span className="flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full bg-[#4f46e5] inline-block"></span>
+                      <span className="w-2 h-2 rounded-full bg-[#4543a8] inline-block"></span>
                       {currentTask.pendingCount} Pending
                     </span>
                     <span className="flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full bg-[#ffb95f] inline-block"></span>
+                      <span className="w-2 h-2 rounded-full bg-[#ffc53a] inline-block"></span>
                       {currentTask.lateCount} Late
                     </span>
                     <span className="flex items-center gap-1">
@@ -412,7 +412,7 @@ export const SubmissionsGradingPage: React.FC = () => {
             ) : (
               <div className="bg-white p-6 rounded-xl shadow-xs border border-slate-100 text-center text-[#777587]">
                 <span className="material-symbols-outlined text-3xl mb-1 text-slate-300">assignment</span>
-                <p className="font-semibold text-xs text-[#121c2a]">No Assignment Selected</p>
+                <p className="font-semibold text-xs text-[#292929]">No Assignment Selected</p>
                 <p className="text-[11px] text-[#777587] mt-0.5">Create or select a task to view submission telemetry.</p>
               </div>
             )}
@@ -421,12 +421,12 @@ export const SubmissionsGradingPage: React.FC = () => {
             <SubmissionQueue statusFilter={statusFilter} searchFilter={searchFilter} />
 
             {/* Quick bulk grading shortcut */}
-            <div className="p-3 bg-[#eff4ff] rounded-xl border border-indigo-100/60 flex items-center justify-between">
-              <span className="text-xs text-[#464555]">Need batch evaluation?</span>
+            <div className="p-3 bg-[#f1f1fa] rounded-xl border border-indigo-100/60 flex items-center justify-between">
+              <span className="text-xs text-[#545454]">Need batch evaluation?</span>
               <button
                 onClick={() => setQuickGradeOpen(true)}
                 disabled={!currentTask}
-                className="text-[#3525cd] text-xs font-bold hover:underline flex items-center gap-1 disabled:opacity-50"
+                className="text-[#36348e] text-xs font-bold hover:underline flex items-center gap-1 disabled:opacity-50"
               >
                 <span className="material-symbols-outlined text-[16px]">speed</span> Quick-Grade
                 Table

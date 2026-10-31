@@ -67,11 +67,11 @@ export const CorrectionDrawer: React.FC = () => {
           {/* Header */}
           <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
             <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[#684000] text-[22px]">
+              <span className="material-symbols-outlined text-[#7a5b00] text-[22px]">
                 history_toggle_off
               </span>
               <div>
-                <h3 className="text-base font-bold text-[#121c2a]">Correction Voucher</h3>
+                <h3 className="text-base font-bold text-[#292929]">Correction Voucher</h3>
                 <span className="text-[11px] text-[#777587]">SRS 6.5 Audit Protocol</span>
               </div>
             </div>
@@ -86,25 +86,25 @@ export const CorrectionDrawer: React.FC = () => {
           {/* Form */}
           <form id="correctionForm" onSubmit={handleSubmit} className="space-y-4 text-xs sm:text-sm">
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[#464555] mb-1">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-[#545454] mb-1">
                 Target Submission Log
               </label>
               <input
                 type="text"
                 readOnly
                 value={targetLogId || 'SUB-20241022-5A (Oct 22, 2024)'}
-                className="w-full bg-[#eff4ff] rounded-lg px-3 py-2 text-[#121c2a] font-mono text-xs focus:outline-none border border-indigo-100/60"
+                className="w-full bg-[#f1f1fa] rounded-lg px-3 py-2 text-[#292929] font-mono text-xs focus:outline-none border border-indigo-100/60"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[#464555] mb-1">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-[#545454] mb-1">
                 Affected Student
               </label>
               <select
                 value={studentChoice}
                 onChange={(e) => setStudentChoice(e.target.value)}
-                className="w-full bg-[#eff4ff] rounded-lg px-3 py-2 text-[#121c2a] font-medium focus:outline-none border border-indigo-100/60"
+                className="w-full bg-[#f1f1fa] rounded-lg px-3 py-2 text-[#292929] font-medium focus:outline-none border border-indigo-100/60"
               >
                 {roster.length === 0 ? (
                   <option value="" disabled>No students enrolled</option>
@@ -119,15 +119,15 @@ export const CorrectionDrawer: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[#464555] mb-1">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-[#545454] mb-1">
                 Correction Type
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <label
                   className={`flex items-center gap-2 p-2.5 rounded-lg cursor-pointer border transition-colors ${
                     correctionType === 'Absent to Excused'
-                      ? 'border-[#3525cd] bg-indigo-50/60 text-[#3525cd]'
-                      : 'border-slate-200 bg-[#eff4ff] text-[#464555]'
+                      ? 'border-[#36348e] bg-indigo-50/60 text-[#36348e]'
+                      : 'border-slate-200 bg-[#f1f1fa] text-[#545454]'
                   }`}
                 >
                   <input
@@ -135,15 +135,15 @@ export const CorrectionDrawer: React.FC = () => {
                     name="corr-type"
                     checked={correctionType === 'Absent to Excused'}
                     onChange={() => setCorrectionType('Absent to Excused')}
-                    className="accent-[#3525cd]"
+                    className="accent-[#36348e]"
                   />
                   <span className="font-semibold text-xs">Absent to Excused</span>
                 </label>
                 <label
                   className={`flex items-center gap-2 p-2.5 rounded-lg cursor-pointer border transition-colors ${
                     correctionType === 'Late to Present'
-                      ? 'border-[#3525cd] bg-indigo-50/60 text-[#3525cd]'
-                      : 'border-slate-200 bg-[#eff4ff] text-[#464555]'
+                      ? 'border-[#36348e] bg-indigo-50/60 text-[#36348e]'
+                      : 'border-slate-200 bg-[#f1f1fa] text-[#545454]'
                   }`}
                 >
                   <input
@@ -151,7 +151,7 @@ export const CorrectionDrawer: React.FC = () => {
                     name="corr-type"
                     checked={correctionType === 'Late to Present'}
                     onChange={() => setCorrectionType('Late to Present')}
-                    className="accent-[#3525cd]"
+                    className="accent-[#36348e]"
                   />
                   <span className="font-semibold text-xs">Late to Present</span>
                 </label>
@@ -159,7 +159,7 @@ export const CorrectionDrawer: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[#464555] mb-1">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-[#545454] mb-1">
                 Administrative Justification
               </label>
               <textarea
@@ -168,12 +168,12 @@ export const CorrectionDrawer: React.FC = () => {
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Provide medical note reference, bus dispatch delay ID, or counselor confirmation memo..."
-                className="w-full bg-[#eff4ff] rounded-lg p-3 text-[#121c2a] text-xs placeholder:text-[#777587] focus:outline-none focus:ring-2 focus:ring-indigo-300 border border-indigo-100/60"
+                className="w-full bg-[#f1f1fa] rounded-lg p-3 text-[#292929] text-xs placeholder:text-[#777587] focus:outline-none focus:ring-2 focus:ring-indigo-300 border border-indigo-100/60"
               ></textarea>
             </div>
 
-            <div className="p-3 rounded-lg bg-[#eff4ff] text-xs text-[#464555] flex items-start gap-2">
-              <span className="material-symbols-outlined text-[16px] text-[#684000] shrink-0 mt-0.5">
+            <div className="p-3 rounded-lg bg-[#f1f1fa] text-xs text-[#545454] flex items-start gap-2">
+              <span className="material-symbols-outlined text-[16px] text-[#7a5b00] shrink-0 mt-0.5">
                 info
               </span>
               <span>
@@ -189,14 +189,14 @@ export const CorrectionDrawer: React.FC = () => {
           <button
             type="button"
             onClick={() => dispatch(closeCorrectionDrawer())}
-            className="flex-1 py-2 rounded-lg bg-[#e6eeff] text-[#121c2a] font-semibold text-xs sm:text-sm hover:bg-[#dee9fc] transition-colors"
+            className="flex-1 py-2 rounded-lg bg-[#e8e8f6] text-[#292929] font-semibold text-xs sm:text-sm hover:bg-[#ffedc2] transition-colors"
           >
             Cancel
           </button>
           <button
             type="submit"
             form="correctionForm"
-            className="flex-1 py-2 rounded-lg bg-[#3525cd] text-white font-semibold text-xs sm:text-sm hover:bg-[#4f46e5] shadow-md transition-all"
+            className="flex-1 py-2 rounded-lg bg-[#36348e] text-white font-semibold text-xs sm:text-sm hover:bg-[#ffc53a] hover:text-[#1b1a47] shadow-md transition-all"
           >
             Send Request
           </button>

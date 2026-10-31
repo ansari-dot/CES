@@ -48,7 +48,7 @@ export const SetPasswordModal: React.FC = () => {
   };
 
   const inputClass =
-    'w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#3525cd] focus:border-transparent transition-all';
+    'w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#36348e] focus:border-transparent transition-all';
 
   return (
     <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -59,7 +59,7 @@ export const SetPasswordModal: React.FC = () => {
         className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 p-6"
       >
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 rounded-xl bg-[#e2dfff] text-[#3525cd] flex items-center justify-center shrink-0">
+          <div className="w-11 h-11 rounded-xl bg-[#cdd4fb] text-[#36348e] flex items-center justify-center shrink-0">
             <span className="material-symbols-outlined text-[22px]">key</span>
           </div>
           <div>
@@ -128,7 +128,7 @@ export const SetPasswordModal: React.FC = () => {
           <button
             type="submit"
             disabled={saving}
-            className="w-full bg-[#3525cd] hover:bg-[#2a1db0] disabled:opacity-60 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+            className="w-full bg-[#36348e] hover:bg-[#ffc53a] hover:text-[#1b1a47] disabled:opacity-60 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
           >
             {saving ? 'Saving…' : 'Save password & continue'}
           </button>

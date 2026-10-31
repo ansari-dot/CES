@@ -84,16 +84,16 @@ export const LiveLessonsPage: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11px] font-bold text-[#3525cd] uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-[#36348e] uppercase tracking-wider">
               Zoom Pro Enterprise
             </span>
             <span className="text-[#c7c4d8]">•</span>
-            <span className="text-xs text-[#464555]">Persistent Class Rooms</span>
+            <span className="text-xs text-[#545454]">Persistent Class Rooms</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#121c2a] tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#292929] tracking-tight">
             Live Lessons &amp; Zoom Rooms
           </h1>
-          <p className="text-xs sm:text-sm text-[#464555] mt-1 max-w-2xl">
+          <p className="text-xs sm:text-sm text-[#545454] mt-1 max-w-2xl">
             Each class uses a permanent meeting link. Students access without host credentials while
             instructors join with automated SSO authentication.
           </p>
@@ -126,7 +126,7 @@ export const LiveLessonsPage: React.FC = () => {
         </div>
         <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-amber-300">
           <span className="text-[11px] font-semibold text-amber-900">Universal Host PIN:</span>
-          <span className="font-mono font-black text-sm text-[#3525cd]">884422</span>
+          <span className="font-mono font-black text-sm text-[#36348e]">884422</span>
         </div>
       </div>
 
@@ -170,7 +170,7 @@ export const LiveLessonsPage: React.FC = () => {
         {assignedClasses.length === 0 ? (
           <div className="col-span-full bg-white rounded-2xl p-12 text-center border border-slate-100 shadow-sm text-[#777587]">
             <span className="material-symbols-outlined text-4xl mb-2 text-slate-300">videocam_off</span>
-            <p className="font-semibold text-sm text-[#121c2a]">No Zoom Rooms Assigned</p>
+            <p className="font-semibold text-sm text-[#292929]">No Zoom Rooms Assigned</p>
             <p className="text-xs text-[#777587] mt-1">No active classrooms or live sessions are assigned to your faculty profile.</p>
           </div>
         ) : (
@@ -189,7 +189,7 @@ export const LiveLessonsPage: React.FC = () => {
               >
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-[#3525cd] text-xs font-bold">
+                    <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-[#36348e] text-xs font-bold">
                       {cls.name}
                     </span>
                     {isLive ? (
@@ -205,20 +205,20 @@ export const LiveLessonsPage: React.FC = () => {
                     )}
                   </div>
 
-                  <h2 className="text-lg font-bold text-[#121c2a]">{cls.subject}</h2>
+                  <h2 className="text-lg font-bold text-[#292929]">{cls.subject}</h2>
                   <p className="text-xs text-[#777587] mt-0.5">Physical Hub: {cls.roomName}</p>
 
-                  <div className="mt-4 p-3 bg-[#eff4ff] rounded-xl space-y-1.5 text-xs border border-indigo-100/60">
+                  <div className="mt-4 p-3 bg-[#f1f1fa] rounded-xl space-y-1.5 text-xs border border-indigo-100/60">
                     <div className="flex items-center justify-between">
-                      <span className="text-[#464555]">Persistent Meeting ID:</span>
-                      <span className="font-mono font-bold text-[#121c2a]">{cls.zoomRoomId}</span>
+                      <span className="text-[#545454]">Persistent Meeting ID:</span>
+                      <span className="font-mono font-bold text-[#292929]">{cls.zoomRoomId}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-[#464555]">Security Passcode:</span>
-                      <span className="font-mono font-bold text-[#3525cd]">{cls.zoomPasscode}</span>
+                      <span className="text-[#545454]">Security Passcode:</span>
+                      <span className="font-mono font-bold text-[#36348e]">{cls.zoomPasscode}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-[#464555]">Host Key (Claim Host):</span>
+                      <span className="text-[#545454]">Host Key (Claim Host):</span>
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono font-bold text-amber-800 bg-amber-100/70 px-2 py-0.5 rounded border border-amber-300">
                           {cls.hostKey || '884422'}
@@ -237,8 +237,8 @@ export const LiveLessonsPage: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-[#464555]">Enrolled Student Capacity:</span>
-                      <span className="font-bold text-[#121c2a]">{cls.enrolledCount} Seats</span>
+                      <span className="text-[#545454]">Enrolled Student Capacity:</span>
+                      <span className="font-bold text-[#292929]">{cls.enrolledCount} Seats</span>
                     </div>
                   </div>
                 </div>
@@ -249,7 +249,7 @@ export const LiveLessonsPage: React.FC = () => {
                       navigator.clipboard?.writeText(classLive?.joinUrl || cls.joinUrl || `https://zoom.us/j/${cls.zoomRoomId.replace(/-/g, '')}`);
                       dispatch(addToast({ message: `Copied Zoom link for ${cls.name}`, type: 'info' }));
                     }}
-                    className="px-3 py-2 text-xs font-semibold text-[#464555] hover:text-[#121c2a] hover:bg-[#eff4ff] rounded-lg transition-colors flex items-center gap-1"
+                    className="px-3 py-2 text-xs font-semibold text-[#545454] hover:text-[#292929] hover:bg-[#fff4d6] rounded-lg transition-colors flex items-center gap-1"
                   >
                     <span className="material-symbols-outlined text-[16px]">content_copy</span>
                     Copy Link
@@ -259,7 +259,7 @@ export const LiveLessonsPage: React.FC = () => {
                     className={`px-5 py-2 text-white text-xs font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 active:scale-98 ${
                       isLive
                         ? 'bg-gradient-to-r from-red-600 to-indigo-600 hover:from-red-500 hover:to-indigo-500 animate-pulse'
-                        : 'bg-[#3525cd] hover:bg-[#4f46e5]'
+                        : 'bg-[#36348e] hover:bg-[#ffc53a] hover:text-[#1b1a47]'
                     }`}
                   >
                     <span className="material-symbols-outlined text-[18px]">videocam</span>
@@ -275,8 +275,8 @@ export const LiveLessonsPage: React.FC = () => {
       {/* Audio / Video Hardware Pre-Flight Check Console */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
         <div className="flex items-center gap-2 mb-2">
-          <span className="material-symbols-outlined text-[#3525cd] text-[22px]">tune</span>
-          <h2 className="text-base font-bold text-[#121c2a]">
+          <span className="material-symbols-outlined text-[#36348e] text-[22px]">tune</span>
+          <h2 className="text-base font-bold text-[#292929]">
             Pre-Flight A/V Diagnostic Console
           </h2>
         </div>
@@ -286,42 +286,42 @@ export const LiveLessonsPage: React.FC = () => {
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="p-4 bg-[#eff4ff] rounded-xl border border-indigo-100/60 flex flex-col justify-between">
+          <div className="p-4 bg-[#f1f1fa] rounded-xl border border-indigo-100/60 flex flex-col justify-between">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-[#121c2a]">Microphone</span>
+              <span className="text-xs font-bold text-[#292929]">Microphone</span>
               <span className="material-symbols-outlined text-[#006c49] text-[20px]">mic</span>
             </div>
-            <p className="text-[11px] text-[#464555] mb-3">Default System Microphone</p>
+            <p className="text-[11px] text-[#545454] mb-3">Default System Microphone</p>
             <button
               onClick={handleTestMic}
               disabled={testingMic}
-              className="w-full py-1.5 bg-white text-[#3525cd] hover:bg-indigo-50 text-xs font-bold rounded-lg border border-indigo-200 transition-colors"
+              className="w-full py-1.5 bg-white text-[#36348e] hover:bg-[#fff4d6] text-xs font-bold rounded-lg border border-indigo-200 transition-colors"
             >
               {testingMic ? 'Testing Mic Input...' : 'Test Mic Input'}
             </button>
           </div>
 
-          <div className="p-4 bg-[#eff4ff] rounded-xl border border-indigo-100/60 flex flex-col justify-between">
+          <div className="p-4 bg-[#f1f1fa] rounded-xl border border-indigo-100/60 flex flex-col justify-between">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-[#121c2a]">Camera &amp; Video</span>
+              <span className="text-xs font-bold text-[#292929]">Camera &amp; Video</span>
               <span className="material-symbols-outlined text-[#006c49] text-[20px]">videocam</span>
             </div>
-            <p className="text-[11px] text-[#464555] mb-3">Default System Camera</p>
+            <p className="text-[11px] text-[#545454] mb-3">Default System Camera</p>
             <button
               onClick={handleTestCam}
               disabled={testingCam}
-              className="w-full py-1.5 bg-white text-[#3525cd] hover:bg-indigo-50 text-xs font-bold rounded-lg border border-indigo-200 transition-colors"
+              className="w-full py-1.5 bg-white text-[#36348e] hover:bg-[#fff4d6] text-xs font-bold rounded-lg border border-indigo-200 transition-colors"
             >
               {testingCam ? 'Testing Camera...' : 'Test Video Stream'}
             </button>
           </div>
 
-          <div className="p-4 bg-[#eff4ff] rounded-xl border border-indigo-100/60 flex flex-col justify-between">
+          <div className="p-4 bg-[#f1f1fa] rounded-xl border border-indigo-100/60 flex flex-col justify-between">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-[#121c2a]">Cloud Recording</span>
+              <span className="text-xs font-bold text-[#292929]">Cloud Recording</span>
               <span className="material-symbols-outlined text-[#006c49] text-[20px]">cloud_sync</span>
             </div>
-            <p className="text-[11px] text-[#464555] mb-3">Institutional Unlimited Cloud Tier</p>
+            <p className="text-[11px] text-[#545454] mb-3">Institutional Unlimited Cloud Tier</p>
             <span className="w-full py-1.5 bg-white text-[#006c49] text-xs font-bold rounded-lg border border-emerald-200 text-center block">
               Auto-Archive Active
             </span>

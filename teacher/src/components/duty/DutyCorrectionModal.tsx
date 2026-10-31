@@ -45,24 +45,24 @@ export const DutyCorrectionModal: React.FC = () => {
       title="Teaching Duty Correction Memo"
       subtitle={`${selectedLog.className} • ${selectedLog.subject} • SRS 15.3`}
       icon="more_time"
-      iconBgColor="bg-[#ffddb8] text-[#92400e]"
+      iconBgColor="bg-[#ffe9b0] text-[#8a6400]"
       maxWidth="max-w-md"
     >
       <form onSubmit={handleSubmit} className="space-y-4 text-xs sm:text-sm">
-        <div className="bg-[#eff4ff] p-3 rounded-lg border border-indigo-100/60">
-          <p className="text-xs text-[#464555]">
-            Session Date: <strong className="text-[#121c2a]">{selectedLog.date}</strong>
+        <div className="bg-[#f1f1fa] p-3 rounded-lg border border-indigo-100/60">
+          <p className="text-xs text-[#545454]">
+            Session Date: <strong className="text-[#292929]">{selectedLog.date}</strong>
           </p>
-          <p className="text-xs text-[#464555]">
-            Recorded Scheduled Time: <strong className="text-[#121c2a]">{selectedLog.scheduledTime}</strong>
+          <p className="text-xs text-[#545454]">
+            Recorded Scheduled Time: <strong className="text-[#292929]">{selectedLog.scheduledTime}</strong>
           </p>
-          <p className="text-xs text-[#464555]">
-            Current Logged Duration: <strong className="text-[#121c2a]">{selectedLog.durationMinutes} mins</strong>
+          <p className="text-xs text-[#545454]">
+            Current Logged Duration: <strong className="text-[#292929]">{selectedLog.durationMinutes} mins</strong>
           </p>
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-[#121c2a] mb-1">
+          <label className="block text-xs font-semibold text-[#292929] mb-1">
             Requested Verified Duration (Minutes)
           </label>
           <input
@@ -72,12 +72,12 @@ export const DutyCorrectionModal: React.FC = () => {
             required
             value={requestedDuration}
             onChange={(e) => setRequestedDuration(Number(e.target.value))}
-            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#121c2a] font-bold focus:border-[#3525cd] focus:outline-none"
+            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#292929] font-bold focus:border-[#36348e] focus:outline-none"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-[#121c2a] mb-1">
+          <label className="block text-xs font-semibold text-[#292929] mb-1">
             Administrative Justification &amp; Zoom Audit Memo
           </label>
           <textarea
@@ -86,7 +86,7 @@ export const DutyCorrectionModal: React.FC = () => {
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="e.g. Session extended by 15 mins for student Q&A. Verified by cloud Zoom recording timestamp."
-            className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none"
+            className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none"
           ></textarea>
         </div>
 
@@ -104,13 +104,13 @@ export const DutyCorrectionModal: React.FC = () => {
           <button
             type="button"
             onClick={() => dispatch(closeAdjustmentModal())}
-            className="px-4 py-2 rounded-lg bg-[#e6eeff] text-[#121c2a] hover:bg-[#dee9fc] text-xs font-semibold"
+            className="px-4 py-2 rounded-lg bg-[#e8e8f6] text-[#292929] hover:bg-[#ffedc2] text-xs font-semibold"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="px-5 py-2 rounded-lg bg-[#3525cd] hover:bg-[#4f46e5] text-white font-semibold text-xs shadow-md transition-all"
+            className="px-5 py-2 rounded-lg bg-[#36348e] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white font-semibold text-xs shadow-md transition-all"
           >
             Submit Memo
           </button>

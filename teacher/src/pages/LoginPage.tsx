@@ -103,8 +103,8 @@ export const LoginPage: React.FC = () => {
           {/* Top Brand Logo */}
           <div className="relative z-10">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#3525cd] flex items-center justify-center text-white shadow-sm">
-                <span className="material-symbols-outlined text-[22px]">school</span>
+              <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm overflow-hidden">
+                <img src="/logo.jpeg" alt="Cambridge Education System logo" className="w-full h-full object-contain" />
               </div>
               <div>
                 <h1 className="text-lg font-bold tracking-tight text-white font-heading">
@@ -162,7 +162,7 @@ export const LoginPage: React.FC = () => {
             {/* Header */}
             <div className="mb-6 text-left">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[#3525cd]">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#36348e]">
                   Faculty Access
                 </span>
                 <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
@@ -214,7 +214,7 @@ export const LoginPage: React.FC = () => {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Email or username"
                     required
-                    className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-normal text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#3525cd] focus:border-transparent transition-all"
+                    className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-normal text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#36348e] focus:border-transparent transition-all"
                   />
                 </div>
               </div>
@@ -231,7 +231,7 @@ export const LoginPage: React.FC = () => {
                       setForgotEmail(email);
                       setIsForgotModalOpen(true);
                     }}
-                    className="text-xs font-medium text-[#3525cd] hover:underline cursor-pointer"
+                    className="text-xs font-medium text-[#36348e] hover:underline cursor-pointer"
                   >
                     Forgot password?
                   </button>
@@ -246,7 +246,7 @@ export const LoginPage: React.FC = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
                     required
-                    className="w-full pl-9 pr-10 py-2.5 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-normal text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#3525cd] focus:border-transparent transition-all"
+                    className="w-full pl-9 pr-10 py-2.5 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-normal text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#36348e] focus:border-transparent transition-all"
                   />
                   <button
                     type="button"
@@ -268,7 +268,7 @@ export const LoginPage: React.FC = () => {
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-300 text-[#3525cd] focus:ring-[#3525cd]"
+                    className="w-4 h-4 rounded border-slate-300 text-[#36348e] focus:ring-[#36348e]"
                   />
                   <span className="text-xs font-normal text-slate-600">
                     Remember me for 30 days
@@ -280,7 +280,7 @@ export const LoginPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full py-2.5 px-4 rounded-xl bg-[#3525cd] hover:bg-[#281ca3] text-white font-semibold text-sm shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed mt-2"
+                className="w-full py-2.5 px-4 rounded-xl bg-[#36348e] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white font-semibold text-sm shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed mt-2"
               >
                 {isSubmitting ? (
                   <>
@@ -305,8 +305,8 @@ export const LoginPage: React.FC = () => {
           {/* Footer Assistance */}
           <div className="mt-8 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-slate-500">
             <span className="flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[15px] text-[#3525cd]">help</span>
-              IT Helpdesk: <a href="mailto:support@edupulse.k12" className="text-[#3525cd] font-medium hover:underline">support@edupulse.k12</a>
+              <span className="material-symbols-outlined text-[15px] text-[#36348e]">help</span>
+              IT Helpdesk: <a href="mailto:support@edupulse.k12" className="text-[#36348e] font-medium hover:underline">support@edupulse.k12</a>
             </span>
             <span>FERPA Certified & Secure</span>
           </div>
@@ -325,7 +325,7 @@ export const LoginPage: React.FC = () => {
               <span className="material-symbols-outlined text-[20px]">close</span>
             </button>
 
-            <div className="w-10 h-10 rounded-xl bg-slate-100 text-[#3525cd] flex items-center justify-center mb-3">
+            <div className="w-10 h-10 rounded-xl bg-slate-100 text-[#36348e] flex items-center justify-center mb-3">
               <span className="material-symbols-outlined text-[22px]">lock_reset</span>
             </div>
 
@@ -347,7 +347,7 @@ export const LoginPage: React.FC = () => {
                   onChange={(e) => setForgotEmail(e.target.value)}
                   placeholder="Email or username"
                   required
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#3525cd]"
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#36348e]"
                 />
               </div>
 
@@ -362,7 +362,7 @@ export const LoginPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={forgotSubmitted}
-                  className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#3525cd] hover:bg-[#281ca3] text-white flex items-center gap-1.5 disabled:opacity-75 cursor-pointer"
+                  className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#36348e] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white flex items-center gap-1.5 disabled:opacity-75 cursor-pointer"
                 >
                   {forgotSubmitted ? (
                     <>

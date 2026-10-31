@@ -57,13 +57,13 @@ export const TasksAssignmentsPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-[#121c2a]">Tasks &amp; Assignments</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-[#292929]">Tasks &amp; Assignments</h1>
           <p className="text-xs text-[#777587]">Manage homework deadlines, total points, and submissions.</p>
         </div>
 
         <button
           onClick={() => setShowCreateForm(!showCreateForm)}
-          className="px-3.5 py-2 bg-[#4f46e5] hover:bg-[#3525cd] text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 self-start sm:self-auto"
+          className="px-3.5 py-2 bg-[#4543a8] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 self-start sm:self-auto"
         >
           <span className="material-symbols-outlined text-[17px]">
             {showCreateForm ? 'close' : 'add_task'}
@@ -89,11 +89,11 @@ export const TasksAssignmentsPage: React.FC = () => {
             value={filterQuery}
             onChange={(e) => setFilterQuery(e.target.value)}
             placeholder="Search assignments..."
-            className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-[#eff4ff] text-xs text-[#121c2a] placeholder:text-[#777587] focus:outline-none"
+            className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-[#f1f1fa] text-xs text-[#292929] placeholder:text-[#777587] focus:outline-none"
           />
         </div>
 
-        <div className="flex items-center gap-2 text-xs font-semibold text-[#464555]">
+        <div className="flex items-center gap-2 text-xs font-semibold text-[#545454]">
           <span>{filteredTasks.length} Assignments</span>
         </div>
       </div>
@@ -103,7 +103,7 @@ export const TasksAssignmentsPage: React.FC = () => {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-[#eff4ff] text-[#464555] font-bold uppercase tracking-wider border-b border-slate-200 h-10 select-none">
+              <tr className="bg-[#f1f1fa] text-[#545454] font-bold uppercase tracking-wider border-b border-slate-200 h-10 select-none">
                 <th className="px-3 min-w-[200px]">Assignment Title</th>
                 <th className="px-3 w-24">Class</th>
                 <th className="px-3 w-28">Subject</th>
@@ -125,7 +125,7 @@ export const TasksAssignmentsPage: React.FC = () => {
                 filteredTasks.map((task) => (
                   <tr key={task.id} className="hover:bg-slate-50 h-13 transition-colors">
                     <td className="px-3">
-                      <span className="font-bold text-[#121c2a] block">
+                      <span className="font-bold text-[#292929] block">
                         {task.title}
                         {task.status === 'draft' && (
                           <span className="ml-1.5 px-1.5 py-0.5 rounded bg-slate-100 text-[#777587] text-[10px] font-bold uppercase">Draft</span>
@@ -136,13 +136,13 @@ export const TasksAssignmentsPage: React.FC = () => {
                       </span>
                     </td>
 
-                    <td className="px-3 font-bold text-[#3525cd]">
-                      <span className="px-2 py-0.5 rounded bg-[#eff4ff] border border-indigo-100">
+                    <td className="px-3 font-bold text-[#36348e]">
+                      <span className="px-2 py-0.5 rounded bg-[#f1f1fa] border border-indigo-100">
                         {task.className}
                       </span>
                     </td>
 
-                    <td className="px-3 text-[#464555] font-semibold">{task.subject}</td>
+                    <td className="px-3 text-[#545454] font-semibold">{task.subject}</td>
 
                     <td className="px-3 font-medium text-[#ba1a1a]">
                       <span className="inline-flex items-center gap-1">
@@ -151,7 +151,7 @@ export const TasksAssignmentsPage: React.FC = () => {
                       </span>
                     </td>
 
-                    <td className="px-3 text-center font-bold text-[#121c2a]">
+                    <td className="px-3 text-center font-bold text-[#292929]">
                       {task.totalMarks} pts
                     </td>
 
@@ -178,7 +178,7 @@ export const TasksAssignmentsPage: React.FC = () => {
                         <button
                           onClick={() => handleOpenHandout(task.handoutUrl, task.handoutName)}
                           disabled={!task.handoutUrl}
-                          className="p-1 text-[#464555] hover:text-[#121c2a] hover:bg-[#eff4ff] rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          className="p-1 text-[#545454] hover:text-[#292929] hover:bg-[#fff4d6] rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                           title={task.handoutUrl ? `Download ${task.handoutName || 'handout'}` : 'No handout attached'}
                         >
                           <span className="material-symbols-outlined text-[17px]">attachment</span>
@@ -193,7 +193,7 @@ export const TasksAssignmentsPage: React.FC = () => {
                         ) : (
                           <button
                             onClick={() => handleOpenGrading(task.id)}
-                            className="px-3 py-1 rounded-lg bg-[#4f46e5] hover:bg-[#3525cd] text-white font-bold text-[11px] shadow-xs"
+                            className="px-3 py-1 rounded-lg bg-[#4543a8] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white font-bold text-[11px] shadow-xs"
                           >
                             Grade
                           </button>

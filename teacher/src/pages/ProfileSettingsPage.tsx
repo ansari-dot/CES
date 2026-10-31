@@ -41,16 +41,16 @@ export const ProfileSettingsPage: React.FC = () => {
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-[11px] font-bold text-[#3525cd] uppercase tracking-wider">
+          <span className="text-[11px] font-bold text-[#36348e] uppercase tracking-wider">
             Faculty Credentials
           </span>
           <span className="text-[#c7c4d8]">•</span>
-          <span className="text-xs text-[#464555]">SRS Section 16</span>
+          <span className="text-xs text-[#545454]">SRS Section 16</span>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-[#121c2a] tracking-tight">
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-[#292929] tracking-tight">
           Teacher Profile &amp; Account Settings
         </h1>
-        <p className="text-xs sm:text-sm text-[#464555] mt-0.5">
+        <p className="text-xs sm:text-sm text-[#545454] mt-0.5">
           Manage authorized contact details, inspect assigned class allocations, and manage secure session
           credentials.
         </p>
@@ -66,8 +66,8 @@ export const ProfileSettingsPage: React.FC = () => {
               className="w-16 h-16 rounded-2xl object-cover ring-2 ring-indigo-100 shadow-sm"
             />
             <div>
-              <h2 className="text-lg font-bold text-[#121c2a]">{teacher.name}</h2>
-              <span className="px-2 py-0.5 rounded bg-indigo-50 text-[#3525cd] text-xs font-bold font-mono">
+              <h2 className="text-lg font-bold text-[#292929]">{teacher.name}</h2>
+              <span className="px-2 py-0.5 rounded bg-indigo-50 text-[#36348e] text-xs font-bold font-mono">
                 {teacher.employeeId}
               </span>
               <p className="text-xs text-[#777587] mt-1">{teacher.designation}</p>
@@ -75,14 +75,14 @@ export const ProfileSettingsPage: React.FC = () => {
           </div>
 
           <div className="space-y-3 text-xs">
-            <div className="p-3 bg-[#eff4ff] rounded-xl space-y-1 border border-indigo-100/60">
+            <div className="p-3 bg-[#f1f1fa] rounded-xl space-y-1 border border-indigo-100/60">
               <span className="text-[#777587] font-semibold block">Academic Term Allocation:</span>
-              <p className="font-bold text-[#121c2a]">{teacher.term}</p>
+              <p className="font-bold text-[#292929]">{teacher.term}</p>
             </div>
 
-            <div className="p-3 bg-[#eff4ff] rounded-xl space-y-1 border border-indigo-100/60">
+            <div className="p-3 bg-[#f1f1fa] rounded-xl space-y-1 border border-indigo-100/60">
               <span className="text-[#777587] font-semibold block">Time Zone &amp; Locale:</span>
-              <p className="font-bold text-[#121c2a]">{teacher.timezone} (Auto-synchronized)</p>
+              <p className="font-bold text-[#292929]">{teacher.timezone} (Auto-synchronized)</p>
             </div>
 
             <div>
@@ -99,7 +99,7 @@ export const ProfileSettingsPage: React.FC = () => {
                       className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between"
                     >
                       <div>
-                        <span className="font-bold text-[#121c2a] block">{cls.name}</span>
+                        <span className="font-bold text-[#292929] block">{cls.name}</span>
                         <span className="text-[11px] text-[#777587]">{cls.subject}</span>
                       </div>
                       <span className="text-xs font-semibold text-[#006c49]">
@@ -118,8 +118,8 @@ export const ProfileSettingsPage: React.FC = () => {
           {/* Contact Details Form */}
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
             <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-4">
-              <span className="material-symbols-outlined text-[#3525cd] text-[20px]">badge</span>
-              <h3 className="text-base font-bold text-[#121c2a]">
+              <span className="material-symbols-outlined text-[#36348e] text-[20px]">badge</span>
+              <h3 className="text-base font-bold text-[#292929]">
                 Permitted Contact Information
               </h3>
             </div>
@@ -127,7 +127,7 @@ export const ProfileSettingsPage: React.FC = () => {
             <form onSubmit={handleSaveContact} className="space-y-4 text-xs sm:text-sm">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-[#121c2a] mb-1">
+                  <label className="block text-xs font-semibold text-[#292929] mb-1">
                     Institutional Email Address
                   </label>
                   <input
@@ -135,12 +135,12 @@ export const ProfileSettingsPage: React.FC = () => {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full h-10 px-3 bg-[#eff4ff] border border-indigo-100/60 rounded-lg text-[#121c2a] focus:outline-none"
+                    className="w-full h-10 px-3 bg-[#f1f1fa] border border-indigo-100/60 rounded-lg text-[#292929] focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#121c2a] mb-1">
+                  <label className="block text-xs font-semibold text-[#292929] mb-1">
                     Direct Contact Phone
                   </label>
                   <input
@@ -148,7 +148,7 @@ export const ProfileSettingsPage: React.FC = () => {
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full h-10 px-3 bg-[#eff4ff] border border-indigo-100/60 rounded-lg text-[#121c2a] focus:outline-none"
+                    className="w-full h-10 px-3 bg-[#f1f1fa] border border-indigo-100/60 rounded-lg text-[#292929] focus:outline-none"
                   />
                 </div>
               </div>
@@ -156,7 +156,7 @@ export const ProfileSettingsPage: React.FC = () => {
               <div className="flex justify-end">
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-[#3525cd] hover:bg-[#4f46e5] text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
+                  className="px-5 py-2 bg-[#36348e] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
                 >
                   Save Contact Updates
                 </button>
@@ -167,16 +167,16 @@ export const ProfileSettingsPage: React.FC = () => {
           {/* Password & Security */}
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
             <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-4">
-              <span className="material-symbols-outlined text-[#3525cd] text-[20px]">
+              <span className="material-symbols-outlined text-[#36348e] text-[20px]">
                 security
               </span>
-              <h3 className="text-base font-bold text-[#121c2a]">Security &amp; Credentials</h3>
+              <h3 className="text-base font-bold text-[#292929]">Security &amp; Credentials</h3>
             </div>
 
             <form onSubmit={handlePasswordChange} className="space-y-4 text-xs sm:text-sm">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-[#121c2a] mb-1">
+                  <label className="block text-xs font-semibold text-[#292929] mb-1">
                     Current Password
                   </label>
                   <input
@@ -185,12 +185,12 @@ export const ProfileSettingsPage: React.FC = () => {
                     value={oldPassword}
                     onChange={(e) => setOldPassword(e.target.value)}
                     placeholder="••••••••••••"
-                    className="w-full h-10 px-3 bg-[#eff4ff] border border-indigo-100/60 rounded-lg text-[#121c2a] focus:outline-none"
+                    className="w-full h-10 px-3 bg-[#f1f1fa] border border-indigo-100/60 rounded-lg text-[#292929] focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#121c2a] mb-1">
+                  <label className="block text-xs font-semibold text-[#292929] mb-1">
                     New Security Password
                   </label>
                   <input
@@ -199,7 +199,7 @@ export const ProfileSettingsPage: React.FC = () => {
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="••••••••••••"
-                    className="w-full h-10 px-3 bg-[#eff4ff] border border-indigo-100/60 rounded-lg text-[#121c2a] focus:outline-none"
+                    className="w-full h-10 px-3 bg-[#f1f1fa] border border-indigo-100/60 rounded-lg text-[#292929] focus:outline-none"
                   />
                 </div>
               </div>
@@ -216,12 +216,12 @@ export const ProfileSettingsPage: React.FC = () => {
           </div>
 
           {/* Access Control Notice */}
-          <div className="p-4 rounded-2xl bg-[#eff4ff] border border-indigo-100 text-xs text-[#464555] flex items-start gap-3">
-            <span className="material-symbols-outlined text-[20px] text-[#3525cd] shrink-0 mt-0.5">
+          <div className="p-4 rounded-2xl bg-[#f1f1fa] border border-indigo-100 text-xs text-[#545454] flex items-start gap-3">
+            <span className="material-symbols-outlined text-[20px] text-[#36348e] shrink-0 mt-0.5">
               lock
             </span>
             <div className="leading-relaxed">
-              <strong className="block text-[#121c2a]">SRS Section 16.3 Access Control:</strong>
+              <strong className="block text-[#292929]">SRS Section 16.3 Access Control:</strong>
               Employment classification, salary structure, and official classroom assignments are
               configured by the Principal &amp; School Administrator. Teachers cannot modify protected
               personnel parameters.

@@ -40,7 +40,7 @@ export const GradingDetail: React.FC = () => {
     return (
       <div className="bg-white p-12 rounded-xl text-center text-[#777587] border border-slate-100 shadow-xs">
         <span className="material-symbols-outlined text-4xl mb-2 text-slate-300">rate_review</span>
-        <p className="font-semibold text-sm text-[#121c2a]">No Submission Selected</p>
+        <p className="font-semibold text-sm text-[#292929]">No Submission Selected</p>
         <p className="text-xs text-[#777587] mt-1">Select a student from the queue on the left to grade their submission.</p>
       </div>
     );
@@ -146,8 +146,8 @@ export const GradingDetail: React.FC = () => {
           />
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-xl font-bold text-[#121c2a]">{submission.studentName}</h2>
-              <span className="px-2 py-0.5 rounded-md bg-[#dee9fc] text-[#464555] text-xs font-semibold">
+              <h2 className="text-xl font-bold text-[#292929]">{submission.studentName}</h2>
+              <span className="px-2 py-0.5 rounded-md bg-[#dfdff2] text-[#545454] text-xs font-semibold">
                 {submission.studentAdmissionId}
               </span>
             </div>
@@ -165,11 +165,11 @@ export const GradingDetail: React.FC = () => {
                   <span className="material-symbols-outlined text-[14px]">undo</span> Returned for resubmission
                 </span>
               ) : hasDraftGrade ? (
-                <span className="text-[#684000] font-bold flex items-center gap-1">
+                <span className="text-[#7a5b00] font-bold flex items-center gap-1">
                   <span className="material-symbols-outlined text-[14px]">edit_note</span> Draft grade (not visible to student)
                 </span>
               ) : (
-                <span className="text-[#3525cd] font-bold flex items-center gap-1">
+                <span className="text-[#36348e] font-bold flex items-center gap-1">
                   <span className="material-symbols-outlined text-[14px]">schedule</span> Awaiting review
                   {submission.isLate ? ' · Late' : ''}
                 </span>
@@ -179,7 +179,7 @@ export const GradingDetail: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          <span className="text-xs px-2.5 py-1 rounded-full bg-[#eff4ff] text-[#3525cd] font-bold border border-indigo-100">
+          <span className="text-xs px-2.5 py-1 rounded-full bg-[#f1f1fa] text-[#36348e] font-bold border border-indigo-100">
             {submission.submittedAt || 'Awaiting Submission'}
           </span>
         </div>
@@ -187,15 +187,15 @@ export const GradingDetail: React.FC = () => {
 
       {/* Task Assignment Prompt Mini-Card */}
       {currentTask && (
-        <div className="bg-[#eff4ff] p-4 rounded-xl space-y-1 border border-indigo-100/60">
+        <div className="bg-[#f1f1fa] p-4 rounded-xl space-y-1 border border-indigo-100/60">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wide text-[#464555] flex items-center gap-1">
-              <span className="material-symbols-outlined text-[16px] text-[#3525cd]">info</span>{' '}
+            <span className="text-xs font-bold uppercase tracking-wide text-[#545454] flex items-center gap-1">
+              <span className="material-symbols-outlined text-[16px] text-[#36348e]">info</span>{' '}
               Assignment Instructions
             </span>
-            <span className="text-xs text-[#3525cd] font-bold">{currentTask.title}</span>
+            <span className="text-xs text-[#36348e] font-bold">{currentTask.title}</span>
           </div>
-          <p className="text-xs text-[#121c2a] leading-relaxed">
+          <p className="text-xs text-[#292929] leading-relaxed">
             &quot;{currentTask.instructions}&quot;
           </p>
         </div>
@@ -204,7 +204,7 @@ export const GradingDetail: React.FC = () => {
       {/* Submitted Files Artifact Box */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-[#464555] uppercase tracking-wider">
+          <span className="text-xs font-bold text-[#545454] uppercase tracking-wider">
             Student Submission Artifact
           </span>
           <span className="text-[11px] text-[#006c49] font-semibold flex items-center gap-1">
@@ -214,13 +214,13 @@ export const GradingDetail: React.FC = () => {
         </div>
 
         {submission.fileName || submission.fileUrl ? (
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-[#e6eeff]/60 rounded-xl border border-indigo-100/60">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-[#e8e8f6]/60 rounded-xl border border-indigo-100/60">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 rounded-lg bg-[#fee2e2] text-[#ba1a1a] flex items-center justify-center shrink-0">
                 <span className="material-symbols-outlined text-[24px]">picture_as_pdf</span>
               </div>
               <div className="truncate">
-                <p className="text-xs sm:text-sm font-bold text-[#121c2a] truncate">
+                <p className="text-xs sm:text-sm font-bold text-[#292929] truncate">
                   {submission.fileName || 'Document.pdf'}
                 </p>
                 <p className="text-xs text-[#777587]">
@@ -232,28 +232,28 @@ export const GradingDetail: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleOpenFile(false)}
-                className="px-3 py-1.5 rounded-lg bg-white text-[#3525cd] text-xs font-bold hover:bg-[#dee9fc] shadow-xs flex items-center gap-1"
+                className="px-3 py-1.5 rounded-lg bg-white text-[#36348e] text-xs font-bold hover:bg-[#ffedc2] shadow-xs flex items-center gap-1"
               >
                 <span className="material-symbols-outlined text-[16px]">visibility</span> Preview
               </button>
               <button
                 type="button"
                 onClick={() => handleOpenFile(true)}
-                className="px-3 py-1.5 rounded-lg bg-white text-[#464555] text-xs font-bold hover:text-[#121c2a] hover:bg-[#dee9fc] shadow-xs flex items-center gap-1"
+                className="px-3 py-1.5 rounded-lg bg-white text-[#545454] text-xs font-bold hover:text-[#292929] hover:bg-[#ffedc2] shadow-xs flex items-center gap-1"
               >
                 <span className="material-symbols-outlined text-[16px]">download</span> Download
               </button>
             </div>
           </div>
         ) : (
-          <div className="p-4 bg-[#eff4ff] rounded-xl text-center text-xs text-[#777587] border border-indigo-100/60">
+          <div className="p-4 bg-[#f1f1fa] rounded-xl text-center text-xs text-[#777587] border border-indigo-100/60">
             No attached document for this submission.
           </div>
         )}
 
         {submission.studentNotes && (
-          <div className="p-3 bg-[#eff4ff] rounded-xl text-xs text-[#121c2a] border border-indigo-100/60">
-            <span className="font-bold text-[#464555]">Student note: </span>
+          <div className="p-3 bg-[#f1f1fa] rounded-xl text-xs text-[#292929] border border-indigo-100/60">
+            <span className="font-bold text-[#545454]">Student note: </span>
             {submission.studentNotes}
           </div>
         )}
@@ -263,16 +263,16 @@ export const GradingDetail: React.FC = () => {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-bold text-[#121c2a]">Grading Rubric &amp; Marks Awarded</h3>
+            <h3 className="text-sm font-bold text-[#292929]">Grading Rubric &amp; Marks Awarded</h3>
             <p className="text-xs text-[#777587]">
               Breakdown calculated from standardized grade criteria
             </p>
           </div>
           {/* Large Score Input Tile */}
-          <div className="flex items-center gap-2 bg-[#eff4ff] px-4 py-2 rounded-xl border border-indigo-100">
+          <div className="flex items-center gap-2 bg-[#f1f1fa] px-4 py-2 rounded-xl border border-indigo-100">
             <label
               htmlFor="totalScoreInput"
-              className="text-xs font-bold uppercase tracking-wider text-[#464555]"
+              className="text-xs font-bold uppercase tracking-wider text-[#545454]"
             >
               Score
             </label>
@@ -283,7 +283,7 @@ export const GradingDetail: React.FC = () => {
               max={submission.maxMarks}
               value={score}
               onChange={(e) => setScore(Number(e.target.value))}
-              className="w-16 h-10 text-center text-lg font-bold text-[#3525cd] bg-white rounded-lg shadow-xs focus:outline-none focus:ring-2 focus:ring-[#3525cd]"
+              className="w-16 h-10 text-center text-lg font-bold text-[#36348e] bg-white rounded-lg shadow-xs focus:outline-none focus:ring-2 focus:ring-[#36348e]"
             />
             <span className="text-base font-semibold text-[#777587]">
               / {submission.maxMarks}
@@ -294,12 +294,12 @@ export const GradingDetail: React.FC = () => {
         {/* Breakdown Matrix */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
           {/* Criterion 1 */}
-          <div className="bg-[#eff4ff] p-3 rounded-xl space-y-1 border border-indigo-100/50">
+          <div className="bg-[#f1f1fa] p-3 rounded-xl space-y-1 border border-indigo-100/50">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-[#121c2a]">Accuracy</span>
+              <span className="text-xs font-semibold text-[#292929]">Accuracy</span>
               <span className="text-xs font-bold text-[#006c49]">{accuracy} / 10</span>
             </div>
-            <div className="w-full bg-[#d9e3f6] h-1.5 rounded-full overflow-hidden">
+            <div className="w-full bg-[#d7d7ee] h-1.5 rounded-full overflow-hidden">
               <div
                 className="bg-[#006c49] h-full"
                 style={{ width: `${(accuracy / 10) * 100}%` }}
@@ -309,12 +309,12 @@ export const GradingDetail: React.FC = () => {
           </div>
 
           {/* Criterion 2 */}
-          <div className="bg-[#eff4ff] p-3 rounded-xl space-y-1 border border-indigo-100/50">
+          <div className="bg-[#f1f1fa] p-3 rounded-xl space-y-1 border border-indigo-100/50">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-[#121c2a]">Working Steps</span>
+              <span className="text-xs font-semibold text-[#292929]">Working Steps</span>
               <span className="text-xs font-bold text-[#006c49]">{steps} / 5</span>
             </div>
-            <div className="w-full bg-[#d9e3f6] h-1.5 rounded-full overflow-hidden">
+            <div className="w-full bg-[#d7d7ee] h-1.5 rounded-full overflow-hidden">
               <div
                 className="bg-[#006c49] h-full"
                 style={{ width: `${(steps / 5) * 100}%` }}
@@ -324,14 +324,14 @@ export const GradingDetail: React.FC = () => {
           </div>
 
           {/* Criterion 3 */}
-          <div className="bg-[#eff4ff] p-3 rounded-xl space-y-1 border border-indigo-100/50">
+          <div className="bg-[#f1f1fa] p-3 rounded-xl space-y-1 border border-indigo-100/50">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-[#121c2a]">Simplification</span>
-              <span className="text-xs font-bold text-[#684000]">{simplification} / 5</span>
+              <span className="text-xs font-semibold text-[#292929]">Simplification</span>
+              <span className="text-xs font-bold text-[#7a5b00]">{simplification} / 5</span>
             </div>
-            <div className="w-full bg-[#d9e3f6] h-1.5 rounded-full overflow-hidden">
+            <div className="w-full bg-[#d7d7ee] h-1.5 rounded-full overflow-hidden">
               <div
-                className="bg-[#684000] h-full"
+                className="bg-[#7a5b00] h-full"
                 style={{ width: `${(simplification / 5) * 100}%` }}
               ></div>
             </div>
@@ -343,14 +343,14 @@ export const GradingDetail: React.FC = () => {
       {/* Teacher Written Feedback Area */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <label className="text-xs font-bold text-[#121c2a] flex items-center gap-1">
-            <span className="material-symbols-outlined text-[16px] text-[#3525cd]">edit_note</span>
+          <label className="text-xs font-bold text-[#292929] flex items-center gap-1">
+            <span className="material-symbols-outlined text-[16px] text-[#36348e]">edit_note</span>
             Teacher Written Feedback
           </label>
           <button
             type="button"
             onClick={handleInsertQuickPhrase}
-            className="text-xs text-[#3525cd] font-bold hover:underline flex items-center gap-1"
+            className="text-xs text-[#36348e] font-bold hover:underline flex items-center gap-1"
           >
             <span className="material-symbols-outlined text-[14px]">bolt</span> Quick Phrases
           </button>
@@ -359,7 +359,7 @@ export const GradingDetail: React.FC = () => {
           rows={3}
           value={feedback}
           onChange={(e) => setFeedback(e.target.value)}
-          className="w-full bg-[#eff4ff] p-3 rounded-xl text-xs sm:text-sm text-[#121c2a] placeholder:text-[#777587] focus:outline-none focus:ring-2 focus:ring-[#3525cd]/30 border border-indigo-100/60"
+          className="w-full bg-[#f1f1fa] p-3 rounded-xl text-xs sm:text-sm text-[#292929] placeholder:text-[#777587] focus:outline-none focus:ring-2 focus:ring-[#36348e]/30 border border-indigo-100/60"
         ></textarea>
         <div className="flex items-center justify-between text-[#777587] text-[11px] px-1">
           <span>Visible to: Student and Parents on portal</span>
@@ -372,7 +372,7 @@ export const GradingDetail: React.FC = () => {
         <button
           type="button"
           onClick={handleReturnResubmission}
-          className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-[#dee9fc] hover:bg-[#d9e3f6] text-[#ba1a1a] font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5"
+          className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-[#dfdff2] hover:bg-[#d7d7ee] text-[#ba1a1a] font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5"
         >
           <span className="material-symbols-outlined text-[18px]">undo</span>
           Return for Resubmission
@@ -384,7 +384,7 @@ export const GradingDetail: React.FC = () => {
             disabled={isSubmitting || isPublished}
             title={isPublished ? 'This grade is already published' : undefined}
             onClick={() => handlePublishGrade(false)}
-            className="flex-1 sm:flex-initial px-4 py-2.5 rounded-lg bg-[#e6eeff] text-[#121c2a] hover:bg-[#dee9fc] font-semibold text-xs sm:text-sm transition-all disabled:opacity-50"
+            className="flex-1 sm:flex-initial px-4 py-2.5 rounded-lg bg-[#e8e8f6] text-[#292929] hover:bg-[#ffedc2] font-semibold text-xs sm:text-sm transition-all disabled:opacity-50"
           >
             Save Draft
           </button>
@@ -392,7 +392,7 @@ export const GradingDetail: React.FC = () => {
             type="button"
             disabled={isSubmitting}
             onClick={() => handlePublishGrade(true)}
-            className="flex-1 sm:flex-initial px-6 py-2.5 rounded-lg bg-[#3525cd] hover:bg-[#4f46e5] text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-98"
+            className="flex-1 sm:flex-initial px-6 py-2.5 rounded-lg bg-[#36348e] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-98"
           >
             <span className="material-symbols-outlined text-[18px]">publish</span>
             {isSubmitting ? 'Publishing Marks...' : 'Submit & Publish Grade'}

@@ -136,16 +136,16 @@ export const AchievementsFeedbackPage: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11px] font-bold text-[#684000] uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-[#7a5b00] uppercase tracking-wider">
               Student Recognition
             </span>
             <span className="text-[#c7c4d8]">•</span>
-            <span className="text-xs text-[#464555]">SRS Section 12</span>
+            <span className="text-xs text-[#545454]">SRS Section 12</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#121c2a] tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#292929] tracking-tight">
             Achievements, Stars &amp; Feedback
           </h1>
-          <p className="text-xs sm:text-sm text-[#464555] mt-0.5">
+          <p className="text-xs sm:text-sm text-[#545454] mt-0.5">
             Motivate students with verified digital stars, subject mastery badges, and positive reinforcement
             feedback logged directly to student portals.
           </p>
@@ -156,23 +156,23 @@ export const AchievementsFeedbackPage: React.FC = () => {
         {/* Award Form (5 cols) */}
         <div className="lg:col-span-5 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
           <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-4">
-            <span className="material-symbols-outlined text-[#684000] text-[22px]">
+            <span className="material-symbols-outlined text-[#7a5b00] text-[22px]">
               {editingId ? 'edit' : 'military_tech'}
             </span>
-            <h3 className="text-base font-bold text-[#121c2a]">
+            <h3 className="text-base font-bold text-[#292929]">
               {editingId ? 'Edit Recognition / Feedback' : 'Award Student Honor'}
             </h3>
           </div>
 
           <form onSubmit={handleAward} className="space-y-4 text-xs sm:text-sm">
             <div>
-              <label className="block text-xs font-semibold text-[#121c2a] mb-1">
+              <label className="block text-xs font-semibold text-[#292929] mb-1">
                 Recipient Student
               </label>
               <select
                 value={studentId}
                 onChange={(e) => setStudentId(e.target.value)}
-                className="w-full h-10 px-3 bg-[#eff4ff] border border-indigo-100/60 rounded-lg text-[#121c2a] focus:outline-none"
+                className="w-full h-10 px-3 bg-[#f1f1fa] border border-indigo-100/60 rounded-lg text-[#292929] focus:outline-none"
               >
                 {metrics.length === 0 ? (
                   <option value="" disabled>No students enrolled</option>
@@ -188,11 +188,11 @@ export const AchievementsFeedbackPage: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-[#121c2a] mb-1">Badge Type</label>
+                <label className="block text-xs font-semibold text-[#292929] mb-1">Badge Type</label>
                 <select
                   value={badgeType}
                   onChange={(e) => setBadgeType(e.target.value as AchievementItem['badgeType'])}
-                  className="w-full h-10 px-3 bg-[#eff4ff] border border-indigo-100/60 rounded-lg text-[#121c2a] focus:outline-none"
+                  className="w-full h-10 px-3 bg-[#f1f1fa] border border-indigo-100/60 rounded-lg text-[#292929] focus:outline-none"
                 >
                   <option value="star">⭐ Golden Star</option>
                   <option value="medal">🏅 Academic Medal</option>
@@ -203,7 +203,7 @@ export const AchievementsFeedbackPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#121c2a] mb-1">
+                <label className="block text-xs font-semibold text-[#292929] mb-1">
                   Stars Quantity
                 </label>
                 <input
@@ -213,18 +213,18 @@ export const AchievementsFeedbackPage: React.FC = () => {
                   disabled={badgeType === 'feedback'}
                   value={badgeType === 'feedback' ? 0 : starsCount}
                   onChange={(e) => setStarsCount(Number(e.target.value))}
-                  className="w-full h-10 px-3 bg-[#eff4ff] border border-indigo-100/60 rounded-lg text-[#121c2a] font-bold focus:outline-none disabled:opacity-50"
+                  className="w-full h-10 px-3 bg-[#f1f1fa] border border-indigo-100/60 rounded-lg text-[#292929] font-bold focus:outline-none disabled:opacity-50"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-[#121c2a] mb-1">Subject (optional)</label>
+                <label className="block text-xs font-semibold text-[#292929] mb-1">Subject (optional)</label>
                 <select
                   value={subjectId}
                   onChange={(e) => setSubjectId(e.target.value)}
-                  className="w-full h-10 px-3 bg-[#eff4ff] border border-indigo-100/60 rounded-lg text-[#121c2a] focus:outline-none"
+                  className="w-full h-10 px-3 bg-[#f1f1fa] border border-indigo-100/60 rounded-lg text-[#292929] focus:outline-none"
                 >
                   <option value="">General</option>
                   {subjectOptions.map((s) => (
@@ -234,11 +234,11 @@ export const AchievementsFeedbackPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#121c2a] mb-1">Visibility</label>
+                <label className="block text-xs font-semibold text-[#292929] mb-1">Visibility</label>
                 <select
                   value={visibility}
                   onChange={(e) => setVisibility(e.target.value as 'PUBLISHED' | 'INTERNAL')}
-                  className="w-full h-10 px-3 bg-[#eff4ff] border border-indigo-100/60 rounded-lg text-[#121c2a] focus:outline-none"
+                  className="w-full h-10 px-3 bg-[#f1f1fa] border border-indigo-100/60 rounded-lg text-[#292929] focus:outline-none"
                 >
                   <option value="PUBLISHED">Student &amp; Parents</option>
                   <option value="INTERNAL">Teacher-only note</option>
@@ -247,7 +247,7 @@ export const AchievementsFeedbackPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-[#121c2a] mb-1">
+              <label className="block text-xs font-semibold text-[#292929] mb-1">
                 Achievement Title
               </label>
               <input
@@ -257,12 +257,12 @@ export const AchievementsFeedbackPage: React.FC = () => {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g. Master of Reciprocal Fraction Logic"
-                className="w-full h-10 px-3 bg-[#eff4ff] border border-indigo-100/60 rounded-lg text-[#121c2a] focus:outline-none"
+                className="w-full h-10 px-3 bg-[#f1f1fa] border border-indigo-100/60 rounded-lg text-[#292929] focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-[#121c2a] mb-1">
+              <label className="block text-xs font-semibold text-[#292929] mb-1">
                 {badgeType === 'feedback' ? 'Feedback / Academic Comment' : 'Commendation Reason'}
               </label>
               <textarea
@@ -271,7 +271,7 @@ export const AchievementsFeedbackPage: React.FC = () => {
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Describe how the student demonstrated excellence, helpfulness, or diligence..."
-                className="w-full p-2.5 bg-[#eff4ff] border border-indigo-100/60 rounded-lg text-[#121c2a] focus:outline-none"
+                className="w-full p-2.5 bg-[#f1f1fa] border border-indigo-100/60 rounded-lg text-[#292929] focus:outline-none"
               ></textarea>
             </div>
 
@@ -280,7 +280,7 @@ export const AchievementsFeedbackPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="px-4 py-2.5 rounded-xl bg-[#e6eeff] text-[#121c2a] hover:bg-[#dee9fc] text-xs font-semibold"
+                  className="px-4 py-2.5 rounded-xl bg-[#e8e8f6] text-[#292929] hover:bg-[#ffedc2] text-xs font-semibold"
                 >
                   Cancel
                 </button>
@@ -288,7 +288,7 @@ export const AchievementsFeedbackPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={saving || metrics.length === 0}
-                className="flex-1 py-2.5 bg-[#3525cd] hover:bg-[#4f46e5] text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-98 disabled:opacity-60"
+                className="flex-1 py-2.5 bg-[#36348e] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-98 disabled:opacity-60"
               >
                 <span className="material-symbols-outlined text-[18px]">verified</span>
                 {saving
@@ -306,7 +306,7 @@ export const AchievementsFeedbackPage: React.FC = () => {
         {/* Honors Wall Feed (7 cols) */}
         <div className="lg:col-span-7 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-            <h3 className="text-base font-bold text-[#121c2a]">Recent Honors Wall</h3>
+            <h3 className="text-base font-bold text-[#292929]">Recent Honors Wall</h3>
             <span className="text-xs text-[#777587]">{achievements.length} Records</span>
           </div>
 
@@ -314,40 +314,40 @@ export const AchievementsFeedbackPage: React.FC = () => {
             {achievements.length === 0 ? (
               <div className="py-12 text-center text-[#777587]">
                 <span className="material-symbols-outlined text-4xl mb-2 text-slate-300">military_tech</span>
-                <p className="font-semibold text-sm text-[#121c2a]">No Honors Awarded Yet</p>
+                <p className="font-semibold text-sm text-[#292929]">No Honors Awarded Yet</p>
                 <p className="text-xs text-[#777587] mt-1">Use the award form on the left to commend student achievements.</p>
               </div>
             ) : (
               achievements.map((ach) => (
                 <div
                   key={ach.id}
-                  className="p-4 bg-[#eff4ff]/60 rounded-xl border border-indigo-100/50 flex items-start gap-4"
+                  className="p-4 bg-[#f1f1fa]/60 rounded-xl border border-indigo-100/50 flex items-start gap-4"
                 >
-                  <div className="w-12 h-12 rounded-2xl bg-amber-100 text-[#92400e] flex items-center justify-center text-2xl shrink-0 shadow-xs">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-100 text-[#8a6400] flex items-center justify-center text-2xl shrink-0 shadow-xs">
                     {BADGE_ICONS[ach.badgeType] || '⭐'}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <h4 className="text-sm font-bold text-[#121c2a] truncate">{ach.title}</h4>
+                      <h4 className="text-sm font-bold text-[#292929] truncate">{ach.title}</h4>
                       <div className="flex items-center gap-1 shrink-0">
                         <span className="text-[11px] text-[#777587] font-medium mr-1">{ach.awardedDate}</span>
                         <button
                           onClick={() => startEdit(ach)}
-                          className="p-1 rounded text-[#464555] hover:text-[#3525cd] hover:bg-white transition-colors"
+                          className="p-1 rounded text-[#545454] hover:text-[#b98200] hover:bg-white transition-colors"
                           title="Edit"
                         >
                           <span className="material-symbols-outlined text-[16px]">edit</span>
                         </button>
                         <button
                           onClick={() => handleDelete(ach)}
-                          className="p-1 rounded text-[#464555] hover:text-[#ba1a1a] hover:bg-white transition-colors"
+                          className="p-1 rounded text-[#545454] hover:text-[#ba1a1a] hover:bg-white transition-colors"
                           title="Delete"
                         >
                           <span className="material-symbols-outlined text-[16px]">delete</span>
                         </button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-[#3525cd] font-bold mt-0.5 flex-wrap">
+                    <div className="flex items-center gap-2 text-xs text-[#36348e] font-bold mt-0.5 flex-wrap">
                       <span>{ach.studentName}</span>
                       <span>•</span>
                       <span>{ach.className}</span>
@@ -360,16 +360,16 @@ export const AchievementsFeedbackPage: React.FC = () => {
                       {ach.starsCount > 0 && (
                         <>
                           <span>•</span>
-                          <span className="text-[#92400e]">+{ach.starsCount} Stars</span>
+                          <span className="text-[#8a6400]">+{ach.starsCount} Stars</span>
                         </>
                       )}
                       {ach.visibility === 'INTERNAL' && (
-                        <span className="px-1.5 py-0.5 rounded bg-slate-200 text-[#464555] text-[10px] uppercase">
+                        <span className="px-1.5 py-0.5 rounded bg-slate-200 text-[#545454] text-[10px] uppercase">
                           Teacher-only
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-[#464555] mt-1 leading-relaxed">{ach.reason}</p>
+                    <p className="text-xs text-[#545454] mt-1 leading-relaxed">{ach.reason}</p>
                   </div>
                 </div>
               ))

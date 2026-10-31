@@ -71,13 +71,13 @@ export const LearningResourcesPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-[#121c2a]">Learning Resources</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-[#292929]">Learning Resources</h1>
           <p className="text-xs text-[#777587]">Upload lecture slides, recorded Zoom videos, and worksheets.</p>
         </div>
 
         <button
           onClick={() => setIsModalOpen(true)}
-          className="px-3.5 py-2 bg-[#4f46e5] hover:bg-[#3525cd] text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 self-start sm:self-auto"
+          className="px-3.5 py-2 bg-[#4543a8] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 self-start sm:self-auto"
         >
           <span className="material-symbols-outlined text-[17px]">upload_file</span>
           <span>Upload File</span>
@@ -94,8 +94,8 @@ export const LearningResourcesPage: React.FC = () => {
               onClick={() => dispatch(setSelectedType(type))}
               className={`px-3 py-1 rounded-lg text-xs font-bold capitalize transition-colors ${
                 selectedType === type
-                  ? 'bg-[#3525cd] text-white shadow-xs'
-                  : 'bg-[#eff4ff] text-[#464555] hover:bg-[#dee9fc]'
+                  ? 'bg-[#ffc53a] text-[#1b1a47] shadow-xs'
+                  : 'bg-[#f1f1fa] text-[#545454] hover:bg-[#ffedc2]'
               }`}
             >
               {type === 'all' ? 'All Files' : type}
@@ -113,7 +113,7 @@ export const LearningResourcesPage: React.FC = () => {
             value={filterQuery}
             onChange={(e) => setFilterQuery(e.target.value)}
             placeholder="Search resources..."
-            className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-[#eff4ff] text-xs text-[#121c2a] placeholder:text-[#777587] focus:outline-none"
+            className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-[#f1f1fa] text-xs text-[#292929] placeholder:text-[#777587] focus:outline-none"
           />
         </div>
       </div>
@@ -123,7 +123,7 @@ export const LearningResourcesPage: React.FC = () => {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-[#eff4ff] text-[#464555] font-bold uppercase tracking-wider border-b border-slate-200 h-10 select-none">
+              <tr className="bg-[#f1f1fa] text-[#545454] font-bold uppercase tracking-wider border-b border-slate-200 h-10 select-none">
                 <th className="px-3 w-10 text-center">Type</th>
                 <th className="px-3 min-w-[220px]">Resource Title</th>
                 <th className="px-3 w-28">Class</th>
@@ -146,25 +146,25 @@ export const LearningResourcesPage: React.FC = () => {
                 filteredResources.map((res) => (
                   <tr key={res.id} className="hover:bg-slate-50 h-12 transition-colors">
                     <td className="px-3 text-center">
-                      <span className="material-symbols-outlined text-[18px] text-[#3525cd]">
+                      <span className="material-symbols-outlined text-[18px] text-[#36348e]">
                         {getTypeIcon(res.type)}
                       </span>
                     </td>
 
                     <td className="px-3">
-                      <span className="font-bold text-[#121c2a] block">{res.title}</span>
+                      <span className="font-bold text-[#292929] block">{res.title}</span>
                       <span className="text-[11px] text-[#777587] truncate block max-w-[280px]">
                         {res.description}
                       </span>
                     </td>
 
-                    <td className="px-3 font-bold text-[#3525cd]">
-                      <span className="px-2 py-0.5 rounded bg-[#eff4ff] border border-indigo-100">
+                    <td className="px-3 font-bold text-[#36348e]">
+                      <span className="px-2 py-0.5 rounded bg-[#f1f1fa] border border-indigo-100">
                         {res.className}
                       </span>
                     </td>
 
-                    <td className="px-3 text-[#464555] font-semibold">{res.subject}</td>
+                    <td className="px-3 text-[#545454] font-semibold">{res.subject}</td>
 
                     <td className="px-3 font-mono text-[#777587]">{res.fileSize || '—'}</td>
 
@@ -186,7 +186,7 @@ export const LearningResourcesPage: React.FC = () => {
                     <div className="flex items-center justify-end gap-1.5">
                       <button
                         onClick={() => handleTogglePublish(res.id, res.title, !res.isPublished)}
-                        className="p-1 text-[#464555] hover:text-[#121c2a] hover:bg-[#eff4ff] rounded transition-colors"
+                        className="p-1 text-[#545454] hover:text-[#292929] hover:bg-[#fff4d6] rounded transition-colors"
                         title={res.isPublished ? 'Unpublish' : 'Publish'}
                       >
                         <span className="material-symbols-outlined text-[17px]">
@@ -195,14 +195,14 @@ export const LearningResourcesPage: React.FC = () => {
                       </button>
                       <button
                         onClick={() => handleDelete(res.id, res.title)}
-                        className="p-1 text-[#464555] hover:text-[#ba1a1a] hover:bg-[#eff4ff] rounded transition-colors"
+                        className="p-1 text-[#545454] hover:text-[#ba1a1a] hover:bg-[#fff4d6] rounded transition-colors"
                         title="Delete resource"
                       >
                         <span className="material-symbols-outlined text-[17px]">delete</span>
                       </button>
                       <button
                         onClick={() => handleOpen(res.fileUrl, res.fileName)}
-                        className="px-2.5 py-1 rounded-lg bg-[#eff4ff] hover:bg-[#dee9fc] text-[#3525cd] font-bold text-[11px] flex items-center gap-1"
+                        className="px-2.5 py-1 rounded-lg bg-[#f1f1fa] hover:bg-[#ffedc2] text-[#36348e] font-bold text-[11px] flex items-center gap-1"
                       >
                         <span className="material-symbols-outlined text-[14px]">open_in_new</span>
                         Open

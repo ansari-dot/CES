@@ -174,12 +174,12 @@ export const CreateTaskForm: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-100 mb-5">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="p-1 rounded-md bg-[#e2dfff] text-[#0f0069]">
+            <span className="p-1 rounded-md bg-[#cdd4fb] text-[#23215c]">
               <span className="material-symbols-outlined text-[18px]">post_add</span>
             </span>
-            <h2 className="text-xl font-bold text-[#121c2a]">Create New Assignment</h2>
+            <h2 className="text-xl font-bold text-[#292929]">Create New Assignment</h2>
           </div>
-          <p className="text-xs text-[#464555]">
+          <p className="text-xs text-[#545454]">
             Publish curriculum-aligned homework tasks, problem sets, or projects directly to class
             streams.
           </p>
@@ -193,7 +193,7 @@ export const CreateTaskForm: React.FC = () => {
               setTotalMarks(20);
               dispatch(addToast({ message: 'Loaded template: Standard Assessment Set', type: 'info' }));
             }}
-            className="px-3 py-1.5 rounded-lg bg-[#eff4ff] text-[#464555] hover:text-[#121c2a] text-xs font-semibold flex items-center gap-1 border border-indigo-100/60"
+            className="px-3 py-1.5 rounded-lg bg-[#f1f1fa] text-[#545454] hover:text-[#292929] text-xs font-semibold flex items-center gap-1 border border-indigo-100/60"
           >
             <span className="material-symbols-outlined text-[18px]">library_books</span> Load from
             Template
@@ -205,24 +205,24 @@ export const CreateTaskForm: React.FC = () => {
         {/* Row 1: Title & Class & Subject */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
           <div className="md:col-span-6 space-y-1">
-            <label className="text-xs font-semibold text-[#121c2a]">Assignment Title</label>
+            <label className="text-xs font-semibold text-[#292929]">Assignment Title</label>
             <input
               type="text"
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Chapter Assessment: Problem Solving Practice"
-              className="w-full bg-[#eff4ff] px-3.5 py-2.5 rounded-lg text-[#121c2a] placeholder:text-[#777587] focus:outline-none focus:ring-2 focus:ring-[#3525cd]/20 border border-indigo-100/60"
+              className="w-full bg-[#f1f1fa] px-3.5 py-2.5 rounded-lg text-[#292929] placeholder:text-[#777587] focus:outline-none focus:ring-2 focus:ring-[#36348e]/20 border border-indigo-100/60"
             />
           </div>
 
           <div className="md:col-span-3 space-y-1">
-            <label className="text-xs font-semibold text-[#121c2a]">Target Class</label>
+            <label className="text-xs font-semibold text-[#292929]">Target Class</label>
             <select
               value={targetClassId}
               onChange={(e) => handleClassChange(e.target.value)}
               disabled={uniqueAssignedClasses.length === 0}
-              className="w-full bg-[#eff4ff] px-3.5 py-2.5 rounded-lg text-[#121c2a] focus:outline-none focus:ring-2 focus:ring-[#3525cd]/20 cursor-pointer border border-indigo-100/60"
+              className="w-full bg-[#f1f1fa] px-3.5 py-2.5 rounded-lg text-[#292929] focus:outline-none focus:ring-2 focus:ring-[#36348e]/20 cursor-pointer border border-indigo-100/60"
             >
               {uniqueAssignedClasses.length === 0 ? (
                 <option value="" disabled>No classes assigned</option>
@@ -237,12 +237,12 @@ export const CreateTaskForm: React.FC = () => {
           </div>
 
           <div className="md:col-span-3 space-y-1">
-            <label className="text-xs font-semibold text-[#121c2a]">Subject</label>
+            <label className="text-xs font-semibold text-[#292929]">Subject</label>
             <select
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               disabled={availableSubjects.length === 0}
-              className="w-full bg-[#eff4ff] px-3.5 py-2.5 rounded-lg text-[#121c2a] focus:outline-none focus:ring-2 focus:ring-[#3525cd]/20 cursor-pointer border border-indigo-100/60"
+              className="w-full bg-[#f1f1fa] px-3.5 py-2.5 rounded-lg text-[#292929] focus:outline-none focus:ring-2 focus:ring-[#36348e]/20 cursor-pointer border border-indigo-100/60"
             >
               {availableSubjects.length > 0 ? (
                 availableSubjects.map((subj) => (
@@ -257,24 +257,24 @@ export const CreateTaskForm: React.FC = () => {
 
         {/* Row 2: Instructions */}
         <div className="space-y-1">
-          <label className="text-xs font-semibold text-[#121c2a]">Instructions &amp; Requirements</label>
+          <label className="text-xs font-semibold text-[#292929]">Instructions &amp; Requirements</label>
           <textarea
             rows={2}
             value={instructions}
             onChange={(e) => setInstructions(e.target.value)}
             placeholder="Specify expectations, acceptable formats, and rubric guidance..."
-            className="w-full bg-[#eff4ff] px-3.5 py-2 rounded-lg text-[#121c2a] placeholder:text-[#777587] focus:outline-none focus:ring-2 focus:ring-[#3525cd]/20 border border-indigo-100/60"
+            className="w-full bg-[#f1f1fa] px-3.5 py-2 rounded-lg text-[#292929] placeholder:text-[#777587] focus:outline-none focus:ring-2 focus:ring-[#36348e]/20 border border-indigo-100/60"
           ></textarea>
         </div>
 
         {/* Row 3: Assessment Type, Due Date, Total Marks, Grading Scale */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#121c2a]">Assessment Type</label>
+            <label className="text-xs font-semibold text-[#292929]">Assessment Type</label>
             <select
               value={taskType}
               onChange={(e) => setTaskType(e.target.value as Task['taskType'])}
-              className="w-full bg-[#eff4ff] px-3.5 py-2 rounded-lg text-[#121c2a] focus:outline-none focus:ring-2 focus:ring-[#3525cd]/20 cursor-pointer border border-indigo-100/60"
+              className="w-full bg-[#f1f1fa] px-3.5 py-2 rounded-lg text-[#292929] focus:outline-none focus:ring-2 focus:ring-[#36348e]/20 cursor-pointer border border-indigo-100/60"
             >
               <option value="ASSIGNMENT">Assignment / Homework</option>
               <option value="QUIZ">Quiz</option>
@@ -284,17 +284,17 @@ export const CreateTaskForm: React.FC = () => {
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#121c2a]">Due Date &amp; Deadline</label>
+            <label className="text-xs font-semibold text-[#292929]">Due Date &amp; Deadline</label>
             <input
               type="datetime-local"
               value={deadline}
               onChange={(e) => setDeadline(e.target.value)}
-              className="w-full bg-[#eff4ff] px-3.5 py-2 rounded-lg text-[#121c2a] focus:outline-none focus:ring-2 focus:ring-[#3525cd]/20 cursor-pointer border border-indigo-100/60"
+              className="w-full bg-[#f1f1fa] px-3.5 py-2 rounded-lg text-[#292929] focus:outline-none focus:ring-2 focus:ring-[#36348e]/20 cursor-pointer border border-indigo-100/60"
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#121c2a]">Total Max Marks</label>
+            <label className="text-xs font-semibold text-[#292929]">Total Max Marks</label>
             <div className="flex items-center gap-2">
               <input
                 type="number"
@@ -302,18 +302,18 @@ export const CreateTaskForm: React.FC = () => {
                 max="100"
                 value={totalMarks}
                 onChange={(e) => setTotalMarks(Number(e.target.value))}
-                className="w-full bg-[#eff4ff] px-3.5 py-2 rounded-lg text-[#121c2a] font-bold focus:outline-none focus:ring-2 focus:ring-[#3525cd]/20 border border-indigo-100/60"
+                className="w-full bg-[#f1f1fa] px-3.5 py-2 rounded-lg text-[#292929] font-bold focus:outline-none focus:ring-2 focus:ring-[#36348e]/20 border border-indigo-100/60"
               />
               <span className="text-xs text-[#777587] font-semibold shrink-0">points</span>
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#121c2a]">Grading Scale</label>
+            <label className="text-xs font-semibold text-[#292929]">Grading Scale</label>
             <select
               value={gradingScale}
               onChange={(e) => setGradingScale(e.target.value as any)}
-              className="w-full bg-[#eff4ff] px-3.5 py-2 rounded-lg text-[#121c2a] focus:outline-none focus:ring-2 focus:ring-[#3525cd]/20 cursor-pointer border border-indigo-100/60"
+              className="w-full bg-[#f1f1fa] px-3.5 py-2 rounded-lg text-[#292929] focus:outline-none focus:ring-2 focus:ring-[#36348e]/20 cursor-pointer border border-indigo-100/60"
             >
               <option value="numeric">Points (0 - Max Marks)</option>
               <option value="letter">Letter Grades (A+ to F)</option>
@@ -325,7 +325,7 @@ export const CreateTaskForm: React.FC = () => {
 
         {/* Row 4: File Attachment Drag and Drop */}
         <div className="space-y-1">
-          <label className="text-xs font-semibold text-[#121c2a]">
+          <label className="text-xs font-semibold text-[#292929]">
             Task Handout / Reference Worksheet Upload
           </label>
           <input
@@ -342,12 +342,12 @@ export const CreateTaskForm: React.FC = () => {
               e.preventDefault();
               handleFileChosen(e.dataTransfer.files?.[0]);
             }}
-            className="bg-[#eff4ff] p-5 rounded-xl flex flex-col items-center justify-center text-center cursor-pointer hover:bg-[#dee9fc]/70 transition-all border border-dashed border-indigo-200"
+            className="bg-[#f1f1fa] p-5 rounded-xl flex flex-col items-center justify-center text-center cursor-pointer hover:bg-[#ffedc2]/70 transition-all border border-dashed border-indigo-200"
           >
-            <div className="w-10 h-10 rounded-full bg-white text-[#3525cd] flex items-center justify-center shadow-xs mb-1.5">
+            <div className="w-10 h-10 rounded-full bg-white text-[#36348e] flex items-center justify-center shadow-xs mb-1.5">
               <span className="material-symbols-outlined text-[24px]">cloud_upload</span>
             </div>
-            <p className="text-xs sm:text-sm font-bold text-[#121c2a]">
+            <p className="text-xs sm:text-sm font-bold text-[#292929]">
               Click to upload worksheet or drag &amp; drop document
             </p>
             <p className="text-[11px] text-[#777587] mt-0.5">
@@ -355,7 +355,7 @@ export const CreateTaskForm: React.FC = () => {
             </p>
             {attachedFile ? (
               <div className="flex items-center gap-2 mt-2">
-                <span className="px-2 py-0.5 rounded bg-indigo-100 text-[11px] font-semibold text-[#3525cd] font-mono">
+                <span className="px-2 py-0.5 rounded bg-indigo-100 text-[11px] font-semibold text-[#36348e] font-mono">
                   {attachedFile.name} ({(attachedFile.size / (1024 * 1024)).toFixed(1)} MB)
                 </span>
                 <button
@@ -384,11 +384,11 @@ export const CreateTaskForm: React.FC = () => {
               id="notifyParentsCheck"
               checked={notifyParents}
               onChange={(e) => setNotifyParents(e.target.checked)}
-              className="w-4 h-4 rounded text-[#3525cd] accent-[#3525cd] cursor-pointer"
+              className="w-4 h-4 rounded text-[#36348e] accent-[#36348e] cursor-pointer"
             />
             <label
               htmlFor="notifyParentsCheck"
-              className="text-xs text-[#464555] cursor-pointer font-medium"
+              className="text-xs text-[#545454] cursor-pointer font-medium"
             >
               Broadcast announcement notification to parent portals
             </label>
@@ -399,14 +399,14 @@ export const CreateTaskForm: React.FC = () => {
               type="button"
               disabled={saving}
               onClick={() => saveTask('DRAFT')}
-              className="px-4 py-2.5 rounded-lg bg-[#e6eeff] text-[#121c2a] hover:bg-[#dee9fc] text-xs font-semibold disabled:opacity-60"
+              className="px-4 py-2.5 rounded-lg bg-[#e8e8f6] text-[#292929] hover:bg-[#ffedc2] text-xs font-semibold disabled:opacity-60"
             >
               Save as Draft
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="px-6 py-2.5 rounded-lg bg-[#3525cd] hover:bg-[#4f46e5] text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5 active:scale-98 disabled:opacity-60"
+              className="px-6 py-2.5 rounded-lg bg-[#36348e] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5 active:scale-98 disabled:opacity-60"
             >
               <span className="material-symbols-outlined text-[18px]">send</span>
               {saving ? 'Saving...' : 'Publish Task to Class'}

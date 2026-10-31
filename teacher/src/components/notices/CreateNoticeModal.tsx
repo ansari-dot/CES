@@ -72,28 +72,28 @@ export const CreateNoticeModal: React.FC<CreateNoticeModalProps> = ({ isOpen, on
       title="Broadcast Academic Notice"
       subtitle="Publish academic updates, quiz announcements, or classroom alerts"
       icon="campaign"
-      iconBgColor="bg-[#e2dfff] text-[#3525cd]"
+      iconBgColor="bg-[#cdd4fb] text-[#36348e]"
     >
       <form onSubmit={handleSubmit} className="space-y-4 text-xs sm:text-sm">
         <div>
-          <label className="block text-xs font-semibold text-[#121c2a] mb-1">Notice Title</label>
+          <label className="block text-xs font-semibold text-[#292929] mb-1">Notice Title</label>
           <input
             type="text"
             required
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Bring Protractor & Ruler for Thursday Geometry Session"
-            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none"
+            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-semibold text-[#121c2a] mb-1">Target Class</label>
+            <label className="block text-xs font-semibold text-[#292929] mb-1">Target Class</label>
             <select
               value={targetClassId}
               onChange={(e) => setTargetClassId(e.target.value)}
-              className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none"
+              className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none"
             >
               <option value="all">All Assigned Classes</option>
               {classOptions.map((c) => (
@@ -105,11 +105,11 @@ export const CreateNoticeModal: React.FC<CreateNoticeModalProps> = ({ isOpen, on
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#121c2a] mb-1">Category</label>
+            <label className="block text-xs font-semibold text-[#292929] mb-1">Category</label>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none"
+              className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none"
             >
               <option>Homework &amp; Reminders</option>
               <option>Examination &amp; Scheduling</option>
@@ -120,14 +120,14 @@ export const CreateNoticeModal: React.FC<CreateNoticeModalProps> = ({ isOpen, on
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-[#121c2a] mb-1">Announcement Body</label>
+          <label className="block text-xs font-semibold text-[#292929] mb-1">Announcement Body</label>
           <textarea
             required
             rows={4}
             value={content}
             onChange={(e) => setContent(e.target.value)}
             placeholder="Write clear instructions for students and parents..."
-            className="w-full p-3 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none"
+            className="w-full p-3 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none"
           ></textarea>
         </div>
 
@@ -148,14 +148,14 @@ export const CreateNoticeModal: React.FC<CreateNoticeModalProps> = ({ isOpen, on
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-lg bg-[#e6eeff] text-[#121c2a] hover:bg-[#dee9fc] text-xs font-semibold"
+            className="px-4 py-2 rounded-lg bg-[#e8e8f6] text-[#292929] hover:bg-[#ffedc2] text-xs font-semibold"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={sending}
-            className="px-5 py-2 rounded-lg bg-[#3525cd] hover:bg-[#4f46e5] text-white font-semibold text-xs shadow-md transition-all disabled:opacity-60"
+            className="px-5 py-2 rounded-lg bg-[#36348e] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white font-semibold text-xs shadow-md transition-all disabled:opacity-60"
           >
             {sending ? 'Publishing…' : 'Publish Notice'}
           </button>

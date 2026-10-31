@@ -72,7 +72,7 @@ export default function App() {
   // Authentication Route Guard: Protect all routes and views
   if (!isAuthenticated) {
     return (
-      <div className="relative min-h-screen bg-[#f8faff]">
+      <div className="relative min-h-screen bg-[#f9f9fc]">
         <LoginPage />
         <ToastContainer />
       </div>
@@ -82,7 +82,7 @@ export default function App() {
   // First login: the portal stays locked until the temporary password is replaced
   if (mustChangePassword) {
     return (
-      <div className="relative min-h-screen bg-[#f8faff]">
+      <div className="relative min-h-screen bg-[#f9f9fc]">
         <SetPasswordModal />
         <ToastContainer />
       </div>

@@ -23,7 +23,7 @@ export const ToastContainer: React.FC = () => {
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className="pointer-events-auto bg-[#121c2a] text-[#f8f9ff] px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 transition-all transform animate-in fade-in slide-in-from-bottom-2 duration-200 border border-slate-700/50"
+          className="pointer-events-auto bg-[#292929] text-[#f9f9fc] px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 transition-all transform animate-in fade-in slide-in-from-bottom-2 duration-200 border border-slate-700/50"
         >
           {toast.type === 'success' && (
             <span className="material-symbols-outlined text-[#4edea3] text-[20px]">
@@ -36,7 +36,7 @@ export const ToastContainer: React.FC = () => {
             </span>
           )}
           {toast.type === 'info' && (
-            <span className="material-symbols-outlined text-[#a5b4fc] text-[20px]">
+            <span className="material-symbols-outlined text-[#a5a4db] text-[20px]">
               info
             </span>
           )}

@@ -76,8 +76,8 @@ export const VisualTimetableHub: React.FC = () => {
                 onClick={() => dispatch(setActiveDay(day))}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 ${
                   isSelected
-                    ? 'bg-[#3525cd] text-white shadow-xs'
-                    : 'bg-[#eff4ff] text-[#464555] hover:bg-[#dee9fc]'
+                    ? 'bg-[#ffc53a] text-[#1b1a47] shadow-xs'
+                    : 'bg-[#f1f1fa] text-[#545454] hover:bg-[#ffedc2]'
                 }`}
               >
                 {day}
@@ -88,18 +88,18 @@ export const VisualTimetableHub: React.FC = () => {
 
         {/* Timezone badge & Tab Buttons */}
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-50/70 border border-indigo-100 text-[#3525cd] text-xs font-semibold">
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-50/70 border border-indigo-100 text-[#36348e] text-xs font-semibold">
             <span className="material-symbols-outlined text-[15px]">schedule</span>
             <span>{teacherTz}</span>
           </div>
 
-          <div className="flex items-center gap-1 bg-[#eff4ff] p-1 rounded-lg border border-indigo-100">
+          <div className="flex items-center gap-1 bg-[#f1f1fa] p-1 rounded-lg border border-indigo-100">
           <button
             onClick={() => dispatch(setActiveViewTab('sessions'))}
             className={`px-3 py-1 rounded-md text-xs font-bold transition-colors flex items-center gap-1 ${
               activeViewTab === 'sessions'
-                ? 'bg-white text-[#3525cd] shadow-xs'
-                : 'text-[#464555] hover:text-[#121c2a]'
+                ? 'bg-white text-[#36348e] shadow-xs'
+                : 'text-[#545454] hover:text-[#292929]'
             }`}
           >
             <span className="material-symbols-outlined text-[16px]">co_present</span>
@@ -110,8 +110,8 @@ export const VisualTimetableHub: React.FC = () => {
             onClick={() => dispatch(setActiveViewTab('duty_roster'))}
             className={`px-3 py-1 rounded-md text-xs font-bold transition-colors flex items-center gap-1 ${
               activeViewTab === 'duty_roster'
-                ? 'bg-white text-[#3525cd] shadow-xs'
-                : 'text-[#464555] hover:text-[#121c2a]'
+                ? 'bg-white text-[#36348e] shadow-xs'
+                : 'text-[#545454] hover:text-[#292929]'
             }`}
           >
             <span className="material-symbols-outlined text-[16px]">shield_person</span>
@@ -122,8 +122,8 @@ export const VisualTimetableHub: React.FC = () => {
             onClick={() => dispatch(setActiveViewTab('bell_schedule'))}
             className={`px-3 py-1 rounded-md text-xs font-bold transition-colors flex items-center gap-1 ${
               activeViewTab === 'bell_schedule'
-                ? 'bg-white text-[#3525cd] shadow-xs'
-                : 'text-[#464555] hover:text-[#121c2a]'
+                ? 'bg-white text-[#36348e] shadow-xs'
+                : 'text-[#545454] hover:text-[#292929]'
             }`}
           >
             <span className="material-symbols-outlined text-[16px]">notifications_active</span>
@@ -133,7 +133,7 @@ export const VisualTimetableHub: React.FC = () => {
           <button
             onClick={() => dispatch(fetchSchoolTimetable())}
             disabled={isLoading}
-            className="p-1 rounded-md text-[#3525cd] hover:bg-white/60 ml-1"
+            className="p-1 rounded-md text-[#36348e] hover:bg-white/60 ml-1"
             title="Refresh"
           >
             <span className={`material-symbols-outlined text-[16px] ${isLoading ? 'animate-spin' : ''}`}>
@@ -150,7 +150,7 @@ export const VisualTimetableHub: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="bg-[#eff4ff] text-[#464555] font-bold uppercase tracking-wider border-b border-slate-200 h-10 select-none">
+                <tr className="bg-[#f1f1fa] text-[#545454] font-bold uppercase tracking-wider border-b border-slate-200 h-10 select-none">
                   <th className="px-3 w-28">Time</th>
                   <th className="px-3 w-20">Class</th>
                   <th className="px-3 min-w-[150px]">Subject &amp; Topic</th>
@@ -175,21 +175,21 @@ export const VisualTimetableHub: React.FC = () => {
                   return (
                     <tr
                       key={s.id}
-                      className={`hover:bg-[#eff4ff]/40 transition-colors h-13 ${
+                      className={`hover:bg-[#fff4d6]/40 transition-colors h-13 ${
                         isLive ? 'bg-emerald-50/40 font-medium' : ''
                       }`}
                     >
                       {/* Time */}
-                      <td className="px-3 font-mono font-bold text-[#121c2a]">
+                      <td className="px-3 font-mono font-bold text-[#292929]">
                         <div className="flex items-center gap-1">
-                          <span className="material-symbols-outlined text-[14px] text-[#3525cd]">schedule</span>
+                          <span className="material-symbols-outlined text-[14px] text-[#36348e]">schedule</span>
                           <span>{s.startTime} - {s.endTime}</span>
                         </div>
                       </td>
 
                       {/* Class */}
                       <td className="px-3">
-                        <span className="px-2 py-0.5 rounded bg-[#eff4ff] text-[#3525cd] font-bold text-[11px] border border-indigo-100">
+                        <span className="px-2 py-0.5 rounded bg-[#f1f1fa] text-[#36348e] font-bold text-[11px] border border-indigo-100">
                           {s.className}
                         </span>
                       </td>
@@ -197,11 +197,11 @@ export const VisualTimetableHub: React.FC = () => {
                       {/* Subject */}
                       <td className="px-3">
                         <div className="flex items-center gap-2">
-                          <span className="material-symbols-outlined text-[16px] text-[#3525cd]">
+                          <span className="material-symbols-outlined text-[16px] text-[#36348e]">
                             {s.subjectIcon}
                           </span>
                           <div>
-                            <span className="font-bold text-[#121c2a] block">{s.subject}</span>
+                            <span className="font-bold text-[#292929] block">{s.subject}</span>
                             <span className="text-[11px] text-[#777587] truncate max-w-[200px] block">
                               {s.topic}
                             </span>
@@ -210,7 +210,7 @@ export const VisualTimetableHub: React.FC = () => {
                       </td>
 
                       {/* Room */}
-                      <td className="px-3 font-semibold text-[#464555]">
+                      <td className="px-3 font-semibold text-[#545454]">
                         <span className="inline-flex items-center gap-1">
                           <span className="material-symbols-outlined text-[14px] text-[#777587]">meeting_room</span>
                           {s.roomNumber}
@@ -240,7 +240,7 @@ export const VisualTimetableHub: React.FC = () => {
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => handleLaunchZoom(s)}
-                            className="px-2.5 py-1 rounded-lg bg-[#4f46e5] hover:bg-[#3525cd] text-white font-bold text-[11px] flex items-center gap-1 shadow-xs"
+                            className="px-2.5 py-1 rounded-lg bg-[#4543a8] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white font-bold text-[11px] flex items-center gap-1 shadow-xs"
                           >
                             <span className="material-symbols-outlined text-[14px]">videocam</span>
                             Zoom
@@ -267,7 +267,7 @@ export const VisualTimetableHub: React.FC = () => {
                               };
                               dispatch(openLessonModal(legacy as any));
                             }}
-                            className="px-2 py-1 rounded-lg bg-[#eff4ff] hover:bg-[#dee9fc] text-[#121c2a] text-[11px] font-semibold"
+                            className="px-2 py-1 rounded-lg bg-[#f1f1fa] hover:bg-[#ffedc2] text-[#292929] text-[11px] font-semibold"
                           >
                             Log
                           </button>
@@ -289,7 +289,7 @@ export const VisualTimetableHub: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="bg-[#eff4ff] text-[#464555] font-bold uppercase tracking-wider border-b border-slate-200 h-10 select-none">
+                <tr className="bg-[#f1f1fa] text-[#545454] font-bold uppercase tracking-wider border-b border-slate-200 h-10 select-none">
                   <th className="px-3 w-28">Shift Time</th>
                   <th className="px-3 min-w-[160px]">Duty Post</th>
                   <th className="px-3 min-w-[150px]">Zone</th>
@@ -313,22 +313,22 @@ export const VisualTimetableHub: React.FC = () => {
 
                   return (
                     <tr key={d.id} className="hover:bg-slate-50 h-13 transition-colors">
-                      <td className="px-3 font-mono font-bold text-[#121c2a]">
+                      <td className="px-3 font-mono font-bold text-[#292929]">
                         {d.startTime.split(' ')[0]} - {d.endTime.split(' ')[0]}
                       </td>
 
                       <td className="px-3">
                         <div className="flex items-center gap-2">
-                          <span className="material-symbols-outlined text-[18px] text-[#92400e]">
+                          <span className="material-symbols-outlined text-[18px] text-[#8a6400]">
                             {d.icon}
                           </span>
-                          <span className="font-bold text-[#121c2a]">{d.dutyName}</span>
+                          <span className="font-bold text-[#292929]">{d.dutyName}</span>
                         </div>
                       </td>
 
-                      <td className="px-3 text-[#464555] font-medium">
+                      <td className="px-3 text-[#545454] font-medium">
                         <span className="inline-flex items-center gap-1">
-                          <span className="material-symbols-outlined text-[14px] text-[#3525cd]">
+                          <span className="material-symbols-outlined text-[14px] text-[#36348e]">
                             location_on
                           </span>
                           {d.zone}
@@ -350,10 +350,10 @@ export const VisualTimetableHub: React.FC = () => {
                         <span
                           className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
                             isCheckedIn
-                              ? 'bg-amber-100 text-[#92400e]'
+                              ? 'bg-amber-100 text-[#8a6400]'
                               : isDone
                               ? 'bg-emerald-100 text-[#065f46]'
-                              : 'bg-slate-100 text-[#464555]'
+                              : 'bg-slate-100 text-[#545454]'
                           }`}
                         >
                           {d.status.replace('_', ' ').toUpperCase()}
@@ -365,10 +365,10 @@ export const VisualTimetableHub: React.FC = () => {
                           onClick={() => handleDutyCheckIn(d)}
                           className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
                             isDone
-                              ? 'bg-slate-100 text-[#464555] hover:bg-slate-200'
+                              ? 'bg-slate-100 text-[#545454] hover:bg-slate-200'
                               : isCheckedIn
                               ? 'bg-[#006c49] text-white hover:bg-[#005236]'
-                              : 'bg-[#4f46e5] text-white hover:bg-[#3525cd]'
+                              : 'bg-[#4543a8] text-white hover:bg-[#ffc53a] hover:text-[#1b1a47]'
                           }`}
                         >
                           {isDone ? 'Reset' : isCheckedIn ? 'Done' : 'Check In'}
@@ -390,7 +390,7 @@ export const VisualTimetableHub: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="bg-[#eff4ff] text-[#464555] font-bold uppercase tracking-wider border-b border-slate-200 h-10 select-none">
+                <tr className="bg-[#f1f1fa] text-[#545454] font-bold uppercase tracking-wider border-b border-slate-200 h-10 select-none">
                   <th className="px-3 w-16 text-center">#</th>
                   <th className="px-3 min-w-[200px]">Period Name</th>
                   <th className="px-3 w-36">Bell Window</th>
@@ -417,23 +417,23 @@ export const VisualTimetableHub: React.FC = () => {
                           <span className="material-symbols-outlined text-[17px]" style={{ color: p.color }}>
                             {p.icon}
                           </span>
-                          <span className="font-bold text-[#121c2a]">{p.name}</span>
+                          <span className="font-bold text-[#292929]">{p.name}</span>
                         </div>
                       </td>
-                      <td className="px-3 font-mono font-semibold text-[#121c2a]">
+                      <td className="px-3 font-mono font-semibold text-[#292929]">
                         {p.startTime} – {p.endTime}
                       </td>
-                      <td className="px-3 text-center font-semibold text-[#464555]">
+                      <td className="px-3 text-center font-semibold text-[#545454]">
                         {p.durationMinutes} min
                       </td>
                       <td className="px-3 text-right">
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
                             p.type === 'break'
-                              ? 'bg-amber-100 text-[#92400e]'
+                              ? 'bg-amber-100 text-[#8a6400]'
                               : p.type === 'duty'
                               ? 'bg-blue-100 text-[#0284c7]'
-                              : 'bg-indigo-100 text-[#3525cd]'
+                              : 'bg-indigo-100 text-[#36348e]'
                           }`}
                         >
                           {p.type}

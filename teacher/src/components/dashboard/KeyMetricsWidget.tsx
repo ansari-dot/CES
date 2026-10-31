@@ -95,8 +95,8 @@ export const KeyMetricsWidget: React.FC = () => {
     <div className="w-full">
       <div className="flex items-center justify-between mb-3 px-0.5">
         <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-[20px] text-[#3525cd]">query_stats</span>
-          <h2 className="text-sm font-bold text-[#121c2a] uppercase tracking-wider">
+          <span className="material-symbols-outlined text-[20px] text-[#36348e]">query_stats</span>
+          <h2 className="text-sm font-bold text-[#292929] uppercase tracking-wider">
             Key Metrics
           </h2>
         </div>
@@ -128,12 +128,12 @@ export const KeyMetricsWidget: React.FC = () => {
             {/* Middle: Big Metric Number & Title */}
             <div>
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl sm:text-4xl font-black text-[#121c2a] tracking-tight">
+                <span className="text-3xl sm:text-4xl font-black text-[#292929] tracking-tight">
                   {metric.count}
                 </span>
                 <span className="text-xs font-bold text-[#777587] truncate">{metric.unit}</span>
               </div>
-              <h3 className="text-sm font-bold text-[#121c2a] mt-1 group-hover:text-[#3525cd] transition-colors">
+              <h3 className="text-sm font-bold text-[#292929] mt-1 group-hover:text-[#b98200] transition-colors">
                 {metric.title}
               </h3>
             </div>
@@ -141,7 +141,7 @@ export const KeyMetricsWidget: React.FC = () => {
             {/* Bottom Row: Context note & Quick Arrow */}
             <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-[#777587]">
               <span className="font-medium truncate">{metric.subtext}</span>
-              <span className="material-symbols-outlined text-[18px] text-[#3525cd] transform group-hover:translate-x-1 transition-transform">
+              <span className="material-symbols-outlined text-[18px] text-[#36348e] transform group-hover:translate-x-1 transition-transform">
                 arrow_forward
               </span>
             </div>

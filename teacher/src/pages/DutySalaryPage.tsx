@@ -42,16 +42,16 @@ export const DutySalaryPage: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11px] font-bold text-[#684000] uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-[#7a5b00] uppercase tracking-wider">
               Faculty Service &amp; Compensation
             </span>
             <span className="text-[#c7c4d8]">•</span>
-            <span className="text-xs text-[#464555]">SRS Section 15</span>
+            <span className="text-xs text-[#545454]">SRS Section 15</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#121c2a] tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#292929] tracking-tight">
             Teaching Duty &amp; Salary Summary
           </h1>
-          <p className="text-xs sm:text-sm text-[#464555] mt-0.5 max-w-2xl">
+          <p className="text-xs sm:text-sm text-[#545454] mt-0.5 max-w-2xl">
             Track authorized classroom teaching hours, verify recorded Zoom session durations, and
             submit time adjustment vouchers to Academic Operations.
           </p>
@@ -96,19 +96,19 @@ export const DutySalaryPage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-100">
           <span className="text-[11px] uppercase font-bold text-[#777587]">Payroll Cycle</span>
-          <h3 className="text-sm font-bold text-[#121c2a] mt-1">{summary.payrollPeriod}</h3>
+          <h3 className="text-sm font-bold text-[#292929] mt-1">{summary.payrollPeriod}</h3>
           <span className="text-xs text-[#006c49] font-bold mt-2 block">Status: {summary.payrollStatus}</span>
         </div>
 
         <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-100">
           <span className="text-[11px] uppercase font-bold text-[#777587]">Total Duty Hours</span>
           <div className="flex items-baseline gap-1 mt-1">
-            <span className="text-2xl font-black text-[#121c2a]">{summary.totalDutyHours}</span>
+            <span className="text-2xl font-black text-[#292929]">{summary.totalDutyHours}</span>
             <span className="text-xs text-[#777587]">/ {summary.targetDutyHours} hrs target</span>
           </div>
-          <div className="w-full bg-[#dee9fc] h-1.5 rounded-full overflow-hidden mt-2">
+          <div className="w-full bg-[#dfdff2] h-1.5 rounded-full overflow-hidden mt-2">
             <div
-              className="bg-[#3525cd] h-full transition-all duration-300"
+              className="bg-[#36348e] h-full transition-all duration-300"
               style={{
                 width: `${
                   summary.targetDutyHours > 0
@@ -123,7 +123,7 @@ export const DutySalaryPage: React.FC = () => {
         <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-100">
           <span className="text-[11px] uppercase font-bold text-[#777587]">Sessions Delivered</span>
           <div className="flex items-baseline gap-1 mt-1">
-            <span className="text-2xl font-black text-[#121c2a]">
+            <span className="text-2xl font-black text-[#292929]">
               {summary.completedLessonsCount}
             </span>
             <span className="text-xs text-[#777587]">/ {summary.scheduledLessonsCount} scheduled</span>
@@ -137,7 +137,7 @@ export const DutySalaryPage: React.FC = () => {
 
         <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-100">
           <span className="text-[11px] uppercase font-bold text-[#777587]">Faculty Rate Tier</span>
-          <h3 className="text-sm font-bold text-[#121c2a] mt-1">{summary.hourlyRate}</h3>
+          <h3 className="text-sm font-bold text-[#292929] mt-1">{summary.hourlyRate}</h3>
           <span className="text-xs text-[#777587] mt-2 block">
             Model: {summary.salaryModel || 'Hybrid'} • ID: {teacher?.employeeId || 'Faculty'}
           </span>
@@ -152,7 +152,7 @@ export const DutySalaryPage: React.FC = () => {
               <span className="material-symbols-outlined text-[20px]">calendar_today</span>
             </div>
             <div>
-              <h3 className="text-sm font-bold text-[#121c2a]">
+              <h3 className="text-sm font-bold text-[#292929]">
                 Daily Teaching Duty &amp; Hours Tracker
               </h3>
               <p className="text-[11px] text-[#777587]">
@@ -164,7 +164,7 @@ export const DutySalaryPage: React.FC = () => {
           {selectedDateFilter !== 'all' && (
             <button
               onClick={() => dispatch(setSelectedDateFilter('all'))}
-              className="text-xs text-[#3525cd] font-bold hover:underline flex items-center gap-1 self-start sm:self-auto"
+              className="text-xs text-[#36348e] font-bold hover:underline flex items-center gap-1 self-start sm:self-auto"
             >
               <span>Show All Days ({logs.length} sessions)</span>
               <span className="material-symbols-outlined text-[16px]">close</span>
@@ -195,7 +195,7 @@ export const DutySalaryPage: React.FC = () => {
                 >
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-[#121c2a]">{day.date}</span>
+                      <span className="text-xs font-bold text-[#292929]">{day.date}</span>
                       {day.dayName && (
                         <span className="text-[10px] text-slate-500 uppercase font-bold">
                           ({day.dayName})
@@ -212,7 +212,7 @@ export const DutySalaryPage: React.FC = () => {
                   <div className="my-1.5">
                     <span className="text-[10px] text-slate-500 uppercase font-semibold block">Hours Taught</span>
                     <div className="flex items-baseline gap-1 mt-0.5">
-                      <span className="text-xl font-black text-[#121c2a]">
+                      <span className="text-xl font-black text-[#292929]">
                         {day.totalDutyHours} hrs
                       </span>
                       <span className="text-xs text-slate-500 font-semibold">
@@ -242,13 +242,13 @@ export const DutySalaryPage: React.FC = () => {
 
       {/* Verified Duty Logs Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-6">
-        <div className="p-4 bg-[#eff4ff]/60 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="p-4 bg-[#f1f1fa]/60 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[#3525cd] text-[20px]">
+            <span className="material-symbols-outlined text-[#36348e] text-[20px]">
               receipt_long
             </span>
             <div>
-              <h3 className="text-sm font-bold text-[#121c2a]">Verified Classroom Duty Logs</h3>
+              <h3 className="text-sm font-bold text-[#292929]">Verified Classroom Duty Logs</h3>
               <p className="text-[11px] text-[#777587]">
                 Calculated from verified Zoom participant join/leave timestamps across assigned virtual classrooms
               </p>
@@ -260,7 +260,7 @@ export const DutySalaryPage: React.FC = () => {
               Showing {filteredLogs.length} of {logs.length} sessions
             </span>
             {selectedDateFilter !== 'all' && (
-              <span className="px-2 py-0.5 bg-indigo-100 text-[#3525cd] rounded-md font-bold text-[10px]">
+              <span className="px-2 py-0.5 bg-indigo-100 text-[#36348e] rounded-md font-bold text-[10px]">
                 Filtered: {selectedDateFilter}
               </span>
             )}
@@ -270,7 +270,7 @@ export const DutySalaryPage: React.FC = () => {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs sm:text-sm">
             <thead>
-              <tr className="bg-[#eff4ff] text-[#464555] text-xs font-bold uppercase tracking-wider border-b border-slate-100">
+              <tr className="bg-[#f1f1fa] text-[#545454] text-xs font-bold uppercase tracking-wider border-b border-slate-100">
                 <th className="p-3">Session Date</th>
                 <th className="p-3">Class &amp; Subject</th>
                 <th className="p-3">Scheduled Period</th>
@@ -294,15 +294,15 @@ export const DutySalaryPage: React.FC = () => {
               ) : (
                 filteredLogs.map((log: DutyLogItem) => (
                   <tr key={log.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="p-3 font-semibold text-[#121c2a]">
+                    <td className="p-3 font-semibold text-[#292929]">
                       <div>{log.date}</div>
                     </td>
                     <td className="p-3">
-                      <span className="font-bold text-[#121c2a] block">{log.className}</span>
+                      <span className="font-bold text-[#292929] block">{log.className}</span>
                       <span className="text-xs text-[#777587]">{log.subject}</span>
                     </td>
                     <td className="p-3">
-                      <span className="font-mono text-xs text-[#464555] block">{log.scheduledTime}</span>
+                      <span className="font-mono text-xs text-[#545454] block">{log.scheduledTime}</span>
                       {log.actualJoinTime && (
                         <span className="text-[10px] text-slate-500 block font-mono mt-0.5">
                           Joined: {String(log.actualJoinTime).substring(11, 16)}
@@ -363,7 +363,7 @@ export const DutySalaryPage: React.FC = () => {
                     <td className="p-3 text-right">
                       <button
                         onClick={() => dispatch(openAdjustmentModal(log))}
-                        className="px-2.5 py-1 rounded-lg bg-[#eff4ff] hover:bg-[#dee9fc] text-[#3525cd] text-xs font-bold transition-colors"
+                        className="px-2.5 py-1 rounded-lg bg-[#f1f1fa] hover:bg-[#ffedc2] text-[#36348e] text-xs font-bold transition-colors"
                       >
                         Request Correction
                       </button>
@@ -379,22 +379,22 @@ export const DutySalaryPage: React.FC = () => {
       {/* Pending Adjustment Memos */}
       {adjustments.length > 0 && (
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 mb-6">
-          <h3 className="text-sm font-bold text-[#121c2a] mb-3">
+          <h3 className="text-sm font-bold text-[#292929] mb-3">
             Pending Time Correction Memos
           </h3>
           <div className="space-y-2">
             {adjustments.map((adj) => (
               <div
                 key={adj.id}
-                className="p-3 bg-[#eff4ff] rounded-xl flex items-center justify-between text-xs border border-indigo-100/60"
+                className="p-3 bg-[#f1f1fa] rounded-xl flex items-center justify-between text-xs border border-indigo-100/60"
               >
                 <div>
-                  <span className="font-bold text-[#121c2a]">{adj.lessonName}</span>
+                  <span className="font-bold text-[#292929]">{adj.lessonName}</span>
                   <span className="text-[#777587] ml-2">
                     {adj.currentDuration}m → {adj.requestedDuration}m ({adj.reason})
                   </span>
                 </div>
-                <span className="px-2 py-0.5 rounded-full bg-[#ffddb8] text-[#92400e] font-bold text-[10px]">
+                <span className="px-2 py-0.5 rounded-full bg-[#ffe9b0] text-[#8a6400] font-bold text-[10px]">
                   Pending Dean Review
                 </span>
               </div>

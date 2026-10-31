@@ -17,10 +17,10 @@ export const AttendanceStats: React.FC = () => {
   return (
     <div className="bg-white rounded-xl p-6 shadow-sm flex flex-col justify-between border border-slate-100">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-xs font-bold text-[#121c2a] uppercase tracking-wider">
+        <h3 className="text-xs font-bold text-[#292929] uppercase tracking-wider">
           Attendance Breakdown
         </h3>
-        <span className="text-xs text-[#464555] font-semibold">{total} Total Students</span>
+        <span className="text-xs text-[#545454] font-semibold">{total} Total Students</span>
       </div>
 
       {/* 4 Stat Boxes */}
@@ -38,23 +38,23 @@ export const AttendanceStats: React.FC = () => {
         </div>
 
         {/* Late */}
-        <div className="bg-[#fffbeb] rounded-xl p-2.5 border border-amber-100">
-          <span className="block text-xl font-bold text-[#92400e]">{lateCount}</span>
-          <span className="text-[11px] font-bold text-[#92400e] uppercase">Late</span>
+        <div className="bg-[#fff8e5] rounded-xl p-2.5 border border-amber-100">
+          <span className="block text-xl font-bold text-[#8a6400]">{lateCount}</span>
+          <span className="text-[11px] font-bold text-[#8a6400] uppercase">Late</span>
         </div>
 
         {/* Leave */}
-        <div className="bg-[#eff4ff] rounded-xl p-2.5 border border-indigo-100">
-          <span className="block text-xl font-bold text-[#464555]">{leaveCount}</span>
-          <span className="text-[11px] font-bold text-[#464555] uppercase">Leave</span>
+        <div className="bg-[#f1f1fa] rounded-xl p-2.5 border border-indigo-100">
+          <span className="block text-xl font-bold text-[#545454]">{leaveCount}</span>
+          <span className="text-[11px] font-bold text-[#545454] uppercase">Leave</span>
         </div>
       </div>
 
       {/* Visual ratio bar */}
       <div className="mt-2">
-        <div className="flex justify-between items-center text-xs text-[#464555] mb-1.5 font-medium">
+        <div className="flex justify-between items-center text-xs text-[#545454] mb-1.5 font-medium">
           <span>Current Presence Ratio</span>
-          <span className="font-bold text-[#121c2a]">{presentPct}% Net</span>
+          <span className="font-bold text-[#292929]">{presentPct}% Net</span>
         </div>
         <div className="w-full h-2.5 rounded-full bg-slate-100 overflow-hidden flex">
           <div
@@ -63,7 +63,7 @@ export const AttendanceStats: React.FC = () => {
             title="Present"
           ></div>
           <div
-            className="bg-[#ffb95f] h-full transition-all duration-300"
+            className="bg-[#ffc53a] h-full transition-all duration-300"
             style={{ width: `${latePct}%` }}
             title="Late"
           ></div>

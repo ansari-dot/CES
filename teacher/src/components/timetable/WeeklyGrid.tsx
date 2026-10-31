@@ -68,7 +68,7 @@ export const WeeklyGrid: React.FC = () => {
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse min-w-[700px]">
           <thead>
-            <tr className="bg-[#eff4ff] text-[#464555] text-xs font-bold uppercase tracking-wider select-none border-b border-slate-100">
+            <tr className="bg-[#f1f1fa] text-[#545454] text-xs font-bold uppercase tracking-wider select-none border-b border-slate-100">
               <th className="p-3 w-36 border-r border-slate-100 text-center">Time</th>
               {days.map((day) => {
                 const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
@@ -79,7 +79,7 @@ export const WeeklyGrid: React.FC = () => {
                   <th
                     key={day}
                     className={`p-3 text-center border-r border-slate-100 ${
-                      isToday ? 'bg-indigo-100/60 text-[#3525cd]' : ''
+                      isToday ? 'bg-indigo-100/60 text-[#36348e]' : ''
                     }`}
                   >
                     {day} {isToday ? '(Today)' : ''}
@@ -91,8 +91,8 @@ export const WeeklyGrid: React.FC = () => {
           <tbody className="divide-y divide-slate-100 text-xs">
             {timeSlots.map((slot) => (
               <tr key={slot.startTime} className="hover:bg-slate-50/50">
-                <td className="p-3 text-center bg-[#f8f9ff] font-semibold border-r border-slate-100">
-                  <span className="block text-sm font-bold text-[#121c2a] font-mono">{slot.startTime}</span>
+                <td className="p-3 text-center bg-[#f9f9fc] font-semibold border-r border-slate-100">
+                  <span className="block text-sm font-bold text-[#292929] font-mono">{slot.startTime}</span>
                   <span className="text-[11px] text-[#777587] font-mono">– {slot.endTime}</span>
                 </td>
                 {days.map((day) => {
@@ -122,14 +122,14 @@ export const WeeklyGrid: React.FC = () => {
                         >
                           <div>
                             <div className="flex items-center justify-between gap-1 mb-1">
-                              <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-[#3525cd] text-[10px] font-bold">
+                              <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-[#36348e] text-[10px] font-bold">
                                 {lesson.className}
                               </span>
                             </div>
-                            <h4 className="font-bold text-xs text-[#121c2a] leading-tight">
+                            <h4 className="font-bold text-xs text-[#292929] leading-tight">
                               {lesson.subject}
                             </h4>
-                            <p className="text-[11px] text-[#464555] line-clamp-1 mt-0.5">
+                            <p className="text-[11px] text-[#545454] line-clamp-1 mt-0.5">
                               {lesson.topic}
                             </p>
                           </div>
@@ -137,7 +137,7 @@ export const WeeklyGrid: React.FC = () => {
                           <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100/60">
                             <span
                               className={`text-[10px] font-bold flex items-center gap-0.5 ${
-                                lesson.status === 'completed' ? 'text-[#006c49]' : 'text-[#3525cd]'
+                                lesson.status === 'completed' ? 'text-[#006c49]' : 'text-[#36348e]'
                               }`}
                             >
                               <span className="material-symbols-outlined text-[13px]">
@@ -147,7 +147,7 @@ export const WeeklyGrid: React.FC = () => {
                             </span>
                             <button
                               onClick={(e) => handleLaunchZoom(lesson, e)}
-                              className="text-[10px] px-2 py-0.5 rounded bg-indigo-50 text-[#3525cd] hover:bg-indigo-100 font-semibold"
+                              className="text-[10px] px-2 py-0.5 rounded bg-indigo-50 text-[#36348e] hover:bg-[#ffedc2] font-semibold"
                             >
                               Zoom
                             </button>

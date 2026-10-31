@@ -97,7 +97,7 @@ export const fetchSchoolTimetable = createAsyncThunk(
             type: 'instructional',
             bellChime: true,
             icon: 'school',
-            color: '#3525cd',
+            color: '#36348e',
           });
           pIdx++;
         }
@@ -131,7 +131,7 @@ export const fetchSchoolTimetable = createAsyncThunk(
           endTime: String(s.endTime).substring(0, 5),
           status: 'scheduled',
           enrolledStudentsCount: 25,
-          colorTag: '#3525cd',
+          colorTag: '#36348e',
           subjectIcon: 'school'
         };
       });

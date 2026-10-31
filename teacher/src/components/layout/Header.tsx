@@ -54,19 +54,19 @@ export const Header: React.FC = () => {
         {/* Mobile Hamburger Menu Toggle */}
         <button
           onClick={() => dispatch(toggleMobileSidebar())}
-          className="lg:hidden p-2 rounded-lg text-[#464555] hover:text-[#121c2a] hover:bg-[#eff4ff] transition-colors"
+          className="lg:hidden p-2 rounded-lg text-[#545454] hover:text-[#292929] hover:bg-[#fff4d6] transition-colors"
           title="Open Menu"
         >
           <span className="material-symbols-outlined text-[24px]">menu</span>
         </button>
 
         {/* Class Filter Selector */}
-        <div className="flex items-center gap-1.5 bg-[#eff4ff] px-2.5 py-1.5 rounded-lg text-[#121c2a] border border-indigo-100/60 max-w-[180px] sm:max-w-xs">
-          <span className="material-symbols-outlined text-[17px] text-[#464555] shrink-0">class</span>
+        <div className="flex items-center gap-1.5 bg-[#f1f1fa] px-2.5 py-1.5 rounded-lg text-[#292929] border border-indigo-100/60 max-w-[180px] sm:max-w-xs">
+          <span className="material-symbols-outlined text-[17px] text-[#545454] shrink-0">class</span>
           <select
             value={selectedClassId}
             onChange={(e) => dispatch(setSelectedClassId(e.target.value))}
-            className="bg-transparent text-xs sm:text-sm font-semibold text-[#121c2a] focus:outline-none cursor-pointer truncate pr-1"
+            className="bg-transparent text-xs sm:text-sm font-semibold text-[#292929] focus:outline-none cursor-pointer truncate pr-1"
           >
             <option value="all">All Classes</option>
             {teacher.assignedClasses.map((cls, idx) => (
@@ -78,19 +78,19 @@ export const Header: React.FC = () => {
         </div>
 
         {/* Global Search Bar */}
-        <div className="hidden md:flex items-center gap-2 bg-[#e6eeff] px-3 py-1.5 rounded-lg w-56 lg:w-72">
-          <span className="material-symbols-outlined text-[18px] text-[#464555]">search</span>
+        <div className="hidden md:flex items-center gap-2 bg-[#e8e8f6] px-3 py-1.5 rounded-lg w-56 lg:w-72">
+          <span className="material-symbols-outlined text-[18px] text-[#545454]">search</span>
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => dispatch(setSearchQuery(e.target.value))}
             placeholder="Search students, lessons, tasks..."
-            className="bg-transparent text-xs sm:text-sm text-[#121c2a] placeholder:text-[#464555] focus:outline-none w-full"
+            className="bg-transparent text-xs sm:text-sm text-[#292929] placeholder:text-[#545454] focus:outline-none w-full"
           />
           {searchQuery && (
             <button
               onClick={() => dispatch(setSearchQuery(''))}
-              className="text-[#777587] hover:text-[#121c2a]"
+              className="text-[#777587] hover:text-[#292929]"
             >
               <span className="material-symbols-outlined text-[16px]">close</span>
             </button>
@@ -104,14 +104,14 @@ export const Header: React.FC = () => {
         <div className="relative" ref={tzMenuRef}>
           <button
             onClick={() => setIsTzOpen((prev) => !prev)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#eff4ff] hover:bg-[#e0eaff] border border-indigo-100/80 text-[#121c2a] transition-all text-xs font-semibold shadow-xs"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#f1f1fa] hover:bg-[#e0e0f4] border border-indigo-100/80 text-[#292929] transition-all text-xs font-semibold shadow-xs"
             title={`Timezone: ${currentTimezoneInfo ? currentTimezoneInfo.label : teacherTimezone} (${timezoneSource === 'manual' ? 'Manual Selection' : 'Auto-Detected'})`}
           >
-            <span className="material-symbols-outlined text-[17px] text-[#3525cd]">schedule</span>
+            <span className="material-symbols-outlined text-[17px] text-[#36348e]">schedule</span>
             <span className="max-w-[85px] sm:max-w-[130px] truncate text-[11px] sm:text-xs">
               {currentTimezoneInfo ? currentTimezoneInfo.label.split(' ')[0] : teacherTimezone.split('/')[1] || teacherTimezone}
             </span>
-            <span className="text-[10px] font-mono px-1 py-0.5 rounded bg-indigo-100 text-[#3525cd] font-bold hidden sm:inline">
+            <span className="text-[10px] font-mono px-1 py-0.5 rounded bg-indigo-100 text-[#36348e] font-bold hidden sm:inline">
               {currentTimezoneInfo?.offset || 'Local'}
             </span>
             <span className="material-symbols-outlined text-[14px] text-slate-400">
@@ -121,13 +121,13 @@ export const Header: React.FC = () => {
 
           {isTzOpen && (
             <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
-              <div className="p-3 bg-[#eff4ff] border-b border-slate-100 flex items-center justify-between">
+              <div className="p-3 bg-[#f1f1fa] border-b border-slate-100 flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[16px] text-[#3525cd]">public</span>
-                    <span className="font-bold text-xs text-[#121c2a]">Regional Timezone</span>
+                    <span className="material-symbols-outlined text-[16px] text-[#36348e]">public</span>
+                    <span className="font-bold text-xs text-[#292929]">Regional Timezone</span>
                   </div>
-                  <p className="text-[10px] text-[#464555] mt-0.5">
+                  <p className="text-[10px] text-[#545454] mt-0.5">
                     Schedule automatically adjusts to your local time
                   </p>
                 </div>
@@ -144,7 +144,7 @@ export const Header: React.FC = () => {
                         })
                       );
                     }}
-                    className="text-[10px] font-bold text-[#3525cd] hover:underline bg-white px-2 py-1 rounded-md border border-indigo-100 shrink-0"
+                    className="text-[10px] font-bold text-[#36348e] hover:underline bg-white px-2 py-1 rounded-md border border-indigo-100 shrink-0"
                     title="Auto-detect based on your current location/browser"
                   >
                     Auto-Detect
@@ -171,15 +171,15 @@ export const Header: React.FC = () => {
                       }}
                       className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center justify-between transition-colors ${
                         isSelected
-                          ? 'bg-[#3525cd] text-white font-bold'
-                          : 'hover:bg-slate-50 text-[#121c2a]'
+                          ? 'bg-[#ffc53a] text-[#1b1a47] font-bold'
+                          : 'hover:bg-slate-50 text-[#292929]'
                       }`}
                     >
                       <div className="flex flex-col">
                         <span>{tz.label}</span>
                         <span
                           className={`text-[10px] ${
-                            isSelected ? 'text-indigo-200' : 'text-[#777587]'
+                            isSelected ? 'text-[#1b1a47]/70' : 'text-[#777587]'
                           }`}
                         >
                           {tz.value}
@@ -187,7 +187,7 @@ export const Header: React.FC = () => {
                       </div>
                       <span
                         className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
-                          isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-[#464555]'
+                          isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-[#545454]'
                         }`}
                       >
                         {tz.offset}
@@ -199,7 +199,7 @@ export const Header: React.FC = () => {
 
               <div className="p-2 bg-slate-50 border-t border-slate-100 text-[10px] text-slate-500 flex items-center justify-between">
                 <span>School Base: Asia/Karachi (PKT)</span>
-                <span className="font-semibold text-[#3525cd]">
+                <span className="font-semibold text-[#36348e]">
                   {timezoneSource === 'manual' ? 'Custom' : 'Auto (Detected)'}
                 </span>
               </div>
@@ -211,7 +211,7 @@ export const Header: React.FC = () => {
         <div className="relative">
           <button
             onClick={() => dispatch(toggleNotifications())}
-            className="relative p-2 text-[#464555] hover:text-[#121c2a] hover:bg-[#eff4ff] rounded-lg transition-colors"
+            className="relative p-2 text-[#545454] hover:text-[#292929] hover:bg-[#fff4d6] rounded-lg transition-colors"
             title="Notifications"
           >
             <span className="material-symbols-outlined text-[22px]">notifications</span>
@@ -225,9 +225,9 @@ export const Header: React.FC = () => {
           {/* Notifications Dropdown Flyout */}
           {isNotificationsOpen && (
             <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
-              <div className="p-3 bg-[#eff4ff] flex items-center justify-between border-b border-slate-100">
+              <div className="p-3 bg-[#f1f1fa] flex items-center justify-between border-b border-slate-100">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-sm text-[#121c2a]">Notifications</span>
+                  <span className="font-bold text-sm text-[#292929]">Notifications</span>
                   {unreadCount > 0 && (
                     <span className="px-2 py-0.5 rounded-full bg-[#fee2e2] text-[#991b1b] text-[10px] font-bold">
                       {unreadCount} New
@@ -240,7 +240,7 @@ export const Header: React.FC = () => {
                       dispatch(markAllNotificationsAsRead());
                       dispatch(markAllNotificationsReadThunk());
                     }}
-                    className="text-[11px] font-medium text-[#3525cd] hover:underline"
+                    className="text-[11px] font-medium text-[#36348e] hover:underline"
                   >
                     Mark all read
                   </button>
@@ -257,7 +257,7 @@ export const Header: React.FC = () => {
                 {notifications.length === 0 ? (
                   <div className="p-6 text-center text-[#777587]">
                     <span className="material-symbols-outlined text-3xl mb-1 text-slate-300">notifications_none</span>
-                    <p className="text-xs font-semibold text-[#121c2a]">No notifications</p>
+                    <p className="text-xs font-semibold text-[#292929]">No notifications</p>
                     <p className="text-[11px] text-[#777587] mt-0.5">You are all caught up!</p>
                   </div>
                 ) : (
@@ -272,21 +272,21 @@ export const Header: React.FC = () => {
                           dispatch(closeNotifications());
                         }
                       }}
-                      className={`p-3 text-left transition-colors cursor-pointer hover:bg-[#f8f9ff] ${
+                      className={`p-3 text-left transition-colors cursor-pointer hover:bg-[#f9f9fc] ${
                         !notif.read ? 'bg-indigo-50/40' : ''
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <h4
                           className={`text-xs ${
-                            !notif.read ? 'font-bold text-[#121c2a]' : 'font-medium text-slate-700'
+                            !notif.read ? 'font-bold text-[#292929]' : 'font-medium text-slate-700'
                           }`}
                         >
                           {notif.title}
                         </h4>
                         <span className="text-[10px] text-[#777587] shrink-0">{notif.timestamp}</span>
                       </div>
-                      <p className="text-[11px] text-[#464555] mt-1 leading-relaxed">
+                      <p className="text-[11px] text-[#545454] mt-1 leading-relaxed">
                         {notif.message}
                       </p>
                     </div>
@@ -300,7 +300,7 @@ export const Header: React.FC = () => {
         {/* Profile Avatar & Info */}
         <button
           onClick={() => dispatch(setCurrentTab('profile-settings'))}
-          className="flex items-center gap-2 p-1 sm:p-1.5 rounded-xl hover:bg-[#eff4ff] transition-colors"
+          className="flex items-center gap-2 p-1 sm:p-1.5 rounded-xl hover:bg-[#fff4d6] transition-colors"
           title="Profile & Settings"
         >
           <img
@@ -309,10 +309,10 @@ export const Header: React.FC = () => {
             className="w-8 h-8 rounded-full object-cover ring-2 ring-indigo-100"
           />
           <div className="hidden xl:flex flex-col text-left">
-            <span className="font-semibold text-xs text-[#121c2a] leading-tight">
+            <span className="font-semibold text-xs text-[#292929] leading-tight">
               {teacher.name}
             </span>
-            <span className="text-[11px] text-[#464555] leading-tight">
+            <span className="text-[11px] text-[#545454] leading-tight">
               {teacher.employeeId}
             </span>
           </div>

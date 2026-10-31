@@ -9,7 +9,7 @@ interface AppLayoutProps {
 
 export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   return (
-    <div className="min-h-screen bg-[#f8f9ff] text-[#121c2a]">
+    <div className="min-h-screen bg-[#f9f9fc] text-[#292929]">
       <Sidebar />
       <div className="pl-0 lg:pl-64 flex flex-col min-h-screen transition-all">
         <Header />

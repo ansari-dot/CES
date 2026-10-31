@@ -42,16 +42,16 @@ export const NoticesPage: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11px] font-bold text-[#3525cd] uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-[#36348e] uppercase tracking-wider">
               Campus Communication
             </span>
             <span className="text-[#c7c4d8]">•</span>
-            <span className="text-xs text-[#464555]">SRS Section 13</span>
+            <span className="text-xs text-[#545454]">SRS Section 13</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#121c2a] tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#292929] tracking-tight">
             Academic Notices &amp; Bulletins
           </h1>
-          <p className="text-xs sm:text-sm text-[#464555] mt-0.5">
+          <p className="text-xs sm:text-sm text-[#545454] mt-0.5">
             Broadcast institutional exam schedules, homework updates, and classroom notifications to
             assigned students and guardians.
           </p>
@@ -59,7 +59,7 @@ export const NoticesPage: React.FC = () => {
 
         <button
           onClick={() => setIsModalOpen(true)}
-          className="px-4 py-2.5 bg-[#4f46e5] hover:bg-[#3525cd] text-white rounded-xl text-xs sm:text-sm font-bold shadow-md transition-all flex items-center gap-2 self-start md:self-auto"
+          className="px-4 py-2.5 bg-[#4543a8] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white rounded-xl text-xs sm:text-sm font-bold shadow-md transition-all flex items-center gap-2 self-start md:self-auto"
         >
           <span className="material-symbols-outlined text-[18px]">add_alert</span>
           <span>Create Notice</span>
@@ -71,7 +71,7 @@ export const NoticesPage: React.FC = () => {
         {notices.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 text-center border border-slate-100 shadow-sm text-[#777587]">
             <span className="material-symbols-outlined text-4xl mb-2 text-slate-300">campaign</span>
-            <p className="font-semibold text-sm text-[#121c2a]">No Notices Published</p>
+            <p className="font-semibold text-sm text-[#292929]">No Notices Published</p>
             <p className="text-xs text-[#777587] mt-1">There are no academic bulletins or announcements at this time.</p>
           </div>
         ) : (
@@ -91,7 +91,7 @@ export const NoticesPage: React.FC = () => {
                   className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
                     notice.isUrgent
                       ? 'bg-[#fee2e2] text-[#991b1b]'
-                      : 'bg-indigo-100 text-[#3525cd]'
+                      : 'bg-indigo-100 text-[#36348e]'
                   }`}
                 >
                   {notice.category}
@@ -114,10 +114,10 @@ export const NoticesPage: React.FC = () => {
               </div>
             </div>
 
-            <h2 className="text-base sm:text-lg font-bold text-[#121c2a] mb-2 leading-snug">
+            <h2 className="text-base sm:text-lg font-bold text-[#292929] mb-2 leading-snug">
               {notice.title}
             </h2>
-            <p className="text-xs sm:text-sm text-[#464555] leading-relaxed">{notice.content}</p>
+            <p className="text-xs sm:text-sm text-[#545454] leading-relaxed">{notice.content}</p>
 
             <div className="mt-4 pt-3 border-t border-slate-100/80 flex items-center justify-between text-xs text-[#777587]">
               <span>Published by: {notice.author}</span>
@@ -147,7 +147,7 @@ export const NoticesPage: React.FC = () => {
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                  activeNotice.isUrgent ? 'bg-red-100 text-red-800' : 'bg-indigo-100 text-[#3525cd]'
+                  activeNotice.isUrgent ? 'bg-red-100 text-red-800' : 'bg-indigo-100 text-[#36348e]'
                 }`}>{activeNotice.category}</span>
                 {activeNotice.targetClassName && <span className="text-xs text-slate-500">Target: {activeNotice.targetClassName}</span>}
               </div>
@@ -155,8 +155,8 @@ export const NoticesPage: React.FC = () => {
                 <span className="material-symbols-outlined text-[18px]">close</span>
               </button>
             </div>
-            <h2 className="text-lg font-bold text-[#121c2a] leading-snug">{activeNotice.title}</h2>
-            <p className="text-sm text-[#464555] leading-relaxed whitespace-pre-wrap">{activeNotice.content}</p>
+            <h2 className="text-lg font-bold text-[#292929] leading-snug">{activeNotice.title}</h2>
+            <p className="text-sm text-[#545454] leading-relaxed whitespace-pre-wrap">{activeNotice.content}</p>
             <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
               <span>By {activeNotice.author} · {activeNotice.date}</span>
               {activeNotice.isPublished && (

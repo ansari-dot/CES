@@ -109,7 +109,7 @@ export const QuickGradeModal: React.FC<QuickGradeModalProps> = ({ isOpen, onClos
           <div className="max-h-[50vh] overflow-y-auto rounded-xl border border-slate-200">
             <table className="w-full text-left text-xs">
               <thead className="sticky top-0">
-                <tr className="bg-[#eff4ff] text-[#464555] font-bold uppercase tracking-wider border-b border-slate-200 h-9">
+                <tr className="bg-[#f1f1fa] text-[#545454] font-bold uppercase tracking-wider border-b border-slate-200 h-9">
                   <th className="px-3">Student</th>
                   <th className="px-3 w-32">Status</th>
                   <th className="px-3 w-28 text-right">Marks</th>
@@ -119,13 +119,13 @@ export const QuickGradeModal: React.FC<QuickGradeModalProps> = ({ isOpen, onClos
                 {roster.map((r) => (
                   <tr key={r.studentId} className="h-11">
                     <td className="px-3">
-                      <span className="font-bold text-[#121c2a] block">{r.studentName}</span>
+                      <span className="font-bold text-[#292929] block">{r.studentName}</span>
                       <span className="text-[11px] text-[#777587] font-mono">
                         {r.admissionNo}
                         {r.rollNo ? ` · Roll ${r.rollNo}` : ''}
                       </span>
                     </td>
-                    <td className="px-3 text-[11px] text-[#464555]">
+                    <td className="px-3 text-[11px] text-[#545454]">
                       {r.status === 'GRADED'
                         ? 'Published'
                         : r.status === 'NOT_SUBMITTED'
@@ -144,7 +144,7 @@ export const QuickGradeModal: React.FC<QuickGradeModalProps> = ({ isOpen, onClos
                         step="0.5"
                         value={marks[r.studentId] ?? ''}
                         onChange={(e) => setMarks((prev) => ({ ...prev, [r.studentId]: e.target.value }))}
-                        className="w-20 h-8 text-center font-bold text-[#3525cd] bg-[#eff4ff] rounded-lg border border-indigo-100 focus:outline-none focus:ring-2 focus:ring-[#3525cd]/30"
+                        className="w-20 h-8 text-center font-bold text-[#36348e] bg-[#f1f1fa] rounded-lg border border-indigo-100 focus:outline-none focus:ring-2 focus:ring-[#36348e]/30"
                       />
                     </td>
                   </tr>
@@ -162,7 +162,7 @@ export const QuickGradeModal: React.FC<QuickGradeModalProps> = ({ isOpen, onClos
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-lg bg-[#e6eeff] text-[#121c2a] hover:bg-[#dee9fc] text-xs font-semibold"
+            className="px-4 py-2 rounded-lg bg-[#e8e8f6] text-[#292929] hover:bg-[#ffedc2] text-xs font-semibold"
           >
             Cancel
           </button>
@@ -170,7 +170,7 @@ export const QuickGradeModal: React.FC<QuickGradeModalProps> = ({ isOpen, onClos
             type="button"
             disabled={saving || loading || roster.length === 0}
             onClick={() => save(false)}
-            className="px-4 py-2 rounded-lg bg-[#e6eeff] text-[#121c2a] hover:bg-[#dee9fc] text-xs font-semibold disabled:opacity-50"
+            className="px-4 py-2 rounded-lg bg-[#e8e8f6] text-[#292929] hover:bg-[#ffedc2] text-xs font-semibold disabled:opacity-50"
           >
             Save Draft
           </button>
@@ -178,7 +178,7 @@ export const QuickGradeModal: React.FC<QuickGradeModalProps> = ({ isOpen, onClos
             type="button"
             disabled={saving || loading || roster.length === 0}
             onClick={() => save(true)}
-            className="px-5 py-2 rounded-lg bg-[#3525cd] hover:bg-[#4f46e5] text-white font-semibold text-xs shadow-md transition-all disabled:opacity-50"
+            className="px-5 py-2 rounded-lg bg-[#36348e] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white font-semibold text-xs shadow-md transition-all disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Publish Marks'}
           </button>

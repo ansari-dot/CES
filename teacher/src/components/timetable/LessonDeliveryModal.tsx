@@ -58,12 +58,12 @@ export const LessonDeliveryModal: React.FC = () => {
       title="Lesson Completion Record"
       subtitle={`${activeLesson.className} • ${activeLesson.subject} • SRS 5.4 Delivery Log`}
       icon="receipt_long"
-      iconBgColor="bg-[#e2dfff] text-[#3525cd]"
+      iconBgColor="bg-[#cdd4fb] text-[#36348e]"
     >
       <form onSubmit={handleSubmit} className="space-y-4 text-xs sm:text-sm">
         {/* Topic Covered */}
         <div>
-          <label className="block text-xs font-semibold text-[#121c2a] mb-1">
+          <label className="block text-xs font-semibold text-[#292929] mb-1">
             Lesson Topic Covered
           </label>
           <input
@@ -71,14 +71,14 @@ export const LessonDeliveryModal: React.FC = () => {
             required
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
-            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none focus:ring-2 focus:ring-indigo-100"
           />
         </div>
 
         {/* Start / End Actual Time */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-semibold text-[#121c2a] mb-1">
+            <label className="block text-xs font-semibold text-[#292929] mb-1">
               Actual Start Time
             </label>
             <div className="relative">
@@ -87,7 +87,7 @@ export const LessonDeliveryModal: React.FC = () => {
                 required
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
-                className="w-full h-10 px-3 pl-9 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none"
+                className="w-full h-10 px-3 pl-9 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none"
               />
               <span className="material-symbols-outlined text-[18px] text-[#777587] absolute left-2.5 top-1/2 -translate-y-1/2">
                 schedule
@@ -95,7 +95,7 @@ export const LessonDeliveryModal: React.FC = () => {
             </div>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-[#121c2a] mb-1">
+            <label className="block text-xs font-semibold text-[#292929] mb-1">
               Actual End Time
             </label>
             <div className="relative">
@@ -104,7 +104,7 @@ export const LessonDeliveryModal: React.FC = () => {
                 required
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
-                className="w-full h-10 px-3 pl-9 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none"
+                className="w-full h-10 px-3 pl-9 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none"
               />
               <span className="material-symbols-outlined text-[18px] text-[#777587] absolute left-2.5 top-1/2 -translate-y-1/2">
                 timer_off
@@ -115,7 +115,7 @@ export const LessonDeliveryModal: React.FC = () => {
 
         {/* Lesson Notes */}
         <div>
-          <label className="block text-xs font-semibold text-[#121c2a] mb-1">
+          <label className="block text-xs font-semibold text-[#292929] mb-1">
             Lesson Summary &amp; Teacher Observation Notes
           </label>
           <textarea
@@ -123,13 +123,13 @@ export const LessonDeliveryModal: React.FC = () => {
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Detail student engagement, syllabus coverage, or homework assigned..."
-            className="w-full p-3 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none"
+            className="w-full p-3 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none"
           ></textarea>
         </div>
 
         {/* Resource Attachment */}
         <div>
-          <label className="block text-xs font-semibold text-[#121c2a] mb-1">
+          <label className="block text-xs font-semibold text-[#292929] mb-1">
             Resource Attachment / Whiteboard Export URL
           </label>
           <div className="relative">
@@ -137,7 +137,7 @@ export const LessonDeliveryModal: React.FC = () => {
               type="url"
               value={resourceUrl}
               onChange={(e) => setResourceUrl(e.target.value)}
-              className="w-full h-10 px-3 pl-9 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none"
+              className="w-full h-10 px-3 pl-9 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none"
             />
             <span className="material-symbols-outlined text-[18px] text-[#777587] absolute left-2.5 top-1/2 -translate-y-1/2">
               attachment
@@ -147,7 +147,7 @@ export const LessonDeliveryModal: React.FC = () => {
 
         {/* Incident / Problem category */}
         <div>
-          <label className="block text-xs font-semibold text-[#121c2a] mb-1.5">
+          <label className="block text-xs font-semibold text-[#292929] mb-1.5">
             Problem Category Experienced
           </label>
           <div className="grid grid-cols-3 gap-2">
@@ -155,7 +155,7 @@ export const LessonDeliveryModal: React.FC = () => {
               className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border transition-colors ${
                 problemCategory === 'none'
                   ? 'border-[#006c49] bg-emerald-50 text-[#065f46]'
-                  : 'border-slate-200 bg-[#eff4ff] text-[#464555]'
+                  : 'border-slate-200 bg-[#f1f1fa] text-[#545454]'
               }`}
             >
               <input
@@ -171,8 +171,8 @@ export const LessonDeliveryModal: React.FC = () => {
             <label
               className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border transition-colors ${
                 problemCategory === 'attendance'
-                  ? 'border-[#684000] bg-amber-50 text-[#92400e]'
-                  : 'border-slate-200 bg-[#eff4ff] text-[#464555]'
+                  ? 'border-[#7a5b00] bg-amber-50 text-[#8a6400]'
+                  : 'border-slate-200 bg-[#f1f1fa] text-[#545454]'
               }`}
             >
               <input
@@ -180,7 +180,7 @@ export const LessonDeliveryModal: React.FC = () => {
                 name="probCat"
                 checked={problemCategory === 'attendance'}
                 onChange={() => setProblemCategory('attendance')}
-                className="accent-[#684000]"
+                className="accent-[#7a5b00]"
               />
               <span className="text-xs font-semibold">Attendance</span>
             </label>
@@ -189,7 +189,7 @@ export const LessonDeliveryModal: React.FC = () => {
               className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border transition-colors ${
                 problemCategory === 'technical'
                   ? 'border-[#ba1a1a] bg-red-50 text-[#991b1b]'
-                  : 'border-slate-200 bg-[#eff4ff] text-[#464555]'
+                  : 'border-slate-200 bg-[#f1f1fa] text-[#545454]'
               }`}
             >
               <input
@@ -222,7 +222,7 @@ export const LessonDeliveryModal: React.FC = () => {
             <button
               type="button"
               onClick={() => dispatch(closeLessonModal())}
-              className="px-4 py-2 rounded-lg bg-[#e6eeff] text-[#121c2a] hover:bg-[#dee9fc] text-xs font-semibold"
+              className="px-4 py-2 rounded-lg bg-[#e8e8f6] text-[#292929] hover:bg-[#ffedc2] text-xs font-semibold"
             >
               Cancel
             </button>

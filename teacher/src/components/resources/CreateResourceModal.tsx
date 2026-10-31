@@ -159,40 +159,40 @@ export const CreateResourceModal: React.FC<CreateResourceModalProps> = ({ isOpen
       title="Upload Learning Resource"
       subtitle="Share study guides, slides, recordings, or worksheets with students"
       icon="upload_file"
-      iconBgColor="bg-[#e2dfff] text-[#3525cd]"
+      iconBgColor="bg-[#cdd4fb] text-[#36348e]"
     >
       <form onSubmit={handleSubmit} className="space-y-4 text-xs sm:text-sm">
         <div>
-          <label className="block text-xs font-semibold text-[#121c2a] mb-1">Resource Title</label>
+          <label className="block text-xs font-semibold text-[#292929] mb-1">Resource Title</label>
           <input
             type="text"
             required
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Unit 4 Fraction Division Study Notes"
-            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none"
+            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-[#121c2a] mb-1">Description</label>
+          <label className="block text-xs font-semibold text-[#292929] mb-1">Description</label>
           <textarea
             rows={2}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Summarize the resource content and recommended usage..."
-            className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none"
+            className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none"
           ></textarea>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-semibold text-[#121c2a] mb-1">Target Class</label>
+            <label className="block text-xs font-semibold text-[#292929] mb-1">Target Class</label>
             <select
               value={targetClassId}
               onChange={(e) => handleClassChange(e.target.value)}
               disabled={uniqueAssignedClasses.length === 0}
-              className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none"
+              className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none"
             >
               {uniqueAssignedClasses.length === 0 ? (
                 <option value="" disabled>No classes assigned</option>
@@ -207,12 +207,12 @@ export const CreateResourceModal: React.FC<CreateResourceModalProps> = ({ isOpen
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#121c2a] mb-1">Subject</label>
+            <label className="block text-xs font-semibold text-[#292929] mb-1">Subject</label>
             <select
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               disabled={availableSubjects.length === 0}
-              className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none"
+              className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none"
             >
               {availableSubjects.length > 0 ? (
                 availableSubjects.map((subj) => (
@@ -229,11 +229,11 @@ export const CreateResourceModal: React.FC<CreateResourceModalProps> = ({ isOpen
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-semibold text-[#121c2a] mb-1">Resource Type</label>
+            <label className="block text-xs font-semibold text-[#292929] mb-1">Resource Type</label>
             <select
               value={type}
               onChange={(e) => setType(e.target.value as any)}
-              className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none"
+              className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none"
             >
               <option value="pdf">PDF Document</option>
               <option value="slides">Presentation Slides</option>
@@ -245,26 +245,26 @@ export const CreateResourceModal: React.FC<CreateResourceModalProps> = ({ isOpen
 
           {type === 'link' ? (
             <div>
-              <label className="block text-xs font-semibold text-[#121c2a] mb-1">Access URL</label>
+              <label className="block text-xs font-semibold text-[#292929] mb-1">Access URL</label>
               <input
                 type="url"
                 required
                 placeholder="e.g. https://..."
                 value={fileUrl}
                 onChange={(e) => setFileUrl(e.target.value)}
-                className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#121c2a] focus:border-[#3525cd] focus:outline-none"
+                className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none"
               />
             </div>
           ) : (
             <div>
-              <label className="block text-xs font-semibold text-[#121c2a] mb-1">File</label>
+              <label className="block text-xs font-semibold text-[#292929] mb-1">File</label>
               <input
                 ref={fileInputRef}
                 type="file"
                 required
                 accept={ACCEPT_BY_TYPE[type]}
                 onChange={(e) => setFile(e.target.files?.[0] || null)}
-                className="w-full h-10 px-2 py-2 bg-white border border-slate-200 rounded-lg text-[#121c2a] text-xs focus:border-[#3525cd] focus:outline-none file:mr-2 file:px-2 file:py-0.5 file:rounded file:border-0 file:bg-[#eff4ff] file:text-[#3525cd] file:font-semibold"
+                className="w-full h-10 px-2 py-2 bg-white border border-slate-200 rounded-lg text-[#292929] text-xs focus:border-[#36348e] focus:outline-none file:mr-2 file:px-2 file:py-0.5 file:rounded file:border-0 file:bg-[#f1f1fa] file:text-[#36348e] file:font-semibold"
               />
             </div>
           )}
@@ -276,9 +276,9 @@ export const CreateResourceModal: React.FC<CreateResourceModalProps> = ({ isOpen
             id="resourcePublishCheck"
             checked={isPublished}
             onChange={(e) => setIsPublished(e.target.checked)}
-            className="w-4 h-4 rounded accent-[#3525cd] cursor-pointer"
+            className="w-4 h-4 rounded accent-[#36348e] cursor-pointer"
           />
-          <label htmlFor="resourcePublishCheck" className="text-xs text-[#464555] cursor-pointer font-medium">
+          <label htmlFor="resourcePublishCheck" className="text-xs text-[#545454] cursor-pointer font-medium">
             Publish now (visible to students of the selected class)
           </label>
         </div>
@@ -287,14 +287,14 @@ export const CreateResourceModal: React.FC<CreateResourceModalProps> = ({ isOpen
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-lg bg-[#e6eeff] text-[#121c2a] hover:bg-[#dee9fc] text-xs font-semibold"
+            className="px-4 py-2 rounded-lg bg-[#e8e8f6] text-[#292929] hover:bg-[#ffedc2] text-xs font-semibold"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={uploading}
-            className="px-5 py-2 rounded-lg bg-[#3525cd] hover:bg-[#4f46e5] text-white font-semibold text-xs shadow-md transition-all disabled:opacity-60"
+            className="px-5 py-2 rounded-lg bg-[#36348e] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white font-semibold text-xs shadow-md transition-all disabled:opacity-60"
           >
             {uploading ? 'Uploading…' : isPublished ? 'Publish Resource' : 'Save Resource'}
           </button>

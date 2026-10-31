@@ -17,7 +17,7 @@ export const Modal: React.FC<ModalProps> = ({
   title,
   subtitle,
   icon,
-  iconBgColor = 'bg-[#e2dfff] text-[#3525cd]',
+  iconBgColor = 'bg-[#cdd4fb] text-[#36348e]',
   maxWidth = 'max-w-xl',
   children,
 }) => {
@@ -52,8 +52,8 @@ export const Modal: React.FC<ModalProps> = ({
               </div>
             )}
             <div>
-              <h3 className="text-lg font-bold text-[#121c2a] leading-snug">{title}</h3>
-              {subtitle && <p className="text-xs text-[#464555] mt-0.5">{subtitle}</p>}
+              <h3 className="text-lg font-bold text-[#292929] leading-snug">{title}</h3>
+              {subtitle && <p className="text-xs text-[#545454] mt-0.5">{subtitle}</p>}
             </div>
           </div>
           <button

@@ -146,10 +146,10 @@ export const AttendancePage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold text-[#121c2a]">Student Attendance</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-[#292929]">Student Attendance</h1>
             <span
               className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                isLocked ? 'bg-emerald-100 text-[#065f46]' : 'bg-amber-100 text-[#92400e]'
+                isLocked ? 'bg-emerald-100 text-[#065f46]' : 'bg-amber-100 text-[#8a6400]'
               }`}
             >
               {isLocked ? 'Locked' : 'Draft'}
@@ -165,7 +165,7 @@ export const AttendancePage: React.FC = () => {
           <button
             onClick={handleSaveDraft}
             disabled={isLocked}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-[#121c2a] hover:bg-slate-50 text-xs font-semibold border border-slate-200 transition-all disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-[#292929] hover:bg-slate-50 text-xs font-semibold border border-slate-200 transition-all disabled:opacity-50"
           >
             <span className="material-symbols-outlined text-[16px]">save</span>
             <span>Draft</span>
@@ -176,7 +176,7 @@ export const AttendancePage: React.FC = () => {
             className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-white shadow-xs text-xs font-bold transition-all ${
               isLocked
                 ? 'bg-slate-400 cursor-not-allowed'
-                : 'bg-[#4f46e5] hover:bg-[#3525cd]'
+                : 'bg-[#4543a8] hover:bg-[#ffc53a] hover:text-[#1b1a47]'
             }`}
           >
             <span className="material-symbols-outlined text-[16px]">assignment_turned_in</span>
@@ -189,7 +189,7 @@ export const AttendancePage: React.FC = () => {
       <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-bold uppercase tracking-wider text-[#777587] flex items-center gap-1 mr-1">
-            <span className="material-symbols-outlined text-[17px] text-[#3525cd]">school</span>
+            <span className="material-symbols-outlined text-[17px] text-[#36348e]">school</span>
             Assigned Classes:
           </span>
           {uniqueClasses.length === 0 ? (
@@ -206,14 +206,14 @@ export const AttendancePage: React.FC = () => {
                   onClick={() => handleSelectClass(cls.id)}
                   className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                     isSelected
-                      ? 'bg-[#3525cd] text-white shadow-sm ring-2 ring-[#3525cd]/20'
-                      : 'bg-[#eff4ff] text-[#464555] hover:bg-[#dee9fc]'
+                      ? 'bg-[#ffc53a] text-[#1b1a47] shadow-sm ring-2 ring-[#36348e]/20'
+                      : 'bg-[#f1f1fa] text-[#545454] hover:bg-[#ffedc2]'
                   }`}
                 >
                   <span>{cls.name}</span>
                   <span
                     className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
-                      isSelected ? 'bg-white/20 text-white' : 'bg-indigo-100 text-[#3525cd]'
+                      isSelected ? 'bg-[#1b1a47]/15 text-[#1b1a47]' : 'bg-indigo-100 text-[#36348e]'
                     }`}
                   >
                     {cls.enrolledCount} {cls.enrolledCount === 1 ? 'student' : 'students'}
@@ -231,7 +231,7 @@ export const AttendancePage: React.FC = () => {
             <select
               value={activeLessonId}
               onChange={(e) => handleSelectLesson(e.target.value)}
-              className="bg-[#eff4ff] text-xs font-bold text-[#121c2a] border border-indigo-100 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
+              className="bg-[#f1f1fa] text-xs font-bold text-[#292929] border border-indigo-100 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
             >
               {classLessons.map((l, idx) => (
                 <option key={`att-les-${l.id}-${l.rawId || idx}`} value={l.rawId || l.id}>
@@ -240,11 +240,11 @@ export const AttendancePage: React.FC = () => {
               ))}
             </select>
           ) : classLessons.length === 1 ? (
-            <span className="text-xs font-semibold text-[#121c2a] bg-[#eff4ff] px-2.5 py-1 rounded-md border border-indigo-100">
+            <span className="text-xs font-semibold text-[#292929] bg-[#f1f1fa] px-2.5 py-1 rounded-md border border-indigo-100">
               {activeLesson?.className} • {activeLesson?.subject} ({activeLesson?.startTime} – {activeLesson?.endTime})
             </span>
           ) : (
-            <span className="text-xs font-semibold text-[#464555] bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+            <span className="text-xs font-semibold text-[#545454] bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
               {uniqueClasses.find((c) => c.id === selectedClassId)?.name || 'Class'} • General Roster
             </span>
           )}
@@ -265,7 +265,7 @@ export const AttendancePage: React.FC = () => {
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
             placeholder="Search student or Roll #..."
-            className="w-full h-8 pl-8 pr-3 rounded-lg bg-[#eff4ff] text-xs text-[#121c2a] placeholder:text-[#777587] focus:outline-none"
+            className="w-full h-8 pl-8 pr-3 rounded-lg bg-[#f1f1fa] text-xs text-[#292929] placeholder:text-[#777587] focus:outline-none"
           />
         </div>
 
@@ -280,7 +280,7 @@ export const AttendancePage: React.FC = () => {
           </button>
           <button
             onClick={handleExportCSV}
-            className="p-1.5 rounded-lg bg-[#eff4ff] hover:bg-[#dee9fc] text-[#464555]"
+            className="p-1.5 rounded-lg bg-[#f1f1fa] hover:bg-[#ffedc2] text-[#545454]"
             title="Export CSV"
           >
             <span className="material-symbols-outlined text-[18px]">file_download</span>
@@ -289,8 +289,8 @@ export const AttendancePage: React.FC = () => {
             onClick={() => dispatch(toggleRemarksExpanded())}
             className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 ${
               remarksExpanded
-                ? 'bg-indigo-100 text-[#3525cd]'
-                : 'bg-[#eff4ff] hover:bg-[#dee9fc] text-[#464555]'
+                ? 'bg-indigo-100 text-[#36348e]'
+                : 'bg-[#f1f1fa] hover:bg-[#ffedc2] text-[#545454]'
             }`}
           >
             <span className="material-symbols-outlined text-[16px]">chat_bubble_outline</span>
@@ -304,14 +304,14 @@ export const AttendancePage: React.FC = () => {
 
       {/* Historical Submissions Table */}
       <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
-        <div className="p-3 bg-[#eff4ff]/60 border-b border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-[#121c2a]">
-            <span className="material-symbols-outlined text-[16px] text-[#3525cd]">history</span>
+        <div className="p-3 bg-[#f1f1fa]/60 border-b border-slate-200 flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-[#292929]">
+            <span className="material-symbols-outlined text-[16px] text-[#36348e]">history</span>
             <span>Past Locked Records</span>
           </div>
           <button
             onClick={() => dispatch(openCorrectionDrawer('GENERAL'))}
-            className="px-2.5 py-1 rounded-lg bg-[#eff4ff] hover:bg-[#dee9fc] text-[#3525cd] text-xs font-bold"
+            className="px-2.5 py-1 rounded-lg bg-[#f1f1fa] hover:bg-[#ffedc2] text-[#36348e] text-xs font-bold"
           >
             Correction Voucher
           </button>
@@ -320,7 +320,7 @@ export const AttendancePage: React.FC = () => {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-[#eff4ff] text-[#464555] font-bold uppercase tracking-wider border-b border-slate-200 h-9">
+              <tr className="bg-[#f1f1fa] text-[#545454] font-bold uppercase tracking-wider border-b border-slate-200 h-9">
                 <th className="px-3 w-32">Session Date</th>
                 <th className="px-3 min-w-[160px]">Class &amp; Topic</th>
                 <th className="px-3 text-center w-28">Present Count</th>
@@ -338,9 +338,9 @@ export const AttendancePage: React.FC = () => {
               ) : (
                 submittedLogs.map((log) => (
                   <tr key={log.id} className="hover:bg-slate-50 h-11 transition-colors">
-                    <td className="px-3 font-semibold text-[#121c2a]">{log.date}</td>
+                    <td className="px-3 font-semibold text-[#292929]">{log.date}</td>
                     <td className="px-3">
-                      <span className="font-bold text-[#121c2a]">{log.className}</span>
+                      <span className="font-bold text-[#292929]">{log.className}</span>
                       <span className="text-[#777587] ml-1.5">• {log.topic}</span>
                     </td>
                     <td className="px-3 text-center font-bold text-[#006c49]">
@@ -354,7 +354,7 @@ export const AttendancePage: React.FC = () => {
                     <td className="px-3 text-right">
                       <button
                         onClick={() => dispatch(openCorrectionDrawer(log.id))}
-                        className="px-2.5 py-1 rounded bg-[#eff4ff] hover:bg-[#dee9fc] text-[#3525cd] font-bold text-[11px]"
+                        className="px-2.5 py-1 rounded bg-[#f1f1fa] hover:bg-[#ffedc2] text-[#36348e] font-bold text-[11px]"
                       >
                         Correction
                       </button>
