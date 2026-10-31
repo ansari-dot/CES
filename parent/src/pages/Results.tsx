@@ -3,6 +3,7 @@ import { TrendingUp, Award, ClipboardList, CalendarCheck } from 'lucide-react';
 import { useChildData } from '../context/ParentContext';
 import { MetricCard, RequireChild, LoadingBlock, ErrorBlock, EmptyBlock } from '../components/common';
 import { pct, formatDate, TASK_TYPE_LABELS } from '../lib/format';
+import TermResultsSection from '../components/TermResultsSection';
 
 interface ResultsData {
   summary: {
@@ -144,6 +145,9 @@ function ResultsContent() {
           ))}
         </div>
       )}
+
+      {/* Official term results, promotion status & academic year history */}
+      <TermResultsSection />
     </div>
   );
 }
