@@ -1,6 +1,7 @@
 import { noticesRepository, schoolToday } from './notices.repository.js';
 import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
+import { emitRealtimeEvent, RealtimeEvents } from '../../shared/realtime/eventEmitter.js';
 import { db } from '../../shared/db/knex.js';
 import {
   isStaff,
@@ -305,7 +306,7 @@ export const noticesService = {
       throw new AppError('Notification message is required', 422, ErrorCodes.VALIDATION_ERROR);
     }
 
-    return await noticesRepository.createNotification({
+    const created = await noticesRepository.createNotification({
       userId,
       title,
       message,
@@ -315,6 +316,29 @@ export const noticesService = {
       relatedRecordType,
       priority
     });
+
+    // Push the notification to connected portals so they can toast in real time.
+    emitRealtimeEvent(
+      RealtimeEvents.NOTIFICATION_CREATED,
+      {
+        id: created?.id,
+        title,
+        message,
+        type,
+        priority,
+        targetRole,
+        userId,
+        relatedRecordId,
+        relatedRecordType,
+        createdAt: new Date().toISOString()
+      },
+      {
+        userIds: userId ? [userId] : undefined,
+        roles: targetRole && targetRole !== 'ALL' ? [targetRole] : undefined
+      }
+    );
+
+    return created;
   },
 
   /** Operational notifications plus the notices currently addressed to this user. */
