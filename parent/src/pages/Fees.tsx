@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Receipt, Wallet, AlertCircle, Printer, UploadCloud } from 'lucide-react';
+import { Receipt, Wallet, AlertCircle, Printer, UploadCloud, Phone, Globe, MapPin } from 'lucide-react';
 import { useChildData, useParent } from '../context/ParentContext';
 import { requestApi } from '../services/api';
 import { MetricCard, StatusChip, RequireChild, LoadingBlock, ErrorBlock, EmptyBlock, Modal } from '../components/common';
@@ -154,7 +154,7 @@ function PaymentProofForm({ studentId, challan, onDone }: { studentId: number; c
 }
 
 function FeesContent() {
-  const { selectedChild, showToast, refreshDashboard } = useParent();
+  const { selectedChild, showToast, refreshDashboard, user } = useParent();
   const { data, loading, error, reload, studentId } = useChildData<ChallanRow[]>(
     (id) => `/api/v1/parents/me/children/${id}/challans`
   );
@@ -221,7 +221,7 @@ function FeesContent() {
                       <button
                         onClick={() => openDetail(c.id)}
                         disabled={detailLoading}
-                        className="text-xs font-bold px-3 py-1.5 rounded-sm bg-muted hover:bg-muted/80 text-foreground cursor-pointer disabled:opacity-60"
+                        className="text-xs font-bold px-3 py-1.5 rounded-sm bg-muted hover:bg-[#ffc53a] text-foreground cursor-pointer disabled:opacity-60"
                       >
                         Details
                       </button>
@@ -236,54 +236,97 @@ function FeesContent() {
 
       {detail && studentId != null && (
         <Modal isOpen={Boolean(detail)} onClose={() => setDetail(null)} title={`Fee Challan · ${detail.billingMonth}`} maxWidth="max-w-xl">
-          <div className="space-y-4 text-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="font-headings font-bold text-base text-foreground">Cambridge Education System</div>
-                <div className="text-xs text-muted-foreground">Fee Challan · Session {detail.academicSession}</div>
+          <div className="space-y-4 text-sm" style={{ printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' } as React.CSSProperties}>
+            {/* Branded invoice header — Cambridge Education System template */}
+            <div className="bg-navy text-white rounded-md px-5 py-4 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center overflow-hidden shrink-0">
+                  <img src="/logo.jpeg" alt="Cambridge Education System logo" className="w-full h-full object-contain" />
+                </div>
+                <div className="leading-tight">
+                  <div className="font-headings font-extrabold tracking-wide text-lg">CAMBRIDGE</div>
+                  <div className="text-xs text-white/85">Education System</div>
+                </div>
               </div>
+              <div className="font-headings font-extrabold text-2xl tracking-[0.2em]">INVOICE</div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <div><span className="text-muted-foreground">Invoice No:</span> <span className="font-mono font-semibold">{detail.challanNumber}</span></div>
+              <div><span className="text-muted-foreground">Date :</span> <span className="font-semibold">{formatDate(detail.issueDate)}</span></div>
               <StatusChip status={statusLabel(detail.status)} />
             </div>
 
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs bg-muted/40 rounded-sm p-3">
-              <span className="text-muted-foreground">Student</span><span className="font-semibold text-right">{detail.studentName}</span>
-              <span className="text-muted-foreground">Class / Admission No</span><span className="text-right">{detail.className} · {detail.admissionNo}</span>
-              <span className="text-muted-foreground">Challan No</span><span className="font-mono text-right">{detail.challanNumber}</span>
-              <span className="text-muted-foreground">Consumer No (1Link)</span><span className="font-mono text-right">{detail.consumerNumber}</span>
-              <span className="text-muted-foreground">Issued / Due</span><span className="text-right">{formatDate(detail.issueDate)} / {formatDate(detail.dueDate)}</span>
-              <span className="text-muted-foreground">Valid until</span><span className="text-right">{formatDate(detail.validUntil)}</span>
+            <div className="text-center font-headings font-bold text-sm underline underline-offset-4">INVOICE TO:</div>
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div>
+                <div className="font-headings font-bold underline underline-offset-4 mb-1.5">Student Details:</div>
+                <div className="space-y-0.5">
+                  <div className="font-semibold">{detail.studentName}</div>
+                  <div className="text-muted-foreground">{detail.className} · Admission No {detail.admissionNo}</div>
+                  <div className="text-muted-foreground">Session {detail.academicSession} · {detail.billingMonth}</div>
+                  <div className="text-muted-foreground font-mono">Consumer No (1Link): {detail.consumerNumber}</div>
+                  <div className="text-muted-foreground">Due {formatDate(detail.dueDate)} · Valid until {formatDate(detail.validUntil)}</div>
+                </div>
+              </div>
+              <div>
+                <div className="font-headings font-bold underline underline-offset-4 mb-1.5">Parents Details:</div>
+                <div className="space-y-0.5">
+                  <div className="font-semibold">{user?.fullName || '—'}</div>
+                  {user?.email && <div className="text-muted-foreground">{user.email}</div>}
+                  {user?.phone && <div className="text-muted-foreground">{user.phone}</div>}
+                </div>
+              </div>
             </div>
 
-            <table className="w-full text-xs">
+            <table className="w-full text-xs border border-border">
+              <thead>
+                <tr className="bg-navy text-white">
+                  <th className="px-3 py-2 text-left font-bold w-14">SR.NO</th>
+                  <th className="px-3 py-2 text-left font-bold">DESCRIPTION</th>
+                  <th className="px-3 py-2 text-right font-bold">TOTAL FEE</th>
+                  <th className="px-3 py-2 text-right font-bold">STATUS</th>
+                </tr>
+              </thead>
               <tbody className="divide-y divide-border">
-                {BREAKDOWN_LABELS.filter(([key]) => Number(detail.breakdown[key]) > 0).map(([key, label]) => (
+                {BREAKDOWN_LABELS.filter(([key]) => Number(detail.breakdown[key]) > 0).map(([key, label], i) => (
                   <tr key={key}>
-                    <td className="py-1.5 text-muted-foreground">{label}</td>
-                    <td className="py-1.5 text-right">{rupees(detail.breakdown[key])}</td>
+                    <td className="px-3 py-1.5 font-mono text-muted-foreground">{String(i + 1).padStart(2, '0')}</td>
+                    <td className="px-3 py-1.5">{label}</td>
+                    <td className="px-3 py-1.5 text-right">{rupees(detail.breakdown[key])}</td>
+                    <td className="px-3 py-1.5 text-right text-muted-foreground">{statusLabel(detail.status)}</td>
                   </tr>
                 ))}
-                {Number(detail.breakdown.concession) > 0 && (
-                  <tr>
-                    <td className="py-1.5 text-muted-foreground">Concession</td>
-                    <td className="py-1.5 text-right text-success">− {rupees(detail.breakdown.concession)}</td>
-                  </tr>
-                )}
-                <tr className="font-bold">
-                  <td className="py-2">Total payable</td>
-                  <td className="py-2 text-right">{rupees(detail.totalPayable)}</td>
-                </tr>
-                <tr>
-                  <td className="py-1.5 text-muted-foreground">Paid (verified)</td>
-                  <td className="py-1.5 text-right">{rupees(detail.paidAmount)}</td>
-                </tr>
-                <tr className="font-bold text-error">
-                  <td className="py-1.5">Outstanding</td>
-                  <td className="py-1.5 text-right">{rupees(detail.outstandingBalance)}</td>
-                </tr>
               </tbody>
             </table>
 
-            <div>
+            <div className="grid grid-cols-2 gap-4 text-xs items-start">
+              <div>
+                <div className="font-headings font-bold mb-1">Payment Method :</div>
+                <div className="space-y-0.5 text-muted-foreground">
+                  <div>Meezan Bank F-11 MARKAZ, ISLAMABAD</div>
+                  <div>Title: CAMBRIDGE EDUCATION SYSTEM</div>
+                  <div>Account Number : 03060114428178</div>
+                  <div>IBAN : PK58MEZN0003060114428178</div>
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between py-1 border-b border-border"><span className="text-muted-foreground">Sub-total :</span><span>{rupees(BREAKDOWN_LABELS.reduce((s, [key]) => s + (Number(detail.breakdown[key]) > 0 ? Number(detail.breakdown[key]) : 0), 0))}</span></div>
+                <div className="flex justify-between py-1 border-b border-border"><span className="text-muted-foreground">Discount:</span><span className="text-success">{Number(detail.breakdown.concession) > 0 ? `− ${rupees(detail.breakdown.concession)}` : '—'}</span></div>
+                <div className="flex justify-between py-1.5 font-bold border-b-2 border-navy"><span>Total :</span><span>{rupees(detail.totalPayable)}</span></div>
+                <div className="flex justify-between py-1"><span className="text-muted-foreground">Paid (verified)</span><span>{rupees(detail.paidAmount)}</span></div>
+                <div className="flex justify-between py-1 font-bold text-error"><span>Outstanding</span><span>{rupees(detail.outstandingBalance)}</span></div>
+              </div>
+            </div>
+
+            {/* Branded contact footer */}
+            <div className="bg-navy text-white rounded-md px-4 py-2.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 text-[11px]">
+              <span className="inline-flex items-center gap-1.5"><Phone className="w-3 h-3" /> 0300 511 8716</span>
+              <span className="inline-flex items-center gap-1.5"><Globe className="w-3 h-3" /> www.cambridgeeducation.uk.com</span>
+              <span className="inline-flex items-center gap-1.5"><MapPin className="w-3 h-3" /> Islamabad Pakistan</span>
+            </div>
+
+            <div className="print:hidden">
               <div className="font-headings font-bold text-sm text-foreground mb-2">Payment history</div>
               {detail.payments.length === 0 ? (
                 <p className="text-xs text-muted-foreground">No payments have been submitted for this challan.</p>
@@ -311,7 +354,7 @@ function FeesContent() {
             <div className="flex justify-end print:hidden">
               <button
                 onClick={() => window.print()}
-                className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-sm bg-muted hover:bg-muted/80 text-foreground cursor-pointer"
+                className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-sm bg-muted hover:bg-[#ffc53a] text-foreground cursor-pointer"
               >
                 <Printer className="w-4 h-4" /> Print / Save as PDF
               </button>

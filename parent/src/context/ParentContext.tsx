@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { requestApi } from '../services/api';
 
 export interface ParentUser {
@@ -186,6 +186,33 @@ export function ParentProvider({ children: content }: { children: React.ReactNod
       refreshUnread();
     }
   }, [user, refreshDashboard, refreshUnread]);
+
+  // Keep a mirror of the latest unread count so the poll below can tell
+  // when a NEW notification arrives (count went up) vs. notices being read.
+  const prevUnreadRef = useRef(0);
+  useEffect(() => {
+    prevUnreadRef.current = unreadCount;
+  }, [unreadCount]);
+
+  // Poll for new notifications and surface a toast; the parent then opens
+  // the notification bell to read the real notification.
+  useEffect(() => {
+    if (!user || user.mustChangePassword) return;
+    const check = async () => {
+      try {
+        const list = await requestApi<any[]>('/api/v1/notices/notifications');
+        const count = Array.isArray(list) ? list.filter((n) => !n.isRead).length : 0;
+        if (count > prevUnreadRef.current) {
+          showToast('You have a new notification — click the bell to view it.');
+        }
+        setUnreadCount(count);
+      } catch {
+        // keep the previous count when a poll fails
+      }
+    };
+    const id = setInterval(check, 30000);
+    return () => clearInterval(id);
+  }, [user, showToast]);
 
   const childList = dashboard?.children || [];
   const selectedChild = useMemo(
