@@ -8,6 +8,7 @@ export type NavTab =
   | 'submissions-grading'
   | 'student-projects'
   | 'student-performance'
+  | 'exam-results'
   | 'achievements-feedback'
   | 'notices'
   | 'duty-salary'

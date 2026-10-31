@@ -13,6 +13,7 @@ import { SubmissionsGradingPage } from './pages/SubmissionsGradingPage';
 import { StudentProjectsPage } from './pages/StudentProjectsPage';
 import { LearningResourcesPage } from './pages/LearningResourcesPage';
 import { StudentPerformancePage } from './pages/StudentPerformancePage';
+import { ExamResultsPage } from './pages/ExamResultsPage';
 import { AchievementsFeedbackPage } from './pages/AchievementsFeedbackPage';
 import { NoticesPage } from './pages/NoticesPage';
 import { DutySalaryPage } from './pages/DutySalaryPage';
@@ -109,6 +110,8 @@ export default function App() {
         return <StudentProjectsPage />;
       case 'student-performance':
         return <StudentPerformancePage />;
+      case 'exam-results':
+        return <ExamResultsPage />;
       case 'achievements-feedback':
         return <AchievementsFeedbackPage />;
       case 'notices':

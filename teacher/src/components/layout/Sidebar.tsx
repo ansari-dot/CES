@@ -20,6 +20,7 @@ const navItems: NavItem[] = [
   { id: 'submissions-grading', label: 'Submissions & Grading', icon: 'rule' },
   { id: 'student-projects', label: 'Student Projects', icon: 'folder_shared' },
   { id: 'student-performance', label: 'Student Performance', icon: 'school' },
+  { id: 'exam-results', label: 'Exam Results', icon: 'fact_check' },
   { id: 'achievements-feedback', label: 'Achievements & Feedback', icon: 'emoji_events' },
   { id: 'notices', label: 'Notices', icon: 'campaign' },
   { id: 'duty-salary', label: 'Duty & Salary', icon: 'schedule' },
