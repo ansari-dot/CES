@@ -21,6 +21,7 @@ import { PaymentVerificationModule } from './modules/payments/PaymentVerificatio
 import { RestrictedStudentsModule } from './modules/restricted-students/RestrictedStudentsModule';
 import { TeacherPayrollModule } from './modules/payroll/TeacherPayrollModule';
 import { AcademicOversightModule } from './modules/academic-oversight/AcademicOversightModule';
+import { AcademicYearModule } from './modules/academic-year/AcademicYearModule';
 import { NoticesModule } from './modules/notices/NoticesModule';
 import { NotificationsModule } from './modules/notifications/NotificationsModule';
 import { ReportsModule } from './modules/reports/ReportsModule';
@@ -105,6 +106,8 @@ function PrincipalPortalApp() {
         return <TeacherPayrollModule />;
       case 'academic-oversight':
         return <AcademicOversightModule />;
+      case 'academic-year':
+        return <AcademicYearModule />;
       case 'notices':
         return <NoticesModule />;
       case 'notifications':

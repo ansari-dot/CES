@@ -22,6 +22,32 @@ export const Header: React.FC<HeaderProps> = ({
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [sessionOptions, setSessionOptions] = useState<{ name: string; label: string }[]>([]);
+
+  // Real academic years for the session switcher; the active year is selected.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await api.getAcademicYearsRaw();
+        if (cancelled || !Array.isArray(rows) || rows.length === 0) return;
+        setSessionOptions(
+          rows.map((s: any) => ({
+            name: s.name,
+            label: `${s.name} (${s.is_current ? 'Active' : s.status ? String(s.status).charAt(0) + String(s.status).slice(1).toLowerCase() : 'Draft'})`
+          }))
+        );
+        const active = rows.find((s: any) => s.is_current);
+        if (active) setActiveSession(active.name);
+      } catch {
+        // keep whatever is currently shown
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const toast = useToast();
   const prevUnreadIdsRef = useRef<Set<string>>(new Set());
   const isInitialLoadRef = useRef(true);
@@ -100,6 +126,7 @@ export const Header: React.FC<HeaderProps> = ({
     'restricted-students': { section: 'Financials', title: 'Restricted Students & Portal Access' },
     payroll: { section: 'Financials', title: 'Teacher Payroll & Duty Review' },
     'academic-oversight': { section: 'Governance', title: 'Academic Performance & Results' },
+    'academic-year': { section: 'Governance', title: 'Academic Year & Promotion Management' },
     notices: { section: 'Governance', title: 'Official Notices & Circulars' },
     notifications: { section: 'Governance', title: 'Operational Notifications' },
     reports: { section: 'Governance', title: 'Operational Reports & Exports' },
@@ -130,9 +157,15 @@ export const Header: React.FC<HeaderProps> = ({
             onChange={(e) => setActiveSession(e.target.value)}
             className="bg-transparent text-amber-700 font-semibold focus:outline-none cursor-pointer"
           >
-            <option value="2024-2025" className="bg-white text-slate-800">2024-2025 (Active)</option>
-            <option value="2025-2026" className="bg-white text-slate-800">2025-2026 (Draft)</option>
-            <option value="2023-2024" className="bg-white text-slate-800">2023-2024 (Archived)</option>
+            {sessionOptions.length === 0 ? (
+              <option value={activeSession} className="bg-white text-slate-800">{activeSession}</option>
+            ) : (
+              sessionOptions.map((s) => (
+                <option key={s.name} value={s.name} className="bg-white text-slate-800">
+                  {s.label}
+                </option>
+              ))
+            )}
           </select>
         </div>
 

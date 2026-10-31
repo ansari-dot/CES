@@ -560,23 +560,51 @@ export const api = {
     academicSession: string,
     reason: string
   ): Promise<Student> {
-    const students = await this.getStudents();
-    const student = students.find(s => s.id === studentId);
-    if (!student) throw new Error('Student not found');
+    // Resolve the destination class and the target academic session, then
+    // persist through the real enrolment endpoint (updates the student's
+    // current class and upserts the session enrollment record).
+    const [classes, sessions, existingStudents] = await Promise.all([
+      requestApi<any[]>('/api/v1/classes'),
+      requestApi<any[]>('/api/v1/sessions'),
+      this.getStudents()
+    ]);
+    const target = (classes || []).find((c) => Number(c.grade_level) === Number(destinationClass));
+    if (!target) throw new Error(`No class is configured for grade ${destinationClass}`);
+    const session =
+      (sessions || []).find((s) => s.name === academicSession) ||
+      (sessions || []).find((s) => s.is_current) ||
+      (sessions || [])[0];
+    if (!session) throw new Error('No academic session is configured');
+    const current = existingStudents.find((s) => String(s.id) === String(studentId));
 
-    const previousClass = student.classNumber;
-    student.classNumber = destinationClass;
-    student.academicSession = academicSession;
-    student.transferHistory.push({
-      id: `TRF-${Date.now()}`,
-      previousClass,
-      newClass: destinationClass,
-      academicSession,
-      effectiveDate: new Date().toISOString(),
-      reason,
-      transferredBy: 'Principal'
+    await requestApi(`/api/v1/students/${studentId}/enrol`, {
+      method: 'POST',
+      body: JSON.stringify({
+        classId: target.id,
+        sessionId: session.id,
+        rollNo: current?.rollNumber || undefined,
+        status: 'ACTIVE'
+      })
     });
 
+    try {
+      await requestApi('/api/v1/audit', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'TRANSFER_PROMOTE_STUDENT',
+          recordType: 'Student',
+          recordIdentifier: String(studentId),
+          reason,
+          newValue: `Moved to Class ${destinationClass} (${session.name})`
+        })
+      });
+    } catch {
+      // audit best-effort
+    }
+
+    const students = await this.getStudents();
+    const student = students.find((s) => String(s.id) === String(studentId));
+    if (!student) throw new Error('Student not found after transfer');
     return student;
   },
 
@@ -1741,5 +1769,140 @@ export const api = {
       // Fallback
     }
     return [];
+  },
+
+  // 18. Academic Years, Terms, Results & Promotions — Live Only
+  async getAcademicYearsRaw(): Promise<any[]> {
+    const data = await requestApi<any[]>('/api/v1/sessions');
+    return Array.isArray(data) ? data : [];
+  },
+
+  async createAcademicYear(payload: { name: string; start_date: string; end_date: string; is_current?: boolean }): Promise<any> {
+    return await requestApi<any>('/api/v1/sessions', { method: 'POST', body: JSON.stringify(payload) });
+  },
+
+  async updateAcademicYear(id: number, payload: Record<string, unknown>): Promise<any> {
+    return await requestApi<any>(`/api/v1/sessions/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
+  },
+
+  async activateAcademicYear(id: number): Promise<any> {
+    return await requestApi<any>(`/api/v1/sessions/${id}/activate`, { method: 'POST', body: JSON.stringify({}) });
+  },
+
+  async closeAcademicYear(id: number): Promise<any> {
+    return await requestApi<any>(`/api/v1/sessions/${id}/close`, { method: 'POST', body: JSON.stringify({}) });
+  },
+
+  async getAcademicYearStats(id: number): Promise<any> {
+    return await requestApi<any>(`/api/v1/sessions/${id}/stats`);
+  },
+
+  async getAcademicTerms(sessionId: number): Promise<any[]> {
+    const data = await requestApi<any[]>(`/api/v1/sessions/${sessionId}/terms`);
+    return Array.isArray(data) ? data : [];
+  },
+
+  async createAcademicTerm(sessionId: number, payload: Record<string, unknown>): Promise<any> {
+    return await requestApi<any>(`/api/v1/sessions/${sessionId}/terms`, { method: 'POST', body: JSON.stringify(payload) });
+  },
+
+  async updateAcademicTerm(termId: number, payload: Record<string, unknown>): Promise<any> {
+    return await requestApi<any>(`/api/v1/terms/${termId}`, { method: 'PATCH', body: JSON.stringify(payload) });
+  },
+
+  async getPromotionPolicy(sessionId?: number | null): Promise<any> {
+    const qs = sessionId ? `?sessionId=${sessionId}` : '';
+    return await requestApi<any>(`/api/v1/promotion-policy${qs}`);
+  },
+
+  async savePromotionPolicy(payload: Record<string, unknown>): Promise<any> {
+    return await requestApi<any>('/api/v1/promotion-policy', { method: 'PUT', body: JSON.stringify(payload) });
+  },
+
+  async getResultsOverview(termId: number): Promise<any> {
+    return await requestApi<any>(`/api/v1/results/overview?termId=${termId}`);
+  },
+
+  async computeClassResults(classId: number, termId: number): Promise<any> {
+    return await requestApi<any>('/api/v1/results/compute', {
+      method: 'POST',
+      body: JSON.stringify({ classId, termId })
+    });
+  },
+
+  async listFinalResults(params: { termId: number; classId?: number }): Promise<any[]> {
+    const qs = new URLSearchParams();
+    qs.set('termId', String(params.termId));
+    if (params.classId) qs.set('classId', String(params.classId));
+    const data = await requestApi<any[]>(`/api/v1/results?${qs.toString()}`);
+    return Array.isArray(data) ? data : [];
+  },
+
+  async getFinalResultDetail(id: number): Promise<any> {
+    return await requestApi<any>(`/api/v1/results/${id}`);
+  },
+
+  async approveClassResults(classId: number, termId: number): Promise<any> {
+    return await requestApi<any>('/api/v1/results/approve', {
+      method: 'POST',
+      body: JSON.stringify({ classId, termId })
+    });
+  },
+
+  async publishClassResults(classId: number, termId: number): Promise<any> {
+    return await requestApi<any>('/api/v1/results/publish', {
+      method: 'POST',
+      body: JSON.stringify({ classId, termId })
+    });
+  },
+
+  async updateResultSubjectMarks(resultId: number, payload: Record<string, unknown>): Promise<any> {
+    return await requestApi<any>(`/api/v1/results/${resultId}/subjects`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  async getPromotionsOverview(sessionId: number): Promise<any> {
+    return await requestApi<any>(`/api/v1/promotions/overview?sessionId=${sessionId}`);
+  },
+
+  async evaluatePromotions(sessionId: number): Promise<any> {
+    return await requestApi<any>('/api/v1/promotions/evaluate', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId })
+    });
+  },
+
+  async listPromotions(sessionId: number, classId?: number): Promise<any[]> {
+    const qs = new URLSearchParams({ sessionId: String(sessionId) });
+    if (classId) qs.set('classId', String(classId));
+    const data = await requestApi<any[]>(`/api/v1/promotions?${qs.toString()}`);
+    return Array.isArray(data) ? data : [];
+  },
+
+  async decidePromotion(recordId: number, decision: string, reason?: string): Promise<any> {
+    return await requestApi<any>(`/api/v1/promotions/${recordId}/decision`, {
+      method: 'PATCH',
+      body: JSON.stringify({ decision, reason })
+    });
+  },
+
+  async bulkApprovePromotions(sessionId: number, classId?: number): Promise<any> {
+    return await requestApi<any>('/api/v1/promotions/bulk-approve', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId, classId })
+    });
+  },
+
+  async previewPromotions(sessionId: number, toSessionId: number): Promise<any> {
+    return await requestApi<any>(`/api/v1/promotions/preview?sessionId=${sessionId}&toSessionId=${toSessionId}`);
+  },
+
+  async executePromotions(sessionId: number, toSessionId: number): Promise<any> {
+    return await requestApi<any>('/api/v1/promotions/execute', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId, toSessionId })
+    });
   }
 };

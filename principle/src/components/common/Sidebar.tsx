@@ -37,6 +37,7 @@ export type ActiveModule =
   | 'restricted-students'
   | 'payroll'
   | 'academic-oversight'
+  | 'academic-year'
   | 'notices'
   | 'notifications'
   | 'reports'
@@ -142,6 +143,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: 'Governance & Comms',
       items: [
         { id: 'academic-oversight', label: 'Academic Oversight', icon: UserCheck },
+        { id: 'academic-year', label: 'Year & Promotions', icon: GraduationCap },
         { id: 'notices', label: 'Notices & Circulars', icon: BellRing },
         { id: 'reports', label: 'Reports & Exports', icon: FileText },
         { id: 'audit', label: 'Audit Trail', icon: History }
