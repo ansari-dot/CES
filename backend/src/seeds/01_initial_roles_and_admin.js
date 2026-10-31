@@ -42,7 +42,9 @@ export async function seed(knex) {
     { id: 17, code: 'reports.export', description: 'Export operational data to Excel or PDF' },
     { id: 18, code: 'audit.view', description: 'View system audit logs' },
     { id: 19, code: 'system.settings.manage', description: 'Manage system settings and configurations' },
-    { id: 20, code: 'fees.access.restore', description: 'Restore student portal access restricted for overdue fees' }
+    { id: 20, code: 'fees.access.restore', description: 'Restore student portal access restricted for overdue fees' },
+    { id: 21, code: 'results.manage', description: 'Compute, review, approve and publish final examination results' },
+    { id: 22, code: 'promotions.manage', description: 'Evaluate, decide and execute student promotion and retention' }
   ];
 
   for (const p of permissionsData) {
@@ -54,7 +56,7 @@ export async function seed(knex) {
 
   // 3. Map Permissions to Roles
   const adminRolePerms = permissionsData.map((p) => ({ role_id: 1, permission_id: p.id }));
-  const principalPermIds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20];
+  const principalPermIds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 21, 22];
   const principalRolePerms = principalPermIds.map((pid) => ({ role_id: 2, permission_id: pid }));
   const teacherPermIds = [6, 7, 9, 10, 16];
   const teacherRolePerms = teacherPermIds.map((pid) => ({ role_id: 3, permission_id: pid }));
@@ -81,9 +83,7 @@ export async function seed(knex) {
       email: 'admin@school.pk',
       phone: '+923001234567',
       full_name: 'System Administrator',
-      password_hash: passwor
-      
-      dHash,
+      password_hash: passwordHash,
       must_change_password: 0,
       status: 'ACTIVE',
       token_version: 0
