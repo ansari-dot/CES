@@ -457,7 +457,7 @@ export const ParentsView: React.FC = () => {
                     onClick={() => { setLinkClass(String(c)); setLinkSearch(''); setSelectedStudentToLink(''); }}
                     className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
                       linkClass === String(c)
-                        ? 'bg-amber-600 border-amber-600 text-white'
+                        ? 'bg-amber-500 border-amber-500 text-amber-950'
                         : 'bg-white border-slate-200 text-slate-600 hover:border-amber-400 hover:text-amber-700'
                     }`}
                   >

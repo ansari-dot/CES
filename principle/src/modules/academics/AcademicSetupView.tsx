@@ -233,7 +233,7 @@ export const AcademicSetupView: React.FC = () => {
               onClick={() => setSelectedClassNum(cls.classNumber)}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
                 selectedClassNum === cls.classNumber
-                  ? 'bg-amber-600 text-white font-semibold shadow-xs'
+                  ? 'bg-amber-500 text-amber-950 font-semibold shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >

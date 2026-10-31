@@ -156,27 +156,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside className="w-64 bg-white border-r border-slate-200/90 flex flex-col shrink-0 select-none shadow-xs z-30">
+    <aside className="w-64 bg-amber-600 flex flex-col shrink-0 select-none shadow-xs z-30">
       {/* Brand Header */}
-      <div className="h-16 px-4 border-b border-slate-100 flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-600 flex items-center justify-center text-white font-bold text-sm shadow-xs shrink-0 tracking-tight font-heading">
-          OS
+      <div className="px-4 pt-6 pb-5 border-b border-white/15 flex flex-col items-center gap-2.5">
+        <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-md shrink-0 overflow-hidden">
+          <img src="/logo.jpeg" alt="Cambridge Education System logo" className="w-full h-full object-contain" />
         </div>
-        <div className="flex flex-col min-w-0">
-          <span className="text-sm font-semibold tracking-tight text-slate-900 truncate font-heading">
+        <div className="flex flex-col min-w-0 text-center">
+          <span className="text-sm font-semibold tracking-tight text-white truncate font-heading">
             Principal Portal
           </span>
-          <span className="text-[10px] text-slate-500 font-medium tracking-wide uppercase truncate font-heading">
+          <span className="text-[10px] text-white/70 font-medium tracking-wide uppercase truncate font-heading">
             Classes 1–8 · Online School
           </span>
         </div>
       </div>
 
       {/* Navigation Sections */}
-      <nav className="flex-1 overflow-y-auto p-3 space-y-4 text-xs">
+      <nav className="sidebar-scroll flex-1 overflow-y-auto p-3 space-y-4 text-xs">
         {navSections.map((section) => (
           <div key={section.title} className="space-y-0.5">
-            <div className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 font-heading">
+            <div className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/50 font-heading">
               {section.title}
             </div>
             {section.items.map((item) => {
@@ -188,12 +188,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onClick={() => onSelectModule(item.id)}
                   className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg font-medium transition-colors ${
                     isActive
-                      ? 'bg-amber-50 text-amber-900 border border-amber-200/80 shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                      ? 'bg-amber-500 text-amber-950 font-semibold shadow-xs'
+                      : 'text-white/85 hover:text-amber-950 hover:bg-amber-500'
                   }`}
                 >
                   <div className="flex items-center gap-2.5 truncate">
-                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-amber-600' : 'text-slate-400'}`} />
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-amber-950' : 'text-inherit'}`} />
                     <span className="truncate">{item.label}</span>
                   </div>
 
@@ -204,7 +204,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       {item.badge}
                     </span>
                   ) : isActive ? (
-                    <ChevronRight className="w-3.5 h-3.5 text-amber-600 shrink-0 opacity-80" />
+                    <ChevronRight className="w-3.5 h-3.5 text-amber-950 shrink-0 opacity-80" />
                   ) : null}
                 </button>
               );
@@ -214,14 +214,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       {/* Footer Role Notice & Sign Out */}
-      <div className="p-3 border-t border-slate-100 bg-slate-50/70 text-[11px] text-slate-600">
+      <div className="p-3 border-t border-white/15 bg-white/5 text-[11px] text-white/80">
         <div className="flex items-center justify-between">
           <div>
-            <div className="flex items-center gap-1.5 font-medium text-slate-700">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+            <div className="flex items-center gap-1.5 font-medium text-white/90">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
               <span>Principal Access</span>
             </div>
-            <div className="mt-0.5 text-[10px] text-slate-400">
+            <div className="mt-0.5 text-[10px] text-white/60">
               Classes 1–8 Real-Time Ops
             </div>
           </div>
@@ -229,7 +229,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             type="button"
             onClick={logout}
             title="Sign Out of Principal Portal"
-            className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-white hover:border-rose-200 transition-colors shadow-2xs cursor-pointer"
+            className="p-1.5 rounded-lg border border-white/25 text-white/80 hover:text-amber-950 hover:bg-amber-500 hover:border-transparent transition-colors shadow-2xs cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
           </button>

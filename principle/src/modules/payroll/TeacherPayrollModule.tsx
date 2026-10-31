@@ -4,6 +4,7 @@ import { TeacherSalaryDraft } from '../../types';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { Modal } from '../../components/common/Modal';
 import { LoadingState, ErrorState } from '../../components/common/StateViews';
+import { LetterheadHeader, LetterheadFooter } from '../../components/common/Letterhead';
 import { useToast } from '../../context/ToastContext';
 import { useSocketEvent } from '../../hooks/useSocket';
 import { RealtimeEvents } from '../../services/socketService';
@@ -393,7 +394,13 @@ export const TeacherPayrollModule: React.FC = () => {
           description={`Period: ${selectedDraft.payrollMonth} · Model: ${selectedDraft.salaryModel} · ID: ${selectedDraft.staffIdentifier}`}
           maxWidth="2xl"
         >
-          <div className="space-y-4 text-xs">
+          <div className="print-area space-y-4 text-xs">
+            {/* Official letterhead on printed salary slips / receipts */}
+            <LetterheadHeader />
+            <div className="hidden print:block mb-2">
+              <h1 className="text-sm font-bold text-slate-900">Salary Slip · {selectedDraft.teacherName}</h1>
+              <p className="text-[10px] text-slate-600">Period: {selectedDraft.payrollMonth} · Staff ID: {selectedDraft.staffIdentifier}</p>
+            </div>
             {/* Calculation Formula Banner */}
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
               <div className="flex items-center gap-2 text-amber-700 font-semibold">
@@ -674,7 +681,7 @@ export const TeacherPayrollModule: React.FC = () => {
               </div>
             )}
 
-            <div className="flex items-center justify-end pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-end pt-2 border-t border-slate-100 print:hidden">
               <button
                 type="button"
                 onClick={() => setIsDetailsModalOpen(false)}
@@ -683,6 +690,8 @@ export const TeacherPayrollModule: React.FC = () => {
                 Close
               </button>
             </div>
+
+            <LetterheadFooter />
           </div>
         </Modal>
       )}

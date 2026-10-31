@@ -40,18 +40,18 @@ export const Modal: React.FC<ModalProps> = ({
   }[maxWidth];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs overflow-y-auto print:static print:block print:p-0 print:bg-white print:backdrop-blur-none print:overflow-visible">
       <div
-        className="fixed inset-0"
+        className="fixed inset-0 print:hidden"
         onClick={onClose}
         aria-hidden="true"
       />
       <div
-        className={`relative w-full ${maxWidthClasses} bg-white border border-slate-200/90 rounded-2xl shadow-xl overflow-hidden my-8`}
+        className={`relative w-full ${maxWidthClasses} bg-white border border-slate-200/90 rounded-2xl shadow-xl overflow-hidden my-8 print:static print:max-w-none print:border-0 print:rounded-none print:shadow-none print:my-0 print:overflow-visible`}
         role="dialog"
         aria-modal="true"
       >
-        <div className="flex items-start justify-between p-5 border-b border-slate-100 bg-slate-50/60">
+        <div className="flex items-start justify-between p-5 border-b border-slate-100 bg-slate-50/60 print:hidden">
           <div>
             <h3 className="text-sm font-semibold text-slate-900 tracking-tight">{title}</h3>
             {description && <p className="text-xs text-slate-500 mt-0.5">{description}</p>}
@@ -64,7 +64,7 @@ export const Modal: React.FC<ModalProps> = ({
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="p-5 max-h-[82vh] overflow-y-auto">{children}</div>
+        <div className="p-5 max-h-[82vh] overflow-y-auto print:p-0 print:max-h-none print:overflow-visible">{children}</div>
       </div>
     </div>
   );

@@ -96,7 +96,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             className={`px-4 py-1.5 text-xs font-medium rounded-lg text-white transition-colors flex items-center gap-1.5 shadow-xs ${
               isDestructive
                 ? 'bg-rose-600 hover:bg-rose-500 disabled:bg-rose-300'
-                : 'bg-amber-600 hover:bg-amber-500 disabled:bg-amber-300'
+                : 'bg-amber-600 hover:bg-amber-500 disabled:bg-slate-300'
             }`}
           >
             {loading && <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}

@@ -17,7 +17,10 @@ import {
   AlertCircle,
   Eye,
   Filter,
-  Send
+  Send,
+  Phone,
+  Globe,
+  MapPin
 } from 'lucide-react';
 
 export const ChallansModule: React.FC = () => {
@@ -359,18 +362,35 @@ export const ChallansModule: React.FC = () => {
           description={`Class ${selectedChallan.classNumber} · ${selectedChallan.studentName} · Billing: ${selectedChallan.billingMonth}`}
           maxWidth="4xl"
         >
-          <div className="space-y-4 text-xs">
+          <div className="print-area space-y-4 text-xs" style={{ printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' } as React.CSSProperties}>
+            {/* Branded invoice header — Cambridge Education System template */}
+            <div className="bg-[#1b1a47] text-white rounded-xl px-5 py-4 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center overflow-hidden shrink-0">
+                  <img src="/logo.jpeg" alt="Cambridge Education System logo" className="w-full h-full object-contain" />
+                </div>
+                <div className="leading-tight">
+                  <div className="font-heading font-extrabold tracking-wide text-lg">CAMBRIDGE</div>
+                  <div className="text-[11px] text-white/85">Education System</div>
+                </div>
+              </div>
+              <div className="font-heading font-extrabold text-2xl tracking-[0.2em]">INVOICE</div>
+            </div>
+
             {/* Header info */}
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
               <div>
-                <span className="text-slate-500 text-[11px] block">Designated Fee Account</span>
-                <span className="font-semibold text-slate-900">Meezan Bank Ltd · AC: 0102-0105829102</span>
-                <span className="text-[10px] text-slate-500 block">Title: Online School Operation Fund</span>
+                <span className="text-slate-500 text-[11px] block">Payment Method</span>
+                <span className="font-semibold text-slate-900">Meezan Bank F-11 MARKAZ, ISLAMABAD</span>
+                <span className="text-[10px] text-slate-500 block">Title: CAMBRIDGE EDUCATION SYSTEM</span>
+                <span className="text-[10px] text-slate-500 block font-mono">Account Number : 03060114428178</span>
+                <span className="text-[10px] text-slate-500 block font-mono">IBAN : PK58MEZN0003060114428178</span>
               </div>
               <div className="text-right">
                 <span className="text-slate-500 text-[11px] block">Due Date</span>
                 <span className="font-mono font-bold text-amber-700 text-sm">{selectedChallan.dueDate}</span>
                 <span className="text-[10px] text-slate-500 block">Status: {selectedChallan.status}</span>
+                <span className="text-[10px] text-slate-500 block">Invoice No: {selectedChallan.challanNumber}</span>
               </div>
             </div>
 
@@ -452,7 +472,14 @@ export const ChallansModule: React.FC = () => {
               ))}
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            {/* Branded contact footer */}
+            <div className="bg-[#1b1a47] text-white rounded-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 text-[11px]">
+              <span className="inline-flex items-center gap-1.5"><Phone className="w-3 h-3" /> 0300 511 8716</span>
+              <span className="inline-flex items-center gap-1.5"><Globe className="w-3 h-3" /> www.cambridgeeducation.uk.com</span>
+              <span className="inline-flex items-center gap-1.5"><MapPin className="w-3 h-3" /> Islamabad Pakistan</span>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 print:hidden">
               <button
                 type="button"
                 onClick={() => setIsChallanModalOpen(false)}

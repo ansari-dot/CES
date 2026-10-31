@@ -415,7 +415,7 @@ export const ZoomLinksModule: React.FC = () => {
             onClick={() => setActiveTab('reviews')}
             className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
               activeTab === 'reviews'
-                ? 'bg-amber-600 text-white shadow-xs'
+                ? 'bg-amber-500 text-amber-950 shadow-xs'
                 : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
             }`}
           >
@@ -907,7 +907,7 @@ export const ZoomLinksModule: React.FC = () => {
               onClick={() => setReviewStatusFilter('REQUIRES_REVIEW')}
               className={`px-3 py-1.5 rounded-xl font-medium transition-colors cursor-pointer ${
                 reviewStatusFilter === 'REQUIRES_REVIEW'
-                  ? 'bg-amber-600 text-white shadow-2xs font-bold'
+                  ? 'bg-amber-500 text-amber-950 shadow-2xs font-bold'
                   : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
               }`}
             >

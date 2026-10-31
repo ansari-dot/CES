@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api';
 import { ReportCategory } from '../../types';
 import { LoadingState } from '../../components/common/StateViews';
+import { LetterheadHeader, LetterheadFooter } from '../../components/common/Letterhead';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -338,7 +339,8 @@ export const ReportsModule: React.FC = () => {
         </span>
       </div>
 
-      {/* Print-only report heading */}
+      {/* Print-only letterhead + report heading */}
+      <LetterheadHeader />
       <div className="hidden print:block mb-3">
         <h1 className="text-lg font-bold text-slate-900">{CATEGORY_LABELS[selectedCategory]}</h1>
         <p className="text-[11px] text-slate-600 mt-0.5">
@@ -389,6 +391,8 @@ export const ReportsModule: React.FC = () => {
           </div>
         </div>
       )}
+
+      <LetterheadFooter />
     </div>
   );
 };

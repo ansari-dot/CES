@@ -558,7 +558,7 @@ export const QuickActionsFloating: React.FC<QuickActionsFloatingProps> = ({
                       onClick={() => handleUpdateRecordStatus(record.studentId, 'Late')}
                       className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${
                         record.status === 'Late'
-                          ? 'bg-amber-600 text-white shadow-2xs'
+                          ? 'bg-amber-500 text-amber-950 shadow-2xs'
                           : 'bg-slate-100 text-slate-600 hover:bg-amber-50 hover:text-amber-700'
                       }`}
                     >

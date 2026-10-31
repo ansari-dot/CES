@@ -336,7 +336,7 @@ export const FeeStructureModule: React.FC = () => {
                 onClick={() => setSelectedClassNum(c)}
                 className={`shrink-0 px-3 py-1.5 rounded-lg font-medium whitespace-nowrap transition-colors cursor-pointer flex items-center gap-1.5 ${
                   isSelected
-                    ? 'bg-amber-600 text-white font-semibold shadow-xs'
+                    ? 'bg-amber-500 text-amber-950 font-semibold shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >

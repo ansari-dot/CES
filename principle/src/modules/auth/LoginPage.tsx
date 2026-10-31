@@ -42,7 +42,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen w-full bg-[#eef2f7] font-sans text-[#1a2340] antialiased">
+    <div className="flex flex-col lg:flex-row min-h-screen w-full bg-[#f4f4f8] font-sans text-[#1b1a47] antialiased">
       {/* Left Column: Educational Technology Illustration */}
       <div className="flex-1 flex items-center justify-center py-12 px-6 lg:py-16 lg:px-12">
         <div className="w-full max-w-lg aspect-square flex items-center justify-center">
@@ -55,23 +55,24 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       </div>
 
       {/* Right Column: Sign In Panel */}
-      <div className="flex items-center justify-center lg:justify-start w-full lg:w-[620px] shrink-0 bg-[#eef2f7]">
+      <div className="flex items-center justify-center lg:justify-start w-full lg:w-[620px] shrink-0 bg-[#f4f4f8]">
         <div className="flex flex-col justify-center w-full max-w-xl px-6 sm:px-12 lg:px-16 py-12 lg:py-20">
-          <h1 className="text-4xl font-heading font-bold text-[#1a2340] mb-2 tracking-tight">
+          <img src="/logo.jpeg" alt="Cambridge Education System logo" className="w-16 h-16 object-contain mb-5 rounded-full border border-[#dcdcef] bg-white shadow-sm" />
+          <h1 className="text-4xl font-heading font-bold text-[#1b1a47] mb-2 tracking-tight">
             Welcome back
           </h1>
-          <p className="text-lg text-[#5a6a8a] mb-10 font-sans">
+          <p className="text-lg text-[#545454] mb-10 font-sans">
             Sign in to your account to continue.
           </p>
 
           <form onSubmit={handleSubmit} className="w-full">
             {/* Email or Username Field */}
             <div className="flex flex-col gap-2 w-full mb-6">
-              <label className="text-sm font-sans font-semibold text-[#1a2340]">
+              <label className="text-sm font-sans font-semibold text-[#1b1a47]">
                 Email or Username
               </label>
-              <div className="flex items-center gap-3 bg-white border border-[#d8e0ec] rounded-lg px-4 py-3 focus-within:border-[#3b3fc7] focus-within:ring-2 focus-within:ring-[#3b3fc7]/20 transition-all">
-                <span className="inline-flex items-center justify-center shrink-0 w-[18px] h-[18px] text-[#6b7a99]">
+              <div className="flex items-center gap-3 bg-white border border-[#dcdcef] rounded-lg px-4 py-3 focus-within:border-[#4543a8] focus-within:ring-2 focus-within:ring-[#4543a8]/20 transition-all">
+                <span className="inline-flex items-center justify-center shrink-0 w-[18px] h-[18px] text-[#6e6cbe]">
                   <Mail className="w-[18px] h-[18px]" strokeWidth={2.4} />
                 </span>
                 <input
@@ -83,18 +84,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     if (error) setError(null);
                   }}
                   placeholder="Enter your email or username"
-                  className="flex-1 text-base text-[#1a2340] placeholder:text-[#6b7a99] bg-transparent focus:outline-none font-sans"
+                  className="flex-1 text-base text-[#1b1a47] placeholder:text-[#6e6cbe] bg-transparent focus:outline-none font-sans"
                 />
               </div>
             </div>
 
             {/* Password Field */}
             <div className="flex flex-col gap-2 w-full mb-5">
-              <label className="text-sm font-sans font-semibold text-[#1a2340]">
+              <label className="text-sm font-sans font-semibold text-[#1b1a47]">
                 Password
               </label>
-              <div className="flex items-center gap-3 bg-white border border-[#d8e0ec] rounded-lg px-4 py-3 focus-within:border-[#3b3fc7] focus-within:ring-2 focus-within:ring-[#3b3fc7]/20 transition-all">
-                <span className="inline-flex items-center justify-center shrink-0 w-[18px] h-[18px] text-[#6b7a99]">
+              <div className="flex items-center gap-3 bg-white border border-[#dcdcef] rounded-lg px-4 py-3 focus-within:border-[#4543a8] focus-within:ring-2 focus-within:ring-[#4543a8]/20 transition-all">
+                <span className="inline-flex items-center justify-center shrink-0 w-[18px] h-[18px] text-[#6e6cbe]">
                   <Lock className="w-[18px] h-[18px]" strokeWidth={2.4} />
                 </span>
                 <input
@@ -106,12 +107,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     if (error) setError(null);
                   }}
                   placeholder="Enter your password"
-                  className="flex-1 text-base text-[#1a2340] placeholder:text-[#6b7a99] bg-transparent focus:outline-none font-sans"
+                  className="flex-1 text-base text-[#1b1a47] placeholder:text-[#6e6cbe] bg-transparent focus:outline-none font-sans"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="inline-flex items-center justify-center shrink-0 w-[18px] h-[18px] text-[#6b7a99] hover:text-[#1a2340] transition-colors focus:outline-none cursor-pointer"
+                  className="inline-flex items-center justify-center shrink-0 w-[18px] h-[18px] text-[#6e6cbe] hover:text-[#1b1a47] transition-colors focus:outline-none cursor-pointer"
                   title={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? (
@@ -131,21 +132,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               >
                 <div
                   className={`w-5 h-5 rounded-sm flex items-center justify-center transition-colors ${
-                    rememberMe ? 'bg-[#3b3fc7]' : 'bg-white border border-[#d8e0ec]'
+                    rememberMe ? 'bg-[#4543a8]' : 'bg-white border border-[#dcdcef]'
                   }`}
                 >
                   {rememberMe && (
                     <Check className="w-3.5 h-3.5 text-white" strokeWidth={3.5} />
                   )}
                 </div>
-                <span className="text-sm font-sans text-[#1a2340]">
+                <span className="text-sm font-sans text-[#1b1a47]">
                   Remember me
                 </span>
               </div>
               <button
                 type="button"
                 onClick={handleForgotPassword}
-                className="text-sm font-sans text-[#3b3fc7] hover:underline font-medium cursor-pointer"
+                className="text-sm font-sans text-[#4543a8] hover:underline font-medium cursor-pointer"
               >
                 Forgot password?
               </button>
@@ -155,7 +156,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             <button
               type="submit"
               disabled={loading}
-              className="flex items-center justify-center gap-3 w-full bg-[#3b3fc7] hover:bg-[#3236b3] active:bg-[#282b94] text-white text-base font-semibold rounded-lg py-4 mb-5 transition-all shadow-sm cursor-pointer disabled:opacity-70 font-sans"
+              className="flex items-center justify-center gap-3 w-full bg-[#4543a8] hover:bg-[#36348e] active:bg-[#2c2a75] text-white text-base font-semibold rounded-lg py-4 mb-5 transition-all shadow-sm cursor-pointer disabled:opacity-70 font-sans"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -178,10 +179,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             )}
 
             {/* Hairline Divider */}
-            <div className="border-t border-[#d8e0ec] mb-6"></div>
+            <div className="border-t border-[#dcdcef] mb-6"></div>
 
             {/* Help text footer */}
-            <p className="text-sm font-sans text-[#6b7a99] text-center">
+            <p className="text-sm font-sans text-[#6e6cbe] text-center">
               Need help signing in? Contact your school administrator.
             </p>
           </form>

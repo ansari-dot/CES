@@ -1,27 +1,39 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-heading: 'Montserrat', 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-heading: 'Work Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --color-amber-50: #fff6df;
+  --color-amber-100: #ffeab3;
+  --color-amber-200: #ffdd80;
+  --color-amber-300: #ffd14f;
+  --color-amber-400: #ffc53a;
+  --color-amber-500: #ffc53a;
+  --color-amber-600: #36348e;
+  --color-amber-700: #2c2a75;
+  --color-amber-800: #23215c;
+  --color-amber-900: #1b1a47;
+  --color-amber-950: #121135;
 }
 
 :root {
-  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 @layer base {
   * {
-    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 
   h1, h2, h3, h4, h5, h6, .font-heading {
-    font-family: 'Montserrat', 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'Work Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     letter-spacing: -0.015em;
   }
 
   body {
-    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background-color: #f8fafc;
     color: #0f172a;
     -webkit-font-smoothing: antialiased;
@@ -49,10 +61,51 @@
   }
 }
 
+/* Invisible sidebar scrollbar — scrolls but shows no track or thumb */
+.sidebar-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.sidebar-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  background: transparent;
+}
+
+/* Brand hover: yellow background takes navy text for readability */
+.hover\:bg-amber-500:hover {
+  color: #1b1a47;
+}
+
+/* When a .print-area exists on the page (open voucher / slip modal),
+   print only that region on official stationery. */
+@media print {
+  body:has(.print-area) * {
+    visibility: hidden;
+  }
+  body:has(.print-area) .print-area,
+  body:has(.print-area) .print-area * {
+    visibility: visible;
+  }
+  body:has(.print-area) .print-area {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .print-area {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
+
 .font-heading {
-  font-family: 'Montserrat', 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif !important;
+  font-family: 'Work Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
 }
 
 .font-body {
-  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif !important;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
 }
