@@ -69,6 +69,18 @@ class EmailService {
   }
 
   /**
+   * Enqueue email for asynchronous delivery via BullMQ with automatic retries
+   */
+  async queueMail({ to, subject, html, text }) {
+    try {
+      const { enqueueEmail } = await import('../queue/queueManager.js');
+      return await enqueueEmail({ to, subject, html, text });
+    } catch {
+      return await this.sendMail({ to, subject, html, text });
+    }
+  }
+
+  /**
    * Send Welcome & Account Credentials to a newly onboarded Teacher
    */
   async sendTeacherCredentials({
@@ -180,7 +192,7 @@ Here are your account credentials:
 Please log in and update your password immediately upon your first sign-in.
     `.trim();
 
-    return await this.sendMail({
+    return await this.queueMail({
       to: email,
       subject,
       html,
@@ -297,7 +309,7 @@ Here are your account credentials:
 Please keep your login credentials safe.
     `.trim();
 
-    return await this.sendMail({
+    return await this.queueMail({
       to: email,
       subject,
       html,
@@ -384,7 +396,7 @@ Please keep your login credentials safe.
 
     const text = `Dear ${name},\n\nYour parent portal account has been created.\n\nLogin Email: ${email}\nTemporary Password: ${temporaryPassword}\nPortal URL: ${portalUrl}\n\nYou will be asked to set a new password on first login.`.trim();
 
-    return await this.sendMail({ to: email, subject, html, text });
+    return await this.queueMail({ to: email, subject, html, text });
   }
 }
 

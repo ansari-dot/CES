@@ -1,4 +1,5 @@
 import { getIo } from './socket.js';
+import { enqueueRealtimeEvent } from '../queue/queueManager.js';
 
 /**
  * Standard Real-Time Event Names
@@ -15,8 +16,8 @@ export const RealtimeEvents = {
 };
 
 /**
- * Emits an authorized real-time event to connected Socket.IO clients.
- * Safely handles disconnections, non-initialized socket state, and room targeting.
+ * Low-level Socket.IO dispatcher that delivers messages directly to connected WebSocket clients.
+ * Invoked either immediately (fallback / test mode) or by the BullMQ background worker.
  *
  * @param {string} event - One of RealtimeEvents
  * @param {object} payload - Structured event payload
@@ -27,7 +28,7 @@ export const RealtimeEvents = {
  * @param {number|number[]} [options.userIds] - Target user IDs
  * @param {string|string[]} [options.roles] - Target role names
  */
-export function emitRealtimeEvent(event, payload, options = {}) {
+export function dispatchSocketEvent(event, payload, options = {}) {
   try {
     const io = getIo();
     if (!io) return;
@@ -72,5 +73,23 @@ export function emitRealtimeEvent(event, payload, options = {}) {
   } catch (err) {
     // Non-blocking: socket delivery errors never fail database operations
     console.warn(`[RealtimeEventEmitter] Failed to emit event ${event}:`, err.message);
+  }
+}
+
+/**
+ * Authoritative event dispatcher for the application.
+ * Routes the event to BullMQ Queue when Redis is running, ensuring asynchronous,
+ * reliable, and scalable event processing without blocking database transactions.
+ * Safely falls back to immediate synchronous dispatch when queue is inactive or during tests.
+ *
+ * @param {string} event - One of RealtimeEvents
+ * @param {object} payload - Structured event payload
+ * @param {object} [options]
+ */
+export function emitRealtimeEvent(event, payload, options = {}) {
+  try {
+    enqueueRealtimeEvent(event, payload, options);
+  } catch (err) {
+    dispatchSocketEvent(event, payload, options);
   }
 }

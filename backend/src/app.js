@@ -106,6 +106,17 @@ export function createApp() {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
+  // BullMQ & Redis Event Management status endpoint
+  app.get('/api/v1/system/queues', async (_req, res) => {
+    try {
+      const { getQueueMetrics } = await import('./shared/queue/queueManager.js');
+      const metrics = await getQueueMetrics();
+      res.json({ success: true, ...metrics, timestamp: new Date().toISOString() });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // 8. Module Routes mounting
   app.use('/api/v1/auth', authRoutes);
   app.use('/api/v1/teachers', teachersRoutes);

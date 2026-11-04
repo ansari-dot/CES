@@ -16,7 +16,9 @@
     "fees:run": "node scripts/run-fee-lifecycle.js"
   },
   "dependencies": {
+    "@socket.io/redis-adapter": "^8.3.0",
     "argon2": "^0.41.1",
+    "bullmq": "^6.6.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

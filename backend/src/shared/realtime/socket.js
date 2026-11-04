@@ -1,8 +1,10 @@
 import { Server } from 'socket.io';
+import { createAdapter } from '@socket.io/redis-adapter';
 import jwt from 'jsonwebtoken';
 import cookie from 'cookie';
 import { config } from '../../config/index.js';
 import { db } from '../db/knex.js';
+import { getCacheRedis } from '../redis/redisClient.js';
 
 let io = null;
 
@@ -31,6 +33,17 @@ export function initSocketServer(httpServer) {
     pingInterval: 25000,
     transports: ['websocket', 'polling']
   });
+
+  // Attach Redis Adapter when available (not in unit test mode)
+  if (!config.isTest) {
+    try {
+      const pubClient = getCacheRedis();
+      const subClient = pubClient.duplicate();
+      io.adapter(createAdapter(pubClient, subClient));
+    } catch (adapterErr) {
+      console.warn('⚠️ Could not attach Redis adapter to Socket.IO, falling back to in-memory:', adapterErr.message);
+    }
+  }
 
   // Socket Authentication Middleware
   io.use(async (socket, next) => {
