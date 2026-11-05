@@ -7,8 +7,8 @@ export function authorize(requiredPermission) {
       return next(new AppError('Authentication required', 401, ErrorCodes.UNAUTHENTICATED));
     }
 
-    // Administrator role bypasses specific permission checks
-    if (req.user.role === 'ADMIN') {
+    // Administrator and Principal roles have full administrative authority
+    if (req.user.role === 'ADMIN' || req.user.role === 'PRINCIPAL') {
       return next();
     }
 

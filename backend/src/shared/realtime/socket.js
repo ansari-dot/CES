@@ -21,7 +21,13 @@ export function initSocketServer(httpServer) {
   io = new Server(httpServer, {
     cors: {
       origin: (origin, callback) => {
-        if (!origin || config.allowedOrigins.includes(origin) || !config.isProduction) {
+        if (
+          !origin ||
+          config.allowedOrigins.includes(origin) ||
+          origin.endsWith('.cambridgeeducation.uk.com') ||
+          origin === 'https://cambridgeeducation.uk.com' ||
+          !config.isProduction
+        ) {
           return callback(null, true);
         }
         return callback(new Error('Blocked by CORS policy'));
@@ -61,7 +67,7 @@ export function initSocketServer(httpServer) {
       // Extract from Cookie header
       if (!token && socket.handshake.headers?.cookie) {
         const parsedCookies = cookie.parse(socket.handshake.headers.cookie);
-        token = parsedCookies.sms_access_token;
+        token = parsedCookies['__Host-sms_at'] || parsedCookies['sms_at'] || parsedCookies.sms_access_token;
       }
 
       if (!token) {

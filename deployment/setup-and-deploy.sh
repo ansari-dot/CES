@@ -88,8 +88,26 @@ else
     else
         echo "PORT=4000" >> "$PROJECT_ROOT/backend/.env"
     fi
-    echo "  ✅ Existing backend/.env verified with PORT=4000."
+    # Ensure DB_PASSWORD=admin is configured
+    if grep -q "DB_PASSWORD=" "$PROJECT_ROOT/backend/.env"; then
+        sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=admin/" "$PROJECT_ROOT/backend/.env"
+    fi
+    echo "  ✅ Existing backend/.env verified with PORT=4000 and DB_PASSWORD=admin."
 fi
+
+# Provision MySQL database and user automatically
+echo "  Setting up MySQL database 'school_db' and user 'ces_user'..."
+sudo mysql -e "
+CREATE DATABASE IF NOT EXISTS school_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS 'ces_user'@'localhost' IDENTIFIED WITH mysql_native_password BY 'admin';
+ALTER USER 'ces_user'@'localhost' IDENTIFIED WITH mysql_native_password BY 'admin';
+GRANT ALL PRIVILEGES ON school_db.* TO 'ces_user'@'localhost';
+CREATE USER IF NOT EXISTS 'ces_user'@'127.0.0.1' IDENTIFIED WITH mysql_native_password BY 'admin';
+ALTER USER 'ces_user'@'127.0.0.1' IDENTIFIED WITH mysql_native_password BY 'admin';
+GRANT ALL PRIVILEGES ON school_db.* TO 'ces_user'@'127.0.0.1';
+FLUSH PRIVILEGES;
+" 2>/dev/null || true
+echo "  ✅ MySQL user 'ces_user' configured with password 'admin'."
 
 # 4. Install Backend Dependencies & Run Database Migrations
 echo -e "\n${YELLOW}[3/7] Setting up backend dependencies & database schema...${NC}"
@@ -155,6 +173,11 @@ upstream ces_backend_upstream {
     keepalive 64;
 }
 
+map \$http_upgrade \$connection_upgrade {
+    default upgrade;
+    '' close;
+}
+
 # 1. PRINCIPAL & ADMIN PORTAL
 server {
     listen 80;
@@ -196,7 +219,7 @@ server {
         proxy_pass http://ces_backend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
+        proxy_set_header Connection \$connection_upgrade;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -247,7 +270,7 @@ server {
         proxy_pass http://ces_backend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
+        proxy_set_header Connection \$connection_upgrade;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -298,7 +321,7 @@ server {
         proxy_pass http://ces_backend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
+        proxy_set_header Connection \$connection_upgrade;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -349,7 +372,7 @@ server {
         proxy_pass http://ces_backend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
+        proxy_set_header Connection \$connection_upgrade;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -381,7 +404,7 @@ server {
         proxy_pass http://ces_backend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
+        proxy_set_header Connection \$connection_upgrade;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;

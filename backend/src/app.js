@@ -62,8 +62,14 @@ export function createApp() {
   app.use(
     cors({
       origin: (origin, callback) => {
-        // Allow requests with no origin (e.g. mobile apps, curl, same-origin) or allowed origins or development
-        if (!origin || config.allowedOrigins.includes(origin) || !config.isProduction) {
+        // Allow requests with no origin, allowed origins, or any cambridgeeducation.uk.com subdomain
+        if (
+          !origin ||
+          config.allowedOrigins.includes(origin) ||
+          origin.endsWith('.cambridgeeducation.uk.com') ||
+          origin === 'https://cambridgeeducation.uk.com' ||
+          !config.isProduction
+        ) {
           return callback(null, true);
         }
         return callback(new AppError('Blocked by CORS policy', 403, ErrorCodes.FORBIDDEN));
