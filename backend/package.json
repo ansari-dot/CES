@@ -10,6 +10,7 @@
     "migrate": "knex migrate:latest --knexfile knexfile.js",
     "migrate:rollback": "knex migrate:rollback --knexfile knexfile.js",
     "seed": "knex seed:run --knexfile knexfile.js",
+    "setup:prod": "node scripts/setup-production-data.js",
     "create:principal": "node scripts/create-principal.js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --detectOpenHandles --forceExit",
     "seed:fee-test": "node scripts/seed-fee-test-data.js",

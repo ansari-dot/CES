@@ -15,9 +15,14 @@ export async function seed(knex) {
   ];
 
   for (const r of roles) {
-    const exists = await knex('roles').where({ id: r.id }).first();
-    if (!exists) {
-      await knex('roles').insert(r);
+    const byCode = await knex('roles').where({ code: r.code }).first();
+    if (!byCode) {
+      const byId = await knex('roles').where({ id: r.id }).first();
+      if (!byId) {
+        await knex('roles').insert(r).catch(() => {});
+      } else {
+        await knex('roles').insert({ code: r.code, name: r.name }).catch(() => {});
+      }
     }
   }
 
@@ -48,37 +53,62 @@ export async function seed(knex) {
   ];
 
   for (const p of permissionsData) {
-    const exists = await knex('permissions').where({ id: p.id }).first();
+    const exists = await knex('permissions').where({ code: p.code }).first();
     if (!exists) {
-      await knex('permissions').insert(p);
+      await knex('permissions').insert(p).catch(() => {});
     }
   }
 
-  // 3. Map Permissions to Roles
-  const adminRolePerms = permissionsData.map((p) => ({ role_id: 1, permission_id: p.id }));
-  const principalPermIds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 21, 22];
-  const principalRolePerms = principalPermIds.map((pid) => ({ role_id: 2, permission_id: pid }));
-  const teacherPermIds = [6, 7, 9, 10, 16];
-  const teacherRolePerms = teacherPermIds.map((pid) => ({ role_id: 3, permission_id: pid }));
+  // 3. Map Permissions dynamically to Roles
+  const adminRole = await knex('roles').where({ code: 'ADMIN' }).first();
+  const principalRole = await knex('roles').where({ code: 'PRINCIPAL' }).first();
+  const teacherRole = await knex('roles').where({ code: 'TEACHER' }).first();
 
-  const allRolePerms = [...adminRolePerms, ...principalRolePerms, ...teacherRolePerms];
+  const allDbPerms = await knex('permissions').select('id', 'code');
+  const permMap = new Map(allDbPerms.map(p => [p.code, p.id]));
+
+  const allRolePerms = [];
+
+  if (adminRole) {
+    for (const p of permissionsData) {
+      const pid = permMap.get(p.code) || p.id;
+      allRolePerms.push({ role_id: adminRole.id, permission_id: pid });
+    }
+  }
+
+  if (principalRole) {
+    for (const p of permissionsData) {
+      const pid = permMap.get(p.code) || p.id;
+      allRolePerms.push({ role_id: principalRole.id, permission_id: pid });
+    }
+  }
+
+  if (teacherRole) {
+    const teacherPermCodes = ['zoom.session.start', 'attendance.mark', 'tasks.manage', 'tasks.grade', 'reports.view'];
+    for (const code of teacherPermCodes) {
+      const pid = permMap.get(code);
+      if (pid) {
+        allRolePerms.push({ role_id: teacherRole.id, permission_id: pid });
+      }
+    }
+  }
+
   for (const rp of allRolePerms) {
     const exists = await knex('role_permissions').where({
       role_id: rp.role_id,
       permission_id: rp.permission_id
     }).first();
     if (!exists) {
-      await knex('role_permissions').insert(rp);
+      await knex('role_permissions').insert(rp).catch(() => {});
     }
   }
 
   // 4. Create Initial Root Administrator User if not exists
   const adminUser = await knex('users').where({ username: 'admin' }).first();
-  if (!adminUser) {
+  if (!adminUser && adminRole) {
     const passwordHash = await hashPassword('AdminPassword123!');
     await knex('users').insert({
-      id: 1,
-      role_id: 1, // ADMIN
+      role_id: adminRole.id,
       username: 'admin',
       email: 'admin@school.pk',
       phone: '+923001234567',
@@ -87,6 +117,6 @@ export async function seed(knex) {
       must_change_password: 0,
       status: 'ACTIVE',
       token_version: 0
-    });
+    }).catch(() => {});
   }
 }
