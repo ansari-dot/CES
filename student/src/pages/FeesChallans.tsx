@@ -5,6 +5,7 @@ import { RootState, AppDispatch } from '../store';
 import { submitPaymentProof, fetchMyFeeStructure, fetchChallans } from '../store/slices/feesSlice';
 import { setToast } from '../store/slices/studentSlice';
 import StatusChip from '../components/common/StatusChip';
+import { LoadingBlock } from '../components/common/LoadingBlock';
 
 export default function FeesChallans() {
   const dispatch = useDispatch<AppDispatch>();
@@ -112,11 +113,7 @@ export default function FeesChallans() {
 
         {/* Fee Heads Grid */}
         {structureLoading && !structure ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-            {[1, 2, 3, 4].map((n) => (
-              <div key={n} className="bg-muted/40 h-20 rounded-md animate-pulse" />
-            ))}
-          </div>
+          <LoadingBlock message="Loading approved fee structures..." />
         ) : heads.length === 0 ? (
           <div className="text-xs text-muted-foreground py-3">Fee schedule being finalized by administration.</div>
         ) : (

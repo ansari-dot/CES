@@ -3,9 +3,10 @@ import { useSelector } from 'react-redux';
 import { CalendarCheck, Check, X, Clock, FileText } from 'lucide-react';
 import { RootState } from '../store';
 import StatusChip from '../components/common/StatusChip';
+import { LoadingBlock } from '../components/common/LoadingBlock';
 
 export default function Attendance() {
-  const { overallPercentage, stats, timeline, history } = useSelector((state: RootState) => state.attendance);
+  const { overallPercentage, stats, timeline, history, loading } = useSelector((state: RootState) => state.attendance);
 
   const getTimelineColor = (type: string) => {
     switch (type) {
@@ -16,6 +17,10 @@ export default function Attendance() {
       default: return 'bg-emerald-500';
     }
   };
+
+  if (loading && history.length === 0) {
+    return <LoadingBlock message="Loading your attendance records..." />;
+  }
 
   return (
     <div className="space-y-6">

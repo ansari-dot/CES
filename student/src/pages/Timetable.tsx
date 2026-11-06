@@ -6,11 +6,13 @@ import { TimetableLesson, TimetableDay } from '../store/slices/classesSlice';
 import { dateKeyInZone, dayLabelFromKey, longDateFromKey } from '../lib/timezone';
 import StatusChip from '../components/common/StatusChip';
 import ZoomMeetingModal from '../components/dialogs/ZoomMeetingModal';
+import { LoadingBlock } from '../components/common/LoadingBlock';
 
 export default function Timetable() {
   const weeklyTimetable = useSelector((state: RootState) => state.classes.weeklyTimetable);
   const timetableDays = useSelector((state: RootState) => state.classes.timetableDays);
   const timezone = useSelector((state: RootState) => state.classes.timezone);
+  const loading = useSelector((state: RootState) => state.classes.loading);
   const [selectedKey, setSelectedKey] = useState<string>('');
   const [activeView, setActiveView] = useState<"Week" | "Day">("Week");
   const [activeModalLesson, setActiveModalLesson] = useState<TimetableLesson | null>(null);
@@ -26,6 +28,10 @@ export default function Timetable() {
   const selectedIdx = days.findIndex((d) => d.key === selectedDay);
   const selectedLabel = dayLabelFromKey(selectedDay);
   const currentLessons = weeklyTimetable[selectedDay] || [];
+
+  if (loading && Object.keys(weeklyTimetable).length === 0) {
+    return <LoadingBlock message="Loading your class timetable..." />;
+  }
 
   return (
     <div className="space-y-6">

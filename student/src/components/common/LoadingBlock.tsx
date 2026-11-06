@@ -8,3 +8,4 @@ export function LoadingBlock({ message = 'Loading records...' }: { message?: str
     </div>
   );
 }
+

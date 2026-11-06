@@ -4,10 +4,11 @@ import { Clock, Send, CheckCircle2, AlertCircle } from 'lucide-react';
 import { RootState, AppDispatch } from '../store';
 import { setFilter, fetchTasks, AssignmentItem } from '../store/slices/assignmentsSlice';
 import SubmitAssignmentModal from '../components/dialogs/SubmitAssignmentModal';
+import { LoadingBlock } from '../components/common/LoadingBlock';
 
 export default function Assignments() {
   const dispatch = useDispatch<AppDispatch>();
-  const { items, filter } = useSelector((state: RootState) => state.assignments);
+  const { items, filter, loading } = useSelector((state: RootState) => state.assignments);
   const [selectedAssignment, setSelectedAssignment] = useState<AssignmentItem | null>(null);
 
   useEffect(() => {
@@ -23,6 +24,10 @@ export default function Assignments() {
     if (filter === 'All') return true;
     return item.status.toLowerCase() === filter.toLowerCase();
   });
+
+  if (loading && items.length === 0) {
+    return <LoadingBlock message="Loading your homework and assignments..." />;
+  }
 
   return (
     <div className="space-y-6">

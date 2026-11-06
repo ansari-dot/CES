@@ -5,10 +5,11 @@ import { RootState } from '../store';
 import { setSearchQuery, setSelectedSubject, ResourceItem } from '../store/slices/resourcesSlice';
 import { setToast } from '../store/slices/studentSlice';
 import { openProtectedFile } from '../services/api';
+import { LoadingBlock } from '../components/common/LoadingBlock';
 
 export default function LearningResources() {
   const dispatch = useDispatch();
-  const { items, searchQuery, selectedSubject } = useSelector((state: RootState) => state.resources);
+  const { items, searchQuery, selectedSubject, loading } = useSelector((state: RootState) => state.resources);
 
   const subjects = ['All', ...Array.from(new Set(items.map((i) => i.subject).filter(Boolean))).sort()];
 
@@ -18,6 +19,10 @@ export default function LearningResources() {
                        item.subject.toLowerCase().includes(searchQuery.toLowerCase());
     return matchSubject && matchQuery;
   });
+
+  if (loading && items.length === 0) {
+    return <LoadingBlock message="Loading learning resources..." />;
+  }
 
   const getIcon = (iconType: ResourceItem['iconType']) => {
     switch (iconType) {
