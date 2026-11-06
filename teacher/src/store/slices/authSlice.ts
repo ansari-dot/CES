@@ -180,9 +180,6 @@ export const authSlice = createSlice({
           state.selectedClassId = classes.length > 0 ? classes[0].id : '';
         }
       })
-      .addCase(checkTeacherSessionThunk.rejected, (state) => {
-        state.isCheckingAuth = false;
-      })
       .addCase(completeFirstPasswordSetupThunk.fulfilled, (state, action) => {
         state.mustChangePassword = Boolean(action.payload?.mustChangePassword);
       })
@@ -196,6 +193,7 @@ export const authSlice = createSlice({
         }
       })
       .addCase(checkTeacherSessionThunk.rejected, (state) => {
+        state.isCheckingAuth = false;
         state.isAuthenticated = false;
         state.teacher = DEFAULT_LIVE_TEACHER;
         if (typeof window !== 'undefined') {
