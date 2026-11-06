@@ -60,7 +60,7 @@ interface ParentContextValue {
   children: ChildSummary[];
   selectedChild: ChildSummary | null;
   selectChild: (studentId: number) => void;
-  login: (identifier: string, password: string) => Promise<void>;
+  login: (identifier: string, password: string, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   restoreSession: () => Promise<boolean>;
   refreshDashboard: () => Promise<void>;
@@ -118,12 +118,12 @@ export function ParentProvider({ children: content }: { children: React.ReactNod
   }, []);
 
   const login = useCallback(
-    async (identifier: string, password: string) => {
+    async (identifier: string, password: string, rememberMe = true) => {
       setAuthLoading(true);
       try {
         const data = await requestApi<any>('/api/v1/auth/login', {
           method: 'POST',
-          body: JSON.stringify({ identifier, password }),
+          body: JSON.stringify({ identifier, password, rememberMe }),
         });
         await acceptUser(data);
       } finally {
@@ -152,10 +152,15 @@ export function ParentProvider({ children: content }: { children: React.ReactNod
       await requestApi('/api/v1/auth/logout', { method: 'POST' });
     } catch {
       // cookies are cleared server-side
+    } finally {
+      setUser(null);
+      setDashboard(null);
+      setUnreadCount(0);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('parent_auth');
+        sessionStorage.removeItem('parent_auth');
+      }
     }
-    setUser(null);
-    setDashboard(null);
-    setUnreadCount(0);
   }, []);
 
   const refreshDashboard = useCallback(async () => {

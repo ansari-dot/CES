@@ -96,11 +96,14 @@ const initialState: StudentState = {
 
 export const loginStudent = createAsyncThunk(
   'student/login',
-  async ({ identifier, password }: { identifier: string; password: string }, { rejectWithValue }) => {
+  async (
+    { identifier, password, rememberMe = true }: { identifier: string; password: string; rememberMe?: boolean },
+    { rejectWithValue }
+  ) => {
     try {
       const data = await requestApi<any>('/api/v1/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ identifier, password }),
+        body: JSON.stringify({ identifier, password, rememberMe }),
       });
       // Reject non-student accounts — teachers/admins must use their own portal
       if (data.role !== 'STUDENT') {
@@ -133,6 +136,11 @@ export const logoutStudent = createAsyncThunk('student/logout', async () => {
     await requestApi('/api/v1/auth/logout', { method: 'POST' });
   } catch {
     // ignore — cookies will be cleared server-side
+  } finally {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('student_auth');
+      sessionStorage.removeItem('student_auth');
+    }
   }
 });
 
@@ -290,10 +298,19 @@ const studentSlice = createSlice({
       });
 
     // logout
-    builder.addCase(logoutStudent.fulfilled, (state) => {
-      state.isAuthenticated = false;
-      state.dashboard = null;
-    });
+    builder
+      .addCase(logoutStudent.pending, (state) => {
+        state.isAuthenticated = false;
+        state.dashboard = null;
+      })
+      .addCase(logoutStudent.fulfilled, (state) => {
+        state.isAuthenticated = false;
+        state.dashboard = null;
+      })
+      .addCase(logoutStudent.rejected, (state) => {
+        state.isAuthenticated = false;
+        state.dashboard = null;
+      });
 
     // fetchDashboard
     builder

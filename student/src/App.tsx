@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from './store';
 import { fetchMe } from './store/slices/studentSlice';
+import { BrandLoader } from './components/common/BrandLoader';
 
 import Login from './pages/Login';
 import PortalLayout from './components/layout/PortalLayout';
@@ -36,9 +37,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated && authLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-sm text-muted-foreground">Loading…</div>
-      </div>
+      <BrandLoader
+        fullScreen
+        message="Verifying student workstation..."
+        subtext="Cambridge Education System"
+      />
     );
   }
 

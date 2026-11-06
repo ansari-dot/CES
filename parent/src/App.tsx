@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useParent } from './context/ParentContext';
 import { requestApi } from './services/api';
+import { BrandLoader } from './components/common/BrandLoader';
 import PortalLayout from './components/PortalLayout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -129,9 +130,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!checked && !user) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-sm text-muted-foreground">Loading…</div>
-      </div>
+      <BrandLoader
+        fullScreen
+        message="Verifying parent portal access..."
+        subtext="Cambridge Education System"
+      />
     );
   }
 
