@@ -41,7 +41,13 @@ export async function requestApi<T>(path: string, options: RequestInit = {}, isR
 
   const res = await fetch(path, { ...options, headers, credentials: 'include' });
 
-  if (res.status === 401 && !isRetry && !path.includes('/auth/login') && !path.includes('/auth/refresh')) {
+  if (
+    res.status === 401 &&
+    !isRetry &&
+    !path.includes('/auth/login') &&
+    !path.includes('/auth/refresh') &&
+    !path.includes('/auth/logout')
+  ) {
     const refreshed = await executeTokenRefresh();
     if (refreshed) {
       const retryHeaders = new Headers(options.headers || {});

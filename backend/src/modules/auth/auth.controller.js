@@ -58,22 +58,28 @@ export const authController = {
   async logout(req, res, next) {
     try {
       const familyId = req.user?.sid;
-      await authService.logout({ familyId });
+      const cookieNames = getCookieNames();
+      const rawRefreshToken = req.cookies?.[cookieNames.refreshToken] || req.cookies?.['sms_rt'];
+      await authService.logout({ familyId, rawRefreshToken }).catch(() => {});
+    } catch {
+      // quiet fallback
+    } finally {
       clearAuthCookies(res);
       return sendSuccess(res, { message: 'Successfully logged out' });
-    } catch (error) {
-      next(error);
     }
   },
 
   async logoutAll(req, res, next) {
     try {
       const userId = req.user?.id;
-      await authService.logoutAll({ userId });
+      if (userId) {
+        await authService.logoutAll({ userId }).catch(() => {});
+      }
+    } catch {
+      // quiet fallback
+    } finally {
       clearAuthCookies(res);
       return sendSuccess(res, { message: 'Successfully logged out from all devices' });
-    } catch (error) {
-      next(error);
     }
   },
 

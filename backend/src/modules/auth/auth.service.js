@@ -330,9 +330,19 @@ export const authService = {
     };
   },
 
-  async logout({ familyId }) {
+  async logout({ familyId, rawRefreshToken }) {
     if (familyId) {
-      await authRepository.revokeFamilyTokens(familyId, 'LOGOUT');
+      await authRepository.revokeFamilyTokens(familyId, 'LOGOUT').catch(() => {});
+    } else if (rawRefreshToken) {
+      try {
+        const tokenHash = hashToken(rawRefreshToken);
+        const existingToken = await authRepository.findRefreshTokenByHash(tokenHash);
+        if (existingToken?.family_id) {
+          await authRepository.revokeFamilyTokens(existingToken.family_id, 'LOGOUT').catch(() => {});
+        }
+      } catch {
+        // quiet fallback
+      }
     }
   },
 

@@ -46,28 +46,49 @@ export function setAuthCookies(res, { accessToken, refreshToken, csrfToken }) {
 }
 
 export function clearAuthCookies(res) {
-  const names = getCookieNames();
   const secure = config.cookieSecure;
   const sameSite = config.COOKIE_SAMESITE;
 
-  res.clearCookie(names.accessToken, {
-    httpOnly: true,
-    secure,
-    sameSite,
-    path: '/'
-  });
+  const cookieNames = [
+    'sms_at',
+    '__Host-sms_at',
+    'sms_rt',
+    '__Secure-sms_rt',
+    'sms_csrf'
+  ];
 
-  res.clearCookie(names.refreshToken, {
-    httpOnly: true,
-    secure,
-    sameSite: 'strict',
-    path: '/api/v1/auth'
-  });
+  const paths = ['/', '/api/v1/auth'];
 
-  res.clearCookie(names.csrf, {
-    httpOnly: false,
-    secure,
-    sameSite,
-    path: '/'
-  });
+  for (const name of cookieNames) {
+    const isCsrf = name === 'sms_csrf';
+    for (const path of paths) {
+      // 1. Clear matching active config
+      res.clearCookie(name, {
+        httpOnly: !isCsrf,
+        secure,
+        sameSite,
+        path,
+        maxAge: 0,
+        expires: new Date(0)
+      });
+      // 2. Clear non-secure lax fallback
+      res.clearCookie(name, {
+        httpOnly: !isCsrf,
+        secure: false,
+        sameSite: 'lax',
+        path,
+        maxAge: 0,
+        expires: new Date(0)
+      });
+      // 3. Clear strict path fallback
+      res.clearCookie(name, {
+        httpOnly: !isCsrf,
+        secure: false,
+        sameSite: 'strict',
+        path,
+        maxAge: 0,
+        expires: new Date(0)
+      });
+    }
+  }
 }

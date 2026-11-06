@@ -99,9 +99,11 @@ export const authSlice = createSlice({
     logout: (state) => {
       state.isAuthenticated = false;
       state.loginError = null;
+      state.teacher = DEFAULT_LIVE_TEACHER;
       if (typeof window !== 'undefined') {
         localStorage.removeItem('edupulse_auth_state');
         sessionStorage.removeItem('edupulse_session_auth');
+        requestApi('/api/v1/auth/logout', { method: 'POST' }).catch(() => {});
       }
     },
     setLoginError: (state, action: PayloadAction<string | null>) => {
@@ -201,10 +203,31 @@ export const authSlice = createSlice({
           sessionStorage.removeItem('edupulse_session_auth');
         }
       })
+      .addCase(logoutTeacherThunk.pending, (state) => {
+        state.isAuthenticated = false;
+        state.mustChangePassword = false;
+        state.loginError = null;
+        state.teacher = DEFAULT_LIVE_TEACHER;
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('edupulse_auth_state');
+          sessionStorage.removeItem('edupulse_session_auth');
+        }
+      })
       .addCase(logoutTeacherThunk.fulfilled, (state) => {
         state.isAuthenticated = false;
         state.mustChangePassword = false;
         state.loginError = null;
+        state.teacher = DEFAULT_LIVE_TEACHER;
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('edupulse_auth_state');
+          sessionStorage.removeItem('edupulse_session_auth');
+        }
+      })
+      .addCase(logoutTeacherThunk.rejected, (state) => {
+        state.isAuthenticated = false;
+        state.mustChangePassword = false;
+        state.loginError = null;
+        state.teacher = DEFAULT_LIVE_TEACHER;
         if (typeof window !== 'undefined') {
           localStorage.removeItem('edupulse_auth_state');
           sessionStorage.removeItem('edupulse_session_auth');
@@ -287,6 +310,11 @@ export const logoutTeacherThunk = createAsyncThunk(
       await requestApi('/api/v1/auth/logout', { method: 'POST' });
     } catch {
       // quiet fallback
+    } finally {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('edupulse_auth_state');
+        sessionStorage.removeItem('edupulse_session_auth');
+      }
     }
   }
 );

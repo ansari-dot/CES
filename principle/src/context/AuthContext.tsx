@@ -90,6 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // quiet fallback
     }
     localStorage.removeItem(AUTH_SESSION_KEY);
+    localStorage.removeItem(AUTH_EMAIL_KEY);
     sessionStorage.removeItem(AUTH_SESSION_KEY);
     setCurrentUser(null);
     setIsAuthenticated(false);

@@ -18,9 +18,9 @@ router.post('/refresh', authController.refresh);
 // CSRF token retrieval — optional authentication binds to session familyId if present, else anonymous
 router.get('/csrf', authenticateOptional, authController.getCsrf);
 
-// Protected auth endpoints
-router.post('/logout', authenticate, authController.logout);
-router.post('/logout-all', authenticate, authController.logoutAll);
+// Protected auth endpoints (logout accepts optional authentication so clearing cookies always succeeds)
+router.post('/logout', authenticateOptional, authController.logout);
+router.post('/logout-all', authenticateOptional, authController.logoutAll);
 router.get('/me', authenticate, authController.getMe);
 router.post('/change-password', authenticate, validate(changePasswordSchema), authController.changePassword);
 

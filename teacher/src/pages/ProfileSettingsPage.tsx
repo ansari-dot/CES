@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
-import { updateContactInfo, logout } from '../store/slices/authSlice';
+import { updateContactInfo, logoutTeacherThunk } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
 
 export const ProfileSettingsPage: React.FC = () => {
@@ -241,8 +241,8 @@ export const ProfileSettingsPage: React.FC = () => {
             </div>
             <button
               type="button"
-              onClick={() => {
-                dispatch(logout());
+              onClick={async () => {
+                await dispatch(logoutTeacherThunk());
                 dispatch(
                   addToast({
                     title: 'Signed Out',

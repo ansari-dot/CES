@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAppDispatch, useAppSelector } from '../../store';
-import { logout } from '../../store/slices/authSlice';
+import { logoutTeacherThunk } from '../../store/slices/authSlice';
 import { setCurrentTab, closeMobileSidebar, addToast } from '../../store/slices/uiSlice';
 import { NavTab } from '../../types';
 import {
@@ -189,9 +189,9 @@ export const Sidebar: React.FC = () => {
           </div>
 
           <button
-            onClick={() => {
-              dispatch(logout());
+            onClick={async () => {
               dispatch(closeMobileSidebar());
+              await dispatch(logoutTeacherThunk());
               dispatch(
                 addToast({
                   title: 'Logged Out',

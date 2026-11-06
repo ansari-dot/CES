@@ -169,7 +169,8 @@ async function requestApi<T>(path: string, options: RequestInit = {}, isRetry = 
     res.status === 401 &&
     !isRetry &&
     !path.includes('/auth/login') &&
-    !path.includes('/auth/refresh')
+    !path.includes('/auth/refresh') &&
+    !path.includes('/auth/logout')
   ) {
     const refreshed = await executeTokenRefresh();
     if (refreshed) {

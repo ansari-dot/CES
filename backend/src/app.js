@@ -98,6 +98,8 @@ export function createApp() {
       exemptPaths: [
         '/api/v1/auth/login',
         '/api/v1/auth/refresh',
+        '/api/v1/auth/logout',
+        '/api/v1/auth/logout-all',
         '/api/v1/auth/forgot-password',
         '/api/v1/auth/reset-password',
         '/api/v1/parents/register',
