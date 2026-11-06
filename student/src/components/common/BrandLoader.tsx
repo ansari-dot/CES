@@ -107,3 +107,4 @@ export const BrandLoader: React.FC<BrandLoaderProps> = ({
 
   return content;
 };
+

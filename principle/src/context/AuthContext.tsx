@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { UserProfile, AuthContextType } from '../types/auth';
 import { api } from '../services/api';
 import { useToast } from './ToastContext';
+import { BrandLoader } from '../components/common/BrandLoader';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -116,13 +117,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center text-slate-700 font-sans p-4">
-        <div className="w-10 h-10 border-3 border-slate-200 border-t-amber-600 rounded-full animate-spin mb-4" />
-        <h2 className="text-xs font-semibold tracking-wider text-slate-700 font-heading uppercase">
-          Verifying Principal Security Session
-        </h2>
-        <p className="text-[11px] text-slate-400 mt-1">Cambridge Education System</p>
-      </div>
+      <BrandLoader
+        fullScreen
+        message="Verifying Principal Security Session..."
+        subtext="Cambridge Education System"
+        size="lg"
+      />
     );
   }
 

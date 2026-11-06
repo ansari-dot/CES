@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { CheckCircle2, AlertCircle, X, LucideIcon, Inbox, RefreshCw } from 'lucide-react';
 import { useParent } from '../context/ParentContext';
+import { BrandLoader } from './common/BrandLoader';
 
 /* Modal — same structure and styling as the Student portal dialog */
 export function Modal({
@@ -131,10 +132,10 @@ export function StatusChip({ status, className = '' }: { status: string; classNa
   );
 }
 
-export function LoadingBlock({ message = 'Loading…' }: { message?: string }) {
+export function LoadingBlock({ message = 'Loading records...' }: { message?: string }) {
   return (
-    <div className="bg-card border border-border rounded-md p-10 text-center text-sm text-muted-foreground shadow-sm">
-      {message}
+    <div className="w-full py-10 flex flex-col items-center justify-center">
+      <BrandLoader message={message} subtext="Cambridge Education System" size="sm" />
     </div>
   );
 }

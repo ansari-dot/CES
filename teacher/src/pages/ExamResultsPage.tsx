@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAppDispatch } from '../store';
 import { addToast } from '../store/slices/uiSlice';
 import { requestApi } from '../services/api';
+import { BrandLoader } from '../components/common/BrandLoader';
 
 interface TermRow {
   id: number;
@@ -192,8 +193,8 @@ export const ExamResultsPage: React.FC = () => {
       </div>
 
       {loading ? (
-        <div className="bg-white p-10 rounded-2xl shadow-xs border border-slate-100 text-center text-sm text-[#545454]">
-          Loading examination status…
+        <div className="bg-white p-8 rounded-2xl shadow-xs border border-slate-100 flex items-center justify-center">
+          <BrandLoader message="Loading examination status..." size="sm" />
         </div>
       ) : error ? (
         <div className="bg-white p-10 rounded-2xl shadow-xs border border-slate-100 text-center">
@@ -315,7 +316,9 @@ export const ExamResultsPage: React.FC = () => {
             </div>
 
             {resultsLoading ? (
-              <p className="text-xs text-[#545454] py-6 text-center">Loading class results…</p>
+              <div className="py-8 flex items-center justify-center">
+                <BrandLoader message="Loading class results..." size="sm" />
+              </div>
             ) : classResults.length === 0 ? (
               <p className="text-xs text-[#545454] py-6 text-center">
                 No computed results for this class and term yet. Results appear once the principal runs computation.

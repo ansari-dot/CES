@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { Star, Award, Trophy, ScrollText, MessageSquareText } from 'lucide-react';
 import { RootState } from '../store';
 import { requestApi } from '../services/api';
+import { LoadingBlock } from '../components/common/LoadingBlock';
 
 interface AchievementRecord {
   id: number;
@@ -46,7 +47,7 @@ export default function Achievements() {
   const firstName = (profile.name || 'Student').split(' ')[0];
 
   if (loading) {
-    return <div className="bg-card border border-border rounded-md p-10 text-center text-muted-foreground text-sm">Loading achievements…</div>;
+    return <LoadingBlock message="Loading achievements..." />;
   }
 
   if (error) {

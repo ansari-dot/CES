@@ -4,6 +4,7 @@ import { RootState, AppDispatch } from '../store';
 import { fetchMyGrades } from '../store/slices/gradesSlice';
 import { MessageSquareQuote, RefreshCw, AlertCircle, Award, CheckCircle2, BookOpen } from 'lucide-react';
 import TermResultsSection from '../components/results/TermResultsSection';
+import { LoadingBlock } from '../components/common/LoadingBlock';
 
 export default function ResultsProgress() {
   const dispatch = useDispatch<AppDispatch>();
@@ -14,17 +15,7 @@ export default function ResultsProgress() {
   }, [dispatch]);
 
   if (loading && !data) {
-    return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[1, 2, 3].map((n) => (
-            <div key={n} className="bg-card border border-border rounded-md p-5 h-28 animate-pulse" />
-          ))}
-        </div>
-        <div className="bg-card border border-border rounded-md p-6 h-64 animate-pulse" />
-        <div className="bg-card border border-border rounded-md p-6 h-48 animate-pulse" />
-      </div>
-    );
+    return <LoadingBlock message="Loading grades and academic progress..." />;
   }
 
   if (error && !data) {

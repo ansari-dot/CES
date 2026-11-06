@@ -8,6 +8,7 @@ import {
 import { RootState, AppDispatch } from '../store';
 import StatusChip from '../components/common/StatusChip';
 import MetricCard from '../components/common/MetricCard';
+import { LoadingBlock } from '../components/common/LoadingBlock';
 import ZoomMeetingModal from '../components/dialogs/ZoomMeetingModal';
 import { joinLesson, fetchTimetable, fetchStudentZoomSession } from '../store/slices/classesSlice';
 import { setToast, fetchDashboard } from '../store/slices/studentSlice';
@@ -59,11 +60,7 @@ export default function Dashboard() {
   };
 
   if (dashboardLoading && !dashboard) {
-    return (
-      <div className="flex items-center justify-center py-20 text-sm text-muted-foreground">
-        Loading dashboard…
-      </div>
-    );
+    return <LoadingBlock message="Loading student dashboard..." />;
   }
 
   // A fee/account restriction is rendered by PortalLayout (RestrictedNotice)
