@@ -13,7 +13,8 @@ import {
   ArrowRight,
   HelpCircle,
   AlertCircle,
-  X
+  X,
+  Sparkles
 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
@@ -23,7 +24,7 @@ export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Forgot Password modal state
@@ -61,7 +62,7 @@ export const LoginPage: React.FC = () => {
         dispatch(
           addToast({
             title: 'Welcome Back!',
-            message: 'Signed in successfully to Online School Faculty Portal.',
+            message: 'Signed in successfully to Cambridge Education System.',
             type: 'success',
           })
         );
@@ -102,13 +103,32 @@ export const LoginPage: React.FC = () => {
       style={{ backgroundImage: `url('/loginbc.webp')` }}
     >
       {/* Subtle soft backdrop gradient to guarantee perfect contrast */}
-      <div className="absolute inset-0 bg-white/10 backdrop-blur-[1px] pointer-events-none" />
+      <div className="absolute inset-0 bg-white/10 backdrop-blur-[0.5px] pointer-events-none" />
 
       {/* Main Two-Column Container matching exact layout */}
       <div className="relative z-10 w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-        {/* Left Column: Heading, Subtitle & 3 Value Props */}
+        {/* Left Column: School Logo, Heading, Subtitle & 3 Value Props */}
         <div className="lg:col-span-7 flex flex-col justify-center space-y-6 text-left pl-2 sm:pl-4">
-          <h1 className="text-4xl sm:text-5xl lg:text-[54px] font-serif font-bold tracking-tight text-[#0f4c3a] leading-[1.12]">
+          {/* Institutional Badge with Cambridge Logo */}
+          <div className="inline-flex items-center gap-3 bg-white/90 backdrop-blur-md px-3.5 py-1.5 rounded-2xl shadow-sm border border-slate-200/80 w-fit">
+            <div className="w-8 h-8 rounded-full overflow-hidden bg-white shrink-0 border border-slate-100 flex items-center justify-center">
+              <img
+                src="/logo.jpeg"
+                alt="Cambridge Education System Logo"
+                className="w-full h-full object-contain"
+              />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs font-black tracking-tight text-[#1b1a47] uppercase leading-none">
+                Cambridge Education System
+              </span>
+              <span className="text-[10px] font-bold text-[#c8952b] tracking-wider uppercase mt-0.5">
+                Excellence in Digital Learning
+              </span>
+            </div>
+          </div>
+
+          <h1 className="text-4xl sm:text-5xl lg:text-[54px] font-serif font-bold tracking-tight text-[#1b1a47] leading-[1.12]">
             Empowering Educators, <br />
             <span className="text-[#c8952b]">Inspiring Futures</span>
           </h1>
@@ -121,7 +141,7 @@ export const LoginPage: React.FC = () => {
           <div className="flex items-center gap-6 sm:gap-10 pt-2">
             {/* 1. Learn Grow */}
             <div className="flex flex-col items-center text-center">
-              <div className="w-13 h-13 rounded-2xl bg-[#e6f4ee] text-[#0f4c3a] flex items-center justify-center shadow-xs mb-2">
+              <div className="w-13 h-13 rounded-2xl bg-[#eef0fc] text-[#36348e] flex items-center justify-center shadow-xs mb-2 border border-indigo-100/60">
                 <BookOpen className="w-6 h-6 stroke-[2.2]" />
               </div>
               <span className="text-xs font-bold text-slate-800 leading-tight">Learn</span>
@@ -130,7 +150,7 @@ export const LoginPage: React.FC = () => {
 
             {/* 2. Collaborate Succeed */}
             <div className="flex flex-col items-center text-center">
-              <div className="w-13 h-13 rounded-2xl bg-[#e6f4ee] text-[#0f4c3a] flex items-center justify-center shadow-xs mb-2">
+              <div className="w-13 h-13 rounded-2xl bg-[#fff7e5] text-[#b47e17] flex items-center justify-center shadow-xs mb-2 border border-amber-200/60">
                 <Users className="w-6 h-6 stroke-[2.2]" />
               </div>
               <span className="text-xs font-bold text-slate-800 leading-tight">Collaborate</span>
@@ -139,7 +159,7 @@ export const LoginPage: React.FC = () => {
 
             {/* 3. Achieve More */}
             <div className="flex flex-col items-center text-center">
-              <div className="w-13 h-13 rounded-2xl bg-[#e6f4ee] text-[#0f4c3a] flex items-center justify-center shadow-xs mb-2">
+              <div className="w-13 h-13 rounded-2xl bg-[#eef0fc] text-[#36348e] flex items-center justify-center shadow-xs mb-2 border border-indigo-100/60">
                 <ShieldCheck className="w-6 h-6 stroke-[2.2]" />
               </div>
               <span className="text-xs font-bold text-slate-800 leading-tight">Achieve</span>
@@ -152,14 +172,30 @@ export const LoginPage: React.FC = () => {
         <div className="lg:col-span-5 flex justify-center lg:justify-end">
           <div className="w-full max-w-[430px] bg-white rounded-3xl sm:rounded-[32px] p-7 sm:p-9 shadow-2xl border border-white/80 flex flex-col justify-between">
             <div>
-              {/* Gold Top Category Bar */}
-              <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-[#c8952b] block">
-                FACULTY &amp; STAFF PORTAL
-              </span>
-              <div className="w-12 h-0.5 bg-[#c8952b] mt-1.5 mb-4 rounded-full" />
+              {/* Card Header with Logo + Brand Tag */}
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-white p-0.5 border border-slate-200 shadow-xs flex items-center justify-center shrink-0">
+                  <img
+                    src="/logo.jpeg"
+                    alt="Cambridge Education System Logo"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <div>
+                  <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-[#c8952b] block leading-none">
+                    FACULTY &amp; STAFF PORTAL
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                    Cambridge Education System
+                  </span>
+                </div>
+              </div>
+
+              {/* Decorative Gold Underline */}
+              <div className="w-12 h-0.5 bg-[#c8952b] mb-4 rounded-full" />
 
               {/* Card Title */}
-              <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#0f4c3a] tracking-tight">
+              <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#1b1a47] tracking-tight">
                 Welcome Back
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 mt-1 mb-6">
@@ -178,8 +214,8 @@ export const LoginPage: React.FC = () => {
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Field 1: Email or Username */}
                 <div>
-                  <label className="flex items-center gap-1.5 text-xs font-bold text-[#0f4c3a] mb-1.5">
-                    <Mail className="w-3.5 h-3.5" />
+                  <label className="flex items-center gap-1.5 text-xs font-bold text-[#1b1a47] mb-1.5">
+                    <Mail className="w-3.5 h-3.5 text-[#36348e]" />
                     <span>Email or Username</span>
                   </label>
                   <div className="relative">
@@ -193,7 +229,7 @@ export const LoginPage: React.FC = () => {
                       placeholder="Enter your email or username"
                       required
                       autoComplete="username"
-                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-[#0f4c3a] focus:ring-1 focus:ring-[#0f4c3a] transition-all"
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-[#36348e] focus:ring-1 focus:ring-[#36348e] transition-all"
                     />
                   </div>
                 </div>
@@ -201,14 +237,14 @@ export const LoginPage: React.FC = () => {
                 {/* Field 2: Password */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="flex items-center gap-1.5 text-xs font-bold text-[#0f4c3a]">
-                      <Lock className="w-3.5 h-3.5" />
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-[#1b1a47]">
+                      <Lock className="w-3.5 h-3.5 text-[#36348e]" />
                       <span>Password</span>
                     </label>
                     <button
                       type="button"
                       onClick={() => setIsForgotModalOpen(true)}
-                      className="text-xs font-medium text-[#0f4c3a] hover:underline"
+                      className="text-xs font-medium text-[#36348e] hover:text-[#1b1a47] hover:underline"
                     >
                       Forgot password?
                     </button>
@@ -224,7 +260,7 @@ export const LoginPage: React.FC = () => {
                       placeholder="Enter your password"
                       required
                       autoComplete="current-password"
-                      className="w-full pl-10 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-[#0f4c3a] focus:ring-1 focus:ring-[#0f4c3a] transition-all"
+                      className="w-full pl-10 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-[#36348e] focus:ring-1 focus:ring-[#36348e] transition-all"
                     />
                     <button
                       type="button"
@@ -243,17 +279,17 @@ export const LoginPage: React.FC = () => {
                       type="checkbox"
                       checked={rememberMe}
                       onChange={(e) => setRememberMe(e.target.checked)}
-                      className="w-4 h-4 rounded border-slate-300 text-[#0f4c3a] focus:ring-[#0f4c3a] cursor-pointer"
+                      className="w-4 h-4 rounded border-slate-300 text-[#36348e] focus:ring-[#36348e] cursor-pointer"
                     />
                     <span className="text-xs text-slate-600 font-medium">Remember me for 30 days</span>
                   </label>
                 </div>
 
-                {/* Submit Button */}
+                {/* Submit Button (Brand Navy with Gold Glow) */}
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full mt-3 py-3 px-5 rounded-xl bg-[#0f4c3a] hover:bg-[#0b3c2d] text-white text-xs sm:text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                  className="w-full mt-3 py-3.5 px-5 rounded-xl bg-[#1b1a47] hover:bg-[#36348e] active:bg-[#121135] text-white text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                 >
                   <span>{isSubmitting ? 'Signing In...' : 'Sign In'}</span>
                   {!isSubmitting && <ArrowRight className="w-4 h-4" />}
@@ -270,7 +306,7 @@ export const LoginPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setIsForgotModalOpen(true)}
-                    className="text-[#0f4c3a] font-bold hover:underline"
+                    className="text-[#36348e] font-bold hover:underline"
                   >
                     Contact IT Support
                   </button>
@@ -278,7 +314,7 @@ export const LoginPage: React.FC = () => {
               </div>
               <div className="h-3.5 w-px bg-slate-200" />
               <div className="flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
+                <ShieldCheck className="w-3.5 h-3.5 text-[#36348e]" />
                 <span>Secure Access</span>
               </div>
             </div>
@@ -292,11 +328,11 @@ export const LoginPage: React.FC = () => {
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-[#e6f4ee] text-[#0f4c3a] flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-[#36348e] flex items-center justify-center shrink-0">
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Faculty IT Support</h3>
+                  <h3 className="text-base font-bold text-[#1b1a47]">Faculty IT Support</h3>
                   <p className="text-xs text-slate-500">Password recovery &amp; workstation access</p>
                 </div>
               </div>
@@ -323,7 +359,7 @@ export const LoginPage: React.FC = () => {
                   onChange={(e) => setForgotEmail(e.target.value)}
                   placeholder="e.g. sarah.jenkins@school.pk"
                   required
-                  className="w-full text-xs px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-hidden focus:border-[#0f4c3a] focus:ring-1 focus:ring-[#0f4c3a] font-medium"
+                  className="w-full text-xs px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-hidden focus:border-[#36348e] focus:ring-1 focus:ring-[#36348e] font-medium"
                 />
               </div>
 
@@ -338,7 +374,7 @@ export const LoginPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={forgotSubmitted}
-                  className="px-5 py-2 bg-[#0f4c3a] hover:bg-[#0b3c2d] text-white text-xs font-bold rounded-xl shadow-xs transition-colors disabled:opacity-50"
+                  className="px-5 py-2 bg-[#1b1a47] hover:bg-[#36348e] text-white text-xs font-bold rounded-xl shadow-xs transition-colors disabled:opacity-50"
                 >
                   {forgotSubmitted ? 'Sending Link...' : 'Send Reset Link'}
                 </button>
