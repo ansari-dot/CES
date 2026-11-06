@@ -71,7 +71,7 @@ export default function Dashboard() {
   return (
     <>
       {/* Next Class Hero Card */}
-      <div className="bg-navy text-white rounded-lg p-6 flex gap-6 items-center relative overflow-hidden shadow-sm">
+      <div className="bg-navy text-white rounded-lg p-4 sm:p-5 flex gap-5 items-center relative overflow-hidden shadow-xs">
         <div className="absolute -right-10 -top-10 w-56 h-56 rounded-full bg-primary opacity-30 pointer-events-none" />
         <div className="absolute right-24 bottom-0 w-32 h-32 rounded-full bg-primary opacity-20 pointer-events-none" />
         <div className="flex-1 relative z-10">
@@ -81,45 +81,45 @@ export default function Dashboard() {
               {nextClass.time ? `Starts in ${nextClass.startsInMinutes} min · ${nextClass.time}` : 'No upcoming class today'}
             </span>
           </div>
-          <div className="font-headings font-bold text-2xl mt-2">
+          <div className="font-headings font-bold text-lg sm:text-xl mt-1.5">
             {nextClass.subject
               ? `Next: ${nextClass.subject}${nextClass.topic ? ` — ${nextClass.topic}` : ''}`
               : 'No class scheduled'}
           </div>
           {nextClass.teacher && (
-            <div className="text-sm opacity-80 mt-1 flex items-center gap-2">
-              <User className="w-3.5 h-3.5 stroke-[2.5]" />
+            <div className="text-xs opacity-80 mt-1 flex items-center gap-1.5">
+              <User className="w-3 h-3 stroke-[2.5]" />
               <span>{nextClass.teacher} · {nextClass.duration}</span>
             </div>
           )}
-          <div className="flex gap-3 mt-4">
+          <div className="flex gap-2.5 mt-3">
             <button
               onClick={handleJoinClass}
               disabled={!nextClass.subject}
-              className="bg-primary hover:bg-primary-hover text-primary-foreground text-sm font-semibold px-5 py-2.5 rounded-sm flex items-center gap-2 transition cursor-pointer disabled:opacity-50"
+              className="bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-semibold px-3.5 py-2 rounded-sm flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
               type="button"
             >
-              <Video className="w-4 h-4 stroke-[2.5]" />
+              <Video className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>Join Class</span>
             </button>
             <button
               onClick={() => navigate('/student/timetable')}
-              className="text-sm font-medium px-4 py-2.5 rounded-sm border border-white/30 hover:bg-white/10 transition cursor-pointer"
+              className="text-xs font-medium px-3 py-2 rounded-sm border border-white/30 hover:bg-white/10 transition cursor-pointer"
               type="button"
             >
               View timetable
             </button>
           </div>
-          <div className="text-xs opacity-60 mt-2 flex items-center gap-1">
+          <div className="text-[11px] opacity-60 mt-1.5 flex items-center gap-1">
             <Info className="w-3 h-3 stroke-[2.5]" />
             <span>Join button activates 10 min before start</span>
           </div>
         </div>
-        <div className="hidden md:flex flex-col items-center bg-white/10 rounded-md px-6 py-4 relative z-10 backdrop-blur-xs">
-          <span className="text-3xl font-headings font-bold">
+        <div className="hidden md:flex flex-col items-center bg-white/10 rounded-md px-4 py-3 relative z-10 backdrop-blur-xs">
+          <span className="text-2xl font-headings font-bold">
             {String(nextClass.startsInMinutes).padStart(2, '0')}:00
           </span>
-          <span className="text-xs opacity-70">min to start</span>
+          <span className="text-[11px] opacity-70">min to start</span>
         </div>
       </div>
 
@@ -139,28 +139,28 @@ export default function Dashboard() {
 
       {/* Today's Timetable & Due Soon */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 bg-card border border-border rounded-md p-5 shadow-sm">
+        <div className="lg:col-span-2 bg-card border border-border rounded-md p-4 shadow-xs">
           <div className="flex items-center">
-            <span className="font-headings font-bold text-base text-foreground">Today's Timetable</span>
-            <button onClick={() => navigate('/student/timetable')} className="ml-auto text-sm text-primary font-semibold hover:underline cursor-pointer">
+            <span className="font-headings font-bold text-sm text-foreground">Today's Timetable</span>
+            <button onClick={() => navigate('/student/timetable')} className="ml-auto text-xs text-primary font-semibold hover:underline cursor-pointer">
               Full week
             </button>
           </div>
           <div className="mt-2 divide-y divide-border">
             {todayClasses.length === 0 ? (
-              <div className="py-4 text-sm text-muted-foreground">No classes scheduled for today.</div>
+              <div className="py-3 text-xs text-muted-foreground">No classes scheduled for today.</div>
             ) : (
               todayClasses.map((item) => (
-                <div key={item.id} className="flex items-center gap-3 py-3">
+                <div key={item.id} className="flex items-center gap-3 py-2">
                   <div className={`w-1 self-stretch rounded-full ${item.joinable ? 'bg-primary' : 'bg-border'}`} />
                   <div className="text-xs font-semibold text-muted-foreground w-16">{item.time}</div>
                   <div className="flex-1">
-                    <div className="text-sm font-semibold text-foreground">{item.subject}</div>
-                    <div className="text-xs text-muted-foreground">{item.teacher} · {item.duration}</div>
+                    <div className="text-xs sm:text-sm font-semibold text-foreground">{item.subject}</div>
+                    <div className="text-[11px] text-muted-foreground">{item.teacher} · {item.duration}</div>
                   </div>
                   <StatusChip status={item.status} />
                   {item.joinable && (
-                    <button onClick={handleJoinClass} className="text-xs font-semibold bg-muted hover:bg-[#ffc53a] hover:text-[#1b1a47] text-muted-foreground px-3 py-1.5 rounded-sm transition cursor-pointer">
+                    <button onClick={handleJoinClass} className="text-xs font-semibold bg-muted hover:bg-[#ffc53a] hover:text-[#1b1a47] text-muted-foreground px-2.5 py-1 rounded-sm transition cursor-pointer">
                       Join
                     </button>
                   )}
@@ -170,27 +170,27 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="bg-card border border-border rounded-md p-5 shadow-sm flex flex-col">
+        <div className="bg-card border border-border rounded-md p-4 shadow-xs flex flex-col">
           <div className="flex items-center">
-            <span className="font-headings font-bold text-base text-foreground">Due Soon</span>
-            <button onClick={() => navigate('/student/homework')} className="ml-auto text-sm text-primary font-semibold hover:underline cursor-pointer">
+            <span className="font-headings font-bold text-sm text-foreground">Due Soon</span>
+            <button onClick={() => navigate('/student/homework')} className="ml-auto text-xs text-primary font-semibold hover:underline cursor-pointer">
               View all
             </button>
           </div>
-          <div className="flex flex-col gap-3 mt-3 flex-1">
+          <div className="flex flex-col gap-2.5 mt-2 flex-1">
             {dueSoonTasks.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No pending tasks.</div>
+              <div className="text-xs text-muted-foreground">No pending tasks.</div>
             ) : (
               dueSoonTasks.map((t: any) => (
-                <div key={t.id} className={`border border-border rounded-sm p-3 ${t.submissionStatus === 'PENDING' ? 'bg-warning-bg/50' : ''}`}>
-                  <div className="text-sm font-semibold text-foreground">{t.title}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">{t.subjectName} · {t.maxMarks} marks</div>
+                <div key={t.id} className={`border border-border rounded-sm p-2.5 ${t.submissionStatus === 'PENDING' ? 'bg-warning-bg/50' : ''}`}>
+                  <div className="text-xs sm:text-sm font-semibold text-foreground">{t.title}</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">{t.subjectName} · {t.maxMarks} marks</div>
                   {t.submissionStatus === 'GRADED' ? (
-                    <div className="text-xs text-success font-semibold flex items-center gap-1 mt-0.5">
+                    <div className="text-[11px] text-success font-semibold flex items-center gap-1 mt-0.5">
                       <CheckCircle2 className="w-3.5 h-3.5" /> Graded {t.marksAwarded != null ? `(${t.marksAwarded}/${t.maxMarks})` : ''}
                     </div>
                   ) : t.submissionStatus === 'SUBMITTED' ? (
-                    <div className="text-xs text-info font-semibold flex items-center gap-1 mt-0.5">
+                    <div className="text-[11px] text-info font-semibold flex items-center gap-1 mt-0.5">
                       <CheckCircle2 className="w-3.5 h-3.5" /> Submitted (Awaiting Grade)
                     </div>
                   ) : null}
@@ -203,34 +203,34 @@ export default function Dashboard() {
 
       {/* Stars, Achievements, Fee */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-card border border-border rounded-md p-5 shadow-sm">
+        <div className="bg-card border border-border rounded-md p-4 shadow-xs">
           <div className="font-headings font-bold text-sm text-foreground">Stars &amp; Badges</div>
-          <div className="flex gap-2 mt-3">
-            <div className="flex-1 bg-warning-bg rounded-sm py-2.5 flex flex-col items-center">
-              <Star className="w-5 h-5 text-warning stroke-[2.4]" />
-              <span className="text-xs font-bold text-foreground mt-1">{profile.stars}</span>
-              <span className="text-[11px] text-muted-foreground">Stars</span>
+          <div className="flex gap-2 mt-2.5">
+            <div className="flex-1 bg-warning-bg rounded-sm py-2 flex flex-col items-center">
+              <Star className="w-4 h-4 text-warning stroke-[2.4]" />
+              <span className="text-xs font-bold text-foreground mt-0.5">{profile.stars}</span>
+              <span className="text-[10px] text-muted-foreground">Stars</span>
             </div>
-            <div className="flex-1 bg-secondary rounded-sm py-2.5 flex flex-col items-center">
-              <Award className="w-5 h-5 text-primary stroke-[2.4]" />
-              <span className="text-xs font-bold text-foreground mt-1">{profile.badges}</span>
-              <span className="text-[11px] text-muted-foreground">Badges</span>
+            <div className="flex-1 bg-secondary rounded-sm py-2 flex flex-col items-center">
+              <Award className="w-4 h-4 text-primary stroke-[2.4]" />
+              <span className="text-xs font-bold text-foreground mt-0.5">{profile.badges}</span>
+              <span className="text-[10px] text-muted-foreground">Badges</span>
             </div>
           </div>
         </div>
 
-        <div className="bg-card border border-border rounded-md p-5 shadow-sm">
-          <div className="font-headings font-bold text-base text-foreground mb-3">Recent Achievements</div>
-          <div className="flex flex-col gap-2.5">
+        <div className="bg-card border border-border rounded-md p-4 shadow-xs">
+          <div className="font-headings font-bold text-sm text-foreground mb-2">Recent Achievements</div>
+          <div className="flex flex-col gap-2">
             {recentAchievements.length === 0 ? (
               <div className="text-xs text-muted-foreground">No achievements yet.</div>
             ) : (
               recentAchievements.map((a: any) => (
-                <div key={a.id} className="flex gap-2.5">
-                  <span className="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0" />
+                <div key={a.id} className="flex gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
                   <div>
-                    <div className="text-sm font-semibold text-foreground">{a.title}</div>
-                    <div className="text-xs text-muted-foreground">{a.reason}</div>
+                    <div className="text-xs sm:text-sm font-semibold text-foreground">{a.title}</div>
+                    <div className="text-[11px] text-muted-foreground">{a.reason}</div>
                   </div>
                 </div>
               ))
@@ -238,7 +238,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="bg-card border border-border rounded-md p-5 shadow-sm flex items-center gap-3">
+        <div className="bg-card border border-border rounded-md p-4 shadow-xs flex items-center gap-3">
           <div>
             <div className="font-headings font-bold text-sm text-foreground">
               {outstandingFee > 0 ? `Rs. ${outstandingFee.toLocaleString('en-PK')} due` : 'Fees up to date'}
@@ -249,7 +249,7 @@ export default function Dashboard() {
           </div>
           <button
             onClick={() => navigate('/student/fees')}
-            className="ml-auto text-sm font-semibold bg-primary hover:bg-primary-hover text-primary-foreground px-4 py-2 rounded-sm transition cursor-pointer"
+            className="ml-auto text-xs font-semibold bg-primary hover:bg-primary-hover text-primary-foreground px-3.5 py-1.5 rounded-sm transition cursor-pointer"
           >
             View Fees
           </button>

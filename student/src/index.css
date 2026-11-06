@@ -39,6 +39,10 @@
   --radius-lg: 16px;
 }
 
+html {
+  font-size: 14.5px;
+}
+
 body {
   background-color: #fafafa;
   color: #292929;

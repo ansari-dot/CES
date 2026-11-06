@@ -134,7 +134,7 @@ export default function PortalLayout() {
           pageSubtitle={subtitle}
           onToggleMobileNav={() => setMobileNavOpen(true)}
         />
-        <main className="p-4 sm:p-6 lg:p-8 max-w-[1080px] w-full mx-auto flex flex-col gap-6">
+        <main className="p-3 sm:p-5 lg:p-6 max-w-7xl w-full mx-auto flex flex-col gap-5">
           {showRestriction ? <RestrictedNotice onCheckAgain={loadDashboardThenData} /> : <Outlet />}
         </main>
       </div>

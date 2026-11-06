@@ -43,18 +43,25 @@ function Sidebar({ onNavigate, onLogout }: { onNavigate?: () => void; onLogout: 
   const name = user?.fullName || 'Parent';
 
   return (
-    <div className="w-[248px] shrink-0 bg-primary flex flex-col h-full select-none">
-      <div className="flex flex-col items-center gap-2.5 px-5 pt-6 pb-5 border-b border-white/15">
-        <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-md overflow-hidden">
-          <img src="/logowb.png" alt="Cambridge Education System logo" className="w-full h-full object-contain" />
+    <div className="w-[240px] shrink-0 bg-primary flex flex-col h-full select-none">
+      <div className="flex flex-col items-center gap-2 px-4 pt-4 pb-3 border-b border-white/15">
+        <div className="w-13 h-13 rounded-full bg-white flex items-center justify-center shadow-xs overflow-hidden shrink-0">
+          <img
+            src="/logowb.png"
+            alt="Cambridge Education System logo"
+            className="w-full h-full object-contain"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = '/logo.jpeg';
+            }}
+          />
         </div>
         <div className="text-center">
-          <div className="font-headings font-bold text-white text-sm leading-tight">Cambridge Education System</div>
-          <div className="text-xs text-white/70">Parent Portal</div>
+          <div className="font-headings font-bold text-white text-xs leading-tight">Cambridge Education System</div>
+          <div className="text-[11px] text-white/70">Parent Portal</div>
         </div>
       </div>
 
-      <div className="sidebar-scroll flex-1 overflow-y-auto px-3 pt-3 pb-3 flex flex-col gap-0.5">
+      <div className="sidebar-scroll flex-1 overflow-y-auto px-2.5 pt-2 pb-2 flex flex-col gap-0.5">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const badge = item.path === '/parent/notices' && unreadCount > 0 ? unreadCount : null;
@@ -64,18 +71,18 @@ function Sidebar({ onNavigate, onLogout }: { onNavigate?: () => void; onLogout: 
               to={item.path}
               onClick={onNavigate}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActive ? 'bg-secondary text-secondary-foreground font-bold shadow-sm' : 'text-white/85 hover:bg-secondary hover:text-secondary-foreground'
+                `flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  isActive ? 'bg-secondary text-secondary-foreground font-bold shadow-xs' : 'text-white/85 hover:bg-secondary hover:text-secondary-foreground'
                 }`
               }
             >
               {({ isActive }) => (
                 <>
-                  {isActive && <span className="w-1 h-5 rounded-full bg-primary -ml-1 mr-0" />}
-                  <Icon className="w-[17px] h-[17px] shrink-0 stroke-[2.2]" />
+                  {isActive && <span className="w-1 h-4 rounded-full bg-primary -ml-1 mr-0" />}
+                  <Icon className="w-4 h-4 shrink-0 stroke-[2.2]" />
                   <span className="truncate">{item.name}</span>
                   {badge && (
-                    <span className="ml-auto w-5 h-5 rounded-full bg-error text-white text-xs flex items-center justify-center font-bold">
+                    <span className="ml-auto min-w-4 h-4 px-1 rounded-full bg-error text-white text-[10px] flex items-center justify-center font-bold">
                       {badge}
                     </span>
                   )}
@@ -86,29 +93,29 @@ function Sidebar({ onNavigate, onLogout }: { onNavigate?: () => void; onLogout: 
         })}
       </div>
 
-      <div className="p-3 border-t border-white/15 mt-auto">
+      <div className="p-2.5 border-t border-white/15 mt-auto">
         <NavLink
           to="/parent/profile"
           onClick={onNavigate}
-          className="group flex items-center gap-2.5 bg-white/10 rounded-md p-2.5 hover:bg-[#ffc53a] transition"
+          className="group flex items-center gap-2 bg-white/10 rounded-md p-2 hover:bg-[#ffc53a] transition"
         >
           <img
             src={`https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=36348e&color=fff`}
             alt={name}
-            className="w-9 h-9 rounded-full object-cover border border-white/30"
+            className="w-8 h-8 rounded-full object-cover border border-white/30 shrink-0"
           />
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-white group-hover:text-[#1b1a47] truncate">{name}</div>
-            <div className="text-xs text-white/70 group-hover:text-[#1b1a47]/80">
+            <div className="text-xs font-semibold text-white group-hover:text-[#1b1a47] truncate">{name}</div>
+            <div className="text-[11px] text-white/70 group-hover:text-[#1b1a47]/80">
               {dashboard ? `${dashboard.children.length} linked ${dashboard.children.length === 1 ? 'child' : 'children'}` : 'Parent / Guardian'}
             </div>
           </div>
         </NavLink>
         <button
           onClick={onLogout}
-          className="mt-2 w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs font-semibold text-white/80 hover:bg-[#ffc53a] hover:text-[#1b1a47] transition cursor-pointer"
+          className="mt-1.5 w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-semibold text-white/80 hover:bg-[#ffc53a] hover:text-[#1b1a47] transition cursor-pointer"
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut className="w-3.5 h-3.5" />
           <span>Sign out</span>
         </button>
       </div>
