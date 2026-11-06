@@ -47,6 +47,20 @@ router.post(
 );
 
 // -------------------------------------------------------------
+// Zoom Invigilation Session Routes
+// -------------------------------------------------------------
+router.get(
+  '/:id/invigilation-session',
+  assessmentsController.getInvigilationSession
+);
+
+router.post(
+  '/:id/start-invigilation',
+  requireRole('TEACHER', 'ADMIN', 'PRINCIPAL'),
+  assessmentsController.startInvigilation
+);
+
+// -------------------------------------------------------------
 // Teacher Grading Workstation Routes
 // -------------------------------------------------------------
 router.get(

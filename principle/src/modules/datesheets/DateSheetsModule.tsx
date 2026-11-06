@@ -22,7 +22,9 @@ import {
   Layers,
   AlertCircle,
   RefreshCw,
-  Printer
+  Printer,
+  ShieldAlert,
+  Calendar
 } from 'lucide-react';
 
 export const DateSheetsModule: React.FC = () => {
@@ -121,11 +123,22 @@ export const DateSheetsModule: React.FC = () => {
     return true;
   });
 
+  // Check if school-wide exam mode is actively in progress today
+  const todayStr = new Date().toISOString().split('T')[0];
+  const activeExamModeSheet = dateSheets.find((ds) => {
+    if (!ds.is_published) return false;
+    if (ds.exam_type !== 'MID_TERM' && ds.exam_type !== 'FINAL_TERM') return false;
+    if (!ds.start_date || !ds.end_date) return false;
+    const start = ds.start_date.split('T')[0];
+    const end = ds.end_date.split('T')[0];
+    return todayStr >= start && todayStr <= end;
+  });
+
   // Counters
   const totalCount = dateSheets.length;
   const publishedCount = dateSheets.filter((ds) => ds.is_published).length;
-  const hiddenCount = dateSheets.filter((ds) => ds.status === 'HIDDEN').length;
-  const draftCount = dateSheets.filter((ds) => ds.status === 'DRAFT').length;
+  const dedicatedCount = dateSheets.filter((ds) => ds.exam_type === 'MID_TERM' || ds.exam_type === 'FINAL_TERM').length;
+  const timetableCount = dateSheets.filter((ds) => ds.exam_type === 'MONTHLY_TEST' || ds.exam_type === 'CLASS_QUIZ').length;
 
   return (
     <div className="space-y-6">
@@ -134,10 +147,10 @@ export const DateSheetsModule: React.FC = () => {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-2.5">
             <CalendarDays className="w-6 h-6 text-indigo-600" />
-            Examination Date Sheets &amp; Timetables
+            Examination &amp; Assessment Management
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Manage, publish, hide, and schedule examination timetables for Monthly Tests, Mid-Term, and Final-Term exams.
+            Manage Date Sheets across 4 categories: Monthly Tests, Class Quizzes, Mid-Term, and Final-Term examinations.
           </p>
         </div>
 
@@ -158,34 +171,55 @@ export const DateSheetsModule: React.FC = () => {
             className="px-4 py-2 bg-[#1b1a47] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Create Date Sheet</span>
+            <span>+ Create Examination Schedule</span>
           </button>
         </div>
       </div>
 
+      {/* Active Dedicated Exam Mode Banner */}
+      {activeExamModeSheet && (
+        <div className="p-4 bg-indigo-900 text-white rounded-2xl shadow-md border border-indigo-700 flex items-start gap-3.5 animate-in fade-in">
+          <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-900 flex items-center justify-center shrink-0 mt-0.5 font-black">
+            <ShieldAlert className="w-5 h-5" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-black uppercase tracking-wider bg-amber-400 text-slate-900 px-2 py-0.5 rounded-md">
+                School-Wide Exam Mode Active
+              </span>
+              <span className="font-bold text-sm text-indigo-100">{activeExamModeSheet.title}</span>
+            </div>
+            <p className="text-xs text-indigo-200 mt-1 leading-relaxed">
+              Regular timetable lectures are currently suppressed for all classes (Classes 1–8). No false teacher absence alerts are triggered. 
+              Examinations run in permanent Zoom classrooms with assigned invigilators.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Metrics Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-2xs">
-          <div className="text-[11px] font-semibold text-slate-500 uppercase">Total Date Sheets</div>
+          <div className="text-[11px] font-semibold text-slate-500 uppercase">Total Schedules</div>
           <div className="text-2xl font-black text-slate-900 mt-0.5">{totalCount}</div>
         </div>
 
         <div className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-2xs">
           <div className="text-[11px] font-semibold text-emerald-600 uppercase">Published &amp; Active</div>
           <div className="text-2xl font-black text-emerald-700 mt-0.5">{publishedCount}</div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Announcements live on portals</div>
+          <div className="text-[10px] text-slate-400 mt-0.5">Live on Student &amp; Teacher portals</div>
         </div>
 
         <div className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-2xs">
-          <div className="text-[11px] font-semibold text-amber-600 uppercase">Hidden / Paused</div>
-          <div className="text-2xl font-black text-amber-700 mt-0.5">{hiddenCount}</div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Popup suspended</div>
+          <div className="text-[11px] font-semibold text-indigo-600 uppercase">Mode A: Dedicated Exams</div>
+          <div className="text-2xl font-black text-indigo-700 mt-0.5">{dedicatedCount}</div>
+          <div className="text-[10px] text-slate-400 mt-0.5">Mid-Term &amp; Final-Term</div>
         </div>
 
         <div className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-2xs">
-          <div className="text-[11px] font-semibold text-slate-500 uppercase">Draft Schedules</div>
-          <div className="text-2xl font-black text-slate-700 mt-0.5">{draftCount}</div>
-          <div className="text-[10px] text-slate-400 mt-0.5">In preparation</div>
+          <div className="text-[11px] font-semibold text-sky-600 uppercase">Mode B: Timetable Tests</div>
+          <div className="text-2xl font-black text-sky-700 mt-0.5">{timetableCount}</div>
+          <div className="text-[10px] text-slate-400 mt-0.5">Monthly Tests &amp; Quizzes</div>
         </div>
       </div>
 
@@ -200,10 +234,11 @@ export const DateSheetsModule: React.FC = () => {
       <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto">
           {[
-            { id: 'ALL', label: 'All Examinations' },
+            { id: 'ALL', label: 'All Assessments' },
             { id: 'MONTHLY_TEST', label: '1. Monthly Tests' },
-            { id: 'MID_TERM', label: '2. Mid-Term Exams' },
-            { id: 'FINAL_TERM', label: '3. Final-Term Exams' }
+            { id: 'CLASS_QUIZ', label: '2. Class Quizzes' },
+            { id: 'MID_TERM', label: '3. Mid-Term Exams' },
+            { id: 'FINAL_TERM', label: '4. Final-Term Exams' }
           ].map((cat) => (
             <button
               key={cat.id}
@@ -241,9 +276,9 @@ export const DateSheetsModule: React.FC = () => {
         ) : filteredSheets.length === 0 ? (
           <div className="p-12 text-center text-slate-400 text-xs space-y-2">
             <CalendarDays className="w-8 h-8 text-slate-300 mx-auto stroke-1" />
-            <p className="font-semibold text-slate-700">No examination date sheets found</p>
+            <p className="font-semibold text-slate-700">No examination schedules found</p>
             <p className="text-[11px] text-slate-400">
-              Click &quot;+ Create Date Sheet&quot; to author a new examination schedule.
+              Click &quot;+ Create Examination Schedule&quot; to author a new assessment date sheet.
             </p>
           </div>
         ) : (
@@ -252,7 +287,8 @@ export const DateSheetsModule: React.FC = () => {
               <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                 <tr>
                   <th className="py-3 px-4">Date Sheet Title</th>
-                  <th className="py-3 px-3">Exam Category</th>
+                  <th className="py-3 px-3">Category</th>
+                  <th className="py-3 px-3">Scheduling Mode</th>
                   <th className="py-3 px-3">Applicable Classes</th>
                   <th className="py-3 px-3">Total Papers</th>
                   <th className="py-3 px-3">Visibility &amp; Status</th>
@@ -260,135 +296,158 @@ export const DateSheetsModule: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredSheets.map((ds) => (
-                  <tr key={ds.id} className="hover:bg-slate-50/70 transition">
-                    <td className="py-3 px-4">
-                      <div className="font-bold text-[#1b1a47] text-[13px]">{ds.title}</div>
-                      {ds.description && (
-                        <div className="text-[11px] text-slate-500 truncate max-w-xs mt-0.5">
-                          {ds.description}
-                        </div>
-                      )}
-                    </td>
-
-                    <td className="py-3 px-3">
-                      <span
-                        className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                          ds.exam_type === 'FINAL_TERM'
-                            ? 'bg-purple-100 text-purple-800'
-                            : ds.exam_type === 'MID_TERM'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-emerald-100 text-emerald-800'
-                        }`}
-                      >
-                        {ds.exam_type.replace('_', ' ')}
-                      </span>
-                    </td>
-
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-1 flex-wrap max-w-xs">
-                        {ds.applicable_classes && ds.applicable_classes.length > 0 ? (
-                          ds.applicable_classes.map((c) => (
-                            <span
-                              key={c.id}
-                              className="px-1.5 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold rounded-md"
-                            >
-                              {c.name}
+                {filteredSheets.map((ds) => {
+                  const isDedicated = ds.exam_type === 'MID_TERM' || ds.exam_type === 'FINAL_TERM';
+                  return (
+                    <tr key={ds.id} className="hover:bg-slate-50/70 transition">
+                      <td className="py-3 px-4">
+                        <div className="font-bold text-[#1b1a47] text-[13px]">{ds.title}</div>
+                        {ds.start_date && ds.end_date ? (
+                          <div className="text-[11px] text-indigo-600 font-medium flex items-center gap-1 mt-0.5">
+                            <Calendar className="w-3 h-3" />
+                            <span>
+                              {ds.start_date.split('T')[0]} to {ds.end_date.split('T')[0]}
                             </span>
-                          ))
-                        ) : (
-                          <span className="text-slate-400 text-[11px] italic">No classes</span>
-                        )}
-                      </div>
-                    </td>
+                          </div>
+                        ) : ds.description ? (
+                          <div className="text-[11px] text-slate-500 truncate max-w-xs mt-0.5">
+                            {ds.description}
+                          </div>
+                        ) : null}
+                      </td>
 
-                    <td className="py-3 px-3 font-bold text-slate-800">
-                      {ds.total_exams || 0} Papers
-                    </td>
-
-                    <td className="py-3 px-3">
-                      <span
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1.5 ${
-                          ds.is_published
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : ds.status === 'HIDDEN'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}
-                      >
-                        {ds.is_published ? (
-                          <>
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            <span>Published (Live)</span>
-                          </>
-                        ) : ds.status === 'HIDDEN' ? (
-                          <>
-                            <EyeOff className="w-3 h-3 text-amber-600" />
-                            <span>Hidden (Paused)</span>
-                          </>
-                        ) : (
-                          <span>Draft</span>
-                        )}
-                      </span>
-                    </td>
-
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        
-                        {/* Publish / Hide Toggle Button */}
-                        <button
-                          onClick={() => handleTogglePublish(ds)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition shadow-2xs ${
-                            ds.is_published
-                              ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
-                              : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                      <td className="py-3 px-3">
+                        <span
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                            ds.exam_type === 'FINAL_TERM'
+                              ? 'bg-purple-100 text-purple-800'
+                              : ds.exam_type === 'MID_TERM'
+                              ? 'bg-blue-100 text-blue-800'
+                              : ds.exam_type === 'CLASS_QUIZ'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-emerald-100 text-emerald-800'
                           }`}
-                          title={ds.is_published ? 'Hide from students & teachers' : 'Publish / Unhide'}
+                        >
+                          {ds.exam_type.replace('_', ' ')}
+                        </span>
+                      </td>
+
+                      <td className="py-3 px-3">
+                        <span
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                            isDedicated
+                              ? 'bg-indigo-100 text-indigo-900 border border-indigo-200'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}
+                        >
+                          {isDedicated ? 'Dedicated Exam' : 'Timetable Slot'}
+                        </span>
+                      </td>
+
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-1 flex-wrap max-w-xs">
+                          {ds.applicable_classes && ds.applicable_classes.length > 0 ? (
+                            ds.applicable_classes.map((c) => (
+                              <span
+                                key={c.id}
+                                className="px-1.5 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold rounded-md"
+                              >
+                                {c.name}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-slate-400 text-[11px] italic">No classes</span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="py-3 px-3 font-bold text-slate-800">
+                        {ds.total_exams || 0} Papers
+                      </td>
+
+                      <td className="py-3 px-3">
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1.5 ${
+                            ds.is_published
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : ds.status === 'HIDDEN'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}
                         >
                           {ds.is_published ? (
                             <>
-                              <EyeOff className="w-3.5 h-3.5" />
-                              <span>Hide</span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              <span>Published (Live)</span>
+                            </>
+                          ) : ds.status === 'HIDDEN' ? (
+                            <>
+                              <EyeOff className="w-3 h-3 text-amber-600" />
+                              <span>Hidden (Paused)</span>
                             </>
                           ) : (
-                            <>
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>Publish</span>
-                            </>
+                            <span>Draft</span>
                           )}
-                        </button>
+                        </span>
+                      </td>
 
-                        {/* Preview Timetable Button */}
-                        <button
-                          onClick={() => handleOpenPreview(ds.id)}
-                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-[11px] font-bold transition flex items-center gap-1"
-                          title="Preview Official Timetable"
-                        >
-                          <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-600" />
-                          <span>Preview</span>
-                        </button>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* Publish / Hide Toggle Button */}
+                          <button
+                            onClick={() => handleTogglePublish(ds)}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition shadow-2xs ${
+                              ds.is_published
+                                ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
+                                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                            }`}
+                            title={ds.is_published ? 'Hide from students & teachers' : 'Publish / Unhide'}
+                          >
+                            {ds.is_published ? (
+                              <>
+                                <EyeOff className="w-3.5 h-3.5" />
+                                <span>Hide</span>
+                              </>
+                            ) : (
+                              <>
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Publish</span>
+                              </>
+                            )}
+                          </button>
 
-                        {/* Edit Button */}
-                        <button
-                          onClick={() => handleOpenEdit(ds.id)}
-                          className="p-1 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-md transition"
-                          title="Edit Date Sheet"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
+                          {/* Preview Timetable Button */}
+                          <button
+                            onClick={() => handleOpenPreview(ds.id)}
+                            className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-[11px] font-bold transition flex items-center gap-1"
+                            title="Preview Official Timetable"
+                          >
+                            <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Preview</span>
+                          </button>
 
-                        {/* Delete Button */}
-                        <button
-                          onClick={() => handleDelete(ds)}
-                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition"
-                          title="Delete Date Sheet"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          {/* Edit Button */}
+                          <button
+                            onClick={() => handleOpenEdit(ds.id)}
+                            className="p-1 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-md transition"
+                            title="Edit Date Sheet"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Delete Button */}
+                          <button
+                            onClick={() => handleDelete(ds)}
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition"
+                            title="Delete Date Sheet"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -406,7 +465,7 @@ export const DateSheetsModule: React.FC = () => {
         editItem={editingItem}
       />
 
-      {/* Preview Timetable Modal (Matches User's Reference Screenshot) */}
+      {/* Preview Timetable Modal */}
       {previewItem && (
         <DateSheetPreviewModal
           isOpen={!!previewItem}
@@ -417,4 +476,3 @@ export const DateSheetsModule: React.FC = () => {
     </div>
   );
 };
-

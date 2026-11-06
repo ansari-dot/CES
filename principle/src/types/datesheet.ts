@@ -1,5 +1,7 @@
-export type ExamType = 'MONTHLY_TEST' | 'MID_TERM' | 'FINAL_TERM';
+export type ExamType = 'MONTHLY_TEST' | 'CLASS_QUIZ' | 'MID_TERM' | 'FINAL_TERM';
 export type DateSheetStatus = 'DRAFT' | 'PUBLISHED' | 'HIDDEN';
+export type SchedulingMode = 'DEDICATED_EXAM' | 'TIMETABLE_ASSESSMENT';
+export type AssessmentTiming = 'START_OF_LECTURE' | 'END_OF_LECTURE' | 'ENTIRE_LECTURE' | 'STANDALONE';
 
 export interface DateSheetEntry {
   id?: number;
@@ -19,6 +21,13 @@ export interface DateSheetEntry {
   subject_type: string; // e.g. "Scholastic", "Co-Scholastic"
   instructions?: string | null;
   order_index?: number;
+  timetable_slot_id?: number | null;
+  assessment_timing?: AssessmentTiming | null;
+  duration_minutes?: number | null;
+  is_date_changed?: boolean;
+  previous_exam_date?: string | null;
+  previous_start_time?: string | null;
+  previous_end_time?: string | null;
 }
 
 export interface MultipleExamsAttention {
@@ -39,6 +48,9 @@ export interface ExaminationDateSheet {
   academic_session_id: number;
   session_name?: string;
   exam_type: ExamType;
+  scheduling_mode?: SchedulingMode;
+  start_date?: string | null;
+  end_date?: string | null;
   title: string;
   description?: string | null;
   status: DateSheetStatus;
@@ -61,6 +73,9 @@ export interface ExaminationDateSheet {
 export interface CreateDateSheetPayload {
   academicSessionId?: number;
   examType: ExamType;
+  schedulingMode?: SchedulingMode;
+  startDate?: string | null;
+  endDate?: string | null;
   title: string;
   description?: string | null;
   status?: DateSheetStatus;
@@ -75,6 +90,8 @@ export interface CreateDateSheetPayload {
     subjectType?: string;
     instructions?: string | null;
     orderIndex?: number;
+    timetableSlotId?: number | null;
+    assessmentTiming?: AssessmentTiming;
+    durationMinutes?: number | null;
   }[];
 }
-

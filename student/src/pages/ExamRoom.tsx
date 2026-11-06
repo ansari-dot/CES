@@ -13,7 +13,8 @@ import {
   ShieldAlert,
   FileText,
   HelpCircle,
-  Lock
+  Lock,
+  Video
 } from 'lucide-react';
 
 export default function ExamRoom() {
@@ -40,6 +41,15 @@ export default function ExamRoom() {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
+
+  // Live Invigilation Session Details
+  const [invigilation, setInvigilation] = useState<{
+    joinUrl: string;
+    meetingId: string;
+    passcode: string;
+    invigilatorName: string;
+    instructions: string;
+  } | null>(null);
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isAutoSubmittingRef = useRef<boolean>(false);
@@ -70,6 +80,11 @@ export default function ExamRoom() {
           };
         });
         setAnswers(initialAnswers);
+
+        // Fetch live invigilation room info
+        studentAssessmentsApi.getInvigilationSession(Number(testId))
+          .then((inv) => setInvigilation(inv))
+          .catch(() => {});
       } catch (err: any) {
         setErrorMsg(err.message || 'Unable to access the test room.');
       } finally {
@@ -354,6 +369,41 @@ export default function ExamRoom() {
           </div>
         </div>
       </header>
+
+      {/* Live Examination Invigilation Callout Banner */}
+      {invigilation && invigilation.joinUrl && (
+        <div className="bg-[#14133b] text-white border-b border-indigo-900/60 px-4 sm:px-6 py-2.5">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+              </span>
+              <div>
+                <span className="text-xs font-bold text-white flex items-center gap-2">
+                  Live Examination Invigilation Active
+                  <span className="text-[10px] font-normal px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300">
+                    Proctor: {invigilation.invigilatorName}
+                  </span>
+                </span>
+                <p className="text-[11px] text-indigo-200">
+                  Camera must remain ON during the entire examination. Classroom Room: <span className="font-mono font-bold text-white">{invigilation.meetingId}</span>
+                </p>
+              </div>
+            </div>
+
+            <a
+              href={invigilation.joinUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="px-3.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-900 font-bold rounded-lg text-xs transition flex items-center justify-center gap-1.5 shadow-xs shrink-0"
+            >
+              <Video className="w-3.5 h-3.5" />
+              <span>Join Zoom Invigilation</span>
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* Main Examination Workspace */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">

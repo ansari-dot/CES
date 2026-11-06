@@ -17,7 +17,8 @@ import {
   ChevronRight,
   Send,
   Lock,
-  RefreshCw
+  RefreshCw,
+  Video
 } from 'lucide-react';
 
 export const MonthlyTestsPage: React.FC = () => {
@@ -37,6 +38,21 @@ export const MonthlyTestsPage: React.FC = () => {
   // Modals state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [activeGradingTestId, setActiveGradingTestId] = useState<number | null>(null);
+  const [launchingTestId, setLaunchingTestId] = useState<number | null>(null);
+
+  const handleStartInvigilation = async (testId: number) => {
+    try {
+      setLaunchingTestId(testId);
+      const res = await assessmentsApi.startInvigilation(testId);
+      if (res.launchUrl) {
+        window.open(res.launchUrl, '_blank');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Unable to launch invigilation session.');
+    } finally {
+      setLaunchingTestId(null);
+    }
+  };
 
   useEffect(() => {
     loadTests();
@@ -328,13 +344,25 @@ export const MonthlyTestsPage: React.FC = () => {
                         )}
 
                         {t.status === 'PUBLISHED' && (
-                          <button
-                            onClick={() => handleUpdateStatus(t.id, 'CLOSED')}
-                            className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-bold text-[11px] transition"
-                            title="Close Window (stop new attempts)"
-                          >
-                            Close Test
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleStartInvigilation(t.id)}
+                              disabled={launchingTestId === t.id}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] shadow-2xs inline-flex items-center gap-1 transition disabled:opacity-50"
+                              title="Launch classroom Zoom meeting with host invigilation rights"
+                            >
+                              <Video className="w-3 h-3" />
+                              <span>{launchingTestId === t.id ? 'Starting...' : 'Invigilate (Zoom)'}</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleUpdateStatus(t.id, 'CLOSED')}
+                              className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-bold text-[11px] transition"
+                              title="Close Window (stop new attempts)"
+                            >
+                              Close Test
+                            </button>
+                          </>
                         )}
 
                         <button

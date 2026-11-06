@@ -55,11 +55,12 @@ export default function DateSheet() {
     return `${day}-${month}-${year}`;
   };
 
-  // Determine status (Upcoming, Today, Completed)
-  const getExamStatus = (dateStr: string) => {
+  // Determine status (Upcoming, Today, Completed, Changed)
+  const getExamStatus = (entry: StudentDateSheetEntry) => {
+    if (entry.is_date_changed) return { label: 'Date Changed', cls: 'bg-rose-100 text-rose-800 border-rose-300' };
     const todayStr = new Date().toISOString().split('T')[0];
-    if (dateStr === todayStr) return { label: 'Today', cls: 'bg-amber-100 text-amber-800 border-amber-300' };
-    if (dateStr > todayStr) return { label: 'Upcoming', cls: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
+    if (entry.exam_date === todayStr) return { label: 'Today', cls: 'bg-amber-100 text-amber-800 border-amber-300' };
+    if (entry.exam_date > todayStr) return { label: 'Upcoming', cls: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
     return { label: 'Completed', cls: 'bg-slate-100 text-slate-600 border-slate-200' };
   };
 
@@ -108,6 +109,7 @@ export default function DateSheet() {
         {[
           { id: 'ALL', label: 'All Schedules' },
           { id: 'MONTHLY_TEST', label: 'Monthly Tests' },
+          { id: 'CLASS_QUIZ', label: 'Class Quizzes' },
           { id: 'MID_TERM', label: 'Mid-Term Examinations' },
           { id: 'FINAL_TERM', label: 'Final-Term Examinations' }
         ].map((tab) => (
@@ -198,7 +200,7 @@ export default function DateSheet() {
                     </thead>
                     <tbody className="divide-y-2 divide-slate-700">
                       {entries.map((e, index) => {
-                        const statusObj = getExamStatus(e.exam_date);
+                        const statusObj = getExamStatus(e);
 
                         return (
                           <tr
@@ -215,6 +217,11 @@ export default function DateSheet() {
                               {e.instructions && (
                                 <span className="block text-[11px] font-normal text-muted-foreground normal-case italic">
                                   Note: {e.instructions}
+                                </span>
+                              )}
+                              {e.is_date_changed && e.previous_exam_date && (
+                                <span className="block text-[10px] text-rose-600 font-semibold normal-case mt-0.5">
+                                  ⚠️ Rescheduled (Previous: {formatDisplayDate(e.previous_exam_date)} {e.previous_start_time || ''})
                                 </span>
                               )}
                             </td>

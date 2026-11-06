@@ -26,7 +26,8 @@ async function runDateSheetTests() {
 
   try {
     // Clean up any previous test date sheets
-    await db('examination_date_sheets').where('title', 'like', '%HALF YEARLY%').delete();
+    await db('date_sheet_entries').delete();
+    await db('examination_date_sheets').delete();
 
     // 1. Fetch test users: Principal, Teacher, Student (Class 4), Student (Class 5)
     const principalUser = await db('users')
@@ -130,58 +131,74 @@ async function runDateSheetTests() {
       return { status: res.status, body };
     }
 
-    console.log('--- 1. Principal Creating Examination Date Sheet ---');
+    console.log('--- 1. Principal Creating Examination Date Sheet & Testing 1-Exam-Per-Day Rule ---');
 
-    // Create a date sheet matching the reference image:
-    // Timetable for HALF YEARLY – Class: IV (with 2 exams on 2026-10-06: General Knowledge + Moral Science)
-    // Plus a paper for Class 5 to test class-isolation
+    // Attempt invalid Mid-Term with two exams for Class 4 on the same day -> Must be rejected with 422
+    const invalidTwoExamsPayload = {
+      academicSessionId: 1,
+      examType: 'MID_TERM',
+      title: 'Invalid Mid-Term with 2 Exams on Same Day',
+      status: 'DRAFT',
+      entries: [
+        { classId: 4, subjectId: 1, examDate: '2026-10-06', startTime: '08:00 AM', endTime: '09:30 AM' },
+        { classId: 4, subjectId: 2, examDate: '2026-10-06', startTime: '10:00 AM', endTime: '12:00 PM' }
+      ]
+    };
+    const resInvalid = await request('/api/v1/datesheets', {
+      method: 'POST',
+      body: JSON.stringify(invalidTwoExamsPayload)
+    }, principalSess);
+
+    report('Mandatory Rule: Rejects multiple examinations for same class on same day with 422', resInvalid.status === 422);
+
+    // Now create a valid multi-class Mid-Term Date Sheet (One Subject Per Class Per Day)
     const createPayload = {
       academicSessionId: 1,
       examType: 'MID_TERM',
       title: 'Timetable for HALF YEARLY',
-      description: 'ATTENTION: Multiple Examinations on a Single Day. Entry closes 15 minutes before exam start.',
+      description: 'Official Mid-Term Examination. Entry closes 15 minutes before exam start.',
       status: 'DRAFT',
       entries: [
-        // Class 4 - Day 1 Exam 1 (08:00 AM)
+        // Class 4 - Day 1 (08:00 AM)
         {
           classId: 4,
           subjectId: 1, // Math
           teacherId: teacher.teacher_id,
           examDate: '2026-10-06',
           startTime: '08:00 AM',
-          endTime: '09:30 AM',
+          endTime: '11:00 AM',
           subjectType: 'Scholastic',
           instructions: 'Bring geometry set'
-        },
-        // Class 4 - Day 1 Exam 2 (10:00 AM) -> Multiple exams on same date!
-        {
-          classId: 4,
-          subjectId: 2, // English
-          teacherId: null,
-          examDate: '2026-10-06',
-          startTime: '10:00 AM',
-          endTime: '12:00 PM',
-          subjectType: 'Scholastic',
-          instructions: 'No dictionaries permitted'
         },
         // Class 4 - Day 2
         {
           classId: 4,
-          subjectId: 3, // Science
+          subjectId: 2, // English
           teacherId: null,
           examDate: '2026-10-07',
           startTime: '08:00 AM',
           endTime: '11:00 AM',
+          subjectType: 'Scholastic',
+          instructions: 'No dictionaries permitted'
+        },
+        // Class 4 - Day 3
+        {
+          classId: 4,
+          subjectId: 3, // Science
+          teacherId: null,
+          examDate: '2026-10-08',
+          startTime: '08:00 AM',
+          endTime: '11:00 AM',
           subjectType: 'Scholastic'
         },
-        // Class 5 - Paper for Class 5
+        // Class 5 - Day 1 (Math)
         {
           classId: 5,
           subjectId: 1, // Math
           teacherId: null,
           examDate: '2026-10-06',
           startTime: '08:00 AM',
-          endTime: '10:00 AM',
+          endTime: '11:00 AM',
           subjectType: 'Scholastic'
         }
       ]
@@ -197,11 +214,10 @@ async function runDateSheetTests() {
     report('Date sheet assigned ID', Boolean(dateSheetId));
     report('Created as DRAFT (is_published = false)', resCreate.body?.data?.is_published === false);
 
-    console.log('\n--- 2. Checking Multiple Examinations on Single Day Detection ---');
-    const multipleExams = resCreate.body?.data?.multipleExamsAttention || [];
-    report('Detected multiple examinations on single day', multipleExams.length >= 1);
-    const day1Conflict = multipleExams.find((c) => c.examDate === '2026-10-06' && c.classId === 4);
-    report('Class 4 Day 1 (2026-10-06) conflict identified with 2 exams', day1Conflict && day1Conflict.exams.length === 2);
+    console.log('\n--- 2. Checking Mode A DEDICATED_EXAM Configuration ---');
+    report('Scheduling mode automatically set to DEDICATED_EXAM', resCreate.body?.data?.scheduling_mode === 'DEDICATED_EXAM');
+    report('Start date resolved correctly', Boolean(resCreate.body?.data?.start_date));
+    report('End date resolved correctly', Boolean(resCreate.body?.data?.end_date));
 
     console.log('\n--- 3. Verifying Student Visibility for DRAFT (Hidden) Date Sheet ---');
     // Student queries active date sheets

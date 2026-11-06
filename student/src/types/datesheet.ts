@@ -1,4 +1,4 @@
-export type ExamType = 'MONTHLY_TEST' | 'MID_TERM' | 'FINAL_TERM';
+export type ExamType = 'MONTHLY_TEST' | 'CLASS_QUIZ' | 'MID_TERM' | 'FINAL_TERM';
 
 export interface StudentDateSheetEntry {
   id: number;
@@ -15,6 +15,10 @@ export interface StudentDateSheetEntry {
   end_time: string; // e.g. "09:30 AM"
   subject_type: string; // e.g. "Scholastic"
   instructions?: string | null;
+  is_date_changed?: boolean;
+  previous_exam_date?: string | null;
+  previous_start_time?: string | null;
+  previous_end_time?: string | null;
   order_index?: number;
 }
 

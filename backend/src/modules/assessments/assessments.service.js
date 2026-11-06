@@ -15,6 +15,7 @@ import { parseDbDate } from '../../shared/utils/date.js';
 import { notificationService } from '../../shared/services/notificationService.js';
 import { dispatchSocketEvent } from '../../shared/realtime/eventEmitter.js';
 import { auditRepository } from '../audit/audit.repository.js';
+import { zoomRepository } from '../zoom/zoom.repository.js';
 
 function validationError(message) {
   return new AppError(message, 422, ErrorCodes.VALIDATION_ERROR);
@@ -105,6 +106,9 @@ export const assessmentsService = {
       ? data.exam_type
       : 'MONTHLY_TEST';
 
+    const isDedicatedExam = examType === 'MID_TERM' || examType === 'FINAL_TERM';
+    const schedulingMode = isDedicatedExam ? 'DEDICATED_EXAM' : (data.scheduling_mode || 'TIMETABLE_ASSESSMENT');
+
     const test = await db.transaction(async (trx) => {
       const created = await assessmentsRepository.createTest(
         {
@@ -113,7 +117,10 @@ export const assessmentsService = {
           subject_id: data.subject_id,
           teacher_id: teacherId,
           exam_type: examType,
+          scheduling_mode: schedulingMode,
           date_sheet_entry_id: data.date_sheet_entry_id ? Number(data.date_sheet_entry_id) : null,
+          timetable_slot_id: data.timetable_slot_id ? Number(data.timetable_slot_id) : null,
+          assessment_timing: data.assessment_timing || (isDedicatedExam ? 'STANDALONE' : 'ENTIRE_LECTURE'),
           term_name: data.term_name || (examType === 'MID_TERM' ? 'Mid-Term' : examType === 'FINAL_TERM' ? 'Final-Term' : data.month_name || null),
           title: data.title.trim(),
           description: data.description ? data.description.trim() : null,
@@ -790,5 +797,174 @@ export const assessmentsService = {
       if (scope.pairs.has(`${test.class_id}-${test.subject_id}`)) return;
     }
     throw forbidden('You do not have permission to manage this assessment.');
+  },
+
+  // -------------------------------------------------------------
+  // Zoom Invigilation Integration (Mode A & Mode B)
+  // -------------------------------------------------------------
+  async getInvigilationSession(user, testId) {
+    const test = await db('monthly_tests as mt')
+      .join('classes as c', 'mt.class_id', 'c.id')
+      .join('subjects as s', 'mt.subject_id', 's.id')
+      .leftJoin('teachers as t', 'mt.teacher_id', 't.id')
+      .leftJoin('users as tu', 't.user_id', 'tu.id')
+      .where('mt.id', testId)
+      .select(
+        'mt.id',
+        'mt.class_id',
+        'c.name as class_name',
+        'c.grade_level',
+        'mt.subject_id',
+        's.name as subject_name',
+        's.code as subject_code',
+        'mt.teacher_id',
+        'tu.full_name as teacher_name',
+        'mt.title',
+        'mt.exam_type',
+        'mt.scheduling_mode',
+        'mt.available_from',
+        'mt.available_until'
+      )
+      .first();
+
+    if (!test) throw notFound('Assessment not found');
+
+    // Security Check: Verify caller access
+    if (user.role === 'STUDENT') {
+      const student = await getStudentByUserId(user.id);
+      if (!student) throw forbidden('Student record not found.');
+      const studentClassId = student.current_class_id || (
+        await db('enrollments')
+          .where({ student_id: student.id, status: 'ACTIVE' })
+          .select('class_id')
+          .first()
+      )?.class_id;
+
+      if (Number(studentClassId) !== Number(test.class_id)) {
+        throw forbidden('Access denied: You can only view invigilation sessions for your enrolled class.');
+      }
+    } else if (user.role === 'TEACHER') {
+      const scope = await getTeacherScope(user.id);
+      const isAssigned = scope.teacher && Number(scope.teacher.id) === Number(test.teacher_id);
+      const teachesClass = scope.pairs.has(`${test.class_id}-${test.subject_id}`);
+      if (!isAssigned && !teachesClass && !isStaff(user)) {
+        throw forbidden('Access denied: You are not assigned to invigilate or teach this class.');
+      }
+    }
+
+    // Retrieve the permanent virtual Zoom classroom for this class
+    const meeting = await zoomRepository.getMeetingByClassId(test.class_id);
+    if (!meeting) {
+      throw validationError('No permanent Zoom classroom configured for this class.');
+    }
+
+    // Return sanitized participant information - NEVER expose host keys or start URLs to students
+    return {
+      testId: test.id,
+      title: test.title,
+      examType: test.exam_type,
+      schedulingMode: test.scheduling_mode,
+      classId: test.class_id,
+      className: test.class_name,
+      subjectName: test.subject_name,
+      subjectCode: test.subject_code,
+      invigilatorName: test.teacher_name || 'Assigned Invigilator',
+      meetingId: meeting.zoom_meeting_id,
+      joinUrl: meeting.joinUrl,
+      passcode: meeting.passcode,
+      topic: `${test.title} - ${test.class_name} (${test.subject_name})`,
+      availableFrom: test.available_from,
+      availableUntil: test.available_until,
+      instructions: 'Please keep your webcam enabled throughout the examination. Ensure your workspace is clearly visible and your microphone is muted unless asked by the invigilator.'
+    };
+  },
+
+  async startInvigilation(user, testId) {
+    const test = await db('monthly_tests as mt')
+      .join('classes as c', 'mt.class_id', 'c.id')
+      .join('subjects as s', 'mt.subject_id', 's.id')
+      .leftJoin('teachers as t', 'mt.teacher_id', 't.id')
+      .leftJoin('users as tu', 't.user_id', 'tu.id')
+      .where('mt.id', testId)
+      .select(
+        'mt.id',
+        'mt.class_id',
+        'c.name as class_name',
+        'c.grade_level',
+        'mt.subject_id',
+        's.name as subject_name',
+        'mt.teacher_id',
+        'tu.full_name as teacher_name',
+        'mt.title',
+        'mt.exam_type',
+        'mt.scheduling_mode',
+        'mt.date_sheet_entry_id',
+        'mt.available_from',
+        'mt.available_until'
+      )
+      .first();
+
+    if (!test) throw notFound('Assessment not found');
+
+    let teacherId = test.teacher_id;
+    if (user.role === 'TEACHER') {
+      const scope = await getTeacherScope(user.id);
+      if (!scope.teacher) throw forbidden('Teacher profile not found.');
+      const isAssigned = Number(scope.teacher.id) === Number(test.teacher_id);
+      const teachesClass = scope.pairs.has(`${test.class_id}-${test.subject_id}`);
+      if (!isAssigned && !teachesClass) {
+        throw forbidden('Only the assigned invigilator or subject teacher can launch this session.');
+      }
+      teacherId = scope.teacher.id;
+    } else if (!isStaff(user)) {
+      throw forbidden('Only faculty and administrators can launch invigilation sessions.');
+    }
+
+    const meeting = await zoomRepository.getMeetingByClassId(test.class_id);
+    if (!meeting) {
+      throw validationError('No permanent Zoom classroom configured for this class.');
+    }
+
+    // Audit Log: Record examination invigilation launch
+    await auditRepository.recordAuditLog({
+      actorId: user.id,
+      actorName: user.name || user.full_name || 'Invigilator',
+      actorRole: user.role_code || user.role,
+      action: 'START_EXAM_INVIGILATION',
+      recordType: 'EXAMINATION_INVIGILATION',
+      recordIdentifier: `EXAM-${test.id}`,
+      reason: `Started Zoom invigilation for ${test.title} (${test.subject_name}) in Class ${test.class_name} Room.`
+    }).catch(() => {});
+
+    // Create / Record Duty Session for verified invigilation
+    let dutySessionId = null;
+    try {
+      const [dsId] = await db('teacher_duty_sessions').insert({
+        teacher_id: teacherId,
+        class_id: test.class_id,
+        zoom_meeting_id: meeting.id,
+        duty_type: 'EXAM_INVIGILATION',
+        period_occurrence_id: `exam_${test.id}_${new Date().toISOString().split('T')[0]}`,
+        date_sheet_entry_id: test.date_sheet_entry_id || null,
+        session_start: new Date(),
+        session_status: 'IN_PROGRESS',
+        reconciliation_status: 'NOT_RECONCILED',
+        audit_note: `Teacher started invigilation for ${test.title} (${test.subject_name}) in Class ${test.class_name} Zoom room.`
+      });
+      dutySessionId = dsId;
+    } catch (err) {
+      console.warn('Non-fatal: Failed to log duty session for invigilation:', err.message);
+    }
+
+    return {
+      testId: test.id,
+      title: test.title,
+      meetingId: meeting.zoom_meeting_id,
+      launchUrl: meeting.startUrl || meeting.joinUrl,
+      hostKey: meeting.hostKey, // Securely returned to verified teacher
+      sessionStartedAt: new Date().toISOString(),
+      dutySessionId,
+      role: 'INVIGILATOR'
+    };
   }
 };

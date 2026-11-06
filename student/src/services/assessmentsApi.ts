@@ -64,6 +64,26 @@ export const studentAssessmentsApi = {
    */
   async getTestResult(testId: number): Promise<StudentTestResult> {
     return requestApi<StudentTestResult>(`/api/v1/assessments/student/${testId}/result`);
+  },
+
+  /**
+   * Fetch live Zoom invigilation session details for active exam
+   */
+  async getInvigilationSession(testId: number): Promise<{
+    testId: number;
+    title: string;
+    examType: string;
+    schedulingMode: string;
+    className: string;
+    subjectName: string;
+    invigilatorName: string;
+    meetingId: string;
+    joinUrl: string;
+    passcode: string;
+    topic: string;
+    instructions: string;
+  }> {
+    return requestApi<any>(`/api/v1/assessments/${testId}/invigilation-session`);
   }
 };
 

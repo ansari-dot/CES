@@ -34,7 +34,10 @@ export const datesheetsRepository = {
         'eds.academic_session_id',
         'ses.name as session_name',
         'eds.exam_type',
+        'eds.scheduling_mode',
         'eds.title',
+        'eds.start_date',
+        'eds.end_date',
         'eds.description',
         'eds.status',
         'eds.is_published',
@@ -103,7 +106,10 @@ export const datesheetsRepository = {
         'eds.academic_session_id',
         'ses.name as session_name',
         'eds.exam_type',
+        'eds.scheduling_mode',
         'eds.title',
+        'eds.start_date',
+        'eds.end_date',
         'eds.description',
         'eds.status',
         'eds.is_published',
@@ -142,6 +148,13 @@ export const datesheetsRepository = {
         'dse.end_time',
         'dse.subject_type',
         'dse.instructions',
+        'dse.timetable_slot_id',
+        'dse.assessment_timing',
+        'dse.duration_minutes',
+        'dse.is_date_changed',
+        'dse.previous_exam_date',
+        'dse.previous_start_time',
+        'dse.previous_end_time',
         'dse.order_index'
       )
       .orderBy(['dse.class_id', 'dse.exam_date', 'dse.start_time', 'dse.order_index']);
@@ -171,6 +184,13 @@ export const datesheetsRepository = {
           end_time: entry.endTime,
           subject_type: entry.subjectType || 'Scholastic',
           instructions: entry.instructions || null,
+          timetable_slot_id: entry.timetableSlotId || null,
+          assessment_timing: entry.assessmentTiming || 'STANDALONE',
+          duration_minutes: entry.durationMinutes || null,
+          is_date_changed: Boolean(entry.isDateChanged),
+          previous_exam_date: entry.previousExamDate || null,
+          previous_start_time: entry.previousStartTime || null,
+          previous_end_time: entry.previousEndTime || null,
           order_index: entry.orderIndex !== undefined ? entry.orderIndex : index
         }));
         await trx('date_sheet_entries').insert(rows);
@@ -207,6 +227,13 @@ export const datesheetsRepository = {
             end_time: entry.endTime,
             subject_type: entry.subjectType || 'Scholastic',
             instructions: entry.instructions || null,
+            timetable_slot_id: entry.timetableSlotId || null,
+            assessment_timing: entry.assessmentTiming || 'STANDALONE',
+            duration_minutes: entry.durationMinutes || null,
+            is_date_changed: Boolean(entry.isDateChanged),
+            previous_exam_date: entry.previousExamDate || null,
+            previous_start_time: entry.previousStartTime || null,
+            previous_end_time: entry.previousEndTime || null,
             order_index: entry.orderIndex !== undefined ? entry.orderIndex : index
           }));
           await trx('date_sheet_entries').insert(rows);
@@ -299,6 +326,13 @@ export const datesheetsRepository = {
         'dse.end_time',
         'dse.subject_type',
         'dse.instructions',
+        'dse.timetable_slot_id',
+        'dse.assessment_timing',
+        'dse.duration_minutes',
+        'dse.is_date_changed',
+        'dse.previous_exam_date',
+        'dse.previous_start_time',
+        'dse.previous_end_time',
         'dse.order_index'
       )
       .orderBy(['dse.exam_date', 'dse.start_time', 'dse.order_index']);
@@ -404,6 +438,13 @@ export const datesheetsRepository = {
         'dse.end_time',
         'dse.subject_type',
         'dse.instructions',
+        'dse.timetable_slot_id',
+        'dse.assessment_timing',
+        'dse.duration_minutes',
+        'dse.is_date_changed',
+        'dse.previous_exam_date',
+        'dse.previous_start_time',
+        'dse.previous_end_time',
         'dse.order_index'
       )
       .orderBy(['dse.class_id', 'dse.exam_date', 'dse.start_time', 'dse.order_index']);

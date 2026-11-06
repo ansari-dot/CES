@@ -7,6 +7,7 @@ import { zoomRepository } from './zoom.repository.js';
 import { calculateLessonVerifiedDuty, currentPayrollMonthLabel } from '../../shared/utils/dutyCalculation.js';
 import { emitRealtimeEvent, RealtimeEvents } from '../../shared/realtime/eventEmitter.js';
 import { zoomService } from './zoom.service.js';
+import { datesheetsService } from '../datesheets/datesheets.service.js';
 
 const TICK_INTERVAL_MS = 30 * 1000; // 30 seconds
 const TEACHER_GRACE_PERIOD_MS = 10 * 60 * 1000; // 10 minutes past start time
@@ -51,102 +52,112 @@ export async function runZoomScheduleTick(now = new Date()) {
     const weekdayMap = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
     const todayWeekday = weekdayMap[dayName] || 1;
 
-    const publishedSlots = await db('timetable_slots')
-      .join('academic_sessions', 'timetable_slots.session_id', 'academic_sessions.id')
-      .where('academic_sessions.is_current', 1)
-      .where('timetable_slots.status', 'PUBLISHED')
-      .where('timetable_slots.weekday', todayWeekday)
-      .select('timetable_slots.*');
+    // 2. Check School-Wide Exam Mode (Mode A: Dedicated Mid-Term/Final-Term Exam Period)
+    const examPeriodCheck = await datesheetsService.isSchoolInExamPeriod(todayStr).catch(() => ({ inExamMode: false }));
+    const isSchoolInExamMode = Boolean(examPeriodCheck && examPeriodCheck.inExamMode);
 
-    for (const slot of publishedSlots) {
-      const existing = await db('timetable_lessons')
-        .where({ slot_id: slot.id, lesson_date: todayStr })
-        .first();
+    if (isSchoolInExamMode) {
+      console.log(`[ZoomScheduler] School-Wide EXAM_MODE Active on ${todayStr} for "${examPeriodCheck.title}" (${examPeriodCheck.examType}). Suppressing regular timetable lesson generation for all classes.`);
+    } else {
+      const publishedSlots = await db('timetable_slots')
+        .join('academic_sessions', 'timetable_slots.session_id', 'academic_sessions.id')
+        .where('academic_sessions.is_current', 1)
+        .where('timetable_slots.status', 'PUBLISHED')
+        .where('timetable_slots.weekday', todayWeekday)
+        .select('timetable_slots.*');
 
-      if (!existing) {
-        const classMeeting = await db('zoom_meetings')
-          .where({ class_id: slot.class_id, status: 'ACTIVE' })
+      for (const slot of publishedSlots) {
+        const existing = await db('timetable_lessons')
+          .where({ slot_id: slot.id, lesson_date: todayStr })
           .first();
 
-        const startAt = new Date(wallClockToUtc(todayStr, slot.start_time, schoolTz));
-        const endAt = new Date(wallClockToUtc(todayStr, slot.end_time, schoolTz));
+        if (!existing) {
+          const classMeeting = await db('zoom_meetings')
+            .where({ class_id: slot.class_id, status: 'ACTIVE' })
+            .first();
 
-        try {
-          await db('timetable_lessons').insert({
-            slot_id: slot.id,
-            class_id: slot.class_id,
-            subject_id: slot.subject_id,
-            teacher_id: slot.teacher_id,
-            zoom_meeting_id: classMeeting ? classMeeting.id : null,
-            lesson_date: todayStr,
-            start_at: startAt,
-            end_at: endAt,
-            status: 'SCHEDULED',
-            session_state: 'SCHEDULED'
-          });
-        } catch (err) {
-          console.error('[ZoomScheduler] Error inserting lesson for slot', slot.id, err.message);
+          const startAt = new Date(wallClockToUtc(todayStr, slot.start_time, schoolTz));
+          const endAt = new Date(wallClockToUtc(todayStr, slot.end_time, schoolTz));
+
+          try {
+            await db('timetable_lessons').insert({
+              slot_id: slot.id,
+              class_id: slot.class_id,
+              subject_id: slot.subject_id,
+              teacher_id: slot.teacher_id,
+              zoom_meeting_id: classMeeting ? classMeeting.id : null,
+              lesson_date: todayStr,
+              start_at: startAt,
+              end_at: endAt,
+              status: 'SCHEDULED',
+              session_state: 'SCHEDULED'
+            });
+          } catch (err) {
+            console.error('[ZoomScheduler] Error inserting lesson for slot', slot.id, err.message);
+          }
         }
       }
     }
 
-    // 3. Process 5-Minute Teacher Notifications
-    const notifyTargetStart = new Date(nowMs + PRE_NOTIFICATION_WINDOW_MS + 30000);
-    const notifyPastCutoff = new Date(nowMs - 2 * 60 * 1000);
-
-    const pendingNotifications = await db('timetable_lessons')
-      .join('classes', 'timetable_lessons.class_id', 'classes.id')
-      .join('subjects', 'timetable_lessons.subject_id', 'subjects.id')
-      .join('teachers', db.raw('COALESCE(timetable_lessons.substitute_teacher_id, timetable_lessons.teacher_id)'), 'teachers.id')
-      .join('users as teacher_users', 'teachers.user_id', 'teacher_users.id')
-      .whereIn('timetable_lessons.status', ['SCHEDULED', 'STARTING_SOON'])
-      .whereNull('timetable_lessons.teacher_notified_at')
-      .where('timetable_lessons.start_at', '<=', notifyTargetStart)
-      .where('timetable_lessons.start_at', '>=', notifyPastCutoff)
-      .select(
-        'timetable_lessons.id as lessonId',
-        'timetable_lessons.start_at as startAt',
-        'classes.name as className',
-        'classes.grade_level as classNumber',
-        'subjects.name as subjectName',
-        'teacher_users.id as teacherUserId',
-        'teacher_users.full_name as teacherName',
-        'teacher_users.email as teacherEmail'
-      );
-
+    // 3. Process 5-Minute Teacher Notifications (Skipped during School-Wide Exam Mode)
     let notifiedCount = 0;
-    for (const item of pendingNotifications) {
-      const startDateTime = parseDbDate(item.startAt);
-      const timeStr = new Intl.DateTimeFormat('en-US', {
-        timeZone: schoolTz,
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-      }).format(startDateTime);
+    if (!isSchoolInExamMode) {
+      const notifyTargetStart = new Date(nowMs + PRE_NOTIFICATION_WINDOW_MS + 30000);
+      const notifyPastCutoff = new Date(nowMs - 2 * 60 * 1000);
 
-      const notificationMsg = `Your next class starts in 5 minutes. Class: Class ${item.classNumber || item.className}. Subject: ${item.subjectName}. Start time: ${timeStr}. Please get ready.`;
+      const pendingNotifications = await db('timetable_lessons')
+        .join('classes', 'timetable_lessons.class_id', 'classes.id')
+        .join('subjects', 'timetable_lessons.subject_id', 'subjects.id')
+        .join('teachers', db.raw('COALESCE(timetable_lessons.substitute_teacher_id, timetable_lessons.teacher_id)'), 'teachers.id')
+        .join('users as teacher_users', 'teachers.user_id', 'teacher_users.id')
+        .whereIn('timetable_lessons.status', ['SCHEDULED', 'STARTING_SOON'])
+        .whereNull('timetable_lessons.teacher_notified_at')
+        .where('timetable_lessons.start_at', '<=', notifyTargetStart)
+        .where('timetable_lessons.start_at', '>=', notifyPastCutoff)
+        .select(
+          'timetable_lessons.id as lessonId',
+          'timetable_lessons.start_at as startAt',
+          'classes.name as className',
+          'classes.grade_level as classNumber',
+          'subjects.name as subjectName',
+          'teacher_users.id as teacherUserId',
+          'teacher_users.full_name as teacherName',
+          'teacher_users.email as teacherEmail'
+        );
 
-      // Atomically mark notified first
-      const updated = await db('timetable_lessons')
-        .where({ id: item.lessonId })
-        .whereNull('teacher_notified_at')
-        .update({
-          teacher_notified_at: db.fn.now(3),
-          session_state: 'STARTING_SOON'
-        });
+      for (const item of pendingNotifications) {
+        const startDateTime = parseDbDate(item.startAt);
+        const timeStr = new Intl.DateTimeFormat('en-US', {
+          timeZone: schoolTz,
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        }).format(startDateTime);
 
-      if (updated) {
-        await notificationService.notify({
-          userId: item.teacherUserId,
-          title: 'Upcoming Class in 5 Minutes',
-          message: notificationMsg,
-          type: 'Timetable Change',
-          targetRole: 'TEACHER',
-          relatedRecordId: item.lessonId,
-          relatedRecordType: 'TimetableLesson',
-          priority: 'High'
-        });
-        notifiedCount++;
+        const notificationMsg = `Your next class starts in 5 minutes. Class: Class ${item.classNumber || item.className}. Subject: ${item.subjectName}. Start time: ${timeStr}. Please get ready.`;
+
+        // Atomically mark notified first
+        const updated = await db('timetable_lessons')
+          .where({ id: item.lessonId })
+          .whereNull('teacher_notified_at')
+          .update({
+            teacher_notified_at: db.fn.now(3),
+            session_state: 'STARTING_SOON'
+          });
+
+        if (updated) {
+          await notificationService.notify({
+            userId: item.teacherUserId,
+            title: 'Upcoming Class in 5 Minutes',
+            message: notificationMsg,
+            type: 'Timetable Change',
+            targetRole: 'TEACHER',
+            relatedRecordId: item.lessonId,
+            relatedRecordType: 'TimetableLesson',
+            priority: 'High'
+          });
+          notifiedCount++;
+        }
       }
     }
 
@@ -167,72 +178,74 @@ export async function runZoomScheduleTick(now = new Date()) {
         });
     }
 
-    // 5. Teacher Absence Alerts (Grace period exceeded)
-    const absenceThreshold = new Date(nowMs - TEACHER_GRACE_PERIOD_MS);
-    const absentCandidateLessons = await db('timetable_lessons')
-      .join('classes', 'timetable_lessons.class_id', 'classes.id')
-      .join('subjects', 'timetable_lessons.subject_id', 'subjects.id')
-      .join('teachers', db.raw('COALESCE(timetable_lessons.substitute_teacher_id, timetable_lessons.teacher_id)'), 'teachers.id')
-      .join('users as teacher_users', 'teachers.user_id', 'teacher_users.id')
-      .where('timetable_lessons.start_at', '<=', absenceThreshold)
-      .where('timetable_lessons.end_at', '>', new Date(nowMs))
-      .whereNotIn('timetable_lessons.status', ['LIVE', 'COMPLETED', 'CANCELLED'])
-      .whereNull('timetable_lessons.teacher_joined_at')
-      .whereNull('timetable_lessons.teacher_absence_alert_at')
-      .select(
-        'timetable_lessons.id as lessonId',
-        'timetable_lessons.start_at as startAt',
-        'classes.grade_level as classNumber',
-        'classes.name as className',
-        'subjects.name as subjectName',
-        'teacher_users.full_name as teacherName'
-      );
-
+    // 5. Teacher Absence Alerts (Skipped during School-Wide Exam Mode)
     let absenceAlertCount = 0;
-    for (const item of absentCandidateLessons) {
-      const startDateTime = parseDbDate(item.startAt);
-      const timeStr = new Intl.DateTimeFormat('en-US', {
-        timeZone: schoolTz,
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-      }).format(startDateTime);
+    if (!isSchoolInExamMode) {
+      const absenceThreshold = new Date(nowMs - TEACHER_GRACE_PERIOD_MS);
+      const absentCandidateLessons = await db('timetable_lessons')
+        .join('classes', 'timetable_lessons.class_id', 'classes.id')
+        .join('subjects', 'timetable_lessons.subject_id', 'subjects.id')
+        .join('teachers', db.raw('COALESCE(timetable_lessons.substitute_teacher_id, timetable_lessons.teacher_id)'), 'teachers.id')
+        .join('users as teacher_users', 'teachers.user_id', 'teacher_users.id')
+        .where('timetable_lessons.start_at', '<=', absenceThreshold)
+        .where('timetable_lessons.end_at', '>', new Date(nowMs))
+        .whereNotIn('timetable_lessons.status', ['LIVE', 'COMPLETED', 'CANCELLED'])
+        .whereNull('timetable_lessons.teacher_joined_at')
+        .whereNull('timetable_lessons.teacher_absence_alert_at')
+        .select(
+          'timetable_lessons.id as lessonId',
+          'timetable_lessons.start_at as startAt',
+          'classes.grade_level as classNumber',
+          'classes.name as className',
+          'subjects.name as subjectName',
+          'teacher_users.full_name as teacherName'
+        );
 
-      const alertMsg = `Teacher Absence Alert: Faculty member ${item.teacherName} has not joined Class ${item.classNumber || item.className} (${item.subjectName}) scheduled for ${timeStr}. Grace period (10 minutes) exceeded.`;
+      for (const item of absentCandidateLessons) {
+        const startDateTime = parseDbDate(item.startAt);
+        const timeStr = new Intl.DateTimeFormat('en-US', {
+          timeZone: schoolTz,
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        }).format(startDateTime);
 
-      const updated = await db('timetable_lessons')
-        .where({ id: item.lessonId })
-        .whereNull('teacher_absence_alert_at')
-        .update({
-          teacher_absence_alert_at: db.fn.now(3),
-          session_state: 'TEACHER_ABSENT'
-        });
+        const alertMsg = `Teacher Absence Alert: Faculty member ${item.teacherName} has not joined Class ${item.classNumber || item.className} (${item.subjectName}) scheduled for ${timeStr}. Grace period (10 minutes) exceeded.`;
 
-      if (updated) {
-        await notificationService.notify({
-          title: 'Teacher Absence Alert',
-          message: alertMsg,
-          type: 'Failed Zoom Meeting',
-          targetRole: 'PRINCIPAL',
-          relatedRecordId: item.lessonId,
-          relatedRecordType: 'TimetableLesson',
-          priority: 'High'
-        });
+        const updated = await db('timetable_lessons')
+          .where({ id: item.lessonId })
+          .whereNull('teacher_absence_alert_at')
+          .update({
+            teacher_absence_alert_at: db.fn.now(3),
+            session_state: 'TEACHER_ABSENT'
+          });
 
-        await db('audit_logs').insert({
-          actor_id: null,
-          actor_name: 'System (Zoom Scheduler)',
-          actor_role: 'System',
-          action: 'TEACHER_ABSENCE_ALERT',
-          record_type: 'Timetable Lesson',
-          record_identifier: String(item.lessonId),
-          reason: alertMsg,
-          previous_value: 'AWAITING_TEACHER',
-          new_value: 'TEACHER_ABSENT',
-          created_at: db.fn.now(3)
-        });
+        if (updated) {
+          await notificationService.notify({
+            title: 'Teacher Absence Alert',
+            message: alertMsg,
+            type: 'Failed Zoom Meeting',
+            targetRole: 'PRINCIPAL',
+            relatedRecordId: item.lessonId,
+            relatedRecordType: 'TimetableLesson',
+            priority: 'High'
+          });
 
-        absenceAlertCount++;
+          await db('audit_logs').insert({
+            actor_id: null,
+            actor_name: 'System (Zoom Scheduler)',
+            actor_role: 'System',
+            action: 'TEACHER_ABSENCE_ALERT',
+            record_type: 'Timetable Lesson',
+            record_identifier: String(item.lessonId),
+            reason: alertMsg,
+            previous_value: 'AWAITING_TEACHER',
+            new_value: 'TEACHER_ABSENT',
+            created_at: db.fn.now(3)
+          });
+
+          absenceAlertCount++;
+        }
       }
     }
 

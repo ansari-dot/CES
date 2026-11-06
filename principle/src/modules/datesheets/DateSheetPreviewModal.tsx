@@ -165,7 +165,12 @@ export const DateSheetPreviewModal: React.FC<Props> = ({ isOpen, onClose, dateSh
                     >
                       <td className="py-2 px-2 text-center font-bold text-slate-700">{index + 1}</td>
                       <td className="py-2 px-3 text-center font-bold text-slate-900">
-                        {formatDisplayDate(e.exam_date)}
+                        <div>{formatDisplayDate(e.exam_date)}</div>
+                        {e.is_date_changed && (
+                          <div className="text-[9px] font-bold text-rose-600 bg-rose-50 px-1 py-0.5 rounded-sm mt-0.5 inline-block">
+                            Date Rescheduled
+                          </div>
+                        )}
                       </td>
                       <td className="py-2 px-3 text-center text-slate-700">{e.day_of_week}</td>
                       <td className="py-2 px-4 font-bold text-slate-900 uppercase">

@@ -96,7 +96,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       items: [
         { id: 'academics', label: 'Sessions & Subjects', icon: BookOpen },
         { id: 'timetable', label: 'Timetable Schedules', icon: CalendarDays },
-        { id: 'datesheets', label: 'Exam Date Sheets', icon: CalendarDays },
+        { id: 'datesheets', label: 'Examinations & Date Sheets', icon: CalendarDays },
         {
           id: 'zoom',
           label: 'Zoom Class-Links',

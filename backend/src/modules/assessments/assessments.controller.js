@@ -147,6 +147,27 @@ export const assessmentsController = {
   },
 
   // -------------------------------------------------------------
+  // Zoom Invigilation Controls
+  // -------------------------------------------------------------
+  async getInvigilationSession(req, res, next) {
+    try {
+      const data = await assessmentsService.getInvigilationSession(req.user, Number(req.params.id));
+      return sendSuccess(res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async startInvigilation(req, res, next) {
+    try {
+      const data = await assessmentsService.startInvigilation(req.user, Number(req.params.id));
+      return sendSuccess(res, data, 'Invigilation session launched.');
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // -------------------------------------------------------------
   // Parent Portal Child Results
   // -------------------------------------------------------------
   async getParentChildAssessments(req, res, next) {

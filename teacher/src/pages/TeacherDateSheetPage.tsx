@@ -58,11 +58,12 @@ export const TeacherDateSheetPage: React.FC = () => {
     return `${day}-${month}-${year}`;
   };
 
-  // Determine status (Upcoming, Today, Completed)
-  const getExamStatus = (dateStr: string) => {
+  // Determine status (Upcoming, Today, Completed, Changed)
+  const getExamStatus = (entry: TeacherDateSheetEntry) => {
+    if (entry.is_date_changed) return { label: 'Date Changed', cls: 'bg-rose-100 text-rose-800 border-rose-300' };
     const todayStr = new Date().toISOString().split('T')[0];
-    if (dateStr === todayStr) return { label: 'Today', cls: 'bg-amber-100 text-amber-800 border-amber-300' };
-    if (dateStr > todayStr) return { label: 'Upcoming', cls: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
+    if (entry.exam_date === todayStr) return { label: 'Today', cls: 'bg-amber-100 text-amber-800 border-amber-300' };
+    if (entry.exam_date > todayStr) return { label: 'Upcoming', cls: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
     return { label: 'Completed', cls: 'bg-slate-100 text-slate-600 border-slate-200' };
   };
 
@@ -131,6 +132,7 @@ export const TeacherDateSheetPage: React.FC = () => {
           {[
             { id: 'ALL', label: 'All Examinations' },
             { id: 'MONTHLY_TEST', label: 'Monthly Tests' },
+            { id: 'CLASS_QUIZ', label: 'Class Quizzes' },
             { id: 'MID_TERM', label: 'Mid-Term Exams' },
             { id: 'FINAL_TERM', label: 'Final-Term Exams' }
           ].map((cat) => (
@@ -279,12 +281,14 @@ export const TeacherDateSheetPage: React.FC = () => {
                             <th className="py-2.5 px-3 border-r border-slate-300">Subject Type</th>
                             <th className="py-2.5 px-3 border-r border-slate-300">Start Time</th>
                             <th className="py-2.5 px-3 border-r border-slate-300">End Time</th>
+                            <th className="py-2.5 px-3 border-r border-slate-300">Faculty Role</th>
                             <th className="py-2.5 px-3 text-center print:hidden">Status</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200">
                           {sheet.entries.map((entry, idx) => {
-                            const status = getExamStatus(entry.exam_date);
+                            const status = getExamStatus(entry);
+                            const isAssignedInvigilator = Boolean(entry.teacher_id);
                             return (
                               <tr key={entry.id || idx} className="hover:bg-slate-50/80">
                                 <td className="py-2.5 px-3 border-r border-slate-200 text-center font-medium text-slate-600">
@@ -301,6 +305,11 @@ export const TeacherDateSheetPage: React.FC = () => {
                                 </td>
                                 <td className="py-2.5 px-3 border-r border-slate-200 font-semibold text-slate-900">
                                   {entry.subject_name}
+                                  {entry.is_date_changed && entry.previous_exam_date && (
+                                    <span className="block text-[10px] text-rose-600 font-semibold mt-0.5">
+                                      ⚠️ Rescheduled (Previous: {formatDisplayDate(entry.previous_exam_date)} {entry.previous_start_time || ''})
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="py-2.5 px-3 border-r border-slate-200 text-slate-600 font-mono">
                                   {entry.subject_code || '—'}
@@ -313,6 +322,17 @@ export const TeacherDateSheetPage: React.FC = () => {
                                 </td>
                                 <td className="py-2.5 px-3 border-r border-slate-200 text-slate-800 font-medium whitespace-nowrap">
                                   {entry.end_time || '—'}
+                                </td>
+                                <td className="py-2.5 px-3 border-r border-slate-200">
+                                  <span
+                                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md ${
+                                      isAssignedInvigilator
+                                        ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                        : 'bg-slate-100 text-slate-700'
+                                    }`}
+                                  >
+                                    {isAssignedInvigilator ? 'Invigilator' : 'Subject Faculty'}
+                                  </span>
                                 </td>
                                 <td className="py-2.5 px-3 text-center print:hidden">
                                   <span

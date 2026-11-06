@@ -103,6 +103,24 @@ export const assessmentsApi = {
     return requestApi<{ test: MonthlyTest; publishedCount: number }>(`/api/v1/assessments/${testId}/publish-results`, {
       method: 'POST'
     });
+  },
+
+  /**
+   * Launch authorized Zoom invigilation session for assigned exam
+   */
+  async startInvigilation(testId: number): Promise<{
+    testId: number;
+    title: string;
+    meetingId: string;
+    launchUrl: string;
+    hostKey?: string;
+    sessionStartedAt: string;
+    dutySessionId: number;
+    role: string;
+  }> {
+    return requestApi<any>(`/api/v1/assessments/${testId}/start-invigilation`, {
+      method: 'POST'
+    });
   }
 };
 

@@ -5,7 +5,8 @@ import {
   ExaminationDateSheet,
   CreateDateSheetPayload,
   ExamType,
-  DateSheetEntry
+  SchedulingMode,
+  AssessmentTiming
 } from '../../types/datesheet';
 import {
   X,
@@ -18,7 +19,9 @@ import {
   Users,
   CheckCircle2,
   AlertCircle,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ShieldAlert,
+  Info
 } from 'lucide-react';
 
 interface Props {
@@ -39,6 +42,8 @@ interface LocalPaper {
   endTime: string;
   subjectType: string;
   instructions: string;
+  assessmentTiming?: AssessmentTiming;
+  durationMinutes?: number | null;
 }
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -70,6 +75,8 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
   const [examType, setExamType] = useState<ExamType>('MID_TERM');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   // Applicable Classes (Classes 1-8)
   const [selectedClasses, setSelectedClasses] = useState<number[]>([1, 2, 3, 4, 5, 6, 7, 8]);
@@ -89,12 +96,16 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
       startTime: '08:00 AM',
       endTime: '09:30 AM',
       subjectType: 'Scholastic',
-      instructions: ''
+      instructions: '',
+      assessmentTiming: 'ENTIRE_LECTURE',
+      durationMinutes: 90
     }
   ]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const isDedicatedExam = examType === 'MID_TERM' || examType === 'FINAL_TERM';
 
   useEffect(() => {
     // Load teachers
@@ -110,6 +121,8 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
       setExamType(editItem.exam_type);
       setTitle(editItem.title);
       setDescription(editItem.description || '');
+      setStartDate(editItem.start_date ? editItem.start_date.split('T')[0] : '');
+      setEndDate(editItem.end_date ? editItem.end_date.split('T')[0] : '');
 
       if (editItem.entries && editItem.entries.length > 0) {
         const uniqueClasses = [...new Set(editItem.entries.map((e) => e.class_id))];
@@ -126,15 +139,21 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
             startTime: e.start_time,
             endTime: e.end_time,
             subjectType: e.subject_type || 'Scholastic',
-            instructions: e.instructions || ''
+            instructions: e.instructions || '',
+            assessmentTiming: e.assessment_timing || 'ENTIRE_LECTURE',
+            durationMinutes: e.duration_minutes || null
           }))
         );
       }
     } else {
       // Default new date sheet
+      const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+      const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
       setExamType('MID_TERM');
-      setTitle('Timetable for HALF YEARLY');
-      setDescription('ATTENTION: Multiple Examinations on a Single Day. Check timings carefully.');
+      setTitle('Timetable for MID TERM EXAMINATION');
+      setDescription('ATTENTION: School-wide examination period. Regular timetable lectures are suspended. Please follow schedule carefully.');
+      setStartDate(tomorrow);
+      setEndDate(nextWeek);
       setSelectedClasses([1, 2, 3, 4, 5, 6, 7, 8]);
       setPapers([
         {
@@ -142,12 +161,14 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
           classId: 4,
           subjectId: 1,
           teacherId: null,
-          examDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
-          dayOfWeek: calculateDay(new Date(Date.now() + 86400000).toISOString().split('T')[0]),
+          examDate: tomorrow,
+          dayOfWeek: calculateDay(tomorrow),
           startTime: '08:00 AM',
           endTime: '09:30 AM',
           subjectType: 'Scholastic',
-          instructions: ''
+          instructions: '',
+          assessmentTiming: 'ENTIRE_LECTURE',
+          durationMinutes: 90
         }
       ]);
     }
@@ -176,7 +197,9 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
       startTime: lastPaper ? lastPaper.startTime : '08:00 AM',
       endTime: lastPaper ? lastPaper.endTime : '09:30 AM',
       subjectType: 'Scholastic',
-      instructions: ''
+      instructions: '',
+      assessmentTiming: 'ENTIRE_LECTURE',
+      durationMinutes: isDedicatedExam ? 90 : 30
     };
     setPapers([...papers, newPaper]);
   };
@@ -213,6 +236,53 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
     );
   };
 
+  // Client-side conflict checks
+  const getDuplicateClassDateConflicts = () => {
+    if (!isDedicatedExam) return [];
+    const seen = new Map<string, number[]>();
+    papers.forEach((p, idx) => {
+      const key = `${p.classId}_${p.examDate}`;
+      if (!seen.has(key)) {
+        seen.set(key, []);
+      }
+      seen.get(key)!.push(idx + 1);
+    });
+
+    const conflicts: string[] = [];
+    seen.forEach((indices, key) => {
+      if (indices.length > 1) {
+        const [cls, date] = key.split('_');
+        conflicts.push(`Class ${cls} has multiple papers on ${date} (Papers: #${indices.join(', #')})`);
+      }
+    });
+    return conflicts;
+  };
+
+  const getTeacherSimultaneousConflicts = () => {
+    const seen = new Map<string, number[]>();
+    papers.forEach((p, idx) => {
+      if (!p.teacherId) return;
+      const key = `${p.teacherId}_${p.examDate}_${p.startTime}`;
+      if (!seen.has(key)) {
+        seen.set(key, []);
+      }
+      seen.get(key)!.push(idx + 1);
+    });
+
+    const warnings: string[] = [];
+    seen.forEach((indices, key) => {
+      if (indices.length > 1) {
+        const [tid, date, time] = key.split('_');
+        const teacherName = teachersList.find((t) => t.id === Number(tid))?.name || `Teacher #${tid}`;
+        warnings.push(`${teacherName} is assigned to multiple simultaneous sessions on ${date} at ${time} (Papers: #${indices.join(', #')})`);
+      }
+    });
+    return warnings;
+  };
+
+  const classDateConflicts = getDuplicateClassDateConflicts();
+  const teacherWarnings = getTeacherSimultaneousConflicts();
+
   const handleSubmit = async (publishImmediately: boolean) => {
     setErrorMsg(null);
 
@@ -222,6 +292,16 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
     }
     if (papers.length === 0) {
       setErrorMsg('Please add at least one examination paper to the date sheet.');
+      return;
+    }
+
+    if (isDedicatedExam && (!startDate || !endDate)) {
+      setErrorMsg('Please provide both Start Date and End Date for the school-wide examination period.');
+      return;
+    }
+
+    if (isDedicatedExam && classDateConflicts.length > 0) {
+      setErrorMsg(`Dedicated Exam Mode Violation: Each class may only have ONE subject examination per day. ${classDateConflicts.join('; ')}`);
       return;
     }
 
@@ -240,9 +320,14 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
     try {
       setIsSubmitting(true);
 
+      const schedulingMode: SchedulingMode = isDedicatedExam ? 'DEDICATED_EXAM' : 'TIMETABLE_ASSESSMENT';
+
       const payload: CreateDateSheetPayload = {
         academicSessionId: 1,
         examType,
+        schedulingMode,
+        startDate: isDedicatedExam ? startDate : undefined,
+        endDate: isDedicatedExam ? endDate : undefined,
         title: title.trim(),
         description: description.trim() || undefined,
         status: publishImmediately ? 'PUBLISHED' : (editItem?.status || 'DRAFT'),
@@ -256,7 +341,9 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
           endTime: p.endTime,
           subjectType: p.subjectType || 'Scholastic',
           instructions: p.instructions || null,
-          orderIndex: idx
+          orderIndex: idx,
+          assessmentTiming: isDedicatedExam ? undefined : (p.assessmentTiming || 'ENTIRE_LECTURE'),
+          durationMinutes: p.durationMinutes ? Number(p.durationMinutes) : undefined
         }))
       };
 
@@ -287,10 +374,10 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-bold">
-                {editItem ? 'Edit Examination Date Sheet' : 'Create Examination Date Sheet'}
+                {editItem ? 'Edit Examination Schedule' : 'Create Examination Schedule'}
               </h2>
               <p className="text-xs text-indigo-200">
-                Author and schedule multi-class examination timetables and instructions
+                Author and schedule multi-class examination timetables and invigilation duties
               </p>
             </div>
           </div>
@@ -303,7 +390,7 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6 text-slate-800">
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5 text-slate-800">
           {errorMsg && (
             <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -311,18 +398,45 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
             </div>
           )}
 
+          {/* Mode Callout Box */}
+          {isDedicatedExam ? (
+            <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl space-y-1.5">
+              <div className="flex items-center gap-2 text-xs font-bold text-indigo-900">
+                <ShieldAlert className="w-4 h-4 text-indigo-600" />
+                <span>MODE A: DEDICATED EXAMINATION (School-Wide Exam Period)</span>
+              </div>
+              <p className="text-xs text-indigo-800 leading-relaxed">
+                • <strong>School-Wide Rule:</strong> All regular timetable lectures, 5-minute pre-alerts, and teacher absence warnings are completely suppressed for Classes 1–8 during this window.<br />
+                • <strong>1 Exam Per Class Per Day:</strong> Each class may only have ONE subject examination scheduled per calendar date.<br />
+                • <strong>Invigilation Tracking:</strong> Invigilators start assigned classroom Zoom sessions; student join links are sanitized without host key exposure.
+              </p>
+            </div>
+          ) : (
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1.5">
+              <div className="flex items-center gap-2 text-xs font-bold text-emerald-900">
+                <Info className="w-4 h-4 text-emerald-600" />
+                <span>MODE B: TIMETABLE ASSESSMENT (Monthly Tests &amp; Class Quizzes)</span>
+              </div>
+              <p className="text-xs text-emerald-800 leading-relaxed">
+                • <strong>Timetable Intact:</strong> Regular daily lectures, permanent Zoom classrooms, teacher attendance, and handovers continue normally.<br />
+                • <strong>Assessment Timing:</strong> Assessments run at the start, end, or for the entire lecture duration without creating duplicate duty records.
+              </p>
+            </div>
+          )}
+
           {/* 1. Category, Title & Session */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Examination Category *</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Assessment Category *</label>
               <select
                 value={examType}
                 onChange={(e) => setExamType(e.target.value as ExamType)}
                 className="w-full text-xs font-bold border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
               >
-                <option value="MONTHLY_TEST">1. Monthly Tests</option>
-                <option value="MID_TERM">2. Mid-Term Examinations</option>
-                <option value="FINAL_TERM">3. Final-Term Examinations</option>
+                <option value="MONTHLY_TEST">1. Monthly Tests (Mode B: Timetable)</option>
+                <option value="CLASS_QUIZ">2. Class Quizzes (Mode B: Timetable)</option>
+                <option value="MID_TERM">3. Mid-Term Examinations (Mode A: Dedicated)</option>
+                <option value="FINAL_TERM">4. Final-Term Examinations (Mode A: Dedicated)</option>
               </select>
             </div>
 
@@ -330,13 +444,73 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
               <label className="block text-xs font-semibold text-slate-700 mb-1">Date Sheet Title *</label>
               <input
                 type="text"
-                placeholder="e.g. Timetable for HALF YEARLY or Final Term Exam 2026"
+                placeholder="e.g. Mid-Term Examination 2026 or Grade 4 Monthly Math Test"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="w-full text-xs font-bold border border-slate-200 rounded-lg px-3.5 py-2 bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>
+
+          {/* School-Wide Exam Window (For Mode A) */}
+          {isDedicatedExam && (
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  School-Wide Exam Start Date *
+                </label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full text-xs font-semibold border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                />
+                <span className="text-[10px] text-slate-400">Regular classes suppressed starting this day</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  School-Wide Exam End Date *
+                </label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full text-xs font-semibold border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                />
+                <span className="text-[10px] text-slate-400">Normal timetable automatically resumes the following day</span>
+              </div>
+            </div>
+          )}
+
+          {/* Conflict Warnings */}
+          {classDateConflicts.length > 0 && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 space-y-1">
+              <div className="font-bold flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 text-rose-600" />
+                <span>Dedicated Exam Constraint Violation:</span>
+              </div>
+              <ul className="list-disc list-inside space-y-0.5 text-[11px]">
+                {classDateConflicts.map((c, i) => (
+                  <li key={i}>{c}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {teacherWarnings.length > 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-1">
+              <div className="font-bold flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 text-amber-600" />
+                <span>Invigilator Scheduling Warning:</span>
+              </div>
+              <ul className="list-disc list-inside space-y-0.5 text-[11px]">
+                {teacherWarnings.map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* Applicable Classes Selection */}
           <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
@@ -381,7 +555,7 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
             </label>
             <textarea
               rows={2}
-              placeholder="e.g. ATTENTION: Multiple Examinations on a Single Day. Students must be seated 15 minutes prior."
+              placeholder="e.g. Students must connect their camera on Zoom 15 minutes prior. Late entries will not be allowed."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full text-xs border border-slate-200 rounded-lg p-2.5 bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
@@ -393,9 +567,9 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
             <div className="flex items-center justify-between border-b border-slate-200 pb-2">
               <div>
                 <h3 className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <span>Examination Papers &amp; Schedule ({papers.length} Papers)</span>
+                  <span>Scheduled Papers &amp; Sessions ({papers.length} Papers)</span>
                 </h3>
-                <p className="text-[11px] text-slate-500">Configure class, subject, date, and timings for each paper</p>
+                <p className="text-[11px] text-slate-500">Configure class, subject, date, timings, and invigilation assignment</p>
               </div>
 
               <button
@@ -529,11 +703,11 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
                     </div>
                   </div>
 
-                  {/* Teacher & Notes Row */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs pt-1 border-t border-slate-100">
+                  {/* Mode B specific row or invigilator assignment */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs pt-1 border-t border-slate-100">
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">
-                        Assigned Teacher / Invigilator (Optional)
+                        Assigned Invigilator / Teacher
                       </label>
                       <select
                         value={p.teacherId || ''}
@@ -544,7 +718,7 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
                         }
                         className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-xs focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
                       >
-                        <option value="">-- No specific teacher assigned --</option>
+                        <option value="">-- No specific invigilator assigned --</option>
                         {teachersList.map((t) => (
                           <option key={t.id} value={t.id}>
                             {t.name}
@@ -553,18 +727,61 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
                       </select>
                     </div>
 
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">
-                        Paper Specific Notes / Instructions (e.g. calculator allowed)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Bring geometry box"
-                        value={p.instructions}
-                        onChange={(e) => handlePaperChange(idx, { instructions: e.target.value })}
-                        className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-xs focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
-                      />
-                    </div>
+                    {!isDedicatedExam ? (
+                      <>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">
+                            Assessment Lecture Timing
+                          </label>
+                          <select
+                            value={p.assessmentTiming || 'ENTIRE_LECTURE'}
+                            onChange={(e) =>
+                              handlePaperChange(idx, {
+                                assessmentTiming: e.target.value as AssessmentTiming
+                              })
+                            }
+                            className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-xs focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                          >
+                            <option value="ENTIRE_LECTURE">Entire Lecture Period</option>
+                            <option value="START_OF_LECTURE">Start of Lecture (e.g. 15m Quiz)</option>
+                            <option value="END_OF_LECTURE">End of Lecture (e.g. 15m Quiz)</option>
+                            <option value="STANDALONE">Standalone Session</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">
+                            Duration (Minutes)
+                          </label>
+                          <input
+                            type="number"
+                            min={5}
+                            max={180}
+                            placeholder="e.g. 20"
+                            value={p.durationMinutes || ''}
+                            onChange={(e) =>
+                              handlePaperChange(idx, {
+                                durationMinutes: e.target.value ? Number(e.target.value) : null
+                              })
+                            }
+                            className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-xs focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">
+                          Paper Specific Instructions
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Bring scientific calculator & geometry box"
+                          value={p.instructions}
+                          onChange={(e) => handlePaperChange(idx, { instructions: e.target.value })}
+                          className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-xs focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -610,4 +827,3 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
     </div>
   );
 };
-
