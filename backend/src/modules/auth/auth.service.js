@@ -7,6 +7,7 @@ import {
   hashToken,
   generateCsrfToken
 } from '../../shared/crypto/tokens.js';
+import { sessionStore } from '../../shared/session/sessionStore.js';
 import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
 import { config } from '../../config/index.js';
@@ -174,7 +175,7 @@ async function enrichUserData(user, permissions) {
 }
 
 export const authService = {
-  async login({ identifier, password, userAgent = null, ipAddress = null }) {
+  async login({ identifier, password, rememberMe = false, userAgent = null, ipAddress = null, currentSessionId = null }) {
     const user = await authRepository.findUserByIdentifier(identifier);
 
     if (!user) {
@@ -212,6 +213,20 @@ export const authService = {
     // Reset failed counter and update last login
     await authRepository.resetFailedLoginAndSetLastLogin(user.id);
 
+    // Rotate old session if one existed on this connection (prevents session fixation)
+    if (currentSessionId) {
+      await sessionStore.revokeSession(currentSessionId, 'ROTATED').catch(() => {});
+    }
+
+    // Create cryptographically secure server-side session
+    const serverSession = await sessionStore.createSession({
+      userId: user.id,
+      roleCode: user.role_code,
+      userAgent,
+      ipAddress,
+      rememberMe: Boolean(rememberMe)
+    });
+
     // Create Refresh Token Family (sid)
     const familyId = uuidv4();
     const { rawToken, tokenHash } = generateRefreshToken();
@@ -247,6 +262,8 @@ export const authService = {
 
     return {
       user: safeUser,
+      sessionId: serverSession.sessionId,
+      isRemember: serverSession.isRemember,
       tokens: {
         accessToken,
         refreshToken: rawToken,
@@ -330,7 +347,10 @@ export const authService = {
     };
   },
 
-  async logout({ familyId, rawRefreshToken }) {
+  async logout({ sessionId, familyId, rawRefreshToken }) {
+    if (sessionId) {
+      await sessionStore.revokeSession(sessionId, 'LOGOUT').catch(() => {});
+    }
     if (familyId) {
       await authRepository.revokeFamilyTokens(familyId, 'LOGOUT').catch(() => {});
     } else if (rawRefreshToken) {
@@ -348,9 +368,10 @@ export const authService = {
 
   async logoutAll({ userId }) {
     if (userId) {
-      await authRepository.revokeAllUserTokens(userId, 'LOGOUT_ALL');
-      // Increment token version to immediately invalidate active JWTs
-      await authRepository.updateUserPassword(userId, undefined); // handled via specific version increment
+      await sessionStore.revokeAllUserSessions(userId, 'LOGOUT_ALL').catch(() => {});
+      await authRepository.revokeAllUserTokens(userId, 'LOGOUT_ALL').catch(() => {});
+      // Increment token version to immediately invalidate any active JWTs
+      await db('users').where({ id: userId }).increment('token_version', 1).catch(() => {});
     }
   },
 

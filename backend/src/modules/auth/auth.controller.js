@@ -6,19 +6,25 @@ import { generateCsrfToken } from '../../shared/crypto/tokens.js';
 export const authController = {
   async login(req, res, next) {
     try {
-      const { identifier, password } = req.body;
+      const { identifier, password, rememberMe } = req.body;
       const userAgent = req.headers['user-agent'];
       const ipAddress = req.ip || req.connection.remoteAddress;
+      const cookieNames = getCookieNames();
+      const currentSessionId = req.cookies[cookieNames.sessionId] || req.cookies['sms_sid'];
 
       const result = await authService.login({
         identifier,
         password,
+        rememberMe: Boolean(rememberMe),
         userAgent,
-        ipAddress
+        ipAddress,
+        currentSessionId
       });
 
-      // Set cookies according to SRS Section 4.2 & 4.4
+      // Set secure HttpOnly session cookies according to production security specs
       setAuthCookies(res, {
+        sessionId: result.sessionId,
+        rememberMe: result.isRemember,
         accessToken: result.tokens.accessToken,
         refreshToken: result.tokens.refreshToken,
         csrfToken: result.tokens.csrfToken
@@ -57,10 +63,11 @@ export const authController = {
 
   async logout(req, res, next) {
     try {
-      const familyId = req.user?.sid;
       const cookieNames = getCookieNames();
+      const sessionId = req.cookies?.[cookieNames.sessionId] || req.cookies?.['sms_sid'] || req.user?.sid;
+      const familyId = req.user?.sid;
       const rawRefreshToken = req.cookies?.[cookieNames.refreshToken] || req.cookies?.['sms_rt'];
-      await authService.logout({ familyId, rawRefreshToken }).catch(() => {});
+      await authService.logout({ sessionId, familyId, rawRefreshToken }).catch(() => {});
     } catch {
       // quiet fallback
     } finally {
@@ -74,6 +81,13 @@ export const authController = {
       const userId = req.user?.id;
       if (userId) {
         await authService.logoutAll({ userId }).catch(() => {});
+        try {
+          const { getSocketServer } = await import('../../shared/realtime/socket.js');
+          const io = getSocketServer();
+          if (io) {
+            io.to(`user:${userId}`).disconnectSockets(true);
+          }
+        } catch (_) {}
       }
     } catch {
       // quiet fallback

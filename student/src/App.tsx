@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from './store';
 import { fetchMe } from './store/slices/studentSlice';
@@ -22,28 +22,7 @@ import Notifications from './pages/Notifications';
 import MyProfile from './pages/MyProfile';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const dispatch = useDispatch<AppDispatch>();
-  const navigate = useNavigate();
-  const { isAuthenticated, authLoading, mustChangePassword } = useSelector((state: RootState) => state.student);
-
-  useEffect(() => {
-    // On first load, try to restore session from existing cookie
-    if (!isAuthenticated) {
-      dispatch(fetchMe()).unwrap().catch(() => {
-        navigate('/login', { replace: true });
-      });
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (!isAuthenticated && authLoading) {
-    return (
-      <BrandLoader
-        fullScreen
-        message="Verifying student workstation..."
-        subtext="Cambridge Education System"
-      />
-    );
-  }
+  const { isAuthenticated, mustChangePassword } = useSelector((state: RootState) => state.student);
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   // First login: the portal stays locked until the temporary password is replaced
@@ -52,9 +31,47 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const dispatch = useDispatch<AppDispatch>();
+  const { isAuthenticated } = useSelector((state: RootState) => state.student);
+  const [bootChecking, setBootChecking] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    const timer = setTimeout(() => {
+      if (active) setBootChecking(false);
+    }, 1500);
+
+    dispatch(fetchMe())
+      .unwrap()
+      .catch(() => {})
+      .finally(() => {
+        if (active) setBootChecking(false);
+      });
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [dispatch]);
+
+  // Session verification on initial app boot & reload
+  if (bootChecking) {
+    return (
+      <BrandLoader
+        fullScreen
+        message="Loading Student Portal..."
+        subtext="Cambridge Education System"
+        size="lg"
+      />
+    );
+  }
+
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
+      <Route
+        path="/login"
+        element={isAuthenticated ? <Navigate to="/student/dashboard" replace /> : <Login />}
+      />
       <Route path="/" element={<Navigate to="/student/dashboard" replace />} />
       <Route
         path="/student"

@@ -1,70 +1,93 @@
 import { verifyAccessToken } from '../crypto/tokens.js';
 import { getCookieNames } from '../http/cookies.js';
 import { authRepository } from '../../modules/auth/auth.repository.js';
+import { sessionStore } from '../session/sessionStore.js';
 import { AppError } from '../errors/AppError.js';
 import { ErrorCodes } from '../errors/errorCodes.js';
 
 export async function authenticate(req, res, next) {
   try {
     const cookieNames = getCookieNames();
+    const sessionId = req.cookies[cookieNames.sessionId] || req.cookies['sms_sid'];
     const token = req.cookies[cookieNames.accessToken] || req.cookies['sms_at'];
 
-    if (!token) {
+    if (!sessionId && !token) {
       return next(new AppError('Authentication required', 401, ErrorCodes.UNAUTHENTICATED));
     }
 
-    let decoded;
-    try {
-      decoded = verifyAccessToken(token);
-    } catch (err) {
-      if (err.name === 'TokenExpiredError') {
-        return next(new AppError('Token has expired', 401, ErrorCodes.TOKEN_EXPIRED));
+    let userId = null;
+    let decoded = null;
+    let activeSession = null;
+
+    // 1. Primary: Server-Side Session Validation
+    if (sessionId) {
+      activeSession = await sessionStore.getSession(sessionId);
+      if (activeSession) {
+        userId = activeSession.userId;
+        req.session = activeSession;
       }
-      return next(new AppError('Invalid token', 401, ErrorCodes.UNAUTHENTICATED));
     }
 
-    const userId = Number(decoded.sub);
-    const user = await authRepository.findUserById(userId);
+    // 2. Fallback: JWT Access Token validation (for zero-downtime transition)
+    if (!userId && token) {
+      try {
+        decoded = verifyAccessToken(token);
+        userId = Number(decoded.sub);
+      } catch (err) {
+        if (err.name === 'TokenExpiredError') {
+          return next(new AppError('Session has expired', 401, ErrorCodes.TOKEN_EXPIRED));
+        }
+      }
+    }
 
+    if (!userId) {
+      return next(new AppError('Invalid or expired session', 401, ErrorCodes.UNAUTHENTICATED));
+    }
+
+    const user = await authRepository.findUserById(userId);
     if (!user) {
       return next(new AppError('User not found', 401, ErrorCodes.UNAUTHENTICATED));
     }
 
-    // Check status
+    // Account status validation
     if (user.status === 'DEACTIVATED') {
       return next(new AppError('Account is deactivated', 403, ErrorCodes.ACCOUNT_RESTRICTED));
     }
 
-    // Fee-based restriction: SUSPENDED students are blocked from protected
-    // routes. Session/account endpoints and /students/me/dashboard (which
-    // returns the restriction notice and outstanding fees) stay available.
+    // Fee-based restriction: SUSPENDED students are blocked from protected routes
+    // Session/account endpoints and /students/me/dashboard stay available
     if (user.status === 'SUSPENDED' && user.role_code === 'STUDENT') {
       const allowedWhileSuspended = [
-        '/api/v1/auth/logout', '/api/v1/auth/logout-all', '/api/v1/auth/me',
-        '/api/v1/auth/change-password', '/api/v1/students/me/dashboard'
+        '/api/v1/auth/logout',
+        '/api/v1/auth/logout-all',
+        '/api/v1/auth/me',
+        '/api/v1/auth/change-password',
+        '/api/v1/students/me/dashboard'
       ];
-      // req.path is relative to the router mount point, so use the full path
       const fullPath = `${req.baseUrl}${req.path}`.replace(/\/+$/, '');
       const isAllowed = allowedWhileSuspended.includes(fullPath);
       if (!isAllowed) {
-        return next(new AppError(
-          'Portal access is restricted due to outstanding fee dues. Please contact the Principal.',
-          403,
-          ErrorCodes.ACCOUNT_SUSPENDED
-        ));
+        return next(
+          new AppError(
+            'Portal access is restricted due to outstanding fee dues. Please contact the Principal.',
+            403,
+            ErrorCodes.ACCOUNT_SUSPENDED
+          )
+        );
       }
     }
 
-    // Token version check (revocation detection)
-    if (user.token_version !== decoded.tv) {
+    // Token version check (revocation detection for JWT fallback)
+    if (decoded && user.token_version !== decoded.tv) {
       return next(new AppError('Session invalidated, please login again', 401, ErrorCodes.UNAUTHENTICATED));
     }
 
-    // Password change required enforcement (Section 4.3 step 6)
-    // First login: only session endpoints and change-password are available until
-    // the temporary password is replaced. req.path is router-relative, so use the full path.
+    // Password change required enforcement
     const allowedPathOnPasswordChange = [
-      '/api/v1/auth/change-password', '/api/v1/auth/logout', '/api/v1/auth/logout-all', '/api/v1/auth/me'
+      '/api/v1/auth/change-password',
+      '/api/v1/auth/logout',
+      '/api/v1/auth/logout-all',
+      '/api/v1/auth/me'
     ];
     const isAllowedPath = allowedPathOnPasswordChange.includes(`${req.baseUrl}${req.path}`.replace(/\/+$/, ''));
 
@@ -82,7 +105,7 @@ export async function authenticate(req, res, next) {
       role: user.role_code,
       role_code: user.role_code,
       roleId: user.role_id,
-      sid: decoded.sid,
+      sid: activeSession?.sessionId || decoded?.sid || sessionId,
       permissions
     };
 
@@ -95,23 +118,40 @@ export async function authenticate(req, res, next) {
 export async function authenticateOptional(req, res, next) {
   try {
     const cookieNames = getCookieNames();
+    const sessionId = req.cookies[cookieNames.sessionId] || req.cookies['sms_sid'];
     const token = req.cookies[cookieNames.accessToken] || req.cookies['sms_at'];
 
-    if (!token) {
+    if (!sessionId && !token) {
       return next();
     }
 
-    let decoded;
-    try {
-      decoded = verifyAccessToken(token);
-    } catch {
+    let userId = null;
+    let decoded = null;
+    let activeSession = null;
+
+    if (sessionId) {
+      activeSession = await sessionStore.getSession(sessionId);
+      if (activeSession) {
+        userId = activeSession.userId;
+        req.session = activeSession;
+      }
+    }
+
+    if (!userId && token) {
+      try {
+        decoded = verifyAccessToken(token);
+        userId = Number(decoded.sub);
+      } catch {
+        // ignore
+      }
+    }
+
+    if (!userId) {
       return next();
     }
 
-    const userId = Number(decoded.sub);
     const user = await authRepository.findUserById(userId);
-
-    if (!user || user.status === 'DEACTIVATED' || user.token_version !== decoded.tv) {
+    if (!user || user.status === 'DEACTIVATED' || (decoded && user.token_version !== decoded.tv)) {
       return next();
     }
 
@@ -123,7 +163,7 @@ export async function authenticateOptional(req, res, next) {
       role: user.role_code,
       role_code: user.role_code,
       roleId: user.role_id,
-      sid: decoded.sid,
+      sid: activeSession?.sessionId || decoded?.sid || sessionId,
       permissions
     };
 
@@ -132,4 +172,3 @@ export async function authenticateOptional(req, res, next) {
     next();
   }
 }
-

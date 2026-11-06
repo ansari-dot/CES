@@ -3,17 +3,37 @@ import { config } from '../../config/index.js';
 export function getCookieNames() {
   const isSecure = config.cookieSecure;
   return {
+    sessionId: isSecure ? '__Host-sms_sid' : 'sms_sid',
     accessToken: isSecure ? '__Host-sms_at' : 'sms_at',
     refreshToken: isSecure ? '__Secure-sms_rt' : 'sms_rt',
     csrf: 'sms_csrf'
   };
 }
 
-export function setAuthCookies(res, { accessToken, refreshToken, csrfToken }) {
+export function setAuthCookies(res, { sessionId, rememberMe = false, accessToken, refreshToken, csrfToken }) {
   const names = getCookieNames();
   const secure = config.cookieSecure;
   const sameSite = config.COOKIE_SAMESITE;
 
+  // 1. Primary Server-Side Session ID Cookie (HttpOnly)
+  if (sessionId) {
+    const sessionCookieOpts = {
+      httpOnly: true,
+      secure,
+      sameSite,
+      path: '/'
+    };
+
+    // When rememberMe is true: issue persistent cookie (e.g. 30 days)
+    // When rememberMe is false: omit maxAge/expires so browser deletes on exit
+    if (rememberMe) {
+      sessionCookieOpts.maxAge = config.REFRESH_IDLE_DAYS * 24 * 60 * 60 * 1000;
+    }
+
+    res.cookie(names.sessionId, sessionId, sessionCookieOpts);
+  }
+
+  // 2. Access Token Cookie (HttpOnly) - for backward compatibility / transition
   if (accessToken) {
     res.cookie(names.accessToken, accessToken, {
       httpOnly: true,
@@ -24,6 +44,7 @@ export function setAuthCookies(res, { accessToken, refreshToken, csrfToken }) {
     });
   }
 
+  // 3. Refresh Token Cookie (HttpOnly, path-restricted)
   if (refreshToken) {
     res.cookie(names.refreshToken, refreshToken, {
       httpOnly: true,
@@ -34,13 +55,14 @@ export function setAuthCookies(res, { accessToken, refreshToken, csrfToken }) {
     });
   }
 
+  // 4. CSRF Token Cookie (readable by client JS to attach to X-CSRF-Token header)
   if (csrfToken) {
     res.cookie(names.csrf, csrfToken, {
-      httpOnly: false, // client JS reads this to send in X-CSRF-Token header
+      httpOnly: false,
       secure,
       sameSite,
       path: '/',
-      maxAge: 24 * 60 * 60 * 1000 // 24 h — matches default ACCESS_TTL_MIN in dev
+      maxAge: 24 * 60 * 60 * 1000
     });
   }
 }
@@ -50,6 +72,8 @@ export function clearAuthCookies(res) {
   const sameSite = config.COOKIE_SAMESITE;
 
   const cookieNames = [
+    'sms_sid',
+    '__Host-sms_sid',
     'sms_at',
     '__Host-sms_at',
     'sms_rt',

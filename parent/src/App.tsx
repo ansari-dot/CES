@@ -36,7 +36,6 @@ function FirstLoginModal() {
     if (newPassword !== confirm) { setError('Passwords do not match.'); return; }
     setSaving(true);
     try {
-      // The temporary password was just used to sign in, so only the new one is sent
       await requestApi('/api/v1/auth/change-password', {
         method: 'POST',
         body: JSON.stringify({ newPassword }),
@@ -47,7 +46,6 @@ function FirstLoginModal() {
       return;
     }
 
-    // Changing the password ends the session; sign straight back in with the new one
     try {
       await login(user?.username || user?.email || '', newPassword);
       showToast('Password set successfully. Welcome!');
@@ -121,22 +119,7 @@ function FirstLoginModal() {
 }
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, restoreSession } = useParent();
-  const [checked, setChecked] = useState(Boolean(user));
-
-  useEffect(() => {
-    if (!user) restoreSession().finally(() => setChecked(true));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (!checked && !user) {
-    return (
-      <BrandLoader
-        fullScreen
-        message="Verifying parent portal access..."
-        subtext="Cambridge Education System"
-      />
-    );
-  }
+  const { user } = useParent();
 
   if (!user) return <Navigate to="/login" replace />;
 
@@ -149,9 +132,43 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const { user, restoreSession } = useParent();
+  const [bootChecking, setBootChecking] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    const timer = setTimeout(() => {
+      if (active) setBootChecking(false);
+    }, 1500);
+
+    restoreSession().finally(() => {
+      if (active) setBootChecking(false);
+    });
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [restoreSession]);
+
+  // Session verification on initial app boot & reload
+  if (bootChecking) {
+    return (
+      <BrandLoader
+        fullScreen
+        message="Loading Parent Portal..."
+        subtext="Cambridge Education System"
+        size="lg"
+      />
+    );
+  }
+
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
+      <Route
+        path="/login"
+        element={user ? <Navigate to="/parent/dashboard" replace /> : <Login />}
+      />
       <Route path="/" element={<Navigate to="/parent/dashboard" replace />} />
       <Route
         path="/parent"

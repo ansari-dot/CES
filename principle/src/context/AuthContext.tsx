@@ -6,9 +6,6 @@ import { BrandLoader } from '../components/common/BrandLoader';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const AUTH_SESSION_KEY = 'iqra_principal_portal_auth_token_v1';
-const AUTH_EMAIL_KEY = 'iqra_principal_portal_remember_email';
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -19,31 +16,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const verifyExistingSession = useCallback(async () => {
     try {
       setLoading(true);
-      const persistentToken = localStorage.getItem(AUTH_SESSION_KEY);
-      const sessionToken = sessionStorage.getItem(AUTH_SESSION_KEY);
+      // Clean up any legacy or exposed tokens in client browser storage
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem('iqra_principal_portal_auth_token_v1');
+          localStorage.removeItem('iqra_principal_portal_remember_email');
+          localStorage.removeItem('iqra_principal_portal_db_clean_v4');
+          sessionStorage.removeItem('iqra_principal_portal_auth_token_v1');
+        } catch (_) {}
+      }
 
-      if (persistentToken || sessionToken) {
-        const profile = await api.getProfile();
-        if (profile) {
-          setCurrentUser(profile);
-          setIsAuthenticated(true);
-        } else {
-          localStorage.removeItem(AUTH_SESSION_KEY);
-          sessionStorage.removeItem(AUTH_SESSION_KEY);
-          setIsAuthenticated(false);
-          setCurrentUser(null);
-        }
+      // Verify session via secure HttpOnly session cookie directly with server
+      const profile = await api.getProfile();
+      if (profile) {
+        setCurrentUser(profile);
+        setIsAuthenticated(true);
       } else {
-        // Fallback: check if active HTTP cookie session exists
-        const profile = await api.getProfile();
-        if (profile) {
-          setCurrentUser(profile);
-          setIsAuthenticated(true);
-          sessionStorage.setItem(AUTH_SESSION_KEY, 'cookie_session_active');
-        } else {
-          setIsAuthenticated(false);
-          setCurrentUser(null);
-        }
+        setIsAuthenticated(false);
+        setCurrentUser(null);
       }
     } catch (err) {
       console.warn('No active authenticated session found:', err);
@@ -60,17 +50,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string, rememberMe = true): Promise<UserProfile> => {
     try {
-      const user = await api.login(email, password);
-      const token = `token_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      const user = await api.login(email, password, rememberMe);
 
-      if (rememberMe) {
-        localStorage.setItem(AUTH_SESSION_KEY, token);
-        localStorage.setItem(AUTH_EMAIL_KEY, email);
-        sessionStorage.removeItem(AUTH_SESSION_KEY);
-      } else {
-        sessionStorage.setItem(AUTH_SESSION_KEY, token);
-        localStorage.removeItem(AUTH_SESSION_KEY);
-        localStorage.removeItem(AUTH_EMAIL_KEY);
+      // Clean up any legacy storage keys
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem('iqra_principal_portal_auth_token_v1');
+          localStorage.removeItem('iqra_principal_portal_remember_email');
+          localStorage.removeItem('iqra_principal_portal_db_clean_v4');
+          sessionStorage.removeItem('iqra_principal_portal_auth_token_v1');
+        } catch (_) {}
       }
 
       setCurrentUser(user);
@@ -90,9 +79,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       // quiet fallback
     }
-    localStorage.removeItem(AUTH_SESSION_KEY);
-    localStorage.removeItem(AUTH_EMAIL_KEY);
-    sessionStorage.removeItem(AUTH_SESSION_KEY);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('iqra_principal_portal_auth_token_v1');
+        localStorage.removeItem('iqra_principal_portal_remember_email');
+        localStorage.removeItem('iqra_principal_portal_db_clean_v4');
+        sessionStorage.removeItem('iqra_principal_portal_auth_token_v1');
+      } catch (_) {}
+    }
     setCurrentUser(null);
     setIsAuthenticated(false);
     toast.info('Signed out. Your security credentials have been cleared.');

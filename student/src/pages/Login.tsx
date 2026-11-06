@@ -255,10 +255,19 @@ export default function Login() {
                 <button
                   type="submit"
                   disabled={authLoading}
-                  className="w-full mt-3 py-3.5 px-5 rounded-xl bg-[#1b1a47] hover:bg-[#36348e] active:bg-[#121135] text-white text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                  className="w-full mt-3 py-3.5 px-5 rounded-xl bg-[#1b1a47] hover:bg-[#36348e] active:bg-[#121135] text-white text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2.5 disabled:opacity-60 cursor-pointer"
                 >
-                  <span>{authLoading ? 'Signing In...' : 'Sign In'}</span>
-                  {!authLoading && <ArrowRight className="w-4 h-4" />}
+                  {authLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Signing In...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Sign In</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               </form>
             </div>

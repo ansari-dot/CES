@@ -136,11 +136,6 @@ export const logoutStudent = createAsyncThunk('student/logout', async () => {
     await requestApi('/api/v1/auth/logout', { method: 'POST' });
   } catch {
     // ignore — cookies will be cleared server-side
-  } finally {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('student_auth');
-      sessionStorage.removeItem('student_auth');
-    }
   }
 });
 
@@ -273,12 +268,17 @@ const studentSlice = createSlice({
 
     // fetchMe
     builder
+      .addCase(fetchMe.pending, (state) => {
+        state.authLoading = true;
+      })
       .addCase(fetchMe.fulfilled, (state, action) => {
+        state.authLoading = false;
         state.isAuthenticated = true;
         state.mustChangePassword = Boolean(action.payload?.mustChangePassword);
         state.profile = mapUserToProfile(action.payload, state.profile);
       })
       .addCase(fetchMe.rejected, (state) => {
+        state.authLoading = false;
         state.isAuthenticated = false;
       });
 

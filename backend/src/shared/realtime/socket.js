@@ -5,8 +5,13 @@ import cookie from 'cookie';
 import { config } from '../../config/index.js';
 import { db } from '../db/knex.js';
 import { getCacheRedis } from '../redis/redisClient.js';
+import { sessionStore } from '../session/sessionStore.js';
 
 let io = null;
+
+export function getSocketServer() {
+  return io;
+}
 
 /**
  * Initializes Socket.IO attached to the HTTP server.
@@ -54,45 +59,66 @@ export function initSocketServer(httpServer) {
   // Socket Authentication Middleware
   io.use(async (socket, next) => {
     try {
-      let token = socket.handshake.auth?.token;
+      let parsedCookies = {};
+      if (socket.handshake.headers?.cookie) {
+        parsedCookies = cookie.parse(socket.handshake.headers.cookie);
+      }
 
-      // Extract from Authorization header if not in auth payload
-      if (!token && socket.handshake.headers?.authorization) {
-        const parts = socket.handshake.headers.authorization.split(' ');
-        if (parts.length === 2 && parts[0] === 'Bearer') {
-          token = parts[1];
+      let userId = null;
+      const sessionId = parsedCookies['__Host-sms_sid'] || parsedCookies['sms_sid'];
+
+      // 1. Primary: Server-Side Session verification from HttpOnly cookie
+      if (sessionId) {
+        const session = await sessionStore.getSession(sessionId);
+        if (session && session.userId) {
+          userId = session.userId;
         }
       }
 
-      // Extract from Cookie header
-      if (!token && socket.handshake.headers?.cookie) {
-        const parsedCookies = cookie.parse(socket.handshake.headers.cookie);
-        token = parsedCookies['__Host-sms_at'] || parsedCookies['sms_at'] || parsedCookies.sms_access_token;
+      // 2. Fallback: JWT Token verification
+      if (!userId) {
+        let token = socket.handshake.auth?.token;
+        if (!token && socket.handshake.headers?.authorization) {
+          const parts = socket.handshake.headers.authorization.split(' ');
+          if (parts.length === 2 && parts[0] === 'Bearer') {
+            token = parts[1];
+          }
+        }
+        if (!token) {
+          token = parsedCookies['__Host-sms_at'] || parsedCookies['sms_at'] || parsedCookies.sms_access_token;
+        }
+
+        if (token) {
+          try {
+            const decoded = jwt.verify(token, config.JWT_ACCESS_SECRET);
+            userId = Number(decoded.sub || decoded.id);
+          } catch (_) {}
+        }
       }
 
-      if (!token) {
-        // Allow unauthenticated connection with guest scope for public status or reject
+      if (!userId) {
         socket.user = null;
         return next();
       }
-
-      const decoded = jwt.verify(token, config.JWT_ACCESS_SECRET);
-      socket.user = decoded;
 
       // Enrich socket with contextual role profile
       const user = await db('users')
         .leftJoin('roles', 'users.role_id', 'roles.id')
-        .where('users.id', decoded.id)
-        .select('users.id', 'users.username', 'users.email', 'users.full_name', 'roles.name as roleName')
+        .where('users.id', userId)
+        .select('users.id', 'users.username', 'users.email', 'users.full_name', 'roles.name as roleName', 'users.status')
         .first();
 
-      if (!user) {
+      if (!user || user.status === 'DEACTIVATED') {
         socket.user = null;
         return next();
       }
 
-      socket.user.role = user.roleName?.toUpperCase() || decoded.role || 'GUEST';
-      socket.user.name = user.full_name;
+      socket.user = {
+        id: user.id,
+        username: user.username,
+        role: user.roleName?.toUpperCase() || 'GUEST',
+        name: user.full_name
+      };
 
       if (socket.user.role === 'TEACHER') {
         const teacher = await db('teachers').where('user_id', user.id).first();
@@ -107,7 +133,6 @@ export function initSocketServer(httpServer) {
 
       next();
     } catch (err) {
-      // Token expired or invalid; allow connection without user identity
       socket.user = null;
       next();
     }

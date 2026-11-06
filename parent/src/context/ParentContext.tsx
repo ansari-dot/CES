@@ -156,10 +156,6 @@ export function ParentProvider({ children: content }: { children: React.ReactNod
       setUser(null);
       setDashboard(null);
       setUnreadCount(0);
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('parent_auth');
-        sessionStorage.removeItem('parent_auth');
-      }
     }
   }, []);
 

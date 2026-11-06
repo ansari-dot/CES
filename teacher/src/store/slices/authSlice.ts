@@ -36,23 +36,20 @@ export const DEFAULT_LIVE_TEACHER: TeacherProfile = {
   assignedClasses: [],
 };
 
-// Check if user was previously remembered
-const savedAuth = typeof window !== 'undefined' ? localStorage.getItem('edupulse_auth_state') : null;
-let parsedAuth: { isAuthenticated: boolean; email?: string } | null = null;
-if (savedAuth) {
+// Purge any legacy browser storage on initial module execution
+if (typeof window !== 'undefined') {
   try {
-    parsedAuth = JSON.parse(savedAuth);
-  } catch {
-    parsedAuth = null;
-  }
+    localStorage.removeItem('edupulse_auth_state');
+    sessionStorage.removeItem('edupulse_session_auth');
+  } catch (_) {}
 }
 
 const initialState: AuthState = {
-  isAuthenticated: !!parsedAuth?.isAuthenticated,
+  isAuthenticated: false,
   isCheckingAuth: true,
   teacher: DEFAULT_LIVE_TEACHER,
   selectedClassId: '',
-  rememberMe: !!parsedAuth?.isAuthenticated,
+  rememberMe: false,
   activeRole: 'teacher',
   loginError: null,
   mustChangePassword: false,
@@ -85,24 +82,16 @@ export const authSlice = createSlice({
       if (action.payload.role) {
         state.activeRole = action.payload.role;
       }
-
-      if (action.payload.rememberMe && typeof window !== 'undefined') {
-        localStorage.setItem(
-          'edupulse_auth_state',
-          JSON.stringify({ isAuthenticated: true, email: emailLower })
-        );
-      } else if (typeof window !== 'undefined') {
-        sessionStorage.setItem('edupulse_session_auth', 'true');
-        localStorage.removeItem('edupulse_auth_state');
-      }
     },
     logout: (state) => {
       state.isAuthenticated = false;
       state.loginError = null;
       state.teacher = DEFAULT_LIVE_TEACHER;
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('edupulse_auth_state');
-        sessionStorage.removeItem('edupulse_session_auth');
+        try {
+          localStorage.removeItem('edupulse_auth_state');
+          sessionStorage.removeItem('edupulse_session_auth');
+        } catch (_) {}
         requestApi('/api/v1/auth/logout', { method: 'POST' }).catch(() => {});
       }
     },
@@ -150,9 +139,6 @@ export const authSlice = createSlice({
           assignedClasses: classes
         };
         state.selectedClassId = classes.length > 0 ? classes[0].id : '';
-        if (action.payload.rememberMe && typeof window !== 'undefined') {
-          localStorage.setItem('edupulse_auth_state', JSON.stringify({ isAuthenticated: true, email: user.email }));
-        }
       })
       .addCase(loginTeacherThunk.rejected, (state, action) => {
         state.loginError = (action.payload as string) || 'Invalid institutional email or password.';
@@ -191,47 +177,30 @@ export const authSlice = createSlice({
           state.isAuthenticated = false;
           state.mustChangePassword = false;
           state.loginError = 'Password updated. Please sign in with your new password.';
-          if (typeof window !== 'undefined') localStorage.removeItem('edupulse_auth_state');
         }
       })
       .addCase(checkTeacherSessionThunk.rejected, (state) => {
         state.isCheckingAuth = false;
         state.isAuthenticated = false;
         state.teacher = DEFAULT_LIVE_TEACHER;
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('edupulse_auth_state');
-          sessionStorage.removeItem('edupulse_session_auth');
-        }
       })
       .addCase(logoutTeacherThunk.pending, (state) => {
         state.isAuthenticated = false;
         state.mustChangePassword = false;
         state.loginError = null;
         state.teacher = DEFAULT_LIVE_TEACHER;
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('edupulse_auth_state');
-          sessionStorage.removeItem('edupulse_session_auth');
-        }
       })
       .addCase(logoutTeacherThunk.fulfilled, (state) => {
         state.isAuthenticated = false;
         state.mustChangePassword = false;
         state.loginError = null;
         state.teacher = DEFAULT_LIVE_TEACHER;
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('edupulse_auth_state');
-          sessionStorage.removeItem('edupulse_session_auth');
-        }
       })
       .addCase(logoutTeacherThunk.rejected, (state) => {
         state.isAuthenticated = false;
         state.mustChangePassword = false;
         state.loginError = null;
         state.teacher = DEFAULT_LIVE_TEACHER;
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('edupulse_auth_state');
-          sessionStorage.removeItem('edupulse_session_auth');
-        }
       });
   }
 });

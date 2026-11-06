@@ -34,27 +34,28 @@ import {
   AccountStatus
 } from '../types';
 
-const STORAGE_KEY = 'iqra_principal_portal_db_clean_v4';
+// In-memory runtime state: never write credentials, tokens, or database dumps to localStorage/sessionStorage
+let _inMemoryDB: SchoolDatabase | null = null;
+
+// Purge any legacy browser storage on initial module execution
+if (typeof window !== 'undefined') {
+  try {
+    localStorage.removeItem('iqra_principal_portal_db_clean_v4');
+    localStorage.removeItem('iqra_principal_portal_auth_token_v1');
+    localStorage.removeItem('iqra_principal_portal_remember_email');
+    sessionStorage.removeItem('iqra_principal_portal_auth_token_v1');
+  } catch (_) {}
+}
 
 function getStoredDB(): SchoolDatabase {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(emptyDatabase));
-      return emptyDatabase;
-    }
-    return JSON.parse(raw);
-  } catch {
-    return emptyDatabase;
+  if (!_inMemoryDB) {
+    _inMemoryDB = JSON.parse(JSON.stringify(emptyDatabase));
   }
+  return _inMemoryDB;
 }
 
 function saveDB(db: SchoolDatabase): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
-  } catch (err) {
-    console.error('Failed to persist database state:', err);
-  }
+  _inMemoryDB = db;
 }
 
 const delay = (ms = 80) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -213,15 +214,15 @@ export const api = {
   // Reset database to initial clean state
   async resetDatabase(): Promise<SchoolDatabase> {
     await delay();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(emptyDatabase));
-    return emptyDatabase;
+    _inMemoryDB = JSON.parse(JSON.stringify(emptyDatabase));
+    return _inMemoryDB!;
   },
 
   // 1. Authentication & Principal Profile
-  async login(email: string, password: string): Promise<UserProfile> {
+  async login(email: string, password: string, rememberMe = true): Promise<UserProfile> {
     const data = await requestApi<any>('/api/v1/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ identifier: email, password })
+      body: JSON.stringify({ identifier: email, password, rememberMe })
     });
 
     if (data.role !== 'PRINCIPAL' && data.role !== 'ADMIN') {

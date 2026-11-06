@@ -3,7 +3,8 @@ import { z } from 'zod';
 export const loginSchema = {
   body: z.object({
     identifier: z.string().trim().min(1, 'Username, email or phone is required'),
-    password: z.string().min(1, 'Password is required')
+    password: z.string().min(1, 'Password is required'),
+    rememberMe: z.boolean().optional().default(false)
   })
 };
 
