@@ -3,28 +3,60 @@ import { useAppDispatch, useAppSelector } from '../../store';
 import { logout } from '../../store/slices/authSlice';
 import { setCurrentTab, closeMobileSidebar, addToast } from '../../store/slices/uiSlice';
 import { NavTab } from '../../types';
+import {
+  LayoutDashboard,
+  Calendar,
+  Video,
+  UserCheck,
+  ClipboardList,
+  FileCheck,
+  BookOpen,
+  Award,
+  Bell,
+  Clock,
+  Settings,
+  LogOut,
+  X
+} from 'lucide-react';
 
 interface NavItem {
   id: NavTab;
   label: string;
-  icon: string;
+  icon: React.ComponentType<{ className?: string }>;
 }
 
-const navItems: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
-  { id: 'timetable', label: 'Timetable', icon: 'calendar_today' },
-  { id: 'live-lessons', label: 'Live Lessons & Zoom', icon: 'videocam' },
-  { id: 'student-attendance', label: 'Student Attendance', icon: 'fact_check' },
-  { id: 'learning-resources', label: 'Learning Resources', icon: 'menu_book' },
-  { id: 'tasks-assignments', label: 'Tasks & Assignments', icon: 'assignment' },
-  { id: 'submissions-grading', label: 'Submissions & Grading', icon: 'rule' },
-  { id: 'student-projects', label: 'Student Projects', icon: 'folder_shared' },
-  { id: 'student-performance', label: 'Student Performance', icon: 'school' },
-  { id: 'exam-results', label: 'Exam Results', icon: 'fact_check' },
-  { id: 'achievements-feedback', label: 'Achievements & Feedback', icon: 'emoji_events' },
-  { id: 'notices', label: 'Notices', icon: 'campaign' },
-  { id: 'duty-salary', label: 'Duty & Salary', icon: 'schedule' },
-  { id: 'profile-settings', label: 'Profile & Settings', icon: 'settings' },
+interface NavSection {
+  title: string;
+  items: NavItem[];
+}
+
+const navSections: NavSection[] = [
+  {
+    title: 'ACADEMICS',
+    items: [
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'timetable', label: 'Timetable & Schedule', icon: Calendar },
+      { id: 'live-lessons', label: 'Live Classrooms (Zoom)', icon: Video },
+      { id: 'student-attendance', label: 'Student Attendance', icon: UserCheck },
+    ]
+  },
+  {
+    title: 'TEACHING & WORK',
+    items: [
+      { id: 'tasks-assignments', label: 'Tasks & Homework', icon: ClipboardList },
+      { id: 'submissions-grading', label: 'Grading & Submissions', icon: FileCheck },
+      { id: 'learning-resources', label: 'Learning Materials', icon: BookOpen },
+      { id: 'exam-results', label: 'Exam Results & Marks', icon: Award },
+    ]
+  },
+  {
+    title: 'CAMPUS & ACCOUNT',
+    items: [
+      { id: 'notices', label: 'School Notices', icon: Bell },
+      { id: 'duty-salary', label: 'Teaching Duty & Payroll', icon: Clock },
+      { id: 'profile-settings', label: 'Profile & Settings', icon: Settings },
+    ]
+  }
 ];
 
 export const Sidebar: React.FC = () => {
@@ -56,100 +88,106 @@ export const Sidebar: React.FC = () => {
 
       {/* Sidebar Drawer */}
       <aside
-        className={`fixed left-0 top-0 h-full w-64 bg-[#36348e] z-50 flex flex-col shadow-lg lg:shadow-[0_1px_8px_rgba(0,0,0,0.04)] transition-transform duration-200 ease-in-out ${
+        className={`fixed left-0 top-0 h-full w-64 bg-[#232168] z-50 flex flex-col shadow-xl lg:shadow-md transition-transform duration-200 ease-in-out ${
           isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
         {/* Brand Header */}
-        <div className="px-4 pt-6 pb-5 flex items-start justify-between border-b border-white/15">
-          <div className="flex-1 flex flex-col items-center gap-2.5">
-            <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-md overflow-hidden">
-              <img src="/logo.jpeg" alt="Cambridge Education System logo" className="w-full h-full object-contain" />
+        <div className="px-4 py-4 flex items-center justify-between border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white p-1 flex items-center justify-center shadow-sm shrink-0">
+              <img src="/logo.jpeg" alt="CES Logo" className="w-full h-full object-contain" />
             </div>
-            <div className="flex flex-col overflow-hidden text-center">
-              <span className="text-[17px] font-bold tracking-tight text-white truncate">
-                EduPulse
+            <div className="flex flex-col">
+              <span className="text-base font-bold text-white tracking-tight leading-tight">
+                Cambridge
               </span>
-              <span className="text-[11px] font-semibold text-white/70 uppercase tracking-wider truncate">
-                Teacher Portal
+              <span className="text-[10px] font-semibold text-amber-300 uppercase tracking-wider">
+                Teacher Workstation
               </span>
             </div>
           </div>
 
-          {/* Close button on mobile */}
           <button
             onClick={() => dispatch(closeMobileSidebar())}
             className="p-1 rounded-lg text-white/70 hover:text-white lg:hidden"
             title="Close Menu"
           >
-            <span className="material-symbols-outlined text-[20px]">close</span>
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Term & Timezone Subheader */}
-        <div className="px-4 py-1.5 bg-white/10 flex items-center justify-between border-b border-white/10">
-          <span className="text-[11px] font-semibold text-white/80">{teacher.term}</span>
-          <span className="text-[11px] font-semibold text-white/80">{teacher.timezone}</span>
+        {/* Term & Faculty Bar */}
+        <div className="px-4 py-2 bg-black/15 flex items-center justify-between border-b border-white/10 text-[11px] text-white/80">
+          <span className="font-medium truncate">{teacher.term || 'Term 2'}</span>
+          <span className="font-semibold text-amber-300">{teacher.timezone || 'Asia/Karachi'}</span>
         </div>
 
-        {/* Navigation Item List */}
-        <nav className="sidebar-scroll flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
-          {navItems.map((item) => {
-            const isActive = currentTab === item.id;
-            const badge = getBadgeCount(item.id);
-            return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  dispatch(setCurrentTab(item.id));
-                  dispatch(closeMobileSidebar());
-                }}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-colors font-medium text-xs sm:text-sm ${
-                  isActive
-                    ? 'bg-[#ffc53a] text-[#1b1a47] font-semibold shadow-xs'
-                    : 'text-white/85 hover:bg-[#ffc53a] hover:text-[#1b1a47]'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 truncate">
-                  <span
-                    className={`material-symbols-outlined text-[19px] ${
-                      isActive ? 'text-[#1b1a47]' : 'text-inherit'
+        {/* Navigation Sections */}
+        <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
+          {navSections.map((section) => (
+            <div key={section.title} className="space-y-1">
+              <div className="px-2 pb-1 text-[10px] font-bold tracking-wider text-white/40 uppercase">
+                {section.title}
+              </div>
+              {section.items.map((item) => {
+                const IconComponent = item.icon;
+                const isActive = currentTab === item.id;
+                const badge = getBadgeCount(item.id);
+
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      dispatch(setCurrentTab(item.id));
+                      dispatch(closeMobileSidebar());
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-all font-medium text-xs ${
+                      isActive
+                        ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
+                        : 'text-white/85 hover:bg-white/10 hover:text-white'
                     }`}
                   >
-                    {item.icon}
-                  </span>
-                  <span className="truncate">{item.label}</span>
-                </div>
-                {badge > 0 && !isActive && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-[#ffe9b0] text-[#8a6400]">
-                    {badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+                    <div className="flex items-center gap-2.5 truncate">
+                      <IconComponent
+                        className={`w-4 h-4 shrink-0 ${
+                          isActive ? 'text-slate-950' : 'text-amber-300/90'
+                        }`}
+                      />
+                      <span className="truncate">{item.label}</span>
+                    </div>
+
+                    {badge > 0 && !isActive && (
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-400 text-slate-950">
+                        {badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
-        {/* Bottom Duty Indicator */}
-        <div className="p-3 border-t border-white/15 bg-white/5 space-y-2">
-          <div className="flex items-center justify-between text-xs mb-1">
-            <span className="text-white/80 font-medium">Zoom S2S Duty:</span>
-            <span
-              className={`font-semibold flex items-center gap-1 ${
-                hasLiveClass ? 'text-emerald-300' : 'text-white/80'
-              }`}
-            >
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  hasLiveClass ? 'bg-emerald-400 animate-pulse' : 'bg-emerald-400'
-                }`}
-              ></span>
-              {hasLiveClass ? 'In Session' : 'Auto-Ready'}
+        {/* Bottom Faculty & Sign Out Strip */}
+        <div className="p-3 border-t border-white/10 bg-black/20 space-y-2">
+          <div className="flex items-center justify-between text-xs px-1">
+            <span className="text-white/70 text-[11px]">Faculty ID:</span>
+            <span className="font-bold text-white text-[11px] font-mono">{teacher.employeeId}</span>
+          </div>
+
+          <div className="flex items-center justify-between text-xs px-1">
+            <span className="text-white/70 text-[11px]">Class Status:</span>
+            <span className={`text-[11px] font-bold flex items-center gap-1.5 ${
+              hasLiveClass ? 'text-emerald-300' : 'text-slate-300'
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${
+                hasLiveClass ? 'bg-emerald-400 animate-ping' : 'bg-emerald-500'
+              }`} />
+              {hasLiveClass ? 'Live Teaching' : 'Ready'}
             </span>
           </div>
-          <p className="text-[11px] text-white/60 truncate">Faculty ID: {teacher.employeeId}</p>
 
-          {/* Quick Sign Out */}
           <button
             onClick={() => {
               dispatch(logout());
@@ -157,14 +195,14 @@ export const Sidebar: React.FC = () => {
               dispatch(
                 addToast({
                   title: 'Logged Out',
-                  message: 'Workstation session ended safely.',
+                  message: 'Teacher session closed safely.',
                   type: 'info',
                 })
               );
             }}
-            className="w-full mt-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold text-white/80 hover:bg-[#ffc53a] hover:text-[#1b1a47] border border-transparent transition-colors"
+            className="w-full mt-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold text-red-200 hover:bg-red-500/20 hover:text-white border border-red-400/20 transition-all"
           >
-            <span className="material-symbols-outlined text-[17px]">logout</span>
+            <LogOut className="w-4 h-4" />
             <span>Sign Out</span>
           </button>
         </div>

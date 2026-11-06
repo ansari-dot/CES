@@ -13,6 +13,18 @@ import { AttendanceStats } from '../components/attendance/AttendanceStats';
 import { AttendanceRoster } from '../components/attendance/AttendanceRoster';
 import { SubmitAttendanceModal } from '../components/attendance/SubmitAttendanceModal';
 import { CorrectionDrawer } from '../components/attendance/CorrectionDrawer';
+import {
+  Save,
+  CheckCircle2,
+  CheckCheck,
+  Search,
+  Download,
+  MessageSquare,
+  History,
+  Lock,
+  Unlock,
+  GraduationCap
+} from 'lucide-react';
 
 export const AttendancePage: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -62,21 +74,23 @@ export const AttendancePage: React.FC = () => {
     }
   }, [uniqueClasses, selectedClassId]);
 
-  // Filter lessons for the selected class
+  // Filter lessons for the currently selected class
   const classLessons = useMemo(() => {
-    const targetObj = uniqueClasses.find((c) => c.id === selectedClassId);
-    const targetName = (targetObj?.name || `Class ${selectedClassId}`).toLowerCase().trim();
-
+    if (!selectedClassId) return lessons;
     return lessons.filter((l) => {
-      const lClassId = String((l as any).classId || (l as any).class_id || '');
-      const lClassName = (l.className || '').toLowerCase().trim();
-      return lClassId === selectedClassId || lClassName === targetName;
+      const targetClass = uniqueClasses.find((c) => c.id === selectedClassId);
+      return (
+        String(l.classId) === String(selectedClassId) ||
+        (targetClass && l.className?.includes(targetClass.name))
+      );
     });
   }, [lessons, selectedClassId, uniqueClasses]);
 
-  const [activeLessonId, setActiveLessonId] = useState<number | string>('');
+  const [activeLessonId, setActiveLessonId] = useState<string | number>(() => {
+    return classLessons[0]?.rawId || classLessons[0]?.id || 1;
+  });
 
-  // When selected class or class lessons change, pick the most relevant lesson and fetch roster
+  // Re-sync active lesson when selected class changes
   useEffect(() => {
     if (classLessons.length > 0) {
       const realLesson = classLessons.find((l) => typeof l.id === 'string' && l.id.startsWith('LES-'));
@@ -89,7 +103,6 @@ export const AttendancePage: React.FC = () => {
         dispatch(fetchClassRosterThunk(Number(selectedClassId)));
       }
     } else if (selectedClassId) {
-      // If no timetable lesson exists for this class, fetch the class roster directly
       setActiveLessonId(`CLASS-${selectedClassId}`);
       dispatch(fetchClassRosterThunk(Number(selectedClassId)));
     }
@@ -134,7 +147,7 @@ export const AttendancePage: React.FC = () => {
     const className = uniqueClasses.find((c) => c.id === selectedClassId)?.name || 'Class';
     dispatch(
       addToast({
-        message: `Exporting ${className} roster CSV snapshot to downloads...`,
+        message: `Exporting ${className} roster CSV snapshot...`,
         type: 'info',
       })
     );
@@ -146,16 +159,17 @@ export const AttendancePage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold text-[#292929]">Student Attendance</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Student Attendance</h1>
             <span
-              className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                isLocked ? 'bg-emerald-100 text-[#065f46]' : 'bg-amber-100 text-[#8a6400]'
+              className={`px-2.5 py-0.5 rounded-full text-xs font-bold flex items-center gap-1 ${
+                isLocked ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'
               }`}
             >
-              {isLocked ? 'Locked' : 'Draft'}
+              {isLocked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+              <span>{isLocked ? 'Locked' : 'Draft'}</span>
             </span>
           </div>
-          <p className="text-xs text-[#777587] mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5">
             Select an assigned class to view enrolled students and record session attendance.
           </p>
         </div>
@@ -165,36 +179,36 @@ export const AttendancePage: React.FC = () => {
           <button
             onClick={handleSaveDraft}
             disabled={isLocked}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-[#292929] hover:bg-slate-50 text-xs font-semibold border border-slate-200 transition-all disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold border border-slate-200 transition-all disabled:opacity-50 shadow-xs"
           >
-            <span className="material-symbols-outlined text-[16px]">save</span>
-            <span>Draft</span>
+            <Save className="w-3.5 h-3.5 text-slate-500" />
+            <span>Save Draft</span>
           </button>
           <button
             onClick={() => dispatch(openSubmitModal())}
             disabled={isLocked}
-            className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-white shadow-xs text-xs font-bold transition-all ${
+            className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-white shadow-xs text-xs font-bold transition-all ${
               isLocked
                 ? 'bg-slate-400 cursor-not-allowed'
-                : 'bg-[#4543a8] hover:bg-[#ffc53a] hover:text-[#1b1a47]'
+                : 'bg-indigo-600 hover:bg-indigo-700'
             }`}
           >
-            <span className="material-symbols-outlined text-[16px]">assignment_turned_in</span>
+            <CheckCircle2 className="w-4 h-4" />
             <span>{isLocked ? 'Record Locked' : 'Submit Final'}</span>
           </button>
         </div>
       </div>
 
       {/* Class Switcher Toolbar */}
-      <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="bg-white rounded-2xl p-3.5 shadow-xs border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-bold uppercase tracking-wider text-[#777587] flex items-center gap-1 mr-1">
-            <span className="material-symbols-outlined text-[17px] text-[#36348e]">school</span>
-            Assigned Classes:
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1 mr-1">
+            <GraduationCap className="w-4 h-4 text-indigo-600" />
+            Classes:
           </span>
           {uniqueClasses.length === 0 ? (
-            <span className="text-xs text-amber-600 bg-amber-50 px-2.5 py-1 rounded-md font-semibold">
-              Loading faculty class assignments...
+            <span className="text-xs text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md font-semibold">
+              Loading classes...
             </span>
           ) : (
             uniqueClasses.map((cls, idx) => {
@@ -204,19 +218,19 @@ export const AttendancePage: React.FC = () => {
                   key={`att-cls-${cls.id}-${cls.classId || idx}`}
                   type="button"
                   onClick={() => handleSelectClass(cls.id)}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                     isSelected
-                      ? 'bg-[#ffc53a] text-[#1b1a47] shadow-sm ring-2 ring-[#36348e]/20'
-                      : 'bg-[#f1f1fa] text-[#545454] hover:bg-[#ffedc2]'
+                      ? 'bg-amber-400 text-slate-950 shadow-sm'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
                 >
                   <span>{cls.name}</span>
                   <span
-                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
-                      isSelected ? 'bg-[#1b1a47]/15 text-[#1b1a47]' : 'bg-indigo-100 text-[#36348e]'
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                      isSelected ? 'bg-black/15 text-slate-950' : 'bg-slate-200 text-slate-700'
                     }`}
                   >
-                    {cls.enrolledCount} {cls.enrolledCount === 1 ? 'student' : 'students'}
+                    {cls.enrolledCount}
                   </span>
                 </button>
               );
@@ -226,12 +240,12 @@ export const AttendancePage: React.FC = () => {
 
         {/* Session / Lesson dropdown for the selected class */}
         <div className="flex items-center gap-2">
-          <span className="text-xs text-[#777587] font-semibold">Session:</span>
+          <span className="text-xs text-slate-500 font-semibold">Session:</span>
           {classLessons.length > 1 ? (
             <select
               value={activeLessonId}
               onChange={(e) => handleSelectLesson(e.target.value)}
-              className="bg-[#f1f1fa] text-xs font-bold text-[#292929] border border-indigo-100 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
+              className="bg-slate-100 text-xs font-bold text-slate-900 border border-slate-200 rounded-xl px-2.5 py-1.5 focus:outline-hidden cursor-pointer"
             >
               {classLessons.map((l, idx) => (
                 <option key={`att-les-${l.id}-${l.rawId || idx}`} value={l.rawId || l.id}>
@@ -240,11 +254,11 @@ export const AttendancePage: React.FC = () => {
               ))}
             </select>
           ) : classLessons.length === 1 ? (
-            <span className="text-xs font-semibold text-[#292929] bg-[#f1f1fa] px-2.5 py-1 rounded-md border border-indigo-100">
+            <span className="text-xs font-semibold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
               {activeLesson?.className} • {activeLesson?.subject} ({activeLesson?.startTime} – {activeLesson?.endTime})
             </span>
           ) : (
-            <span className="text-xs font-semibold text-[#545454] bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+            <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
               {uniqueClasses.find((c) => c.id === selectedClassId)?.name || 'Class'} • General Roster
             </span>
           )}
@@ -255,17 +269,15 @@ export const AttendancePage: React.FC = () => {
       <AttendanceStats />
 
       {/* Roster Control Bar */}
-      <div className="bg-white rounded-xl p-3 shadow-xs border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div className="bg-white rounded-2xl p-3 shadow-xs border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="relative w-full sm:w-72">
-          <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[#777587] text-[18px]">
-            person_search
-          </span>
+          <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
             placeholder="Search student or Roll #..."
-            className="w-full h-8 pl-8 pr-3 rounded-lg bg-[#f1f1fa] text-xs text-[#292929] placeholder:text-[#777587] focus:outline-none"
+            className="w-full h-8 pl-8 pr-3 rounded-xl bg-slate-100 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-hidden border border-slate-200"
           />
         </div>
 
@@ -273,27 +285,27 @@ export const AttendancePage: React.FC = () => {
           <button
             onClick={handleMarkAllPresent}
             disabled={isLocked}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-[#065f46] text-xs font-bold transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs font-bold transition-colors disabled:opacity-50"
           >
-            <span className="material-symbols-outlined text-[16px]">done_all</span>
-            <span>All Present</span>
+            <CheckCheck className="w-4 h-4" />
+            <span>Mark All Present</span>
           </button>
           <button
             onClick={handleExportCSV}
-            className="p-1.5 rounded-lg bg-[#f1f1fa] hover:bg-[#ffedc2] text-[#545454]"
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
             title="Export CSV"
           >
-            <span className="material-symbols-outlined text-[18px]">file_download</span>
+            <Download className="w-4 h-4" />
           </button>
           <button
             onClick={() => dispatch(toggleRemarksExpanded())}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${
               remarksExpanded
-                ? 'bg-indigo-100 text-[#36348e]'
-                : 'bg-[#f1f1fa] hover:bg-[#ffedc2] text-[#545454]'
+                ? 'bg-indigo-100 text-indigo-800'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
             }`}
           >
-            <span className="material-symbols-outlined text-[16px]">chat_bubble_outline</span>
+            <MessageSquare className="w-3.5 h-3.5" />
             <span>Remarks</span>
           </button>
         </div>
@@ -303,60 +315,48 @@ export const AttendancePage: React.FC = () => {
       <AttendanceRoster filterQuery={searchFilter} />
 
       {/* Historical Submissions Table */}
-      <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
-        <div className="p-3 bg-[#f1f1fa]/60 border-b border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-[#292929]">
-            <span className="material-symbols-outlined text-[16px] text-[#36348e]">history</span>
-            <span>Past Locked Records</span>
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
+        <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-900">
+            <History className="w-4 h-4 text-indigo-600" />
+            <span>Recent Submitted Records</span>
           </div>
-          <button
-            onClick={() => dispatch(openCorrectionDrawer('GENERAL'))}
-            className="px-2.5 py-1 rounded-lg bg-[#f1f1fa] hover:bg-[#ffedc2] text-[#36348e] text-xs font-bold"
-          >
-            Correction Voucher
-          </button>
+          <span className="text-[11px] text-slate-500 font-medium">Audit logs</span>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-[#f1f1fa] text-[#545454] font-bold uppercase tracking-wider border-b border-slate-200 h-9">
-                <th className="px-3 w-32">Session Date</th>
-                <th className="px-3 min-w-[160px]">Class &amp; Topic</th>
-                <th className="px-3 text-center w-28">Present Count</th>
-                <th className="px-3 text-center w-24">Status</th>
-                <th className="px-3 text-right w-32">Action</th>
+              <tr className="bg-slate-50/50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200 h-8">
+                <th className="px-4">Session Date &amp; Time</th>
+                <th className="px-4">Class</th>
+                <th className="px-4 text-center">Present</th>
+                <th className="px-4 text-center">Absent</th>
+                <th className="px-4 text-center">Attendance %</th>
+                <th className="px-4 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {submittedLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-[#777587]">
-                    No past attendance records found.
+                  <td colSpan={6} className="text-center py-6 text-slate-400">
+                    No submitted attendance records logged today yet.
                   </td>
                 </tr>
               ) : (
                 submittedLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-50 h-11 transition-colors">
-                    <td className="px-3 font-semibold text-[#292929]">{log.date}</td>
-                    <td className="px-3">
-                      <span className="font-bold text-[#292929]">{log.className}</span>
-                      <span className="text-[#777587] ml-1.5">• {log.topic}</span>
-                    </td>
-                    <td className="px-3 text-center font-bold text-[#006c49]">
-                      {log.presentCount}/{log.totalStudents} Present
-                    </td>
-                    <td className="px-3 text-center">
-                      <span className="px-2 py-0.5 rounded-full bg-slate-100 text-[#065f46] font-bold text-[10px]">
-                        Locked
-                      </span>
-                    </td>
-                    <td className="px-3 text-right">
+                  <tr key={log.id} className="hover:bg-slate-50 h-10 transition-colors">
+                    <td className="px-4 font-mono font-medium text-slate-700">{log.submittedAt}</td>
+                    <td className="px-4 font-bold text-slate-900">{log.className}</td>
+                    <td className="px-4 text-center text-emerald-700 font-bold">{log.presentCount}</td>
+                    <td className="px-4 text-center text-red-600 font-bold">{log.absentCount}</td>
+                    <td className="px-4 text-center font-bold text-slate-900">{log.turnoutPercentage}%</td>
+                    <td className="px-4 text-right">
                       <button
-                        onClick={() => dispatch(openCorrectionDrawer(log.id))}
-                        className="px-2.5 py-1 rounded bg-[#f1f1fa] hover:bg-[#ffedc2] text-[#36348e] font-bold text-[11px]"
+                        onClick={() => dispatch(openCorrectionDrawer())}
+                        className="text-indigo-600 hover:text-indigo-800 text-[11px] font-bold"
                       >
-                        Correction
+                        Request Edit
                       </button>
                     </td>
                   </tr>

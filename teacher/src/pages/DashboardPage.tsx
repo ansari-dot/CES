@@ -3,12 +3,27 @@ import { useAppDispatch, useAppSelector } from '../store';
 import { setCurrentTab, addToast } from '../store/slices/uiSlice';
 import { openLessonModal, markLessonStarted, endLessonThunk, fetchTeacherLessonsThunk } from '../store/slices/timetableSlice';
 import { fetchDutySummaryThunk } from '../store/slices/dutySlice';
-import { KeyMetricsWidget } from '../components/dashboard/KeyMetricsWidget';
 import { requestApi } from '../services/api';
 import { TimetableLesson } from '../types';
 import { dateKeyInZone, dayOfWeekInZone } from '../lib/timezone';
 import { useSocketEvent } from '../hooks/useSocket';
 import { RealtimeEvents } from '../services/socketService';
+import {
+  Calendar,
+  Clock,
+  Video,
+  UserCheck,
+  FileCheck,
+  Bell,
+  ArrowRight,
+  CheckCircle2,
+  AlertCircle,
+  Play,
+  RotateCw,
+  FileText,
+  X,
+  ExternalLink
+} from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -28,9 +43,11 @@ export const DashboardPage: React.FC = () => {
     dispatch(fetchTeacherLessonsThunk());
     dispatch(fetchDutySummaryThunk());
   });
+
   const lessons = useAppSelector((state) => state.timetable.lessons);
   const teacherTz = useAppSelector((state) => state.timetable.timezone);
   const tasks = useAppSelector((state) => state.tasks.tasks);
+  const submissions = useAppSelector((state) => state.tasks.submissions);
   const duty = useAppSelector((state) => state.duty.summary);
   const notices = useAppSelector((state) => state.notices.notices);
   const [startingLessonId, setStartingLessonId] = useState<string | null>(null);
@@ -69,7 +86,7 @@ export const DashboardPage: React.FC = () => {
     return liveLesson || todayLessons.find((l: TimetableLesson) => l.status === 'scheduled') || todayLessons[0];
   }, [liveLesson, todayLessons]);
 
-  // Active in-session stopwatch effect
+  // Active in-session stopwatch
   useEffect(() => {
     if (!liveLesson) {
       setLiveElapsedSeconds(0);
@@ -81,102 +98,67 @@ export const DashboardPage: React.FC = () => {
         const parsed = new Date(liveLesson.actualStartTime).getTime();
         if (!isNaN(parsed) && parsed > 0) return parsed;
       }
-      const todayStr = new Date().toISOString().split('T')[0];
-      let timeStr = (liveLesson.startTime || '').trim();
-      if (timeStr.includes('AM') || timeStr.includes('PM')) {
-        const [t, mod] = timeStr.split(' ');
-        let [h, m] = t.split(':').map(Number);
-        if (mod === 'PM' && h < 12) h += 12;
-        if (mod === 'AM' && h === 12) h = 0;
-        timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
-      } else if (timeStr.length === 5) {
-        timeStr = `${timeStr}:00`;
-      }
-      const d = new Date(`${liveLesson.date || todayStr}T${timeStr}`);
-      if (!isNaN(d.getTime())) return d.getTime();
       return Date.now();
     };
 
     const startMs = getStartTimestamp();
     const updateElapsed = () => {
-      const diffSec = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+      const now = Date.now();
+      const diffSec = Math.max(0, Math.floor((now - startMs) / 1000));
       setLiveElapsedSeconds(diffSec);
     };
 
     updateElapsed();
-    const timer = setInterval(updateElapsed, 1000);
-    return () => clearInterval(timer);
-  }, [liveLesson?.id, liveLesson?.actualStartTime, liveLesson?.status]);
-
-  // Proactive S2S sync while class is live (syncs every 10s so leaving Zoom stops timer automatically)
-  useEffect(() => {
-    if (!liveLesson) return;
-
-    const syncLiveStatus = () => {
-      dispatch(fetchTeacherLessonsThunk());
-      dispatch(fetchDutySummaryThunk());
-    };
-
-    const interval = setInterval(syncLiveStatus, 10000);
+    const interval = setInterval(updateElapsed, 1000);
     return () => clearInterval(interval);
-  }, [liveLesson?.id, dispatch]);
+  }, [liveLesson]);
 
-  const formatStopwatch = (totalSeconds: number) => {
-    const hrs = Math.floor(totalSeconds / 3600);
-    const mins = Math.floor((totalSeconds % 3600) / 60);
-    const secs = totalSeconds % 60;
-    if (hrs > 0) {
-      return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-    }
+  const formatStopwatch = (totalSec: number) => {
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
   const liveHoursAccrued = (liveElapsedSeconds / 3600).toFixed(2);
+  const completedCount = todayLessons.filter((l) => l.status === 'completed').length;
+  const pendingGradingCount = submissions.filter((s) => s.status === 'pending' || s.status === 'late').length;
 
-  // Exact daily teaching hours calculation (combining completed lessons + live session)
-  const completedLessonsToday = useMemo(() => {
-    return todayLessons.filter((l) => l.status === 'completed');
-  }, [todayLessons]);
+  const handleLaunchZoomLesson = async (lesson: TimetableLesson) => {
+    try {
+      setStartingLessonId(lesson.id);
+      dispatch(
+        addToast({
+          message: `Opening ${lesson.className} classroom link...`,
+          type: 'info',
+        })
+      );
 
-  const todayCompletedDutyMinutes = useMemo(() => {
-    if (duty.todayTeachingMinutes && duty.todayTeachingMinutes > 0) {
-      return duty.todayTeachingMinutes;
+      let targetUrl = `https://zoom.us/j/${lesson.zoomRoomId.replace(/-/g, '')}?pwd=${lesson.zoomPasscode}`;
+
+      if (lesson.rawId) {
+        try {
+          const res = await requestApi<any>(`/api/v1/zoom/sessions/${lesson.rawId}/start`, {
+            method: 'POST',
+          });
+          if (res?.joinUrl) {
+            targetUrl = res.joinUrl;
+          }
+        } catch (apiErr) {
+          console.warn('Backend start session call fell back to persistent link:', apiErr);
+        }
+      }
+
+      dispatch(markLessonStarted(lesson.id));
+      window.open(targetUrl, '_blank');
+      dispatch(
+        addToast({
+          message: `Classroom launched. In Zoom, use Host PIN: ${lesson.hostKey || '884422'}.`,
+          type: 'success',
+        })
+      );
+    } finally {
+      setStartingLessonId(null);
     }
-    return completedLessonsToday.reduce((acc, l) => {
-      return acc + (l.verifiedDutyMinutes || 45);
-    }, 0);
-  }, [duty.todayTeachingMinutes, completedLessonsToday]);
-
-  const liveMinutesCurrent = Math.floor(liveElapsedSeconds / 60);
-  const totalTodayMinutes = todayCompletedDutyMinutes + (liveLesson ? liveMinutesCurrent : 0);
-  const exactTodayHours = Math.floor(totalTodayMinutes / 60);
-  const exactTodayMins = totalTodayMinutes % 60;
-  const exactTodayHoursDecimal = (totalTodayMinutes / 60).toFixed(2);
-
-  const isStartingIn5Min = (() => {
-    if (!nextLesson || liveLesson) return false;
-    const now = Date.now();
-    const todayStr = new Date().toISOString().split('T')[0];
-    let timeStr = (nextLesson.startTime || '').trim();
-    if (!timeStr) return false;
-    if (timeStr.includes('AM') || timeStr.includes('PM')) {
-      const [t, mod] = timeStr.split(' ');
-      let [h, m] = t.split(':').map(Number);
-      if (mod === 'PM' && h < 12) h += 12;
-      if (mod === 'AM' && h === 12) h = 0;
-      timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
-    } else if (timeStr.length === 5) {
-      timeStr = `${timeStr}:00`;
-    }
-    const d = new Date(`${nextLesson.date || todayStr}T${timeStr}`);
-    const diff = (d.getTime() - now) / 60000;
-    return diff > 0 && diff <= 5;
-  })();
-
-  const handleOpenEndModal = (lesson: TimetableLesson) => {
-    setEndTopic(lesson.topic || lesson.subject || 'Core Curriculum Instruction');
-    setEndNotes('');
-    setShowEndModal(true);
   };
 
   const handleConfirmEndLesson = async () => {
@@ -186,14 +168,14 @@ export const DashboardPage: React.FC = () => {
       await dispatch(
         endLessonThunk({
           lessonId: liveLesson.rawId,
-          topic: endTopic,
+          topic: endTopic || 'Class instruction delivered',
           notes: endNotes,
         })
       ).unwrap();
       setShowEndModal(false);
       dispatch(
         addToast({
-          message: `Class concluded! +${liveHoursAccrued} verified teaching hours credited to your payroll duty ledger.`,
+          message: `Class concluded successfully. Teaching duty hours updated.`,
           type: 'success',
         })
       );
@@ -209,457 +191,281 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
-  const handleLaunchZoomLesson = async (lesson: TimetableLesson) => {
-    try {
-      setStartingLessonId(lesson.id);
-      dispatch(
-        addToast({
-          message: `Connecting to ${lesson.className} classroom link...`,
-          type: 'info',
-        })
-      );
-
-      let targetUrl = `https://zoom.us/j/${lesson.zoomRoomId.replace(/-/g, '')}?pwd=${lesson.zoomPasscode}`;
-
-      if (lesson.rawId) {
-        try {
-          const res = await requestApi<any>(`/api/v1/zoom/sessions/${lesson.rawId}/start`, {
-            method: 'POST',
-          });
-          if (res?.joinUrl) {
-            targetUrl = res.joinUrl;
-          }
-          if (res?.hostTransitioned) {
-            dispatch(
-              addToast({
-                message: `Host handoff completed for ${lesson.className}. Previous teacher session concluded cleanly.`,
-                type: 'info',
-              })
-            );
-          }
-        } catch (apiErr) {
-          console.warn('Backend start session call fell back to persistent link:', apiErr);
-        }
-      }
-
-      dispatch(markLessonStarted(lesson.id));
-      window.open(targetUrl, '_blank');
-      dispatch(
-        addToast({
-          message: `Live classroom launched for ${lesson.className}. In Zoom: Click Participants ➔ Claim Host (PIN: ${lesson.hostKey || '884422'}).`,
-          type: 'success',
-        })
-      );
-    } finally {
-      setStartingLessonId(null);
-    }
-  };
-
   return (
-    <div className="flex flex-col w-full pb-8 space-y-5">
-      {/* Top Header: Simple greeting & real-time automated tracking status */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+    <div className="flex flex-col w-full pb-10 space-y-5">
+      {/* 1. Clean Welcome Hero */}
+      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
           <img
-            src={teacher.avatar}
+            src={teacher.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'}
             alt={teacher.name}
-            className="w-12 h-12 rounded-full object-cover ring-2 ring-indigo-100"
+            className="w-12 h-12 rounded-full object-cover ring-2 ring-indigo-100 shrink-0"
           />
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-[#292929]">
-              {teacher.name.split(',')[0]}
-            </h1>
-            <div className="flex items-center gap-2 text-xs text-[#777587]">
-              <span>{teacher.employeeId}</span>
-              <span>•</span>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
+                Welcome, {teacher.name.split(',')[0]}
+              </h1>
               {liveLesson ? (
-                <span className="flex items-center gap-1.5 font-bold text-emerald-800 bg-emerald-100/80 px-2.5 py-0.5 rounded-full border border-emerald-300">
-                  <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping"></span>
-                  Zoom Class Active • Auto-Tracking
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping" />
+                  Teaching Live
                 </span>
               ) : (
-                <span className="flex items-center gap-1.5 font-semibold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                  Zoom S2S Auto-Duty Ready
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  Ready
                 </span>
               )}
             </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })} • {teacher.department || 'Senior Faculty'}
+            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Real-time Daily Teaching Hours Metric Pill (No manual buttons) */}
-          <div className="px-3.5 py-2 bg-white text-[#292929] text-xs font-semibold rounded-xl border border-slate-200 shadow-xs flex items-center gap-2.5">
-            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-              liveLesson ? 'bg-emerald-600 text-white animate-pulse' : 'bg-indigo-50 text-[#36348e]'
-            }`}>
-              <span className="material-symbols-outlined text-[17px]">{liveLesson ? 'timer' : 'timelapse'}</span>
-            </div>
-            <div>
-              <span className="text-[10px] uppercase font-bold text-[#777587] block leading-none">Today's Teaching</span>
-              <span className="text-xs font-extrabold text-[#292929]">
-                {exactTodayHours}h {exactTodayMins}m {liveLesson ? `(+${liveHoursAccrued}h)` : ''}
-              </span>
-            </div>
-          </div>
-
-          <button
-            onClick={() => dispatch(setCurrentTab('live-lessons'))}
-            className="px-4 py-2 bg-[#4543a8] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[17px]">videocam</span>
-            <span>Live Zoom Rooms</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Prominent Key Metrics Widget: Pending Assignments, Upcoming Lessons, Student Notifications */}
-      <KeyMetricsWidget />
-      {/* Duty & Campus Status Strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        <div className={`bg-white px-4 py-3 rounded-xl border shadow-xs flex items-center justify-between ${
-          liveLesson ? 'border-emerald-300 ring-2 ring-emerald-500/20 bg-gradient-to-r from-emerald-50/50 to-white' : 'border-slate-200'
-        }`}>
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-              liveLesson ? 'bg-emerald-600 text-white animate-pulse' : 'bg-emerald-50 text-[#006c49]'
-            }`}>
-              <span className="material-symbols-outlined text-[20px]">{liveLesson ? 'timer' : 'schedule'}</span>
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-bold text-[#777587] uppercase tracking-wider block">
-                  Today's Teaching
-                </span>
-                {liveLesson && (
-                  <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 text-[9px] font-extrabold rounded-full animate-pulse flex items-center gap-0.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping"></span>
-                    Live Now
-                  </span>
-                )}
-              </div>
-              <span className="text-sm font-extrabold text-[#292929]">
-                {exactTodayHours}h {exactTodayMins}m {liveLesson ? `(+${liveHoursAccrued}h)` : ''} • {completedLessonsToday.length}/{todayLessons.length} Done
-              </span>
-              <span className="text-[10px] text-[#777587] block font-medium">
-                Cycle: {duty.totalDutyHours}h / {duty.targetDutyHours}h target
-              </span>
-            </div>
-          </div>
-          <button
-            onClick={() => dispatch(setCurrentTab('duty-salary'))}
-            className="text-xs font-bold text-[#36348e] hover:underline"
-          >
-            Roster
-          </button>
-        </div>
-
-        <div className="bg-white px-4 py-3 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 text-[#8a6400] flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[20px]">fact_check</span>
-            </div>
-            <div>
-              <span className="text-[10px] font-bold text-[#777587] uppercase tracking-wider block">
-                Roster Sign-Off
-              </span>
-              <span className="text-sm font-extrabold text-[#8a6400]">Period 1 Pending</span>
-            </div>
-          </div>
-          <button
-            onClick={() => dispatch(setCurrentTab('student-attendance'))}
-            className="text-xs font-bold text-[#8a6400] hover:underline"
-          >
-            Sign Now
-          </button>
-        </div>
-
-        <div className="bg-white px-4 py-3 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between sm:col-span-2 lg:col-span-1">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-[#36348e] flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[20px]">calendar_today</span>
-            </div>
-            <div>
-              <span className="text-[10px] font-bold text-[#777587] uppercase tracking-wider block">
-                School Timetable
-              </span>
-              <span className="text-sm font-extrabold text-[#292929]">
-                {new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date())} • Term 2
-              </span>
-            </div>
-          </div>
-          <button
-            onClick={() => dispatch(setCurrentTab('timetable'))}
-            className="text-xs font-bold text-[#36348e] hover:underline"
-          >
-            View
-          </button>
-        </div>
-      </div>
-
-      {/* Prominent Live In-Session Duty Tracker Banner OR Up Next Hero */}
-      {liveLesson ? (
-        <div className="bg-gradient-to-r from-emerald-700 via-teal-800 to-indigo-900 rounded-2xl p-5 text-white shadow-lg border border-emerald-400/40 relative overflow-hidden">
-          <div className="absolute -right-12 -top-12 w-48 h-48 bg-white/5 rounded-full blur-2xl pointer-events-none"></div>
-          <div className="absolute right-32 -bottom-10 w-36 h-36 bg-emerald-400/10 rounded-full blur-xl pointer-events-none"></div>
-
-          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-            {/* Left Column: Live Status & Class Info */}
-            <div className="space-y-2.5">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/90 text-white text-[11px] font-black tracking-wider uppercase shadow-xs">
-                  <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
-                  CLASS IN PROGRESS • DUTY TIME TRACKER ACTIVE
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-white/15 backdrop-blur-md text-[11px] font-semibold text-emerald-100 border border-white/10">
-                  Room: {liveLesson.zoomRoomId}
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-200 text-[11px] font-bold border border-amber-300/30">
-                  Host Key: {liveLesson.hostKey || '884422'}
-                </span>
-              </div>
-
-              <div>
-                <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
-                  <span>{liveLesson.className}</span>
-                  <span className="text-emerald-300 font-bold">•</span>
-                  <span>{liveLesson.subject}</span>
-                </h2>
-                <p className="text-xs sm:text-sm text-emerald-100/90 font-medium mt-0.5 max-w-xl">
-                  {liveLesson.topic || 'Core Instruction & Practical Exercises'} • Started at {liveLesson.actualStartTime ? new Date(liveLesson.actualStartTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (liveLesson.startTime || 'Scheduled Time')}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 text-xs text-emerald-200">
-                <span className="material-symbols-outlined text-[16px] text-emerald-300">verified_user</span>
-                <span>Zoom Server-to-Server tracking active • Duration automatically logged to monthly Payroll ledger</span>
-              </div>
-            </div>
-
-            {/* Right Column: Running Stopwatch & Action Buttons */}
-            <div className="flex flex-col sm:flex-row sm:items-center lg:flex-col lg:items-end gap-3 shrink-0">
-              {/* Digital Stopwatch & Accruing Hours */}
-              <div className="bg-black/30 backdrop-blur-md px-4 py-2.5 rounded-xl border border-white/15 flex items-center gap-4">
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-200 block">
-                    Elapsed Class Time
-                  </span>
-                  <span className="text-2xl sm:text-3xl font-black font-mono tracking-wider text-white">
-                    {formatStopwatch(liveElapsedSeconds)}
-                  </span>
-                </div>
-                <div className="h-8 w-px bg-white/20"></div>
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-200 block">
-                    Accruing Duty
-                  </span>
-                  <span className="text-xl sm:text-2xl font-extrabold text-amber-300">
-                    +{liveHoursAccrued}h
-                  </span>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={() => handleLaunchZoomLesson(liveLesson)}
-                  disabled={startingLessonId === liveLesson.id}
-                  className="px-4 py-2.5 bg-white hover:bg-emerald-50 text-emerald-950 text-xs font-black rounded-xl shadow-md flex items-center gap-1.5 transition-all transform hover:scale-[1.02]"
-                >
-                  <span className="material-symbols-outlined text-[18px] text-emerald-600">videocam</span>
-                  <span>Re-Join Classroom</span>
-                </button>
-
-                <div className="px-3.5 py-2.5 bg-emerald-500/25 text-emerald-100 text-xs font-bold rounded-xl border border-emerald-400/40 flex items-center gap-1.5 shadow-xs">
-                  <span className="material-symbols-outlined text-[17px] text-emerald-300">auto_mode</span>
-                  <span>Auto-Stops When You Leave Zoom</span>
-                </div>
-
-                <button
-                  onClick={() => handleOpenEndModal(liveLesson)}
-                  className="px-3 py-2.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-xl border border-white/20 flex items-center gap-1.5 transition-colors"
-                >
-                  <span className="material-symbols-outlined text-[17px]">edit_note</span>
-                  <span>Lesson Notes</span>
-                </button>
-
-                <button
-                  onClick={() => dispatch(setCurrentTab('student-attendance'))}
-                  className="px-3 py-2.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-xl border border-white/20 transition-colors"
-                >
-                  Attendance
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : nextLesson ? (
-        <div className={`bg-white rounded-xl p-4 border shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 ${
-          isStartingIn5Min
-            ? 'border-amber-300 bg-gradient-to-r from-amber-50/80 to-white'
-            : 'border-indigo-200 bg-gradient-to-r from-indigo-50/50 to-white'
-        }`}>
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl text-white flex items-center justify-center shrink-0 ${
-              isStartingIn5Min ? 'bg-amber-600 animate-bounce' : 'bg-[#4543a8]'
-            }`}>
-              <span className="material-symbols-outlined text-[22px]">videocam</span>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                {isStartingIn5Min ? (
-                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 animate-pulse flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
-                    STARTS IN 5 MIN • PREPARE TO HOST
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-[#36348e]">
-                    NEXT CLASS • {nextLesson.startTime}
-                  </span>
-                )}
-                <span className="text-xs font-bold text-[#292929]">
-                  {nextLesson.className} ({nextLesson.subject})
-                </span>
-              </div>
-              <p className="text-xs text-[#545454] mt-0.5">
-                {nextLesson.topic} • Room: <span className="font-mono font-semibold text-slate-800">{nextLesson.zoomRoomId}</span> • Host Key: <span className="font-mono font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-200">{nextLesson.hostKey || '884422'}</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 self-end md:self-auto">
+        {/* Quick Action Button */}
+        <div className="flex items-center gap-2.5">
+          {nextLesson && (
             <button
               onClick={() => handleLaunchZoomLesson(nextLesson)}
               disabled={startingLessonId === nextLesson.id}
-              className={`px-4 py-2 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 transition-all ${
-                isStartingIn5Min
-                  ? 'bg-amber-600 hover:bg-amber-500 shadow-md ring-2 ring-amber-400/50'
-                  : 'bg-[#4543a8] hover:bg-[#ffc53a] hover:text-[#1b1a47]'
-              }`}
+              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
             >
-              <span className={`material-symbols-outlined text-[16px] ${startingLessonId === nextLesson.id ? 'animate-spin' : ''}`}>
-                {startingLessonId === nextLesson.id ? 'sync' : 'videocam'}
-              </span>
-              <span>{startingLessonId === nextLesson.id ? 'Launching...' : 'Join Zoom Room'}</span>
+              <Video className="w-4 h-4" />
+              <span>{startingLessonId === nextLesson.id ? 'Launching...' : `Start ${nextLesson.className} Class`}</span>
             </button>
-            <button
-              onClick={() => dispatch(setCurrentTab('student-attendance'))}
-              className="px-3 py-2 bg-white hover:bg-slate-50 text-[#292929] text-xs font-semibold rounded-lg border border-slate-200"
-            >
-              Attendance
-            </button>
+          )}
+
+          <button
+            onClick={() => dispatch(setCurrentTab('live-lessons'))}
+            className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5"
+          >
+            <span>All Classrooms</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* 2. 4 Clean, Distinct Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        {/* Today's Classes */}
+        <div
+          onClick={() => dispatch(setCurrentTab('timetable'))}
+          className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:border-indigo-300 transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">Today's Classes</span>
+            <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <Calendar className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <span className="text-2xl font-extrabold text-slate-900">{todayLessons.length}</span>
+            <span className="text-xs text-slate-500 ml-1.5 font-medium">({completedCount} completed)</span>
+          </div>
+          <div className="mt-2 text-[11px] font-semibold text-indigo-600 flex items-center gap-1">
+            <span>View timetable</span>
+            <ArrowRight className="w-3 h-3" />
           </div>
         </div>
-      ) : (
-        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[22px]">event_available</span>
-            </div>
-            <div>
-              <h3 className="text-xs font-bold text-[#292929]">No upcoming classes scheduled</h3>
-              <p className="text-xs text-[#777587] mt-0.5">All scheduled periods for today are concluded or no classes currently assigned.</p>
+
+        {/* Teaching Duty Hours */}
+        <div
+          onClick={() => dispatch(setCurrentTab('duty-salary'))}
+          className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:border-emerald-300 transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">Today's Duty</span>
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <Clock className="w-4 h-4" />
             </div>
           </div>
-          <button
-            onClick={() => dispatch(setCurrentTab('timetable'))}
-            className="px-3 py-1.5 bg-[#f1f1fa] hover:bg-[#ffedc2] text-[#36348e] text-xs font-bold rounded-lg transition-colors"
-          >
-            Timetable
-          </button>
+          <div className="mt-2">
+            <span className="text-2xl font-extrabold text-slate-900">{duty.todayTeachingHours || 0}h {duty.todayTeachingMinutes || 0}m</span>
+            {liveLesson && <span className="text-xs text-emerald-600 ml-1 font-bold">(+{liveHoursAccrued}h live)</span>}
+          </div>
+          <div className="mt-2 text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
+            <span>Duty &amp; payroll details</span>
+            <ArrowRight className="w-3 h-3" />
+          </div>
+        </div>
+
+        {/* Submissions to Grade */}
+        <div
+          onClick={() => dispatch(setCurrentTab('submissions-grading'))}
+          className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:border-amber-300 transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">To Grade</span>
+            <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <FileCheck className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <span className="text-2xl font-extrabold text-slate-900">{pendingGradingCount}</span>
+            <span className="text-xs text-slate-500 ml-1.5 font-medium">pending reviews</span>
+          </div>
+          <div className="mt-2 text-[11px] font-semibold text-amber-600 flex items-center gap-1">
+            <span>Grade submissions</span>
+            <ArrowRight className="w-3 h-3" />
+          </div>
+        </div>
+
+        {/* Notices */}
+        <div
+          onClick={() => dispatch(setCurrentTab('notices'))}
+          className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:border-purple-300 transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">School Notices</span>
+            <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <Bell className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <span className="text-2xl font-extrabold text-slate-900">{notices.length}</span>
+            <span className="text-xs text-slate-500 ml-1.5 font-medium">active bulletins</span>
+          </div>
+          <div className="mt-2 text-[11px] font-semibold text-purple-600 flex items-center gap-1">
+            <span>Read announcements</span>
+            <ArrowRight className="w-3 h-3" />
+          </div>
+        </div>
+      </div>
+
+      {/* 3. In-Session Duty Card (Only when class is active) */}
+      {liveLesson && (
+        <div className="bg-gradient-to-r from-emerald-800 to-teal-900 rounded-2xl p-5 text-white shadow-md border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-500 text-white text-[11px] font-bold uppercase">
+                <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                Class in Progress
+              </span>
+              <span className="text-xs text-emerald-200 font-medium">
+                Room: {liveLesson.zoomRoomId}
+              </span>
+            </div>
+            <h2 className="text-lg font-bold text-white">
+              {liveLesson.className} • {liveLesson.subject}
+            </h2>
+            <p className="text-xs text-emerald-200/90 font-medium">
+              Elapsed: <span className="font-mono font-bold text-white text-sm">{formatStopwatch(liveElapsedSeconds)}</span> • Duty Accrued: <span className="font-bold text-amber-300">+{liveHoursAccrued}h</span>
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleLaunchZoomLesson(liveLesson)}
+              className="px-4 py-2 bg-white hover:bg-emerald-50 text-emerald-950 text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-colors"
+            >
+              <Video className="w-4 h-4 text-emerald-600" />
+              <span>Re-Join Classroom</span>
+            </button>
+            <button
+              onClick={() => {
+                setEndTopic(liveLesson.topic || liveLesson.subject);
+                setShowEndModal(true);
+              }}
+              className="px-4 py-2 bg-emerald-700/80 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl border border-emerald-400/30 flex items-center gap-1.5 transition-colors"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>Conclude Class</span>
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Main Section: Today's Schedule Table (Rows) */}
-      <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
-        <div className="p-3.5 bg-[#f1f1fa]/60 border-b border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[#36348e] text-[18px]">calendar_today</span>
-            <h2 className="text-sm font-bold text-[#292929]">Today&apos;s Schedule</h2>
-            <span className="text-[10px] font-semibold text-[#36348e] bg-white border border-indigo-100 px-2 py-0.5 rounded-full shadow-2xs">
+      {/* 4. Today's Class Schedule Table */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
+        <div className="px-5 py-4 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <Calendar className="w-4 h-4 text-indigo-600" />
+            <h2 className="text-sm font-bold text-slate-900">Today's Teaching Schedule</h2>
+            <span className="text-[11px] font-medium text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-full">
               {teacherTz}
             </span>
           </div>
+
           <button
             onClick={() => dispatch(setCurrentTab('timetable'))}
-            className="text-xs font-bold text-[#36348e] hover:underline flex items-center gap-1"
+            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors"
           >
-            <span>Timetable</span>
-            <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+            <span>Full Week</span>
+            <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-[#f1f1fa] text-[#545454] font-bold uppercase tracking-wider border-b border-slate-200 h-9">
-                <th className="px-3 w-28">Time</th>
-                <th className="px-3 w-24">Class</th>
-                <th className="px-3 min-w-[160px]">Subject &amp; Topic</th>
-                <th className="px-3 w-28">Room</th>
-                <th className="px-3 text-center w-24">Status</th>
-                <th className="px-3 text-right w-32">Action</th>
+              <tr className="bg-slate-50/50 text-slate-500 font-semibold uppercase tracking-wider border-b border-slate-200 h-9">
+                <th className="px-4 w-32">Time</th>
+                <th className="px-4 w-28">Class</th>
+                <th className="px-4 min-w-[160px]">Subject &amp; Topic</th>
+                <th className="px-4 w-28">Room</th>
+                <th className="px-4 text-center w-28">Status</th>
+                <th className="px-4 text-right w-44">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {todayLessons.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-8 text-slate-400">
-                    <div className="flex flex-col items-center justify-center gap-1.5">
-                      <span className="material-symbols-outlined text-[24px] text-slate-300">event_busy</span>
-                      <p className="text-xs font-semibold text-slate-500">No scheduled classes found today</p>
-                    </div>
+                  <td colSpan={6} className="text-center py-10 text-slate-400">
+                    <Calendar className="w-6 h-6 mx-auto mb-2 text-slate-300" />
+                    <p className="text-xs font-semibold text-slate-600">No scheduled classes found for today</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Check your weekly timetable for other days</p>
                   </td>
                 </tr>
               ) : (
                 todayLessons.map((l) => (
-                  <tr key={l.id} className="hover:bg-slate-50 h-12 transition-colors">
-                    <td className="px-3 font-mono font-bold text-[#292929]">
+                  <tr key={l.id} className="hover:bg-slate-50/70 h-13 transition-colors">
+                    <td className="px-4 font-mono font-bold text-slate-800">
                       {l.startTime} - {l.endTime}
                     </td>
-                    <td className="px-3">
-                      <span className="px-2 py-0.5 rounded bg-[#f1f1fa] text-[#36348e] font-bold text-[11px] border border-indigo-100">
+                    <td className="px-4">
+                      <span className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-800 font-bold text-xs border border-indigo-100">
                         {l.className}
                       </span>
                     </td>
-                    <td className="px-3">
-                      <span className="font-bold text-[#292929] block">{l.subject}</span>
-                      <span className="text-[11px] text-[#777587] truncate block max-w-[220px]">{l.topic}</span>
+                    <td className="px-4">
+                      <span className="font-bold text-slate-900 block">{l.subject}</span>
+                      <span className="text-[11px] text-slate-500 truncate block max-w-xs">{l.topic || 'Curriculum instruction'}</span>
                     </td>
-                    <td className="px-3 text-[#545454] font-semibold">{l.room}</td>
-                    <td className="px-3 text-center">
+                    <td className="px-4 text-slate-600 font-medium">{l.room || 'Virtual Hub'}</td>
+                    <td className="px-4 text-center">
                       {l.status === 'completed' ? (
-                        <span className="px-2 py-0.5 rounded-full bg-slate-100 text-[#065f46] font-bold text-[10px]">
+                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[11px] border border-emerald-200">
                           Delivered
                         </span>
                       ) : l.status === 'live' ? (
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-[#065f46] font-bold text-[10px] animate-pulse">
+                        <span className="px-2.5 py-0.5 rounded-full bg-red-100 text-red-700 font-bold text-[11px] border border-red-200 animate-pulse">
                           Live Now
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded-full bg-slate-100 text-[#777587] font-semibold text-[10px]">
+                        <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium text-[11px]">
                           Scheduled
                         </span>
                       )}
                     </td>
-                    <td className="px-3 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                    <td className="px-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => handleLaunchZoomLesson(l)}
                           disabled={startingLessonId === l.id}
-                          className="px-2.5 py-1 rounded-lg bg-[#f1f1fa] hover:bg-[#ffedc2] text-[#36348e] text-[11px] font-bold flex items-center gap-1 transition-colors"
-                          title={`Launch ${l.className} live Zoom room`}
+                          className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs disabled:opacity-50"
+                          title={`Launch ${l.className} Zoom`}
                         >
-                          <span className={`material-symbols-outlined text-[14px] ${startingLessonId === l.id ? 'animate-spin' : ''}`}>
-                            {startingLessonId === l.id ? 'sync' : 'videocam'}
-                          </span>
-                          <span>{startingLessonId === l.id ? 'Opening...' : 'Zoom'}</span>
+                          <Video className="w-3.5 h-3.5" />
+                          <span>{startingLessonId === l.id ? 'Starting...' : 'Join Zoom'}</span>
                         </button>
                         <button
-                          onClick={() => dispatch(openLessonModal(l))}
-                          className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[#292929] text-[11px] font-semibold"
+                          onClick={() => dispatch(setCurrentTab('student-attendance'))}
+                          className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1 transition-colors"
+                          title="Mark class attendance"
                         >
-                          Log
+                          <UserCheck className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>
@@ -671,81 +477,66 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Two Column Section: Tasks Table + Bulletins List */}
+      {/* 5. Two-Column Overview: Active Tasks + Notices */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Left: Active Tasks Table (7 cols) */}
-        <div className="lg:col-span-7 bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
-          <div className="p-3.5 bg-[#f1f1fa]/60 border-b border-slate-200 flex items-center justify-between">
+        {/* Left: Active Assignments (7 cols) */}
+        <div className="lg:col-span-7 bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
+          <div className="px-5 py-4 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[#36348e] text-[18px]">assignment</span>
-              <h3 className="text-sm font-bold text-[#292929]">Active Assignments</h3>
+              <FileCheck className="w-4 h-4 text-indigo-600" />
+              <h3 className="text-sm font-bold text-slate-900">Active Tasks &amp; Homework</h3>
             </div>
             <button
               onClick={() => dispatch(setCurrentTab('tasks-assignments'))}
-              className="text-xs font-bold text-[#36348e] hover:underline"
+              className="text-xs font-bold text-indigo-600 hover:underline"
             >
               View All
             </button>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="bg-[#f1f1fa] text-[#545454] font-bold uppercase tracking-wider border-b border-slate-200 h-9">
-                  <th className="px-3">Assignment</th>
-                  <th className="px-3 w-20">Class</th>
-                  <th className="px-3 w-28">Deadline</th>
-                  <th className="px-3 text-center w-24">Turnout</th>
-                  <th className="px-3 text-right w-24">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {tasks.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="text-center py-8 text-slate-400">
-                      <div className="flex flex-col items-center justify-center gap-1.5">
-                        <span className="material-symbols-outlined text-[24px] text-slate-300">task_alt</span>
-                        <p className="text-xs font-semibold text-slate-500">No active assignments</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  tasks.map((task) => (
-                    <tr key={task.id} className="hover:bg-slate-50 h-11 transition-colors">
-                      <td className="px-3 font-semibold text-[#292929] truncate max-w-[180px]">
-                        {task.title}
-                      </td>
-                      <td className="px-3 font-bold text-[#36348e]">{task.className}</td>
-                      <td className="px-3 font-medium text-[#ba1a1a]">{task.deadline.split(',')[0]}</td>
-                      <td className="px-3 text-center font-bold text-[#292929]">
-                        {task.submittedCount}/{task.totalStudents}
-                      </td>
-                      <td className="px-3 text-right">
-                        <button
-                          onClick={() => dispatch(setCurrentTab('submissions-grading'))}
-                          className="px-2.5 py-1 rounded-lg bg-[#4543a8] text-white hover:bg-[#ffc53a] hover:text-[#1b1a47] text-[11px] font-bold shadow-xs"
-                        >
-                          Grade
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="divide-y divide-slate-100">
+            {tasks.length === 0 ? (
+              <div className="p-8 text-center text-slate-400">
+                <FileCheck className="w-6 h-6 mx-auto mb-1.5 text-slate-300" />
+                <p className="text-xs font-semibold">No active assignments</p>
+              </div>
+            ) : (
+              tasks.slice(0, 4).map((task) => (
+                <div key={task.id} className="p-3.5 hover:bg-slate-50 flex items-center justify-between gap-3 transition-colors">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-xs text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">
+                        {task.className}
+                      </span>
+                      <h4 className="font-bold text-xs text-slate-900 truncate">{task.title}</h4>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Deadline: <span className="text-red-600 font-semibold">{task.deadline.split(',')[0]}</span> • Turnout: <span className="font-semibold text-slate-700">{task.submittedCount}/{task.totalStudents}</span>
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => dispatch(setCurrentTab('submissions-grading'))}
+                    className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 text-xs font-bold shrink-0 transition-colors shadow-xs"
+                  >
+                    Grade
+                  </button>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
-        {/* Right: Notices & Bulletins Table (5 cols) */}
-        <div className="lg:col-span-5 bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
-          <div className="p-3.5 bg-[#f1f1fa]/60 border-b border-slate-200 flex items-center justify-between">
+        {/* Right: Notices & Bulletins (5 cols) */}
+        <div className="lg:col-span-5 bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
+          <div className="px-5 py-4 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[#36348e] text-[18px]">campaign</span>
-              <h3 className="text-sm font-bold text-[#292929]">Notices</h3>
+              <Bell className="w-4 h-4 text-indigo-600" />
+              <h3 className="text-sm font-bold text-slate-900">Recent Notices</h3>
             </div>
             <button
               onClick={() => dispatch(setCurrentTab('notices'))}
-              className="text-xs font-bold text-[#36348e] hover:underline"
+              className="text-xs font-bold text-indigo-600 hover:underline"
             >
               All Notices
             </button>
@@ -754,18 +545,18 @@ export const DashboardPage: React.FC = () => {
           <div className="divide-y divide-slate-100">
             {notices.length === 0 ? (
               <div className="p-8 text-center text-slate-400">
-                <span className="material-symbols-outlined text-[24px] text-slate-300">campaign</span>
-                <p className="text-xs font-semibold text-slate-500 mt-1">No notices published</p>
+                <Bell className="w-6 h-6 mx-auto mb-1.5 text-slate-300" />
+                <p className="text-xs font-semibold">No notices published</p>
               </div>
             ) : (
               notices.slice(0, 3).map((n) => (
-                <div key={n.id} className="p-3 hover:bg-slate-50 transition-colors">
-                  <div className="flex items-center justify-between text-[11px] text-[#777587] mb-0.5">
-                    <span className="font-bold text-[#36348e]">{n.category}</span>
+                <div key={n.id} className="p-3.5 hover:bg-slate-50 transition-colors">
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
+                    <span className="font-bold text-indigo-700">{n.category}</span>
                     <span>{n.date}</span>
                   </div>
-                  <h4 className="text-xs font-bold text-[#292929] leading-tight truncate">{n.title}</h4>
-                  <p className="text-[11px] text-[#545454] line-clamp-1 mt-0.5">{n.content}</p>
+                  <h4 className="text-xs font-bold text-slate-900 leading-snug line-clamp-1">{n.title}</h4>
+                  <p className="text-[11px] text-slate-600 line-clamp-1 mt-0.5">{n.content}</p>
                 </div>
               ))
             )}
@@ -773,17 +564,17 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* End Lesson Confirmation & Duty Settlement Modal */}
+      {/* Conclude Lesson Modal */}
       {showEndModal && liveLesson && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-[22px]">stop_circle</span>
+                  <CheckCircle2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-[#292929]">Conclude Live Class</h3>
+                  <h3 className="text-base font-bold text-slate-900">Conclude Live Class</h3>
                   <p className="text-xs text-slate-500">{liveLesson.className} • {liveLesson.subject}</p>
                 </div>
               </div>
@@ -791,58 +582,41 @@ export const DashboardPage: React.FC = () => {
                 onClick={() => setShowEndModal(false)}
                 className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
               >
-                <span className="material-symbols-outlined text-[20px]">close</span>
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Time tracked summary box */}
-            <div className="bg-emerald-50 rounded-xl p-3.5 border border-emerald-200/80 flex items-center justify-between">
+            <div className="bg-emerald-50 rounded-xl p-3.5 border border-emerald-200 flex items-center justify-between">
               <div>
-                <span className="text-[11px] font-bold text-emerald-900 block uppercase tracking-wider">
-                  Verified Instruction Time
-                </span>
-                <span className="text-lg font-black text-emerald-800 font-mono">
-                  {formatStopwatch(liveElapsedSeconds)}
-                </span>
+                <span className="text-[11px] font-bold text-emerald-900 block uppercase">Instruction Duration</span>
+                <span className="text-lg font-black text-emerald-800 font-mono">{formatStopwatch(liveElapsedSeconds)}</span>
               </div>
               <div className="text-right">
-                <span className="text-[11px] font-bold text-emerald-900 block uppercase tracking-wider">
-                  Payroll Credit
-                </span>
-                <span className="text-lg font-black text-emerald-700">
-                  +{liveHoursAccrued} hrs
-                </span>
+                <span className="text-[11px] font-bold text-emerald-900 block uppercase">Duty Credit</span>
+                <span className="text-lg font-black text-emerald-700">+{liveHoursAccrued} hrs</span>
               </div>
             </div>
 
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Concluding this session will stamp the leave time, submit verified teaching hours to your payroll record, and make the classroom link available for the next period instructor.
-            </p>
-
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Topic Covered
-                </label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Topic Covered</label>
                 <input
                   type="text"
                   value={endTopic}
                   onChange={(e) => setEndTopic(e.target.value)}
                   placeholder="e.g. Chapter 4 Practice Problems"
-                  className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-indigo-500 font-medium"
+                  className="w-full text-xs px-3 py-2 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500 font-medium"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Teaching / Handover Notes (Optional)
-                </label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Teaching Notes (Optional)</label>
                 <textarea
                   value={endNotes}
                   onChange={(e) => setEndNotes(e.target.value)}
-                  placeholder="Notes for academic coordination or homework assigned..."
+                  placeholder="Notes for homework assigned or coordination..."
                   rows={2}
-                  className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-indigo-500 font-medium resize-none"
+                  className="w-full text-xs px-3 py-2 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500 font-medium resize-none"
                 />
               </div>
             </div>
@@ -860,17 +634,14 @@ export const DashboardPage: React.FC = () => {
                 type="button"
                 onClick={handleConfirmEndLesson}
                 disabled={isEndingLesson}
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-colors disabled:opacity-50"
               >
                 {isEndingLesson ? (
-                  <>
-                    <span className="material-symbols-outlined text-[16px] animate-spin">sync</span>
-                    <span>Submitting...</span>
-                  </>
+                  <span>Saving...</span>
                 ) : (
                   <>
-                    <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                    <span>Confirm &amp; Settle Duty Hours</span>
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Confirm &amp; Conclude</span>
                   </>
                 )}
               </button>
