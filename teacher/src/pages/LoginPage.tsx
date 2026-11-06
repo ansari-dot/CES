@@ -111,9 +111,9 @@ export const LoginPage: React.FC = () => {
         <div className="lg:col-span-7 flex flex-col justify-center space-y-6 text-left pl-2 sm:pl-4">
           {/* Institutional Badge with Cambridge Logo */}
           <div className="inline-flex items-center gap-3 bg-white/90 backdrop-blur-md px-3.5 py-1.5 rounded-2xl shadow-sm border border-slate-200/80 w-fit">
-            <div className="w-8 h-8 rounded-full overflow-hidden bg-white shrink-0 border border-slate-100 flex items-center justify-center">
+            <div className="w-8 h-8 shrink-0 flex items-center justify-center">
               <img
-                src="/logo.jpeg"
+                src="/logowb.png"
                 alt="Cambridge Education System Logo"
                 className="w-full h-full object-contain"
               />
@@ -174,9 +174,9 @@ export const LoginPage: React.FC = () => {
             <div>
               {/* Card Header with Logo + Brand Tag */}
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl bg-white p-0.5 border border-slate-200 shadow-xs flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 shrink-0 flex items-center justify-center">
                   <img
-                    src="/logo.jpeg"
+                    src="/logowb.png"
                     alt="Cambridge Education System Logo"
                     className="w-full h-full object-contain"
                   />

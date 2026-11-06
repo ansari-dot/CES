@@ -243,7 +243,7 @@ export default function TermResultsSection() {
             <div className="bg-navy text-white rounded-md px-5 py-4 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center overflow-hidden shrink-0">
-                  <img src="/logo.jpeg" alt="Cambridge Education System logo" className="w-full h-full object-contain" />
+                  <img src="/logowb.png" alt="Cambridge Education System logo" className="w-full h-full object-contain" />
                 </div>
                 <div className="leading-tight">
                   <div className="font-headings font-extrabold tracking-wide text-lg">CAMBRIDGE</div>

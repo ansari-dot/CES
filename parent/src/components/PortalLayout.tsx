@@ -46,7 +46,7 @@ function Sidebar({ onNavigate, onLogout }: { onNavigate?: () => void; onLogout: 
     <div className="w-[248px] shrink-0 bg-primary flex flex-col h-full select-none">
       <div className="flex flex-col items-center gap-2.5 px-5 pt-6 pb-5 border-b border-white/15">
         <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-md overflow-hidden">
-          <img src="/logo.jpeg" alt="Cambridge Education System logo" className="w-full h-full object-contain" />
+          <img src="/logowb.png" alt="Cambridge Education System logo" className="w-full h-full object-contain" />
         </div>
         <div className="text-center">
           <div className="font-headings font-bold text-white text-sm leading-tight">Cambridge Education System</div>

@@ -95,8 +95,8 @@ export const Sidebar: React.FC = () => {
         {/* Brand Header */}
         <div className="px-4 py-4 flex items-center justify-between border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white p-1 flex items-center justify-center shadow-sm shrink-0">
-              <img src="/logo.jpeg" alt="CES Logo" className="w-full h-full object-contain" />
+            <div className="w-10 h-10 shrink-0 flex items-center justify-center">
+              <img src="/logowb.png" alt="Cambridge Education System Logo" className="w-full h-full object-contain drop-shadow-sm" />
             </div>
             <div className="flex flex-col">
               <span className="text-base font-bold text-white tracking-tight leading-tight">

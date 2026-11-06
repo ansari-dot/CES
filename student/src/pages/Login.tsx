@@ -34,7 +34,7 @@ export default function Login() {
         {/* Logo / Brand */}
         <div className="flex flex-col items-center mb-8">
           <div className="w-14 h-14 rounded-full bg-white border border-border flex items-center justify-center mb-3 overflow-hidden shadow-sm">
-            <img src="/logo.jpeg" alt="Cambridge Education System logo" className="w-full h-full object-contain" />
+            <img src="/logowb.png" alt="Cambridge Education System logo" className="w-full h-full object-contain" />
           </div>
           <h1 className="font-headings font-bold text-2xl text-foreground">Cambridge Education System </h1>
           <p className="text-sm text-muted-foreground mt-1">Student Portal</p>

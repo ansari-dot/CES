@@ -9,6 +9,7 @@ export const getTemporaryPassword = () => temporaryPassword;
 
 interface AuthState {
   isAuthenticated: boolean;
+  isCheckingAuth: boolean;
   teacher: TeacherProfile;
   selectedClassId: string; // 'all' or specific classId
   rememberMe: boolean;
@@ -48,6 +49,7 @@ if (savedAuth) {
 
 const initialState: AuthState = {
   isAuthenticated: !!parsedAuth?.isAuthenticated,
+  isCheckingAuth: true,
   teacher: DEFAULT_LIVE_TEACHER,
   selectedClassId: '',
   rememberMe: !!parsedAuth?.isAuthenticated,
@@ -155,6 +157,7 @@ export const authSlice = createSlice({
         state.isAuthenticated = false;
       })
       .addCase(checkTeacherSessionThunk.fulfilled, (state, action) => {
+        state.isCheckingAuth = false;
         const user = action.payload;
         if (user && user.id) {
           state.isAuthenticated = true;
@@ -176,6 +179,9 @@ export const authSlice = createSlice({
           };
           state.selectedClassId = classes.length > 0 ? classes[0].id : '';
         }
+      })
+      .addCase(checkTeacherSessionThunk.rejected, (state) => {
+        state.isCheckingAuth = false;
       })
       .addCase(completeFirstPasswordSetupThunk.fulfilled, (state, action) => {
         state.mustChangePassword = Boolean(action.payload?.mustChangePassword);

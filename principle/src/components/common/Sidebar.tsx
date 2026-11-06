@@ -162,7 +162,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Brand Header */}
       <div className="px-4 pt-6 pb-5 border-b border-white/15 flex flex-col items-center gap-2.5">
         <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-md shrink-0 overflow-hidden">
-          <img src="/logo.jpeg" alt="Cambridge Education System logo" className="w-full h-full object-contain" />
+          <img src="/logowb.png" alt="Cambridge Education System logo" className="w-full h-full object-contain drop-shadow-sm" />
         </div>
         <div className="flex flex-col min-w-0 text-center">
           <span className="text-sm font-semibold tracking-tight text-white truncate font-heading">

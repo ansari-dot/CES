@@ -4,6 +4,7 @@ import { AppLayout } from './components/layout/AppLayout';
 import { LoginPage } from './pages/LoginPage';
 import { ToastContainer } from './components/common/Toast';
 import { SetPasswordModal } from './components/common/SetPasswordModal';
+import { BrandLoader } from './components/common/BrandLoader';
 import { DashboardPage } from './pages/DashboardPage';
 import { TimetablePage } from './pages/TimetablePage';
 import { LiveLessonsPage } from './pages/LiveLessonsPage';
@@ -39,6 +40,7 @@ export default function App() {
   const teacher = useAppSelector((state) => state.auth.teacher);
   const currentTab = useAppSelector((state) => state.ui.currentTab);
   const mustChangePassword = useAppSelector((state) => state.auth.mustChangePassword);
+  const isCheckingAuth = useAppSelector((state) => state.auth.isCheckingAuth);
 
   // Active 5-minute pre-lesson notification reminder ticker
   useLessonReminderTicker();
@@ -69,6 +71,15 @@ export default function App() {
       dispatch(fetchDutySummaryThunk(teacher?.id || 45));
     }
   }, [isAuthenticated, mustChangePassword, dispatch, teacher?.id]);
+
+  // Session Verification Spinner on Initial App Boot
+  if (isCheckingAuth) {
+    return (
+      <div className="relative min-h-screen bg-slate-50">
+        <BrandLoader fullScreen message="Loading Faculty Workspace..." subtext="Cambridge Education System" size="lg" />
+      </div>
+    );
+  }
 
   // Authentication Route Guard: Protect all routes and views
   if (!isAuthenticated) {

@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertCircle, FolderSearch, RefreshCw } from 'lucide-react';
+import { BrandLoader } from './BrandLoader';
 
 interface LoadingStateProps {
   message?: string;
@@ -11,17 +12,8 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
   rows = 4
 }) => {
   return (
-    <div className="w-full p-6 flex flex-col gap-3">
-      <div className="flex items-center gap-2 text-xs text-slate-500 mb-2">
-        <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-500" />
-        <span>{message}</span>
-      </div>
-      {Array.from({ length: rows }).map((_, i) => (
-        <div
-          key={i}
-          className="w-full h-10 bg-slate-100/80 border border-slate-200/60 rounded-lg animate-pulse"
-        />
-      ))}
+    <div className="w-full py-10 px-4 flex flex-col items-center justify-center">
+      <BrandLoader message={message} subtext="Cambridge Education System" size="sm" />
     </div>
   );
 };
