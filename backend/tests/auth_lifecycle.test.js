@@ -1,9 +1,9 @@
-import { createApp } from './src/app.js';
-import { db } from './src/shared/db/knex.js';
-import { sessionStore } from './src/shared/session/sessionStore.js';
-import { getCacheRedis } from './src/shared/redis/redisClient.js';
+import { createApp } from '../src/app.js';
+import { db } from '../src/shared/db/knex.js';
+import { sessionStore } from '../src/shared/session/sessionStore.js';
+import { getCacheRedis } from '../src/shared/redis/redisClient.js';
 import http from 'http';
-import { initSocketServer } from './src/shared/realtime/socket.js';
+import { initSocketServer } from '../src/shared/realtime/socket.js';
 import { io as ClientIO } from 'socket.io-client';
 
 async function runTests() {
