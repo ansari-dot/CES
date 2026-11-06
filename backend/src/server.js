@@ -4,6 +4,7 @@ import { config } from './config/index.js';
 import { testDbConnection, db } from './shared/db/knex.js';
 import { startFeeScheduler } from './modules/fees/fees.scheduler.js';
 import { startZoomScheduler } from './modules/zoom/zoom.scheduler.js';
+import { startAssessmentExpiryScheduler, stopAssessmentExpiryScheduler } from './modules/assessments/assessments.scheduler.js';
 import { initSocketServer } from './shared/realtime/socket.js';
 import { testRedisConnection, closeRedisConnections } from './shared/redis/redisClient.js';
 import { initQueueManager, closeQueueManager } from './shared/queue/queueManager.js';
@@ -53,6 +54,8 @@ async function bootstrap() {
         stopZoomScheduler = startZoomScheduler();
         console.log(`🎥 Automatic Zoom timetable scheduler started via interval fallback (timezone: ${config.SCHOOL_TIMEZONE}).`);
       }
+      startAssessmentExpiryScheduler(30000);
+      console.log(`⏱️ Monthly Assessment Expiry Sweeper running every 30s.`);
     }
   });
 

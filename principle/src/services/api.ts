@@ -145,7 +145,7 @@ async function getCsrfHeader(): Promise<string | undefined> {
   }
 }
 
-async function requestApi<T>(path: string, options: RequestInit = {}, isRetry = false): Promise<T> {
+export async function requestApi<T>(path: string, options: RequestInit = {}, isRetry = false): Promise<T> {
   const headers = new Headers(options.headers || {});
   if (!(options.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');

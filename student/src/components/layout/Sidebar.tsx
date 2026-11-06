@@ -6,6 +6,8 @@ import {
   Video, 
   FolderOpen, 
   ClipboardList, 
+  FileCheck,
+  CalendarRange,
   Rocket, 
   CalendarCheck, 
   TrendingUp, 
@@ -36,6 +38,8 @@ export default function Sidebar({ mobileClose, onLogout }: SidebarProps) {
     { name: "My Timetable", path: "/student/timetable", icon: CalendarDays },
     { name: "Live Classes", path: "/student/classes", icon: Video },
     { name: "Learning Resources", path: "/student/learning", icon: FolderOpen },
+    { name: "Tests & Examinations", path: "/student/tests", icon: FileCheck },
+    { name: "Date Sheet", path: "/student/datesheet", icon: CalendarRange },
     { 
       name: "Assignments", 
       path: "/student/homework", 

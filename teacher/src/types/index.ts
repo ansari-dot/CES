@@ -3,6 +3,8 @@ export type NavTab =
   | 'timetable'
   | 'live-lessons'
   | 'student-attendance'
+  | 'monthly-tests'
+  | 'datesheet'
   | 'learning-resources'
   | 'tasks-assignments'
   | 'submissions-grading'

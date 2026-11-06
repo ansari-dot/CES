@@ -13,6 +13,7 @@ import { fetchChallans } from '../../store/slices/feesSlice';
 import { fetchAttendanceStats } from '../../store/slices/attendanceSlice';
 import { fetchNotifications } from '../../store/slices/notificationsSlice';
 import RestrictedNotice from '../common/RestrictedNotice';
+import { ExamAnnouncementPopup } from '../dialogs/ExamAnnouncementPopup';
 import { useTimezone } from '../../hooks/useTimezone';
 import { zoneAbbreviation } from '../../lib/timezone';
 import { useSocketEvent } from '../../hooks/useSocket';
@@ -84,6 +85,10 @@ export default function PortalLayout() {
         return { title: 'Live Classes', subtitle: `Join with your ${profile.grade} class Zoom link` };
       case '/student/learning':
         return { title: 'Learning Resources', subtitle: `Published for ${profile.grade}` };
+      case '/student/tests':
+        return { title: 'Tests & Examinations', subtitle: `${profile.session} · ${profile.grade} · Timed Online Assessments & Papers` };
+      case '/student/datesheet':
+        return { title: 'Examination Date Sheet', subtitle: `${profile.session} · ${profile.grade} · Official Examination Schedule` };
       case '/student/homework':
         return { title: 'Assignments', subtitle: `${profile.grade} · Sorted by deadline` };
       case '/student/projects':
@@ -139,6 +144,7 @@ export default function PortalLayout() {
         </main>
       </div>
 
+      <ExamAnnouncementPopup />
       <Toast />
     </div>
   );

@@ -9,6 +9,9 @@ import { DashboardPage } from './pages/DashboardPage';
 import { TimetablePage } from './pages/TimetablePage';
 import { LiveLessonsPage } from './pages/LiveLessonsPage';
 import { AttendancePage } from './pages/AttendancePage';
+import { MonthlyTestsPage } from './pages/MonthlyTestsPage';
+import { TeacherDateSheetPage } from './pages/TeacherDateSheetPage';
+import { TeacherExamAnnouncementPopup } from './components/dialogs/TeacherExamAnnouncementPopup';
 import { TasksAssignmentsPage } from './pages/TasksAssignmentsPage';
 import { SubmissionsGradingPage } from './pages/SubmissionsGradingPage';
 import { StudentProjectsPage } from './pages/StudentProjectsPage';
@@ -111,6 +114,10 @@ export default function App() {
         return <LiveLessonsPage />;
       case 'student-attendance':
         return <AttendancePage />;
+      case 'monthly-tests':
+        return <MonthlyTestsPage />;
+      case 'datesheet':
+        return <TeacherDateSheetPage />;
       case 'learning-resources':
         return <LearningResourcesPage />;
       case 'tasks-assignments':
@@ -136,5 +143,10 @@ export default function App() {
     }
   };
 
-  return <AppLayout>{renderActivePage()}</AppLayout>;
+  return (
+    <>
+      <AppLayout>{renderActivePage()}</AppLayout>
+      <TeacherExamAnnouncementPopup />
+    </>
+  );
 }

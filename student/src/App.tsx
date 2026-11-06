@@ -12,7 +12,10 @@ import Dashboard from './pages/Dashboard';
 import Timetable from './pages/Timetable';
 import LiveClasses from './pages/LiveClasses';
 import LearningResources from './pages/LearningResources';
+import DateSheet from './pages/DateSheet';
 import Assignments from './pages/Assignments';
+import MonthlyTests from './pages/MonthlyTests';
+import ExamRoom from './pages/ExamRoom';
 import Projects from './pages/Projects';
 import Attendance from './pages/Attendance';
 import ResultsProgress from './pages/ResultsProgress';
@@ -74,6 +77,14 @@ export default function App() {
       />
       <Route path="/" element={<Navigate to="/student/dashboard" replace />} />
       <Route
+        path="/student/tests/:testId/room"
+        element={
+          <AuthGuard>
+            <ExamRoom />
+          </AuthGuard>
+        }
+      />
+      <Route
         path="/student"
         element={
           <AuthGuard>
@@ -86,6 +97,8 @@ export default function App() {
         <Route path="timetable" element={<Timetable />} />
         <Route path="classes" element={<LiveClasses />} />
         <Route path="learning" element={<LearningResources />} />
+        <Route path="tests" element={<MonthlyTests />} />
+        <Route path="datesheet" element={<DateSheet />} />
         <Route path="homework" element={<Assignments />} />
         <Route path="projects" element={<Projects />} />
         <Route path="attendance" element={<Attendance />} />

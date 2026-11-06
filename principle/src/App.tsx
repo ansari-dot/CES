@@ -13,6 +13,7 @@ import { StudentsView } from './modules/students/StudentsView';
 import { ParentsView } from './modules/parents/ParentsView';
 import { AcademicSetupView } from './modules/academics/AcademicSetupView';
 import { TimetableModule } from './modules/timetable/TimetableModule';
+import { DateSheetsModule } from './modules/datesheets/DateSheetsModule';
 import { ZoomLinksModule } from './modules/zoom/ZoomLinksModule';
 import { AttendanceModule } from './modules/attendance/AttendanceModule';
 import { FeeStructureModule } from './modules/fees/FeeStructureModule';
@@ -90,6 +91,8 @@ function PrincipalPortalApp() {
         return <AcademicSetupView />;
       case 'timetable':
         return <TimetableModule />;
+      case 'datesheets':
+        return <DateSheetsModule />;
       case 'zoom':
         return <ZoomLinksModule />;
       case 'attendance':

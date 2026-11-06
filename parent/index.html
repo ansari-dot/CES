@@ -9,6 +9,30 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Work+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+      (function() {
+        try {
+          var legacyKeys = [
+            'iqra_principal_portal_auth_token_v1',
+            'iqra_principal_portal_remember_email',
+            'iqra_principal_portal_db_clean_v4',
+            'iqra_teacher_auth_token',
+            'iqra_student_auth_token',
+            'iqra_parent_auth_token'
+          ];
+          for (var i = 0; i < legacyKeys.length; i++) {
+            localStorage.removeItem(legacyKeys[i]);
+          }
+          for (var j = localStorage.length - 1; j >= 0; j--) {
+            var k = localStorage.key(j);
+            if (k && (k.indexOf('iqra_') === 0 || k.toLowerCase().indexOf('token') !== -1 || k.toLowerCase().indexOf('auth') !== -1)) {
+              localStorage.removeItem(k);
+            }
+          }
+          sessionStorage.clear();
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
