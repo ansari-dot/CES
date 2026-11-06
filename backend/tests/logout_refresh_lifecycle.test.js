@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { createApp } from '../src/app.js';
 import { db } from '../src/shared/db/knex.js';
 import { sessionStore } from '../src/shared/session/sessionStore.js';

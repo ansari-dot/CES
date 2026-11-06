@@ -74,16 +74,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectModule,
   pendingCounts = {}
 }) => {
-  const { logout, currentUser, activeSession } = useAuth();
+  const { logout } = useAuth();
   const navSections: NavSection[] = [
     {
-      title: 'OPERATIONS',
+      title: 'Operations',
       items: [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }
       ]
     },
     {
-      title: 'PERSONNEL & ACCOUNTS',
+      title: 'Personnel & Accounts',
       items: [
         { id: 'teachers', label: 'Teachers', icon: Users },
         { id: 'students', label: 'Students (Grades 1-8)', icon: GraduationCap },
@@ -91,7 +91,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ]
     },
     {
-      title: 'ACADEMIC & LIVE CLASSES',
+      title: 'Academic & Live Classes',
       items: [
         { id: 'academics', label: 'Sessions & Subjects', icon: BookOpen },
         { id: 'timetable', label: 'Timetable Schedules', icon: CalendarDays },
@@ -112,7 +112,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ]
     },
     {
-      title: 'FINANCIALS & PAYROLL',
+      title: 'Financials & Payroll',
       items: [
         { id: 'fees', label: 'Fee Structures', icon: FileText },
         { id: 'challans', label: 'Monthly Challans', icon: Receipt },
@@ -140,7 +140,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ]
     },
     {
-      title: 'GOVERNANCE & COMMS',
+      title: 'Governance & Comms',
       items: [
         { id: 'academic-oversight', label: 'Academic Oversight', icon: UserCheck },
         { id: 'academic-year', label: 'Year & Promotions', icon: GraduationCap },
@@ -150,7 +150,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ]
     },
     {
-      title: 'ACCESS & CONTROLS',
+      title: 'Access & Controls',
       items: [
         { id: 'profile', label: 'Principal Profile & Settings', icon: ShieldAlert }
       ]
@@ -158,42 +158,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside className="w-64 bg-[#232168] flex flex-col shrink-0 select-none shadow-xl z-30">
+    <aside className="w-64 bg-amber-600 flex flex-col shrink-0 select-none shadow-xs z-30">
       {/* Brand Header */}
-      <div className="px-4 py-4 flex items-center justify-between border-b border-white/10">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 shrink-0 flex items-center justify-center">
-            <img
-              src="/logowb.png"
-              alt="Cambridge Education System Logo"
-              className="w-full h-full object-contain drop-shadow-sm"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = '/logo.jpeg';
-              }}
-            />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-base font-bold text-white tracking-tight leading-tight">
-              Cambridge
-            </span>
-            <span className="text-[10px] font-semibold text-amber-300 uppercase tracking-wider">
-              Principal Portal
-            </span>
-          </div>
+      <div className="px-4 pt-6 pb-5 border-b border-white/15 flex flex-col items-center gap-2.5">
+        <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-md shrink-0 overflow-hidden">
+          <img src="/logowb.png" alt="Cambridge Education System logo" className="w-full h-full object-contain drop-shadow-sm" />
+        </div>
+        <div className="flex flex-col min-w-0 text-center">
+          <span className="text-sm font-semibold tracking-tight text-white truncate font-heading">
+            Principal Portal
+          </span>
+          <span className="text-[10px] text-white/70 font-medium tracking-wide uppercase truncate font-heading">
+            Classes 1–8 · Online School
+          </span>
         </div>
       </div>
 
-      {/* Session & Scope Bar */}
-      <div className="px-4 py-2 bg-black/15 flex items-center justify-between border-b border-white/10 text-[11px] text-white/80">
-        <span className="font-medium truncate">{activeSession || 'Academic Year 2026–2027'}</span>
-        <span className="font-semibold text-amber-300">Classes 1–8</span>
-      </div>
-
       {/* Navigation Sections */}
-      <nav className="sidebar-scroll flex-1 overflow-y-auto px-3 py-3 space-y-3.5 text-xs">
+      <nav className="sidebar-scroll flex-1 overflow-y-auto p-3 space-y-4 text-xs">
         {navSections.map((section) => (
-          <div key={section.title} className="space-y-1">
-            <div className="px-2 pb-1 text-[10px] font-bold tracking-wider text-white/40 uppercase font-heading">
+          <div key={section.title} className="space-y-0.5">
+            <div className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/50 font-heading">
               {section.title}
             </div>
             {section.items.map((item) => {
@@ -203,33 +188,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <button
                   key={item.id}
                   onClick={() => onSelectModule(item.id)}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-all font-medium text-xs cursor-pointer ${
+                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg font-medium transition-colors ${
                     isActive
-                      ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
-                      : 'text-white/85 hover:bg-white/10 hover:text-white'
+                      ? 'bg-amber-500 text-amber-950 font-semibold shadow-xs'
+                      : 'text-white/85 hover:text-amber-950 hover:bg-amber-500'
                   }`}
                 >
                   <div className="flex items-center gap-2.5 truncate">
-                    <Icon
-                      className={`w-4 h-4 shrink-0 ${
-                        isActive ? 'text-slate-950' : 'text-amber-300/90'
-                      }`}
-                    />
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-amber-950' : 'text-inherit'}`} />
                     <span className="truncate">{item.label}</span>
                   </div>
 
                   {item.badge ? (
                     <span
-                      className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
-                        isActive
-                          ? 'bg-slate-950 text-amber-300'
-                          : 'bg-amber-400 text-slate-950'
-                      }`}
+                      className={`px-1.5 py-0.2 rounded font-mono text-[10px] font-semibold border tabular-nums ${item.badgeColor}`}
                     >
                       {item.badge}
                     </span>
                   ) : isActive ? (
-                    <ChevronRight className="w-3.5 h-3.5 text-slate-950 shrink-0" />
+                    <ChevronRight className="w-3.5 h-3.5 text-amber-950 shrink-0 opacity-80" />
                   ) : null}
                 </button>
               );
@@ -238,29 +215,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ))}
       </nav>
 
-      {/* Bottom Role & Sign Out Strip */}
-      <div className="p-3 border-t border-white/10 bg-black/20 space-y-2 mt-auto">
-        <div className="flex items-center justify-between text-xs px-1">
-          <span className="text-white/70 text-[11px]">Role:</span>
-          <span className="font-bold text-white text-[11px] font-mono">{currentUser?.role || 'Principal'}</span>
+      {/* Footer Role Notice & Sign Out */}
+      <div className="p-3 border-t border-white/15 bg-white/5 text-[11px] text-white/80">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-1.5 font-medium text-white/90">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+              <span>Principal Access</span>
+            </div>
+            <div className="mt-0.5 text-[10px] text-white/60">
+              Classes 1–8 Real-Time Ops
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={logout}
+            title="Sign Out of Principal Portal"
+            className="p-1.5 rounded-lg border border-white/25 text-white/80 hover:text-amber-950 hover:bg-amber-500 hover:border-transparent transition-colors shadow-2xs cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+          </button>
         </div>
-
-        <div className="flex items-center justify-between text-xs px-1">
-          <span className="text-white/70 text-[11px]">Status:</span>
-          <span className="text-[11px] font-bold flex items-center gap-1.5 text-emerald-300">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            Active Session
-          </span>
-        </div>
-
-        <button
-          type="button"
-          onClick={logout}
-          className="w-full mt-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold text-red-200 hover:bg-red-500/20 hover:text-white border border-red-400/20 transition-all cursor-pointer"
-        >
-          <LogOut className="w-4 h-4" />
-          <span>Sign Out</span>
-        </button>
       </div>
     </aside>
   );

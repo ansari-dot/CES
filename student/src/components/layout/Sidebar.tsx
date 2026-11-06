@@ -12,9 +12,9 @@ import {
   Award, 
   Receipt, 
   Bell, 
-  User, 
-  LogOut,
-  X
+  User,
+  ChevronUp,
+  LogOut
 } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
@@ -24,18 +24,6 @@ interface SidebarProps {
   onLogout?: () => void;
 }
 
-interface NavItem {
-  name: string;
-  path: string;
-  icon: React.ComponentType<{ className?: string }>;
-  badge?: number | null;
-}
-
-interface NavSection {
-  title: string;
-  items: NavItem[];
-}
-
 export default function Sidebar({ mobileClose, onLogout }: SidebarProps) {
   const unreadCount = useSelector((state: RootState) => state.notifications.unreadCount);
   const pendingAssignmentsCount = useSelector((state: RootState) => 
@@ -43,168 +31,115 @@ export default function Sidebar({ mobileClose, onLogout }: SidebarProps) {
   );
   const profile = useSelector((state: RootState) => state.student.profile);
 
-  const navSections: NavSection[] = [
-    {
-      title: 'ACADEMICS',
-      items: [
-        { name: 'Dashboard', path: '/student/dashboard', icon: LayoutDashboard },
-        { name: 'My Timetable', path: '/student/timetable', icon: CalendarDays },
-        { name: 'Live Classes', path: '/student/classes', icon: Video },
-        { name: 'Learning Resources', path: '/student/learning', icon: FolderOpen },
-      ]
+  const navItems = [
+    { name: "Dashboard", path: "/student/dashboard", icon: LayoutDashboard },
+    { name: "My Timetable", path: "/student/timetable", icon: CalendarDays },
+    { name: "Live Classes", path: "/student/classes", icon: Video },
+    { name: "Learning Resources", path: "/student/learning", icon: FolderOpen },
+    { 
+      name: "Assignments", 
+      path: "/student/homework", 
+      icon: ClipboardList, 
+      badge: pendingAssignmentsCount > 0 ? pendingAssignmentsCount : null,
+      badgeColor: "bg-warning-bg text-warning"
     },
-    {
-      title: 'STUDIES & PROGRESS',
-      items: [
-        { 
-          name: 'Assignments', 
-          path: '/student/homework', 
-          icon: ClipboardList, 
-          badge: pendingAssignmentsCount > 0 ? pendingAssignmentsCount : null
-        },
-        { name: 'Projects', path: '/student/projects', icon: Rocket },
-        { name: 'Attendance', path: '/student/attendance', icon: CalendarCheck },
-        { name: 'Results & Progress', path: '/student/progress', icon: TrendingUp },
-        { name: 'Achievements', path: '/student/achievements', icon: Award },
-      ]
+    { name: "Projects", path: "/student/projects", icon: Rocket },
+    { name: "Attendance", path: "/student/attendance", icon: CalendarCheck },
+    { name: "Results & Progress", path: "/student/progress", icon: TrendingUp },
+    { name: "Achievements", path: "/student/achievements", icon: Award },
+    { name: "Fees & Challans", path: "/student/fees", icon: Receipt },
+    { 
+      name: "Notifications", 
+      path: "/student/notifications", 
+      icon: Bell, 
+      badge: unreadCount > 0 ? unreadCount : null,
+      badgeColor: "bg-error text-white"
     },
-    {
-      title: 'CAMPUS & ACCOUNT',
-      items: [
-        { name: 'Fees & Challans', path: '/student/fees', icon: Receipt },
-        { 
-          name: 'Notifications', 
-          path: '/student/notifications', 
-          icon: Bell, 
-          badge: unreadCount > 0 ? unreadCount : null
-        },
-        { name: 'My Profile', path: '/student/profile', icon: User },
-      ]
-    }
+    { name: "My Profile", path: "/student/profile", icon: User },
   ];
 
   return (
-    <aside className="w-64 bg-[#232168] flex flex-col h-full select-none shrink-0 shadow-xl z-30">
+    <div className="w-[248px] shrink-0 bg-primary flex flex-col h-full select-none">
       {/* Brand Header */}
-      <div className="px-4 py-4 flex items-center justify-between border-b border-white/10">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 shrink-0 flex items-center justify-center">
-            <img
-              src="/logowb.png"
-              alt="Cambridge Education System Logo"
-              className="w-full h-full object-contain drop-shadow-sm"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = '/logo.jpeg';
-              }}
-            />
+      <div className="flex flex-col items-center gap-2.5 px-5 pt-6 pb-5 border-b border-white/15">
+        <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-md overflow-hidden">
+          <img src="/logo.jpeg" alt="Cambridge Education System logo" className="w-full h-full object-contain" />
+        </div>
+        <div className="text-center">
+          <div className="font-headings font-bold text-white text-sm leading-tight">
+            Cambridge Education System
           </div>
-          <div className="flex flex-col">
-            <span className="text-base font-bold text-white tracking-tight leading-tight">
-              Cambridge
-            </span>
-            <span className="text-[10px] font-semibold text-amber-300 uppercase tracking-wider">
-              Student Portal
-            </span>
+          <div className="text-xs text-white/70">
+            Student Portal
           </div>
         </div>
-
-        {mobileClose && (
-          <button
-            onClick={mobileClose}
-            className="p-1 rounded-lg text-white/70 hover:text-white md:hidden cursor-pointer"
-            title="Close Menu"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        )}
-      </div>
-
-      {/* Grade & Timezone Bar */}
-      <div className="px-4 py-2 bg-black/15 flex items-center justify-between border-b border-white/10 text-[11px] text-white/80">
-        <span className="font-medium truncate">{profile?.grade || 'Classes 1–8'}</span>
-        <span className="font-semibold text-amber-300">PKT (UTC+5)</span>
       </div>
 
       {/* Nav List */}
-      <div className="sidebar-scroll flex-1 overflow-y-auto px-3 py-3 space-y-3.5 text-xs">
-        {navSections.map((section) => (
-          <div key={section.title} className="space-y-1">
-            <div className="px-2 pb-1 text-[10px] font-bold tracking-wider text-white/40 uppercase font-heading">
-              {section.title}
-            </div>
-            {section.items.map((item) => {
-              const Icon = item.icon;
-              return (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  onClick={mobileClose}
-                  className={({ isActive }) =>
-                    `w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-all font-medium text-xs ${
-                      isActive
-                        ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
-                        : 'text-white/85 hover:bg-white/10 hover:text-white'
-                    }`
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      <div className="flex items-center gap-2.5 truncate">
-                        <Icon
-                          className={`w-4 h-4 shrink-0 ${
-                            isActive ? 'text-slate-950' : 'text-amber-300/90'
-                          }`}
-                        />
-                        <span className="truncate">{item.name}</span>
-                      </div>
-                      {item.badge && (
-                        <span
-                          className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
-                            isActive
-                              ? 'bg-slate-950 text-amber-300'
-                              : 'bg-amber-400 text-slate-950'
-                          }`}
-                        >
-                          {item.badge}
-                        </span>
-                      )}
-                    </>
+      <div className="sidebar-scroll flex-1 overflow-y-auto px-3 pt-3 pb-3 flex flex-col gap-0.5">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <NavLink
+              key={item.name}
+              to={item.path}
+              onClick={mobileClose}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  isActive
+                    ? "bg-secondary text-secondary-foreground font-bold shadow-sm"
+                    : "text-white/85 hover:bg-secondary hover:text-secondary-foreground"
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  {isActive && <span className="w-1 h-5 rounded-full bg-primary -ml-1 mr-0" />}
+                  <Icon className="w-[17px] h-[17px] shrink-0 stroke-[2.2]" />
+                  <span className="truncate">{item.name}</span>
+                  {item.badge && (
+                    <span className={`ml-auto w-5 h-5 rounded-full ${item.badgeColor} text-xs flex items-center justify-center font-bold`}>
+                      {item.badge}
+                    </span>
                   )}
-                </NavLink>
-              );
-            })}
-          </div>
-        ))}
+                </>
+              )}
+            </NavLink>
+          );
+        })}
       </div>
 
-      {/* Bottom Student ID & Sign Out Strip */}
-      <div className="p-3 border-t border-white/10 bg-black/20 space-y-2 mt-auto">
-        <div className="flex items-center justify-between text-xs px-1">
-          <span className="text-white/70 text-[11px]">Student ID:</span>
-          <span className="font-bold text-white text-[11px] font-mono">
-            {profile?.rollNumber || profile?.id || 'STD-001'}
-          </span>
-        </div>
-
-        <div className="flex items-center justify-between text-xs px-1">
-          <span className="text-white/70 text-[11px]">Status:</span>
-          <span className="text-[11px] font-bold flex items-center gap-1.5 text-emerald-300">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            Active Session
-          </span>
-        </div>
-
+      {/* Profile Footer */}
+      <div className="p-3 border-t border-white/15 mt-auto">
+        <NavLink
+          to="/student/profile"
+          onClick={mobileClose}
+          className="group flex items-center gap-2.5 bg-white/10 rounded-md p-2.5 hover:bg-[#ffc53a] transition"
+        >
+          <img
+            src={profile.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || 'S')}&background=36348e&color=fff`}
+            alt={profile.name}
+            className="w-9 h-9 rounded-full object-cover border border-white/30"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || 'S')}&background=36348e&color=fff`;
+            }}
+          />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-white group-hover:text-[#1b1a47] truncate">{profile.name}</div>
+            <div className="text-xs text-white/70 group-hover:text-[#1b1a47]/80">{profile.grade}</div>
+          </div>
+          <ChevronUp className="w-4 h-4 text-white/70 group-hover:text-[#1b1a47] ml-auto" />
+        </NavLink>
         {onLogout && (
           <button
-            type="button"
             onClick={onLogout}
-            className="w-full mt-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold text-red-200 hover:bg-red-500/20 hover:text-white border border-red-400/20 transition-all cursor-pointer"
+            className="mt-2 w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs font-semibold text-white/80 hover:bg-[#ffc53a] hover:text-[#1b1a47] transition cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
-            <span>Sign Out</span>
+            <span>Sign out</span>
           </button>
         )}
       </div>
-    </aside>
+    </div>
   );
 }
