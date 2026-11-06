@@ -68,51 +68,91 @@ export function setAuthCookies(res, { sessionId, rememberMe = false, accessToken
 }
 
 export function clearAuthCookies(res) {
-  const secure = config.cookieSecure;
+  const isSecure = config.cookieSecure;
   const sameSite = config.COOKIE_SAMESITE;
 
-  const cookieNames = [
-    'sms_sid',
-    '__Host-sms_sid',
-    'sms_at',
-    '__Host-sms_at',
-    'sms_rt',
-    '__Secure-sms_rt',
-    'sms_csrf'
-  ];
+  // 1. Clear __Host- cookies (RFC 6265bis: MUST have secure: true, path: '/' and NO domain attribute)
+  res.clearCookie('__Host-sms_sid', {
+    httpOnly: true,
+    secure: true,
+    sameSite,
+    path: '/'
+  });
 
-  const paths = ['/', '/api/v1/auth'];
+  res.clearCookie('__Host-sms_at', {
+    httpOnly: true,
+    secure: true,
+    sameSite,
+    path: '/'
+  });
 
-  for (const name of cookieNames) {
-    const isCsrf = name === 'sms_csrf';
-    for (const path of paths) {
-      // 1. Clear matching active config
-      res.clearCookie(name, {
-        httpOnly: !isCsrf,
-        secure,
-        sameSite,
-        path,
-        maxAge: 0,
-        expires: new Date(0)
-      });
-      // 2. Clear non-secure lax fallback
-      res.clearCookie(name, {
-        httpOnly: !isCsrf,
-        secure: false,
-        sameSite: 'lax',
-        path,
-        maxAge: 0,
-        expires: new Date(0)
-      });
-      // 3. Clear strict path fallback
-      res.clearCookie(name, {
-        httpOnly: !isCsrf,
-        secure: false,
-        sameSite: 'strict',
-        path,
-        maxAge: 0,
-        expires: new Date(0)
-      });
-    }
+  // 2. Clear __Secure- cookies (RFC 6265bis: MUST have secure: true)
+  res.clearCookie('__Secure-sms_rt', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'strict',
+    path: '/api/v1/auth'
+  });
+
+  // 3. Clear standard root cookies (path: '/')
+  res.clearCookie('sms_sid', {
+    httpOnly: true,
+    secure: isSecure,
+    sameSite,
+    path: '/'
+  });
+  if (isSecure) {
+    res.clearCookie('sms_sid', {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+      path: '/'
+    });
+  }
+
+  res.clearCookie('sms_at', {
+    httpOnly: true,
+    secure: isSecure,
+    sameSite,
+    path: '/'
+  });
+  if (isSecure) {
+    res.clearCookie('sms_at', {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+      path: '/'
+    });
+  }
+
+  res.clearCookie('sms_csrf', {
+    httpOnly: false,
+    secure: isSecure,
+    sameSite,
+    path: '/'
+  });
+  if (isSecure) {
+    res.clearCookie('sms_csrf', {
+      httpOnly: false,
+      secure: false,
+      sameSite: 'lax',
+      path: '/'
+    });
+  }
+
+  // 4. Clear standard refresh token cookie (path: '/api/v1/auth')
+  res.clearCookie('sms_rt', {
+    httpOnly: true,
+    secure: isSecure,
+    sameSite: 'strict',
+    path: '/api/v1/auth'
+  });
+  if (isSecure) {
+    res.clearCookie('sms_rt', {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+      path: '/api/v1/auth'
+    });
   }
 }

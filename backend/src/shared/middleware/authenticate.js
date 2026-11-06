@@ -8,8 +8,8 @@ import { ErrorCodes } from '../errors/errorCodes.js';
 export async function authenticate(req, res, next) {
   try {
     const cookieNames = getCookieNames();
-    const sessionId = req.cookies[cookieNames.sessionId] || req.cookies['sms_sid'];
-    const token = req.cookies[cookieNames.accessToken] || req.cookies['sms_at'];
+    const sessionId = req.cookies[cookieNames.sessionId] || req.cookies['__Host-sms_sid'] || req.cookies['sms_sid'];
+    const token = req.cookies[cookieNames.accessToken] || req.cookies['__Host-sms_at'] || req.cookies['sms_at'];
 
     if (!sessionId && !token) {
       return next(new AppError('Authentication required', 401, ErrorCodes.UNAUTHENTICATED));
@@ -118,8 +118,8 @@ export async function authenticate(req, res, next) {
 export async function authenticateOptional(req, res, next) {
   try {
     const cookieNames = getCookieNames();
-    const sessionId = req.cookies[cookieNames.sessionId] || req.cookies['sms_sid'];
-    const token = req.cookies[cookieNames.accessToken] || req.cookies['sms_at'];
+    const sessionId = req.cookies[cookieNames.sessionId] || req.cookies['__Host-sms_sid'] || req.cookies['sms_sid'];
+    const token = req.cookies[cookieNames.accessToken] || req.cookies['__Host-sms_at'] || req.cookies['sms_at'];
 
     if (!sessionId && !token) {
       return next();

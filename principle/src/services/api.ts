@@ -171,7 +171,8 @@ async function requestApi<T>(path: string, options: RequestInit = {}, isRetry = 
     !isRetry &&
     !path.includes('/auth/login') &&
     !path.includes('/auth/refresh') &&
-    !path.includes('/auth/logout')
+    !path.includes('/auth/logout') &&
+    !path.includes('/auth/me')
   ) {
     const refreshed = await executeTokenRefresh();
     if (refreshed) {
@@ -250,19 +251,12 @@ export const api = {
 
   async logout(): Promise<void> {
     _csrfCache = null;
+    _inMemoryDB = null;
     try {
       await requestApi('/api/v1/auth/logout', { method: 'POST' });
     } catch {
       // quiet fallback
     }
-    const db = getStoredDB();
-    logAudit(
-      db,
-      'USER_LOGOUT',
-      'Portal Access',
-      db.principalProfile.id,
-      'Principal session terminated / logged out'
-    );
   },
 
   async getProfile(): Promise<UserProfile | null> {

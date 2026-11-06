@@ -36,3 +36,4 @@ export async function up(knex) {
 export async function down(knex) {
   await knex.schema.dropTableIfExists('user_sessions');
 }
+

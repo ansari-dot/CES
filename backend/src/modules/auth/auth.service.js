@@ -347,22 +347,41 @@ export const authService = {
     };
   },
 
-  async logout({ sessionId, familyId, rawRefreshToken }) {
+  async logout({ sessionId, familyId, rawRefreshToken, userId }) {
+    let resolvedUserId = userId;
+
     if (sessionId) {
+      try {
+        const session = await sessionStore.getSession(sessionId);
+        if (session?.userId && !resolvedUserId) {
+          resolvedUserId = session.userId;
+        }
+      } catch (_) {}
       await sessionStore.revokeSession(sessionId, 'LOGOUT').catch(() => {});
     }
+
     if (familyId) {
       await authRepository.revokeFamilyTokens(familyId, 'LOGOUT').catch(() => {});
-    } else if (rawRefreshToken) {
+    }
+
+    if (rawRefreshToken) {
       try {
         const tokenHash = hashToken(rawRefreshToken);
         const existingToken = await authRepository.findRefreshTokenByHash(tokenHash);
         if (existingToken?.family_id) {
           await authRepository.revokeFamilyTokens(existingToken.family_id, 'LOGOUT').catch(() => {});
         }
+        if (existingToken?.user_id && !resolvedUserId) {
+          resolvedUserId = existingToken.user_id;
+        }
       } catch {
         // quiet fallback
       }
+    }
+
+    // Invalidate active JWTs immediately by incrementing token_version in MySQL
+    if (resolvedUserId) {
+      await db('users').where({ id: resolvedUserId }).increment('token_version', 1).catch(() => {});
     }
   },
 

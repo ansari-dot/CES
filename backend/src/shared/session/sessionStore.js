@@ -274,3 +274,4 @@ export const sessionStore = {
     return await this.createSession({ userId, roleCode, userAgent, ipAddress, rememberMe });
   }
 };
+

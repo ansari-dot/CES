@@ -46,7 +46,8 @@ export async function requestApi<T>(path: string, options: RequestInit = {}, isR
     !isRetry &&
     !path.includes('/auth/login') &&
     !path.includes('/auth/refresh') &&
-    !path.includes('/auth/logout')
+    !path.includes('/auth/logout') &&
+    !path.includes('/auth/me')
   ) {
     const refreshed = await executeTokenRefresh();
     if (refreshed) {

@@ -64,10 +64,12 @@ export const authController = {
   async logout(req, res, next) {
     try {
       const cookieNames = getCookieNames();
-      const sessionId = req.cookies?.[cookieNames.sessionId] || req.cookies?.['sms_sid'] || req.user?.sid;
+      const sessionId = req.cookies?.[cookieNames.sessionId] || req.cookies?.['sms_sid'] || req.cookies?.['__Host-sms_sid'] || req.user?.sid;
       const familyId = req.user?.sid;
-      const rawRefreshToken = req.cookies?.[cookieNames.refreshToken] || req.cookies?.['sms_rt'];
-      await authService.logout({ sessionId, familyId, rawRefreshToken }).catch(() => {});
+      const rawRefreshToken = req.cookies?.[cookieNames.refreshToken] || req.cookies?.['sms_rt'] || req.cookies?.['__Secure-sms_rt'];
+      const userId = req.user?.id;
+
+      await authService.logout({ sessionId, familyId, rawRefreshToken, userId }).catch(() => {});
     } catch {
       // quiet fallback
     } finally {
