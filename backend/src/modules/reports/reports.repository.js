@@ -550,7 +550,7 @@ export const reportsRepository = {
     const ids = students.map((s) => s.id);
     const finalSessionId = sessionId || (await getCurrentSessionId());
 
-    const [attendance, challans, subs, achievements] = await Promise.all([
+    const [attendance, challans, subs, achievements, finalResults] = await Promise.all([
       db('lesson_attendance').whereIn('student_id', ids).groupBy('student_id', 'status').select('student_id', 'status', db.raw('count(*) as count')),
       db('fee_challans').whereIn('student_id', ids).select('student_id', 'billing_month', 'total_payable', 'paid_amount', 'status', 'created_at').orderBy('created_at', 'desc'),
       db('task_submissions')
@@ -560,7 +560,13 @@ export const reportsRepository = {
           if (finalSessionId) q.where('learning_tasks.session_id', finalSessionId);
         })
         .select('task_submissions.student_id', 'task_submissions.status', 'task_submissions.marks_awarded', 'learning_tasks.total_marks', 'learning_tasks.task_type'),
-      db('student_achievements').whereIn('student_id', ids).where('visibility', 'PUBLISHED').groupBy('student_id').select('student_id', db.raw('count(*) as count'))
+      db('student_achievements').whereIn('student_id', ids).where('visibility', 'PUBLISHED').groupBy('student_id').select('student_id', db.raw('count(*) as count')),
+      db('final_results')
+        .whereIn('student_id', ids)
+        .modify((q) => {
+          if (finalSessionId) q.where('session_id', finalSessionId);
+        })
+        .select('student_id', 'total_marks', 'obtained_marks', 'percentage', 'overall_grade', 'pass_status', 'result_status', 'published_at')
     ]);
 
     const attMap = new Map();
@@ -596,6 +602,7 @@ export const reportsRepository = {
     }
 
     const achMap = new Map(achievements.map((a) => [Number(a.student_id), Number(a.count)]));
+    const finalResMap = new Map(finalResults.map((f) => [Number(f.student_id), f]));
 
     return students.map((s) => {
       const att = attMap.get(Number(s.id)) || { present: 0, absent: 0, late: 0, excused: 0, total: 0 };
@@ -604,6 +611,17 @@ export const reportsRepository = {
       const graded = mySubs.filter((x) => x.status === 'GRADED' && x.marks_awarded != null);
       const byType = (type) => average(graded.filter((g) => (g.task_type || 'ASSIGNMENT') === type).map(pctOf));
       const overall = average(graded.map(pctOf));
+
+      const finalRes = finalResMap.get(Number(s.id));
+      const termMarks = finalRes && finalRes.obtained_marks != null 
+        ? Number(finalRes.obtained_marks) 
+        : (overall != null ? Math.round(overall) : null);
+      const termTotal = finalRes && finalRes.total_marks != null ? Number(finalRes.total_marks) : 100;
+      const termPct = finalRes && finalRes.percentage != null ? Number(finalRes.percentage) : overall;
+      const termGrade = finalRes && finalRes.overall_grade ? finalRes.overall_grade : letterGrade(overall);
+      const termStatus = finalRes
+        ? (finalRes.pass_status === 'PASSED' ? 'Pass' : finalRes.pass_status === 'FAILED' ? 'Fail' : finalRes.pass_status)
+        : (overall != null ? (overall >= 50 ? 'Pass' : 'Fail') : 'Pending');
 
       return {
         id: String(s.id),
@@ -634,6 +652,14 @@ export const reportsRepository = {
           quizAverage: byType('QUIZ'),
           testAverage: byType('TEST'),
           examAverage: byType('EXAM')
+        },
+        terminalResult: {
+          obtainedMarks: termMarks,
+          totalMarks: termTotal,
+          percentage: termPct,
+          grade: termGrade,
+          status: termStatus,
+          resultStatus: finalRes ? finalRes.result_status : 'PENDING'
         },
         achievements: achMap.get(Number(s.id)) || 0
       };

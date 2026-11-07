@@ -1,10 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
 import { setCurrentTab, addToast } from '../store/slices/uiSlice';
-import { openLessonModal, markLessonStarted, endLessonThunk, fetchTeacherLessonsThunk } from '../store/slices/timetableSlice';
+import {
+  openLessonModal,
+  markLessonStarted,
+  endLessonThunk,
+  fetchTeacherLessonsThunk,
+  updateLessonRealtimeStatus
+} from '../store/slices/timetableSlice';
 import { fetchDutySummaryThunk } from '../store/slices/dutySlice';
 import { requestApi } from '../services/api';
 import { TimetableLesson } from '../types';
+import { DutyTrackingClock } from '../components/duty/DutyTrackingClock';
 import { dateKeyInZone, dayOfWeekInZone } from '../lib/timezone';
 import { useSocketEvent } from '../hooks/useSocket';
 import { RealtimeEvents } from '../services/socketService';
@@ -29,19 +36,41 @@ export const DashboardPage: React.FC = () => {
   const dispatch = useAppDispatch();
   const teacher = useAppSelector((state) => state.auth.teacher);
 
-  useSocketEvent(RealtimeEvents.CLASS_STATUS_UPDATED, () => {
+  useEffect(() => {
+    dispatch(fetchDutySummaryThunk(teacher?.id));
+  }, [dispatch, teacher?.id]);
+
+  useSocketEvent(RealtimeEvents.CLASS_STATUS_UPDATED, (data: any) => {
+    if (data?.status === 'COMPLETED') {
+      dispatch(
+        updateLessonRealtimeStatus({
+          lessonId: data.lessonId || '',
+          status: 'completed',
+          sessionState: 'COMPLETED'
+        })
+      );
+    }
     dispatch(fetchTeacherLessonsThunk());
-    dispatch(fetchDutySummaryThunk());
+    dispatch(fetchDutySummaryThunk(teacher?.id));
   });
 
-  useSocketEvent(RealtimeEvents.TEACHER_DUTY_UPDATED, () => {
+  useSocketEvent(RealtimeEvents.TEACHER_DUTY_UPDATED, (data: any) => {
+    if (data?.status === 'COMPLETED') {
+      dispatch(
+        updateLessonRealtimeStatus({
+          lessonId: data.lessonId || '',
+          status: 'completed',
+          sessionState: 'COMPLETED'
+        })
+      );
+    }
     dispatch(fetchTeacherLessonsThunk());
-    dispatch(fetchDutySummaryThunk());
+    dispatch(fetchDutySummaryThunk(teacher?.id));
   });
 
   useSocketEvent(RealtimeEvents.TEACHER_ATTENDANCE_UPDATED, () => {
     dispatch(fetchTeacherLessonsThunk());
-    dispatch(fetchDutySummaryThunk());
+    dispatch(fetchDutySummaryThunk(teacher?.id));
   });
 
   const lessons = useAppSelector((state) => state.timetable.lessons);
@@ -123,6 +152,29 @@ export const DashboardPage: React.FC = () => {
   const completedCount = todayLessons.filter((l) => l.status === 'completed').length;
   const pendingGradingCount = submissions.filter((s) => s.status === 'pending' || s.status === 'late').length;
 
+  const todayTotalDutyMinutes = useMemo(() => {
+    // 1. Authoritative summary from dutySlice if present
+    if (duty.todayTeachingMinutes || duty.todayTeachingHours) {
+      return (Number(duty.todayTeachingHours) * 60) + Number(duty.todayTeachingMinutes);
+    }
+    // 2. Instant fallback: calculate directly from today's completed lessons
+    return todayLessons
+      .filter((l) => l.status === 'completed')
+      .reduce((acc, l) => {
+        if (l.verifiedDutyMinutes && l.verifiedDutyMinutes > 0) {
+          return acc + l.verifiedDutyMinutes;
+        }
+        if (l.actualStartTime && l.actualEndTime) {
+          const diffMs = new Date(l.actualEndTime).getTime() - new Date(l.actualStartTime).getTime();
+          return acc + Math.max(1, Math.round(diffMs / 60000));
+        }
+        return acc;
+      }, 0);
+  }, [duty.todayTeachingHours, duty.todayTeachingMinutes, todayLessons]);
+
+  const displayDutyHours = Math.floor(todayTotalDutyMinutes / 60);
+  const displayDutyMinutes = todayTotalDutyMinutes % 60;
+
   const handleLaunchZoomLesson = async (lesson: TimetableLesson) => {
     try {
       setStartingLessonId(lesson.id);
@@ -148,6 +200,15 @@ export const DashboardPage: React.FC = () => {
         }
       }
 
+      const nowIso = new Date().toISOString();
+      dispatch(
+        updateLessonRealtimeStatus({
+          lessonId: lesson.rawId || lesson.id,
+          status: 'live',
+          sessionState: 'LIVE',
+          actualStartTime: nowIso
+        })
+      );
       dispatch(markLessonStarted(lesson.id));
       window.open(targetUrl, '_blank');
       dispatch(
@@ -282,7 +343,7 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
           <div className="mt-2">
-            <span className="text-2xl font-extrabold text-slate-900">{duty.todayTeachingHours || 0}h {duty.todayTeachingMinutes || 0}m</span>
+            <span className="text-2xl font-extrabold text-slate-900">{displayDutyHours}h {displayDutyMinutes}m</span>
             {liveLesson && <span className="text-xs text-emerald-600 ml-1 font-bold">(+{liveHoursAccrued}h live)</span>}
           </div>
           <div className="mt-2 text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
@@ -334,48 +395,34 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. In-Session Duty Card (Only when class is active) */}
-      {liveLesson && (
-        <div className="bg-gradient-to-r from-emerald-800 to-teal-900 rounded-2xl p-5 text-white shadow-md border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1">
+      {/* 3. Real-Time Circular Clock Duty Tracker (Auto-stops via Webhook with zero refresh) */}
+      <DutyTrackingClock
+        actions={
+          liveLesson ? (
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-500 text-white text-[11px] font-bold uppercase">
-                <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-                Class in Progress
-              </span>
-              <span className="text-xs text-emerald-200 font-medium">
-                Room: {liveLesson.zoomRoomId}
-              </span>
+              <button
+                type="button"
+                onClick={() => handleLaunchZoomLesson(liveLesson)}
+                className="px-4 py-2 bg-white hover:bg-emerald-50 text-emerald-950 text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-colors"
+              >
+                <Video className="w-4 h-4 text-emerald-600" />
+                <span>Re-Join Classroom</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEndTopic(liveLesson.topic || liveLesson.subject);
+                  setShowEndModal(true);
+                }}
+                className="px-4 py-2 bg-emerald-700/80 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl border border-emerald-400/30 flex items-center gap-1.5 transition-colors"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Conclude Class</span>
+              </button>
             </div>
-            <h2 className="text-lg font-bold text-white">
-              {liveLesson.className} • {liveLesson.subject}
-            </h2>
-            <p className="text-xs text-emerald-200/90 font-medium">
-              Elapsed: <span className="font-mono font-bold text-white text-sm">{formatStopwatch(liveElapsedSeconds)}</span> • Duty Accrued: <span className="font-bold text-amber-300">+{liveHoursAccrued}h</span>
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleLaunchZoomLesson(liveLesson)}
-              className="px-4 py-2 bg-white hover:bg-emerald-50 text-emerald-950 text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-colors"
-            >
-              <Video className="w-4 h-4 text-emerald-600" />
-              <span>Re-Join Classroom</span>
-            </button>
-            <button
-              onClick={() => {
-                setEndTopic(liveLesson.topic || liveLesson.subject);
-                setShowEndModal(true);
-              }}
-              className="px-4 py-2 bg-emerald-700/80 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl border border-emerald-400/30 flex items-center gap-1.5 transition-colors"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Conclude Class</span>
-            </button>
-          </div>
-        </div>
-      )}
+          ) : undefined
+        }
+      />
 
       {/* 4. Today's Class Schedule Table */}
       <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
@@ -419,8 +466,8 @@ export const DashboardPage: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                todayLessons.map((l) => (
-                  <tr key={l.id} className="hover:bg-slate-50/70 h-13 transition-colors">
+                todayLessons.map((l, idx) => (
+                  <tr key={`today-les-${l.id}-${l.rawId || idx}`} className="hover:bg-slate-50/70 h-13 transition-colors">
                     <td className="px-4 font-mono font-bold text-slate-800">
                       {l.startTime} - {l.endTime}
                     </td>

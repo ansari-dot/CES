@@ -16,4 +16,10 @@ router.post('/bulk-approve', authenticate, authorize('promotions.manage'), promo
 router.post('/execute', authenticate, authorize('promotions.manage'), promotionsController.execute);
 router.patch('/:id/decision', authenticate, authorize('promotions.manage'), promotionsController.decide);
 
+// Two-phase permanent session purge endpoints (Principal & Admin only)
+router.get('/purge-preview', authenticate, authorize('promotions.manage'), promotionsController.purgePreview);
+router.post('/execute-purge', authenticate, authorize('promotions.manage'), promotionsController.executePurge);
+router.get('/purge-history', authenticate, authorize('promotions.manage'), promotionsController.purgeHistory);
+router.post('/retry-file-cleanup', authenticate, authorize('promotions.manage'), promotionsController.retryFileCleanup);
+
 export default router;

@@ -209,7 +209,7 @@ export const SubmissionsGradingPage: React.FC = () => {
               >
                 <option value="all">All Assigned Classes</option>
                 {classOptions.map((c, idx) => (
-                  <option key={`${c.id}-${idx}`} value={c.id}>
+                  <option key={`sub-grade-cls-${c.id}-${idx}`} value={c.id}>
                     {c.name}
                   </option>
                 ))}

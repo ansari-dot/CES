@@ -84,6 +84,7 @@ export interface TimetableLesson {
   isCompleted?: boolean;
   actualStartTime?: string;
   actualEndTime?: string;
+  verifiedDutyMinutes?: number;
   startAt?: string;
   endAt?: string;
   notes?: string;

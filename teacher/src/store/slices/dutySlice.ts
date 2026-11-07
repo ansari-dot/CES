@@ -155,11 +155,12 @@ export const dutySlice = createSlice({
           ? dailyDuty.lessons.filter((l: any) => l.status === 'LIVE').length
           : 0;
 
-        const todayHours = Number(duty?.todayTeachingHours ?? dailyDuty?.totalTrackedHours) || 0;
-        const todayMinutes = Number(duty?.todayTeachingMinutes ?? dailyDuty?.totalTrackedMinutes) || 0;
+        const totalTodayMinutes = Number(duty?.todayTeachingMinutes ?? dailyDuty?.totalTrackedMinutes ?? 0) || 0;
+        const todayHours = Math.floor(totalTodayMinutes / 60);
+        const todayMinutes = totalTodayMinutes % 60;
         const todayCompleted = Number(duty?.todayCompletedCount ?? dailyDuty?.totalCompletedLessons) || 0;
         const todayScheduled = Number(duty?.todayScheduledCount ?? dailyDuty?.totalScheduledLessons) || 0;
-        const totalDutyHours = Number(duty?.verifiedTeachingHours) || todayHours || 0;
+        const totalDutyHours = Number(duty?.verifiedTeachingHours) || Number((totalTodayMinutes / 60).toFixed(2)) || 0;
 
         if (duty) {
           state.summary = {

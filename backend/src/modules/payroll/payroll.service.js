@@ -1,6 +1,7 @@
 import { payrollRepository } from './payroll.repository.js';
 import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
+import { currentPayrollMonthLabel } from '../../shared/utils/dutyCalculation.js';
 
 export const payrollService = {
   async generateMonthlyDrafts({ payrollMonth, userId, teacherId = null }) {
@@ -135,7 +136,7 @@ export const payrollService = {
 
     const summary = await payrollRepository.getTeacherDutySummary({
       teacherId: Number(teacherId),
-      payrollMonth: payrollMonth || 'April 2026'
+      payrollMonth: payrollMonth || currentPayrollMonthLabel()
     });
 
     if (!summary) {

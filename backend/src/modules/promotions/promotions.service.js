@@ -65,6 +65,38 @@ export const promotionsService = {
     }
     const resultsMap = await promotionsRepository.getFinalResultsMap(session.id, finalTerm.id);
 
+    // Fetch failed terminal subjects and published supplementary clearances for this session
+    const failedSubjects = await db('final_result_subjects as frs')
+      .join('final_results as fr', 'frs.final_result_id', 'fr.id')
+      .where('fr.session_id', session.id)
+      .andWhere('frs.passed', 0)
+      .select('frs.id as subject_result_id', 'frs.final_result_id');
+
+    const failedByFinalResult = new Map();
+    for (const fs of failedSubjects) {
+      if (!failedByFinalResult.has(fs.final_result_id)) {
+        failedByFinalResult.set(fs.final_result_id, []);
+      }
+      failedByFinalResult.get(fs.final_result_id).push(fs.subject_result_id);
+    }
+
+    const supplementaryResults = await db('supplementary_exam_results')
+      .where('session_id', session.id)
+      .andWhere('status', 'PUBLISHED')
+      .orderBy([
+        { column: 'is_passed', order: 'desc' },
+        { column: 'obtained_marks', order: 'desc' },
+        { column: 'attempt_number', order: 'desc' }
+      ])
+      .select('final_result_subject_id', 'is_passed');
+
+    const authoritativeSuppMap = new Map();
+    for (const sr of supplementaryResults) {
+      if (!authoritativeSuppMap.has(sr.final_result_subject_id)) {
+        authoritativeSuppMap.set(sr.final_result_subject_id, Boolean(sr.is_passed));
+      }
+    }
+
     let created = 0;
     let updated = 0;
     let skippedExecuted = 0;
@@ -87,7 +119,18 @@ export const promotionsService = {
           } else if (result.pass_status === 'FAILED') {
             eligibility = 'NOT_ELIGIBLE';
           } else if (result.pass_status === 'SUPPLEMENTARY') {
-            eligibility = 'SUPPLEMENTARY_REQUIRED';
+            // Check if all failed subjects have been cleared via published supplementary exam passes
+            const failedSubjectIds = failedByFinalResult.get(result.id) || [];
+            const hasUnclearedSubjects =
+              failedSubjectIds.length === 0 ||
+              failedSubjectIds.some((id) => !authoritativeSuppMap.get(id));
+
+            if (!hasUnclearedSubjects) {
+              // Authoritative supplementary clearance achieved
+              eligibility = Number(enr.classNumber) >= maxGrade ? 'GRADUATING' : 'ELIGIBLE';
+            } else {
+              eligibility = 'SUPPLEMENTARY_REQUIRED';
+            }
           }
         }
 

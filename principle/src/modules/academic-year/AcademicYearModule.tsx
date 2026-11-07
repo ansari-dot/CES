@@ -22,10 +22,16 @@ import {
   ArrowUpRight,
   RefreshCw,
   ListChecks,
-  Pencil
+  Pencil,
+  ShieldCheck,
+  Layers,
+  Trash2
 } from 'lucide-react';
+import { SupplementaryExamsTab } from './SupplementaryExamsTab';
+import { FormativePoliciesTab } from './FormativePoliciesTab';
+import { SessionPurgeTab } from './SessionPurgeTab';
 
-type YearTab = 'years' | 'results' | 'promotions';
+type YearTab = 'years' | 'results' | 'supplementary' | 'promotions' | 'formative' | 'purge';
 
 interface YearRow {
   id: number;
@@ -159,7 +165,10 @@ export const AcademicYearModule: React.FC = () => {
           [
             { id: 'years', label: 'Years & Terms', icon: CalendarRange },
             { id: 'results', label: 'Results Review', icon: ClipboardCheck },
-            { id: 'promotions', label: 'Promotions', icon: GraduationCap }
+            { id: 'supplementary', label: 'Supplementary Ledger', icon: ShieldCheck },
+            { id: 'promotions', label: 'Promotions', icon: GraduationCap },
+            { id: 'formative', label: 'Formative Policies', icon: Layers },
+            { id: 'purge', label: 'Rollover & Purge', icon: Trash2 }
           ] as { id: YearTab; label: string; icon: React.ElementType }[]
         ).map((t) => {
           const Icon = t.icon;
@@ -190,8 +199,13 @@ export const AcademicYearModule: React.FC = () => {
         />
       )}
       {tab === 'results' && selectedYear && <ResultsReviewTab year={selectedYear} terms={terms} />}
+      {tab === 'supplementary' && selectedYear && <SupplementaryExamsTab year={selectedYear} />}
       {tab === 'promotions' && selectedYear && (
         <PromotionsTab year={selectedYear} years={years} onReloadYears={loadYears} />
+      )}
+      {tab === 'formative' && selectedYear && <FormativePoliciesTab year={selectedYear} />}
+      {tab === 'purge' && selectedYear && (
+        <SessionPurgeTab currentYear={selectedYear} years={years} onReloadYears={loadYears} />
       )}
     </div>
   );

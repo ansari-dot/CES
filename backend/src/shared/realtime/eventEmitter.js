@@ -49,6 +49,11 @@ export function dispatchSocketEvent(event, payload, options = {}) {
     if (options.teacherIds) {
       const tids = Array.isArray(options.teacherIds) ? options.teacherIds : [options.teacherIds];
       tids.forEach((id) => targetRooms.add(`teacher:${id}`));
+      targetRooms.add('role:TEACHER');
+    }
+
+    if (options.classIds) {
+      targetRooms.add('role:TEACHER');
     }
 
     if (options.userIds) {

@@ -18,7 +18,8 @@ import {
   ShieldAlert,
   Lock,
   ChevronRight,
-  LogOut
+  LogOut,
+  Trophy
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -144,7 +145,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       title: 'Governance & Comms',
       items: [
-        { id: 'academic-oversight', label: 'Academic Oversight', icon: UserCheck },
+        { id: 'academic-oversight', label: 'Terminal Exam Results', icon: Trophy },
         { id: 'academic-year', label: 'Year & Promotions', icon: GraduationCap },
         { id: 'notices', label: 'Notices & Circulars', icon: BellRing },
         { id: 'reports', label: 'Reports & Exports', icon: FileText },

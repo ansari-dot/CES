@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
 import { openAdjustmentModal, fetchDutySummaryThunk, setSelectedDateFilter } from '../store/slices/dutySlice';
 import { DutyCorrectionModal } from '../components/duty/DutyCorrectionModal';
+import { DutyTrackingClock } from '../components/duty/DutyTrackingClock';
 import { DutyLogItem, DailyDutyItem } from '../types';
 import { useSocketEvent } from '../hooks/useSocket';
 import { RealtimeEvents } from '../services/socketService';
@@ -63,34 +64,8 @@ export const DutySalaryPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Real-time Daily Zoom Duty Tracker Banner */}
-      <div className="bg-gradient-to-r from-emerald-800 to-teal-900 text-white p-5 rounded-2xl mb-6 shadow-sm border border-emerald-600/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center shrink-0 border border-white/20">
-            <span className="material-symbols-outlined text-emerald-300 text-[26px]">timer</span>
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black tracking-wider uppercase text-emerald-200">
-                Today's Automated Zoom Teaching Duty
-              </span>
-              <span className="px-2 py-0.5 bg-emerald-500/30 text-emerald-100 text-[10px] font-bold rounded-full border border-emerald-400/40">
-                Live Server-to-Server Sync
-              </span>
-            </div>
-            <p className="text-base sm:text-lg font-black text-white mt-0.5">
-              {summary.todayTeachingHours || 0} hrs {summary.todayTeachingMinutes ? `(${summary.todayTeachingMinutes} mins)` : '(0 mins)'} taught today
-              <span className="text-xs sm:text-sm font-semibold text-emerald-200 ml-2">
-                • {summary.todayCompletedCount || 0} of {summary.todayScheduledCount || 0} scheduled classes completed
-              </span>
-            </p>
-          </div>
-        </div>
-        <div className="text-xs text-emerald-100 font-medium sm:text-right bg-white/10 px-3.5 py-2 rounded-xl border border-white/10">
-          <span className="block font-semibold">Automatic Zoom Attendance</span>
-          <span className="text-[11px] text-emerald-200">Starts &amp; stops automatically upon joining / departing Zoom classrooms</span>
-        </div>
-      </div>
+      {/* Real-time Circular Clock Duty Tracker */}
+      <DutyTrackingClock className="mb-6" />
 
       {/* Overview Cards (4 cols) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

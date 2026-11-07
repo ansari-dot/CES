@@ -14,7 +14,10 @@ import {
   AlertTriangle,
   History,
   GraduationCap,
-  Eye
+  Eye,
+  Printer,
+  Award,
+  FileText
 } from 'lucide-react';
 
 export const StudentsView: React.FC = () => {
@@ -32,6 +35,26 @@ export const StudentsView: React.FC = () => {
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+
+  // Complete Historical Terminal Results Modal (Principal Access)
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [academicHistory, setAcademicHistory] = useState<any | null>(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const handleOpenAcademicHistory = async (student: Student) => {
+    setSelectedStudent(student);
+    setIsHistoryModalOpen(true);
+    setLoadingHistory(true);
+    setAcademicHistory(null);
+    try {
+      const data = await api.getStudentAcademicHistory(Number(student.id));
+      setAcademicHistory(data);
+    } catch {
+      toast.error('Failed to load student academic history.');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   // Add Student Form
   const [addForm, setAddForm] = useState({
@@ -241,6 +264,13 @@ export const StudentsView: React.FC = () => {
             className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors shadow-2xs"
           >
             <Eye className="w-3.5 h-3.5" strokeWidth={1.75} />
+          </button>
+          <button
+            onClick={() => handleOpenAcademicHistory(s)}
+            title="View All Preserved Terminal Result Cards & Transcripts"
+            className="p-1.5 rounded-lg border border-indigo-200 bg-indigo-50/60 text-indigo-700 hover:bg-indigo-100 transition-colors shadow-2xs"
+          >
+            <GraduationCap className="w-3.5 h-3.5" strokeWidth={1.75} />
           </button>
           <button
             onClick={() => {
@@ -642,6 +672,114 @@ export const StudentsView: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Principal Academic History Modal (All Preserved Terminal Cards Across All Sessions) */}
+      {isHistoryModalOpen && selectedStudent && (
+        <Modal
+          isOpen={isHistoryModalOpen}
+          onClose={() => setIsHistoryModalOpen(false)}
+          title={`Official Academic Transcript · ${selectedStudent.name}`}
+          description={`Admission No: ${selectedStudent.admissionNumber} · Class ${selectedStudent.classNumber} · Complete Surviving Record`}
+          maxWidth="2xl"
+        >
+          <div className="space-y-5 text-xs">
+            {loadingHistory ? (
+              <LoadingState message="Retrieving surviving Terminal Result Cards across all academic sessions..." rows={4} />
+            ) : !academicHistory || !academicHistory.results || academicHistory.results.length === 0 ? (
+              <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                <FileText className="w-8 h-8 text-slate-400 mx-auto" />
+                <h5 className="font-bold text-slate-800">No Terminal Examination Results On Record</h5>
+                <p className="text-slate-500 max-w-sm mx-auto text-[11px]">
+                  This student has not yet completed a published terminal examination term, or is newly enrolled.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between bg-indigo-50/70 border border-indigo-100 p-3 rounded-xl">
+                  <div className="flex items-center gap-2">
+                    <Award className="w-4 h-4 text-indigo-700" />
+                    <span className="font-bold text-indigo-950">
+                      {academicHistory.results.length} Terminal Result {academicHistory.results.length === 1 ? 'Card' : 'Cards'} Preserved
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => window.print()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition cursor-pointer"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>Print Transcript</span>
+                  </button>
+                </div>
+
+                {academicHistory.results.map((res: any) => (
+                  <div key={res.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-sm">
+                          {res.className} · {res.termName} ({res.sessionName})
+                        </h4>
+                        <span className="text-[10px] text-slate-400">
+                          Published: {res.published_at ? new Date(res.published_at).toLocaleDateString() : '—'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold text-slate-900">
+                          {res.obtained_marks} / {res.total_marks} ({res.percentage != null ? `${res.percentage}%` : '—'})
+                        </span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          res.pass_status === 'PASSED' ? 'bg-emerald-100 text-emerald-800' :
+                          res.pass_status === 'SUPPLEMENTARY' ? 'bg-amber-100 text-amber-800' :
+                          'bg-rose-100 text-rose-800'
+                        }`}>
+                          {res.pass_status} · Grade {res.overall_grade || '—'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Granular Subject Marks */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-[11px] text-left">
+                        <thead>
+                          <tr className="border-b border-slate-100 text-slate-500 font-semibold bg-slate-50/60">
+                            <th className="px-2 py-1.5">Subject</th>
+                            <th className="px-2 py-1.5">Max Marks</th>
+                            <th className="px-2 py-1.5">Obtained</th>
+                            <th className="px-2 py-1.5">Percentage</th>
+                            <th className="px-2 py-1.5">Grade</th>
+                            <th className="px-2 py-1.5">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {(res.subjects || []).map((sub: any) => (
+                            <tr key={sub.id} className="hover:bg-slate-50/50">
+                              <td className="px-2 py-2 font-medium text-slate-800">
+                                {sub.subjectName} ({sub.subjectCode})
+                              </td>
+                              <td className="px-2 py-2 font-mono">{sub.total_marks}</td>
+                              <td className="px-2 py-2 font-mono font-bold">
+                                {sub.obtained_marks !== null ? sub.obtained_marks : 'Absent'}
+                              </td>
+                              <td className="px-2 py-2 font-mono">{sub.percentage != null ? `${sub.percentage}%` : '—'}</td>
+                              <td className="px-2 py-2 font-bold">{sub.grade || '—'}</td>
+                              <td className="px-2 py-2">
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                  sub.passed ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                                }`}>
+                                  {sub.passed ? 'Passed' : 'Deficient'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </Modal>
       )}

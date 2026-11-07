@@ -31,6 +31,8 @@ import resultsRoutes from './modules/results/results.routes.js';
 import promotionsRoutes from './modules/promotions/promotions.routes.js';
 import assessmentsRoutes from './modules/assessments/assessments.routes.js';
 import datesheetsRoutes from './modules/datesheets/datesheets.routes.js';
+import performanceRoutes from './modules/performance/performance.routes.js';
+import supplementaryRoutes from './modules/supplementary/supplementary.routes.js';
 
 export function createApp() {
   const app = express();
@@ -148,6 +150,8 @@ export function createApp() {
   app.use('/api/v1/promotions', promotionsRoutes);
   app.use('/api/v1/assessments', assessmentsRoutes);
   app.use('/api/v1/datesheets', datesheetsRoutes);
+  app.use('/api/v1/performance', performanceRoutes);
+  app.use('/api/v1/supplementary', supplementaryRoutes);
 
   // 9. 404 Handler
   app.use(notFound);

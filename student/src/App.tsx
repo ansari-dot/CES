@@ -19,6 +19,7 @@ import ExamRoom from './pages/ExamRoom';
 import Projects from './pages/Projects';
 import Attendance from './pages/Attendance';
 import ResultsProgress from './pages/ResultsProgress';
+import Results from './pages/Results';
 import Achievements from './pages/Achievements';
 import FeesChallans from './pages/FeesChallans';
 import Notifications from './pages/Notifications';
@@ -103,6 +104,7 @@ export default function App() {
         <Route path="projects" element={<Projects />} />
         <Route path="attendance" element={<Attendance />} />
         <Route path="progress" element={<ResultsProgress />} />
+        <Route path="results" element={<Results />} />
         <Route path="achievements" element={<Achievements />} />
         <Route path="fees" element={<FeesChallans />} />
         <Route path="notifications" element={<Notifications />} />

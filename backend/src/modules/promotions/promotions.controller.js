@@ -1,4 +1,5 @@
 import { promotionsService } from './promotions.service.js';
+import { sessionPurgeService } from './sessionPurge.service.js';
 import { sendSuccess } from '../../shared/http/response.js';
 
 export const promotionsController = {
@@ -69,6 +70,44 @@ export const promotionsController = {
     try {
       const rows = await promotionsService.history(req.params.studentId);
       return sendSuccess(res, rows);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async purgePreview(req, res, next) {
+    try {
+      const { fromSessionId, toSessionId } = req.query;
+      const data = await sessionPurgeService.previewPurge({ fromSessionId, toSessionId }, req.user);
+      return sendSuccess(res, data);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async executePurge(req, res, next) {
+    try {
+      const data = await sessionPurgeService.executePurge(req.body, req.user);
+      return sendSuccess(res, data);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async purgeHistory(req, res, next) {
+    try {
+      const rows = await sessionPurgeService.getPurgeHistory();
+      return sendSuccess(res, rows);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async retryFileCleanup(req, res, next) {
+    try {
+      const { sessionId } = req.body;
+      const data = await sessionPurgeService.cleanupPurgedFiles(Number(sessionId));
+      return sendSuccess(res, data);
     } catch (error) {
       next(error);
     }

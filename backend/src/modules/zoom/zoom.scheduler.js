@@ -9,7 +9,7 @@ import { emitRealtimeEvent, RealtimeEvents } from '../../shared/realtime/eventEm
 import { zoomService } from './zoom.service.js';
 import { datesheetsService } from '../datesheets/datesheets.service.js';
 
-const TICK_INTERVAL_MS = 30 * 1000; // 30 seconds
+const TICK_INTERVAL_MS = 10 * 1000; // 10 seconds active reconciler
 const TEACHER_GRACE_PERIOD_MS = 10 * 60 * 1000; // 10 minutes past start time
 const PRE_NOTIFICATION_WINDOW_MS = 5 * 60 * 1000; // 5 minutes before scheduled start
 
@@ -252,7 +252,7 @@ export async function runZoomScheduleTick(now = new Date()) {
     // 5b. Active Zoom Meeting State Verification (Server-to-Server Auto-Conclusion when teacher leaves meeting)
     const activeLiveLessons = await db('timetable_lessons')
       .where('status', 'LIVE')
-      .select('id', 'class_id', 'zoom_meeting_id', 'actual_start_at', 'teacher_joined_at', 'start_at');
+      .select('*');
 
     for (const all of activeLiveLessons) {
       await zoomService.checkAndAutoConcludeIfMeetingEnded(all);

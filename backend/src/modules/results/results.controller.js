@@ -99,5 +99,14 @@ export const resultsController = {
     } catch (error) {
       next(error);
     }
+  },
+
+  async studentResults(req, res, next) {
+    try {
+      const data = await resultsService.getStudentAcademicHistory(Number(req.params.studentId), { isStaffUser: true });
+      return sendSuccess(res, data);
+    } catch (error) {
+      next(error);
+    }
   }
 };

@@ -585,20 +585,62 @@ export const resultsService = {
   async getMyResults(user) {
     const student = await getStudentByUserId(user.id);
     if (!student) throw new AppError('Student profile not found', 404, ErrorCodes.NOT_FOUND);
-    return await this.getStudentAcademicHistory(student.id);
+    return await this.getStudentAcademicHistory(student.id, { isStaffUser: false });
   },
 
   async getChildResults(user, studentId) {
     const student = await assertCanViewStudent(user, studentId);
-    return await this.getStudentAcademicHistory(student.id);
+    return await this.getStudentAcademicHistory(student.id, { isStaffUser: false });
   },
 
-  async getStudentAcademicHistory(studentId) {
-    const [results, enrollments, promotions] = await Promise.all([
-      resultsRepository.getPublishedResultsForStudent(studentId),
+  async getStudentAcademicHistory(studentId, { isStaffUser = false } = {}) {
+    const [results, enrollments, promotions, supplementaryList] = await Promise.all([
+      resultsRepository.getPublishedResultsForStudent(studentId, { isStaffUser }),
       resultsRepository.getEnrollmentHistory(studentId),
-      resultsRepository.getPromotionStatusForStudent(studentId)
+      resultsRepository.getPromotionStatusForStudent(studentId),
+      db('supplementary_exam_results as ser')
+        .where('ser.student_id', studentId)
+        .andWhere('ser.status', 'PUBLISHED')
+        .orderBy([
+          { column: 'ser.is_passed', order: 'desc' },
+          { column: 'ser.obtained_marks', order: 'desc' },
+          { column: 'ser.attempt_number', order: 'desc' }
+        ])
+        .select(
+          'ser.id',
+          'ser.final_result_subject_id',
+          'ser.is_passed',
+          'ser.obtained_marks',
+          'ser.max_marks',
+          'ser.grade',
+          'ser.is_absent',
+          'ser.attempt_number',
+          'ser.correction_version',
+          'ser.published_at'
+        )
     ]);
-    return { results, enrollments, promotions };
+
+    const suppMap = new Map();
+    for (const s of supplementaryList || []) {
+      if (!suppMap.has(s.final_result_subject_id)) {
+        suppMap.set(s.final_result_subject_id, s);
+      }
+    }
+
+    const enrichedResults = (results || []).map((r) => {
+      const enrichedSubjects = (r.subjects || []).map((sub) => {
+        const supp = suppMap.get(sub.id) || null;
+        return {
+          ...sub,
+          supplementary: supp
+        };
+      });
+      return {
+        ...r,
+        subjects: enrichedSubjects
+      };
+    });
+
+    return { results: enrichedResults, enrollments, promotions, supplementaryList };
   }
 };

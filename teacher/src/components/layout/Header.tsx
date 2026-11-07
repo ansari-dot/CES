@@ -84,7 +84,7 @@ export const Header: React.FC = () => {
           >
             <option value="all">All Classes</option>
             {teacher.assignedClasses.map((cls, idx) => (
-              <option key={`${cls.id}-${cls.classId || idx}`} value={cls.id}>
+              <option key={`hdr-cls-${cls.id || cls.classId || idx}-${idx}`} value={cls.id}>
                 {cls.name}
               </option>
             ))}

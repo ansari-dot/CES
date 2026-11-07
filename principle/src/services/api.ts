@@ -1675,8 +1675,11 @@ export const api = {
   },
 
   // Student records & marks reports (Reports & Export)
-  async getStudentRecordsReport(classId?: number | null): Promise<StudentRecordReportRow[]> {
-    const qs = classId ? `?classId=${classId}` : '';
+  async getStudentRecordsReport(classId?: number | null, sessionId?: number | null): Promise<StudentRecordReportRow[]> {
+    const params = new URLSearchParams();
+    if (classId) params.append('classId', String(classId));
+    if (sessionId) params.append('sessionId', String(sessionId));
+    const qs = params.toString() ? `?${params.toString()}` : '';
     const data = await requestApi<StudentRecordReportRow[]>(`/api/v1/reports/student-records${qs}`);
     return Array.isArray(data) ? data : [];
   },
@@ -1900,5 +1903,208 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ sessionId, toSessionId })
     });
+  },
+
+  // Session Purge & Rollover (Permanent Data Purge & Terminal Result Preservation)
+  async getPurgePreview(fromSessionId: number, toSessionId: number): Promise<any> {
+    return await requestApi<any>(`/api/v1/promotions/purge-preview?fromSessionId=${fromSessionId}&toSessionId=${toSessionId}`);
+  },
+
+  async executeSessionPurge(fromSessionId: number, toSessionId: number, confirmationPhrase: string): Promise<any> {
+    return await requestApi<any>('/api/v1/promotions/execute-purge', {
+      method: 'POST',
+      body: JSON.stringify({ fromSessionId, toSessionId, confirmationPhrase })
+    });
+  },
+
+  async getPurgeHistory(): Promise<any[]> {
+    const data = await requestApi<any[]>('/api/v1/promotions/purge-history');
+    return Array.isArray(data) ? data : [];
+  },
+
+  async retryFileCleanup(sessionId: number): Promise<any> {
+    return await requestApi<any>('/api/v1/promotions/retry-file-cleanup', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId })
+    });
+  },
+
+  async getStudentAcademicHistory(studentId: number): Promise<any> {
+    return await requestApi<any>(`/api/v1/results/students/${studentId}`);
+  },
+
+  // 19. Academic Performance Monitoring (Formative Engine & Alerts)
+  async getActiveGradingPolicy(sessionId?: number): Promise<any> {
+    const qs = sessionId ? `?sessionId=${sessionId}` : '';
+    const res = await requestApi<any>(`/api/v1/performance/policies/active${qs}`);
+    return res?.data ?? res;
+  },
+
+  async listGradingPolicies(filters?: { scope?: string; sessionId?: number; status?: string }): Promise<any> {
+    const qs = new URLSearchParams();
+    if (filters?.scope) qs.set('scope', filters.scope);
+    if (filters?.sessionId) qs.set('sessionId', String(filters.sessionId));
+    if (filters?.status) qs.set('status', filters.status);
+    const res = await requestApi<any>(`/api/v1/performance/policies?${qs.toString()}`);
+    return res?.data ?? res;
+  },
+
+  async createGradingPolicy(payload: Record<string, unknown>): Promise<any> {
+    const res = await requestApi<any>('/api/v1/performance/policies', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    return res?.data ?? res;
+  },
+
+  async activateGradingPolicy(id: number): Promise<any> {
+    const res = await requestApi<any>(`/api/v1/performance/policies/${id}/activate`, {
+      method: 'PATCH'
+    });
+    return res?.data ?? res;
+  },
+
+  async getStudentContinuousPerformance(studentId: number, subjectId: number, sessionId: number, classId?: number): Promise<any> {
+    const qs = new URLSearchParams({ sessionId: String(sessionId) });
+    if (classId) qs.set('classId', String(classId));
+    const res = await requestApi<any>(`/api/v1/performance/students/${studentId}/subjects/${subjectId}?${qs.toString()}`);
+    return res?.data ?? res;
+  },
+
+  async getClassContinuousPerformance(classId: number, subjectId: number, sessionId: number): Promise<any> {
+    const res = await requestApi<any>(`/api/v1/performance/classes/${classId}/subjects/${subjectId}?sessionId=${sessionId}`);
+    return res?.data ?? res;
+  },
+
+  async getAlertCooldown(studentId: number, subjectId: number): Promise<any> {
+    const res = await requestApi<any>(`/api/v1/performance/cooldown?studentId=${studentId}&subjectId=${subjectId}`);
+    return res?.data ?? res;
+  },
+
+  async triggerParentAlert(payload: {
+    studentId: number;
+    subjectId: number;
+    sessionId: number;
+    alertCategory: string;
+    title: string;
+    messageBody: string;
+    isUrgent?: boolean;
+    overrideReason?: string;
+  }): Promise<any> {
+    const res = await requestApi<any>('/api/v1/performance/alerts', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    return res?.data ?? res;
+  },
+
+  async listParentAlerts(filters?: { studentId?: number; sessionId?: number; teacherId?: number }): Promise<any> {
+    const qs = new URLSearchParams();
+    if (filters?.studentId) qs.set('studentId', String(filters.studentId));
+    if (filters?.sessionId) qs.set('sessionId', String(filters.sessionId));
+    if (filters?.teacherId) qs.set('teacherId', String(filters.teacherId));
+    const res = await requestApi<any>(`/api/v1/performance/alerts?${qs.toString()}`);
+    return res?.data ?? res;
+  },
+
+  // 20. Supplementary Examination Ledger & Re-sit Engine
+  async listFailedTerminalSubjects(filters?: { sessionId?: number; classId?: number; studentId?: number }): Promise<any[]> {
+    const qs = new URLSearchParams();
+    if (filters?.sessionId) qs.set('sessionId', String(filters.sessionId));
+    if (filters?.classId) qs.set('classId', String(filters.classId));
+    if (filters?.studentId) qs.set('studentId', String(filters.studentId));
+    const res = await requestApi<any>(`/api/v1/supplementary/failed-subjects?${qs.toString()}`);
+    return res?.data ?? res;
+  },
+
+  async listSupplementaryExams(filters?: { sessionId?: number; classId?: number; studentId?: number; subjectId?: number; status?: string }): Promise<any> {
+    const qs = new URLSearchParams();
+    if (filters?.sessionId) qs.set('sessionId', String(filters.sessionId));
+    if (filters?.classId) qs.set('classId', String(filters.classId));
+    if (filters?.studentId) qs.set('studentId', String(filters.studentId));
+    if (filters?.subjectId) qs.set('subjectId', String(filters.subjectId));
+    if (filters?.status) qs.set('status', filters.status);
+    const res = await requestApi<any>(`/api/v1/supplementary?${qs.toString()}`);
+    return res?.data ?? res;
+  },
+
+  async getSupplementaryExamById(id: number): Promise<any> {
+    const res = await requestApi<any>(`/api/v1/supplementary/${id}`);
+    return res?.data ?? res;
+  },
+
+  async initializeSupplementaryExam(finalResultSubjectId: number): Promise<any> {
+    const res = await requestApi<any>('/api/v1/supplementary/initialize', {
+      method: 'POST',
+      body: JSON.stringify({ finalResultSubjectId })
+    });
+    return res?.data ?? res;
+  },
+
+  async scheduleSupplementaryExam(id: number, payload: {
+    mode: 'MODE_A' | 'MODE_B';
+    dateSheetEntryId?: number;
+    monthlyTestId?: number;
+    examDate?: string;
+  }): Promise<any> {
+    const res = await requestApi<any>(`/api/v1/supplementary/${id}/schedule`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    });
+    return res?.data ?? res;
+  },
+
+  async recordSupplementaryMarks(id: number, payload: {
+    obtainedMarks?: number | null;
+    isAbsent?: boolean;
+    remarks?: string;
+  }): Promise<any> {
+    const res = await requestApi<any>(`/api/v1/supplementary/${id}/marks`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    });
+    return res?.data ?? res;
+  },
+
+  async submitSupplementaryMarks(id: number): Promise<any> {
+    const res = await requestApi<any>(`/api/v1/supplementary/${id}/submit`, {
+      method: 'PATCH'
+    });
+    return res?.data ?? res;
+  },
+
+  async approveSupplementaryResult(id: number): Promise<any> {
+    const res = await requestApi<any>(`/api/v1/supplementary/${id}/approve`, {
+      method: 'PATCH'
+    });
+    return res?.data ?? res;
+  },
+
+  async publishSupplementaryResult(id: number): Promise<any> {
+    const res = await requestApi<any>(`/api/v1/supplementary/${id}/publish`, {
+      method: 'PATCH'
+    });
+    return res?.data ?? res;
+  },
+
+  async cancelSupplementaryExam(id: number, reason: string): Promise<any> {
+    const res = await requestApi<any>(`/api/v1/supplementary/${id}/cancel`, {
+      method: 'PATCH',
+      body: JSON.stringify({ reason })
+    });
+    return res?.data ?? res;
+  },
+
+  async issueSupplementaryCorrection(id: number, payload: {
+    correctionReason: string;
+    obtainedMarks?: number | null;
+    isAbsent?: boolean;
+    remarks?: string;
+  }): Promise<any> {
+    const res = await requestApi<any>(`/api/v1/supplementary/${id}/correction`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    return res?.data ?? res;
   }
 };

@@ -228,7 +228,7 @@ export const CreateTaskForm: React.FC = () => {
                 <option value="" disabled>No classes assigned</option>
               ) : (
                 uniqueAssignedClasses.map((c, idx) => (
-                  <option key={`${c.id}-${idx}`} value={c.id}>
+                  <option key={`task-form-cls-${c.id}-${idx}`} value={c.id}>
                     {c.name}
                   </option>
                 ))

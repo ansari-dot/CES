@@ -173,6 +173,7 @@ export const fetchTeacherLessonsThunk = createAsyncThunk(
           sessionState: l.sessionState || (l.status === 'LIVE' ? 'LIVE' : 'SCHEDULED'),
           actualStartTime: l.actualStartAt || l.actual_start_at || l.teacherJoinedAt || l.teacher_joined_at || (l.status === 'LIVE' ? l.startAt : undefined),
           actualEndTime: l.actualEndAt || l.actual_end_at || l.handoverAt || l.handover_at || undefined,
+          verifiedDutyMinutes: Number(l.verifiedDutyMinutes || l.verified_duty_minutes || 0),
           startAt: l.startAt || l.start_at,
           endAt: l.endAt || l.end_at,
           deliveryLogged: Boolean(l.deliveryLoggedAt),
@@ -355,23 +356,27 @@ export const timetableSlice = createSlice({
       }>
     ) => {
       const idNum = Number(action.payload.lessonId);
-      const lesson = state.lessons.find(
+      let lesson = state.lessons.find(
         (l) =>
           Number(l.rawId) === idNum ||
           l.id === String(action.payload.lessonId) ||
           l.id === `LES-${String(idNum).padStart(2, '0')}`
       );
+      const st = (action.payload.status || '').toUpperCase();
+      if (!lesson && st === 'COMPLETED') {
+        lesson = state.lessons.find((l) => l.status === 'live');
+      }
       if (lesson) {
-        if (action.payload.status === 'LIVE') {
+        if (st === 'LIVE') {
           lesson.status = 'live';
           lesson.sessionState = 'LIVE';
           if (action.payload.actualStartTime) lesson.actualStartTime = action.payload.actualStartTime;
           if (action.payload.joinUrl) lesson.joinUrl = action.payload.joinUrl;
-        } else if (action.payload.status === 'COMPLETED') {
+        } else if (st === 'COMPLETED') {
           lesson.status = 'completed';
           lesson.sessionState = 'COMPLETED';
           if (action.payload.actualEndTime) lesson.actualEndTime = action.payload.actualEndTime;
-        } else if (action.payload.status === 'CANCELLED') {
+        } else if (st === 'CANCELLED') {
           lesson.status = 'cancelled' as any;
           lesson.sessionState = 'CANCELLED';
         }

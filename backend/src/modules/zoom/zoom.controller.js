@@ -134,6 +134,9 @@ export const zoomController = {
 
   async getMyClassSession(req, res, next) {
     try {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       // Find teacher record for logged-in user
       const teacher = await db('teachers').where({ user_id: req.user.id }).first();
       const teacherId = teacher ? teacher.id : req.user.id;

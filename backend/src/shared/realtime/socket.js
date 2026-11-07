@@ -173,6 +173,33 @@ export function initSocketServer(httpServer) {
     }
 
     // Dynamic Class Room Subscription with Role Authorization
+    socket.on('identify', (data) => {
+      if (data?.teacherId) {
+        const tid = Number(String(data.teacherId).replace(/\D/g, ''));
+        if (tid) {
+          socket.join(`teacher:${tid}`);
+        }
+        socket.join('role:TEACHER');
+      }
+      if (data?.userId) {
+        socket.join(`user:${data.userId}`);
+      }
+      if (data?.classId) {
+        socket.join(`class:${data.classId}`);
+      }
+      if (data?.role) {
+        socket.join(`role:${String(data.role).toUpperCase()}`);
+      }
+    });
+
+    socket.on('join:teacher', ({ teacherId }) => {
+      const tid = Number(String(teacherId).replace(/\D/g, ''));
+      if (tid) {
+        socket.join(`teacher:${tid}`);
+        socket.join('role:TEACHER');
+      }
+    });
+
     socket.on('join:class', async ({ classId }) => {
       const cid = Number(classId);
       if (!cid || isNaN(cid)) return;

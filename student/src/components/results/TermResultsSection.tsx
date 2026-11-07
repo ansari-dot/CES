@@ -14,6 +14,15 @@ interface SubjectRow {
   is_absent: number;
   passed: number | null;
   teacher_remarks: string | null;
+  supplementary?: {
+    is_passed: number;
+    obtained_marks: number | null;
+    max_marks: number;
+    grade: string | null;
+    is_absent: number;
+    attempt_number: number;
+    published_at: string;
+  } | null;
 }
 
 interface TermResult {
@@ -138,10 +147,10 @@ export default function TermResultsSection({ studentName }: { studentName?: stri
       <div className="bg-card border border-border rounded-md p-6">
         <div className="flex items-center gap-2 mb-1">
           <ScrollText className="w-4 h-4 text-primary" />
-          <h3 className="font-headings font-bold text-base text-foreground">Term Results</h3>
+          <h3 className="font-headings font-bold text-base text-foreground">Official Examination Result Cards</h3>
         </div>
         <p className="text-xs text-muted-foreground mb-4">
-          Official examination results published by the school, including previous academic years.
+          Official Terminal Examination Result Cards. Your current session evaluation and the permanent Terminal Result Card from your completed class are preserved here.
         </p>
         {data.results.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4 text-center">
@@ -159,8 +168,15 @@ export default function TermResultsSection({ studentName }: { studentName?: stri
                     className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40 transition"
                   >
                     <div className="min-w-0">
-                      <div className="text-sm font-semibold text-foreground truncate">
-                        {r.termName} · {r.sessionName}
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-foreground truncate">
+                          {r.termName} · {r.sessionName}
+                        </span>
+                        {r.isFinalTerm ? (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                            Terminal Result Card
+                          </span>
+                        ) : null}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {r.className} · {Number(r.obtained_marks).toFixed(0)}/{Number(r.total_marks).toFixed(0)} marks
@@ -202,9 +218,22 @@ export default function TermResultsSection({ studentName }: { studentName?: stri
                               <td className="py-1.5 text-right font-mono">
                                 {s.percentage != null ? `${Number(s.percentage).toFixed(1)}%` : '—'}
                               </td>
-                              <td className="py-1.5 text-right font-semibold">{s.grade || '—'}</td>
+                              <td className="py-1.5 text-right font-semibold">
+                                {s.grade || '—'}
+                                {s.supplementary?.is_passed ? (
+                                  <div className="text-[10px] text-emerald-700 font-bold">
+                                    Cleared (Grade: {s.supplementary.grade})
+                                  </div>
+                                ) : null}
+                              </td>
                               <td className="py-1.5 text-right">
-                                {s.passed === null ? '—' : s.passed ? (
+                                {s.supplementary?.is_passed ? (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                    Cleared
+                                  </span>
+                                ) : s.passed === null ? (
+                                  '—'
+                                ) : s.passed ? (
                                   <span className="text-success font-semibold">Pass</span>
                                 ) : (
                                   <span className="text-error font-semibold">Fail</span>
@@ -314,7 +343,14 @@ export default function TermResultsSection({ studentName }: { studentName?: stri
                     <td className="px-3 py-1.5 text-right font-mono">
                       {s.percentage != null ? `${Number(s.percentage).toFixed(1)}%` : '—'}
                     </td>
-                    <td className="px-3 py-1.5 text-right font-semibold">{s.grade || '—'}</td>
+                    <td className="px-3 py-1.5 text-right font-semibold">
+                      {s.grade || '—'}
+                      {s.supplementary?.is_passed ? (
+                        <div className="text-[10px] text-emerald-700 font-bold">
+                          [Cleared via Re-sit: {s.supplementary.grade}]
+                        </div>
+                      ) : null}
+                    </td>
                   </tr>
                 ))}
                 <tr className="font-bold">

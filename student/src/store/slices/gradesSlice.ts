@@ -58,10 +58,66 @@ export interface GradesSummary {
   evaluationStatus: string;
 }
 
+export interface AcademicItem {
+  id: number;
+  name: string;
+  marksAwarded: number | null;
+  maxMarks: number;
+  percentage: number | null;
+  status: string;
+  date: string;
+  isMissed?: boolean;
+}
+
+export interface AcademicProgressData {
+  overallGrade: {
+    percentage: number | null;
+    badge: string;
+    comparisonText: string;
+    subtext: string;
+  };
+  tasksSummary: {
+    count: number;
+    gradedCount?: number;
+    missedCount?: number;
+    avgPercentage: number | null;
+    items: AcademicItem[];
+  };
+  testsSummary: {
+    count: number;
+    gradedCount?: number;
+    missedCount?: number;
+    avgPercentage: number | null;
+    items: AcademicItem[];
+  };
+  midtermSummary: {
+    percentage: number | null;
+    status: string;
+    items: AcademicItem[];
+  };
+  performanceDonut: {
+    tasksAvg: number;
+    testsAvg: number;
+    midtermAvg: number;
+    overallGradePct: number;
+    hasData?: boolean;
+  };
+  totalMissedCount?: number;
+  gradeTrend: {
+    month: string;
+    percentage: number;
+  }[];
+  motivational: {
+    title: string;
+    subtext: string;
+  };
+}
+
 export interface GradesReport {
   summary: GradesSummary;
   subjects: SubjectGradeItem[];
   recentResults: RecentGradeResult[];
+  academicProgress?: AcademicProgressData;
 }
 
 interface GradesState {

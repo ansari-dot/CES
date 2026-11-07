@@ -16,7 +16,8 @@ import {
   Bell, 
   User,
   ChevronUp,
-  LogOut
+  LogOut,
+  ScrollText
 } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
@@ -49,7 +50,8 @@ export default function Sidebar({ mobileClose, onLogout }: SidebarProps) {
     },
     { name: "Projects", path: "/student/projects", icon: Rocket },
     { name: "Attendance", path: "/student/attendance", icon: CalendarCheck },
-    { name: "Results & Progress", path: "/student/progress", icon: TrendingUp },
+    { name: "Academic Progress", path: "/student/progress", icon: TrendingUp },
+    { name: "Results", path: "/student/results", icon: ScrollText },
     { name: "Achievements", path: "/student/achievements", icon: Award },
     { name: "Fees & Challans", path: "/student/fees", icon: Receipt },
     { 

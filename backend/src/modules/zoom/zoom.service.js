@@ -518,14 +518,6 @@ export const zoomService = {
     const endMs = parseDbDate(lesson.end_at).getTime();
     const isWindowOpen = now >= startMs - 10 * 60 * 1000 && now <= endMs + 30 * 60 * 1000;
 
-    if (!isWindowOpen && userRole !== 'ADMIN' && userRole !== 'PRINCIPAL') {
-      throw new AppError(
-        'Outside permitted lesson window. Classes may only start within 10 minutes of scheduled start time.',
-        422,
-        ErrorCodes.OUTSIDE_LESSON_WINDOW
-      );
-    }
-
     // Seamless Host Handoff: If previous lesson for this class is still LIVE, conclude it
     const activeLessons = await timetableRepository.getLessons({
       classId: lesson.class_id,
@@ -549,8 +541,8 @@ export const zoomService = {
     await timetableRepository.updateLesson(lesson.id, {
       status: 'LIVE',
       session_state: 'LIVE',
-      actual_start_at: lesson.actual_start_at || db.fn.now(3),
-      teacher_joined_at: lesson.teacher_joined_at || db.fn.now(3),
+      actual_start_at: db.fn.now(3),
+      teacher_joined_at: db.fn.now(3),
       attendance_verification_status: 'VERIFIED',
       zoom_meeting_id: meeting.id
     });
@@ -813,6 +805,13 @@ export const zoomService = {
       return { concluded: false, lessonId: lesson?.id, status: lesson?.status };
     }
 
+    if (!lesson.teacher_id && lesson.id) {
+      const full = await timetableRepository.findLessonById(lesson.id);
+      if (full) {
+        lesson = { ...full, ...lesson };
+      }
+    }
+
     // Require Zoom API credentials configured to verify live status
     if (!zoomApiClient.isConfigured()) {
       return { concluded: false, lessonId: lesson.id, reason: 'ZOOM_NOT_CONFIGURED' };
@@ -835,11 +834,11 @@ export const zoomService = {
       return { concluded: false, lessonId: lesson.id, reason: 'NO_VALID_ZOOM_MEETING_NUMBER' };
     }
 
-    // Give 45 seconds grace period after launch to allow teacher to connect to Zoom
+    // Brief 5-second grace period after launch to allow browser to spawn Zoom client
     const launchTime = parseDbDate(lesson.actual_start_at || lesson.teacher_joined_at || lesson.start_at);
     const now = new Date();
     const elapsedMs = launchTime ? (now.getTime() - launchTime.getTime()) : 100000;
-    if (elapsedMs >= 0 && elapsedMs < 45 * 1000) {
+    if (elapsedMs >= 0 && elapsedMs < 5 * 1000) {
       return { concluded: false, lessonId: lesson.id, reason: 'GRACE_PERIOD_ACTIVE' };
     }
 
@@ -903,7 +902,9 @@ export const zoomService = {
             lessonId: lesson.id,
             status: 'COMPLETED',
             verifiedMinutes: verifiedMins,
-            payableMinutes: verifiedMins
+            payableMinutes: verifiedMins,
+            sessionEnd: leaveTime.toISOString(),
+            isLive: false
           }, { teacherIds: [effectiveTeacherId] });
 
           emitRealtimeEvent(RealtimeEvents.PAYROLL_SUMMARY_UPDATED, {
@@ -919,8 +920,10 @@ export const zoomService = {
           subjectName: lesson.subjectName,
           status: 'COMPLETED',
           sessionState: 'COMPLETED',
-          verifiedMinutes: verifiedMins
-        }, { classIds: [lesson.class_id] });
+          verifiedMinutes: verifiedMins,
+          actualEndTime: leaveTime.toISOString(),
+          isLive: false
+        }, { classIds: [lesson.class_id], teacherIds: effectiveTeacherId ? [effectiveTeacherId] : [] });
 
         await db('audit_logs').insert({
           actor_id: null,
@@ -1196,7 +1199,9 @@ export const zoomService = {
             lessonId: liveLesson.id,
             status: 'COMPLETED',
             verifiedMinutes: duty.verifiedMinutes,
-            payableMinutes: duty.isPayable ? duty.verifiedMinutes : 0
+            payableMinutes: duty.isPayable ? duty.verifiedMinutes : 0,
+            sessionEnd: leaveTime.toISOString(),
+            isLive: false
           }, { teacherIds: [liveLesson.teacher_id] });
 
           emitRealtimeEvent(RealtimeEvents.PAYROLL_SUMMARY_UPDATED, {
@@ -1210,8 +1215,10 @@ export const zoomService = {
           classId: liveLesson.class_id,
           status: 'COMPLETED',
           sessionState: 'COMPLETED',
-          verifiedMinutes: duty.verifiedMinutes
-        }, { classIds: [liveLesson.class_id] });
+          verifiedMinutes: duty.verifiedMinutes,
+          actualEndTime: leaveTime.toISOString(),
+          isLive: false
+        }, { classIds: [liveLesson.class_id], teacherIds: liveLesson.teacher_id ? [liveLesson.teacher_id] : [] });
 
         await db('audit_logs').insert({
           actor_id: null,
@@ -1263,11 +1270,23 @@ export const zoomService = {
         durationSeconds: participant?.duration || null
       });
 
+      // If classroom host left the meeting and a lesson is currently LIVE for this class, auto-conclude it
+      if (isLeaveEvent && meetingRow?.class_id) {
+        const liveLesson = await db('timetable_lessons')
+          .where({ class_id: meetingRow.class_id, status: 'LIVE' })
+          .first();
+        if (liveLesson) {
+          await this.checkAndAutoConcludeIfMeetingEnded(liveLesson, {
+            reason: 'Classroom host left Zoom meeting'
+          });
+        }
+      }
+
       return {
         received: true,
         role: 'CLASSROOM_HOST',
         verifiedAsTeacher: false,
-        message: 'Classroom host identity recorded without crediting teacher duty.'
+        message: 'Classroom host identity recorded.'
       };
     }
 
@@ -1805,15 +1824,20 @@ export const zoomService = {
           lessonId: lesson.id,
           status: isCompleted ? 'COMPLETED' : 'IN_PROGRESS',
           verifiedMinutes: duty.verifiedMinutes,
-          payableMinutes: duty.isPayable ? duty.verifiedMinutes : 0
+          payableMinutes: duty.isPayable ? duty.verifiedMinutes : 0,
+          sessionEnd: leaveTime.toISOString(),
+          isLive: !isCompleted
         }, { teacherIds: [teacherUser.teacherId] });
 
         emitRealtimeEvent(RealtimeEvents.CLASS_STATUS_UPDATED, {
           lessonId: lesson.id,
           classId: lesson.class_id,
           status: newStatus,
-          sessionState: newStatus
-        }, { classIds: [lesson.class_id] });
+          sessionState: newStatus,
+          verifiedMinutes: duty.verifiedMinutes,
+          actualEndTime: leaveTime.toISOString(),
+          isLive: !isCompleted
+        }, { classIds: [lesson.class_id], teacherIds: [teacherUser.teacherId] });
 
         emitRealtimeEvent(RealtimeEvents.PAYROLL_SUMMARY_UPDATED, {
           teacherId: teacherUser.teacherId,

@@ -235,13 +235,42 @@ export const resultsRepository = {
 
   // ── Student / parent reads ─────────────────────────────────────────
 
-  async getPublishedResultsForStudent(studentId) {
-    const results = await db('final_results')
+  async getPublishedResultsForStudent(studentId, { isStaffUser = false } = {}) {
+    let query = db('final_results')
       .join('classes', 'final_results.class_id', 'classes.id')
       .join('academic_terms', 'final_results.term_id', 'academic_terms.id')
       .join('academic_sessions', 'final_results.session_id', 'academic_sessions.id')
       .where('final_results.student_id', studentId)
-      .where('final_results.result_status', 'PUBLISHED')
+      .where('final_results.result_status', 'PUBLISHED');
+
+    if (!isStaffUser) {
+      // Dual-Horizon Rule:
+      // Student/Parent sees:
+      //  1. Current session published results (if any)
+      //  2. ONLY the immediately previous session's Terminal Examination result card (is_final = 1)
+      // Older Terminal result cards (N-2, N-3) are filtered out for students, preserved for Principal.
+      const currentSession = await db('academic_sessions').where({ is_current: 1 }).first();
+      if (currentSession) {
+        const previousSession = await db('academic_sessions')
+          .where('end_date', '<', currentSession.start_date)
+          .orWhere(function () {
+            this.where('is_current', 0).whereNot('id', currentSession.id);
+          })
+          .orderBy('end_date', 'desc')
+          .first();
+
+        query = query.where(function () {
+          this.where('final_results.session_id', currentSession.id);
+          if (previousSession) {
+            this.orWhere(function () {
+              this.where('final_results.session_id', previousSession.id).where('academic_terms.is_final', 1);
+            });
+          }
+        });
+      }
+    }
+
+    const results = await query
       .select(
         'final_results.*',
         'classes.name as className',
@@ -252,6 +281,7 @@ export const resultsRepository = {
       )
       .orderBy('academic_sessions.start_date', 'desc')
       .orderBy('academic_terms.sort_order', 'desc');
+
     for (const r of results) {
       r.subjects = await this.getResultSubjects(r.id);
     }

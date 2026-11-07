@@ -1,6 +1,8 @@
 import { io, Socket } from 'socket.io-client';
 
 let socket: Socket | null = null;
+let currentTeacherId: string | number | null = null;
+let currentUserId: string | number | null = null;
 
 export const RealtimeEvents = {
   CLASS_STATUS_UPDATED: 'class.status.updated',
@@ -25,7 +27,9 @@ export function getSocket(): Socket {
     });
 
     socket.on('connect', () => {
-      // Re-joined rooms handled on reconnect
+      if (currentTeacherId) {
+        identifyTeacher(currentTeacherId, currentUserId || undefined);
+      }
     });
 
     socket.on('connect_error', (err) => {
@@ -33,6 +37,17 @@ export function getSocket(): Socket {
     });
   }
   return socket;
+}
+
+export function identifyTeacher(teacherId: number | string, userId?: number | string) {
+  currentTeacherId = teacherId;
+  if (userId) currentUserId = userId;
+  const s = getSocket();
+  const tid = typeof teacherId === 'string' ? Number(teacherId.replace(/\D/g, '')) : teacherId;
+  s.emit('identify', { teacherId: tid, userId: currentUserId, role: 'TEACHER' });
+  if (tid) {
+    s.emit('join:teacher', { teacherId: tid });
+  }
 }
 
 export function subscribeToClass(classId: number | string) {

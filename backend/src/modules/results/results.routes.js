@@ -9,6 +9,12 @@ const router = Router();
 // Student / parent self-service reads (static paths before /:id)
 router.get('/me', authenticate, requireRole('STUDENT'), resultsController.myResults);
 router.get('/child/:studentId', authenticate, requireRole('PARENT'), resultsController.childResults);
+router.get(
+  '/students/:studentId',
+  authenticate,
+  requireRole('ADMIN', 'PRINCIPAL'),
+  resultsController.studentResults
+);
 
 // Teacher marks hand-off
 router.get('/teacher-status', authenticate, requireRole('TEACHER'), resultsController.teacherStatus);

@@ -215,7 +215,7 @@ export const AttendancePage: React.FC = () => {
               const isSelected = selectedClassId === cls.id;
               return (
                 <button
-                  key={`att-cls-${cls.id}-${cls.classId || idx}`}
+                  key={`att-cls-${cls.id || ''}-${idx}`}
                   type="button"
                   onClick={() => handleSelectClass(cls.id)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${

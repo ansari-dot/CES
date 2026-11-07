@@ -581,11 +581,390 @@ export const studentsRepository = {
     const overallGrade = getGrade(overallAvg);
     const overallGpa = getGpa(overallAvg);
 
+    // 8. Query all class tests (to evaluate taken, missed, and upcoming tests)
+    const classTests = await db('monthly_tests')
+      .leftJoin('subjects', 'monthly_tests.subject_id', 'subjects.id')
+      .where('monthly_tests.class_id', student.classId)
+      .whereIn('monthly_tests.status', ['PUBLISHED', 'CLOSED', 'RESULTS_PUBLISHED'])
+      .select(
+        'monthly_tests.id',
+        'monthly_tests.title',
+        'monthly_tests.exam_type',
+        'monthly_tests.total_marks as maxMarks',
+        'monthly_tests.available_from as availableFrom',
+        'monthly_tests.available_until as availableUntil',
+        'monthly_tests.status as testStatus',
+        'subjects.name as subjectName'
+      )
+      .orderBy('monthly_tests.available_from', 'desc');
+
+    // Query student test attempts
+    const testAttempts = await db('test_attempts')
+      .where('student_id', studentId)
+      .select('*');
+
+    const attemptMap = new Map(testAttempts.map((a) => [a.test_id, a]));
+    const submissionMap = new Map(submissions.map((s) => [s.taskId, s]));
+    const now = new Date();
+
+    function getStatusLabel(pct) {
+      if (pct == null) return 'Pending';
+      if (pct >= 98) return 'Perfect';
+      if (pct >= 85) return 'Excellent';
+      if (pct >= 70) return 'Good';
+      if (pct >= 50) return 'Pass';
+      return 'Needs Work';
+    }
+
+    function formatDate(raw) {
+      if (!raw) return '—';
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) return '—';
+      return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+    }
+
+    // -------------------------------------------------------------
+    // Comprehensive Task / Assignment Evaluation (including Missed & Overdue)
+    // -------------------------------------------------------------
+    let taskAwardedTotal = 0;
+    let taskMaxTotal = 0;
+    let missedTasksCount = 0;
+
+    const taskItems = classTasks.map((t, idx) => {
+      const sub = submissionMap.get(t.id);
+      const deadline = t.deadline ? new Date(t.deadline) : null;
+      const isPastDeadline = deadline ? deadline < now : false;
+      const max = Number(t.totalMarks) || 20;
+
+      if (sub && sub.status === 'GRADED') {
+        const awarded = sub.marksAwarded != null ? Number(sub.marksAwarded) : 0;
+        const p = max > 0 ? Math.round((awarded / max) * 100) : 0;
+        taskAwardedTotal += awarded;
+        taskMaxTotal += max;
+        return {
+          id: t.id,
+          name: t.title || `${t.subjectName || 'Coursework'} Assignment`,
+          marksAwarded: awarded,
+          maxMarks: max,
+          percentage: p,
+          status: getStatusLabel(p),
+          date: formatDate(sub.submittedAt || sub.gradedAt || t.deadline),
+          isMissed: false
+        };
+      } else if (sub) {
+        // Submitted, awaiting grading
+        return {
+          id: t.id,
+          name: t.title || `${t.subjectName || 'Coursework'} Assignment`,
+          marksAwarded: null,
+          maxMarks: max,
+          percentage: null,
+          status: 'In Review',
+          date: formatDate(sub.submittedAt || t.deadline),
+          isMissed: false
+        };
+      } else if (isPastDeadline) {
+        // Student did not submit and deadline passed -> MISSED with 0 marks penalty
+        taskAwardedTotal += 0;
+        taskMaxTotal += max;
+        missedTasksCount += 1;
+        return {
+          id: t.id,
+          name: t.title || `${t.subjectName || 'Coursework'} Assignment`,
+          marksAwarded: 0,
+          maxMarks: max,
+          percentage: 0,
+          status: 'Missed',
+          date: formatDate(t.deadline),
+          isMissed: true
+        };
+      } else {
+        // Active assignment with future deadline
+        return {
+          id: t.id,
+          name: t.title || `${t.subjectName || 'Coursework'} Assignment`,
+          marksAwarded: null,
+          maxMarks: max,
+          percentage: null,
+          status: 'Assigned',
+          date: formatDate(t.deadline),
+          isMissed: false
+        };
+      }
+    });
+
+    const tasksAvg = taskMaxTotal > 0
+      ? Number(((taskAwardedTotal / taskMaxTotal) * 100).toFixed(1))
+      : null;
+
+    // -------------------------------------------------------------
+    // Comprehensive Monthly Tests Evaluation (including Missed & Upcoming)
+    // -------------------------------------------------------------
+    let testAwardedTotal = 0;
+    let testMaxTotal = 0;
+    let missedTestsCount = 0;
+
+    const nonMidtermTests = classTests.filter((t) => t.exam_type !== 'MID_TERM');
+    const monthlyTestItems = nonMidtermTests.map((t, idx) => {
+      const att = attemptMap.get(t.id);
+      const max = Number(t.maxMarks) || 10;
+      const isPast = t.availableUntil ? new Date(t.availableUntil) < now : false;
+      const isClosed = t.testStatus === 'CLOSED' || t.testStatus === 'RESULTS_PUBLISHED' || isPast;
+
+      if (att && att.status === 'GRADED') {
+        const score = Number(att.total_score) || 0;
+        const p = max > 0 ? Math.round((score / max) * 100) : 0;
+        testAwardedTotal += score;
+        testMaxTotal += max;
+        return {
+          id: t.id,
+          name: t.title || `${t.subjectName || 'Academic'} Test`,
+          marksAwarded: score,
+          maxMarks: max,
+          percentage: p,
+          status: getStatusLabel(p),
+          date: formatDate(att.graded_at || att.submitted_at || t.availableUntil),
+          isMissed: false
+        };
+      } else if (att) {
+        // Submitted, in review
+        return {
+          id: t.id,
+          name: t.title || `${t.subjectName || 'Academic'} Test`,
+          marksAwarded: null,
+          maxMarks: max,
+          percentage: null,
+          status: 'In Review',
+          date: formatDate(att.submitted_at || t.availableUntil),
+          isMissed: false
+        };
+      } else if (isClosed) {
+        // Test window closed and never attempted -> MISSED with 0 marks penalty
+        testAwardedTotal += 0;
+        testMaxTotal += max;
+        missedTestsCount += 1;
+        return {
+          id: t.id,
+          name: t.title || `${t.subjectName || 'Academic'} Test`,
+          marksAwarded: 0,
+          maxMarks: max,
+          percentage: 0,
+          status: 'Missed',
+          date: formatDate(t.availableUntil || t.availableFrom),
+          isMissed: true
+        };
+      } else {
+        // Upcoming test
+        return {
+          id: t.id,
+          name: t.title || `${t.subjectName || 'Academic'} Test`,
+          marksAwarded: null,
+          maxMarks: max,
+          percentage: null,
+          status: 'Upcoming',
+          date: formatDate(t.availableFrom),
+          isMissed: false
+        };
+      }
+    });
+
+    const testsAvg = testMaxTotal > 0
+      ? Number(((testAwardedTotal / testMaxTotal) * 100).toFixed(1))
+      : null;
+
+    // -------------------------------------------------------------
+    // Midterm Evaluation (Attempted, Missed, or Published)
+    // -------------------------------------------------------------
+    let midtermAwardedTotal = 0;
+    let midtermMaxTotal = 0;
+    let missedMidtermCount = 0;
+
+    const midtermTests = classTests.filter((t) => t.exam_type === 'MID_TERM');
+    let midtermItems = midtermTests.map((t, idx) => {
+      const att = attemptMap.get(t.id);
+      const max = Number(t.maxMarks) || 100;
+      const isPast = t.availableUntil ? new Date(t.availableUntil) < now : false;
+      const isClosed = t.testStatus === 'CLOSED' || t.testStatus === 'RESULTS_PUBLISHED' || isPast;
+
+      if (att && att.status === 'GRADED') {
+        const score = Number(att.total_score) || 0;
+        const p = max > 0 ? Math.round((score / max) * 100) : 0;
+        midtermAwardedTotal += score;
+        midtermMaxTotal += max;
+        return {
+          id: t.id,
+          name: t.title || 'Midterm Examination',
+          marksAwarded: score,
+          maxMarks: max,
+          percentage: p,
+          status: getStatusLabel(p),
+          date: formatDate(att.graded_at || att.submitted_at || t.availableUntil),
+          isMissed: false
+        };
+      } else if (att) {
+        return {
+          id: t.id,
+          name: t.title || 'Midterm Examination',
+          marksAwarded: null,
+          maxMarks: max,
+          percentage: null,
+          status: 'In Review',
+          date: formatDate(att.submitted_at || t.availableUntil),
+          isMissed: false
+        };
+      } else if (isClosed) {
+        midtermAwardedTotal += 0;
+        midtermMaxTotal += max;
+        missedMidtermCount += 1;
+        return {
+          id: t.id,
+          name: t.title || 'Midterm Examination',
+          marksAwarded: 0,
+          maxMarks: max,
+          percentage: 0,
+          status: 'Missed',
+          date: formatDate(t.availableUntil || t.availableFrom),
+          isMissed: true
+        };
+      } else {
+        return {
+          id: t.id,
+          name: t.title || 'Midterm Examination',
+          marksAwarded: null,
+          maxMarks: max,
+          percentage: null,
+          status: 'Upcoming',
+          date: formatDate(t.availableFrom),
+          isMissed: false
+        };
+      }
+    });
+
+    if (midtermItems.length === 0) {
+      const termMidterm = await db('final_results')
+        .join('academic_terms', 'final_results.term_id', 'academic_terms.id')
+        .where('final_results.student_id', studentId)
+        .where('final_results.result_status', 'PUBLISHED')
+        .where('academic_terms.is_final', 0)
+        .select('final_results.*', 'academic_terms.name as termName')
+        .first();
+
+      if (termMidterm) {
+        const max = Number(termMidterm.total_marks) || 100;
+        const awarded = Number(termMidterm.obtained_marks) || 0;
+        const p = termMidterm.percentage != null
+          ? Number(termMidterm.percentage)
+          : Math.round((awarded / max) * 100);
+        midtermAwardedTotal += awarded;
+        midtermMaxTotal += max;
+        midtermItems.push({
+          id: termMidterm.id,
+          name: termMidterm.termName || 'Midterm Examination',
+          marksAwarded: awarded,
+          maxMarks: max,
+          percentage: p,
+          status: getStatusLabel(p),
+          date: formatDate(termMidterm.published_at),
+          isMissed: false
+        });
+      }
+    }
+
+    const midtermAvg = midtermMaxTotal > 0
+      ? Number(((midtermAwardedTotal / midtermMaxTotal) * 100).toFixed(1))
+      : null;
+
+    // -------------------------------------------------------------
+    // Overall Academic Standing (Includes penalty for missed tasks/tests)
+    // -------------------------------------------------------------
+    const totalMissedCount = missedTasksCount + missedTestsCount + missedMidtermCount;
+
+    const weightedParts = [];
+    if (tasksAvg != null) weightedParts.push({ val: tasksAvg, weight: 0.3 });
+    if (testsAvg != null) weightedParts.push({ val: testsAvg, weight: 0.3 });
+    if (midtermAvg != null) weightedParts.push({ val: midtermAvg, weight: 0.4 });
+
+    let calculatedOverall = null;
+    if (weightedParts.length > 0) {
+      const totalWeight = weightedParts.reduce((a, b) => a + b.weight, 0);
+      const sum = weightedParts.reduce((a, b) => a + (b.val * b.weight), 0);
+      calculatedOverall = Number((sum / totalWeight).toFixed(1));
+    }
+
+    // Dynamic standing badge
+    let standingBadge = 'Pending Evaluation';
+    let comparisonText = 'No graded records yet';
+    let subtext = 'Complete and submit your coursework to view evaluation.';
+
+    if (calculatedOverall != null) {
+      if (totalMissedCount > 0) {
+        standingBadge = calculatedOverall < 50 ? 'Academic Alert' : 'Needs Attention';
+        comparisonText = `${totalMissedCount} Missed Deadline${totalMissedCount > 1 ? 's' : ''}`;
+        subtext = 'Missed assignments or tests have lowered your overall score.';
+      } else if (calculatedOverall >= 85) {
+        standingBadge = 'Excellent Performance';
+        comparisonText = `Average: ${calculatedOverall}%`;
+        subtext = 'Keep up the great work!';
+      } else if (calculatedOverall >= 70) {
+        standingBadge = 'Good Standing';
+        comparisonText = `Average: ${calculatedOverall}%`;
+        subtext = 'Consistent effort observed.';
+      } else if (calculatedOverall >= 50) {
+        standingBadge = 'Satisfactory';
+        comparisonText = `Average: ${calculatedOverall}%`;
+        subtext = 'Room for academic improvement.';
+      } else {
+        standingBadge = 'Academic Alert';
+        comparisonText = `Average: ${calculatedOverall}%`;
+        subtext = 'Consult your teacher for support.';
+      }
+    }
+
+    // Real monthly trend from completed/missed graded dates
+    const allGradedEvents = [
+      ...taskItems.filter((t) => t.percentage != null).map((t) => ({ pct: t.percentage, date: t.date })),
+      ...monthlyTestItems.filter((t) => t.percentage != null).map((t) => ({ pct: t.percentage, date: t.date })),
+      ...midtermItems.filter((t) => t.percentage != null).map((t) => ({ pct: t.percentage, date: t.date }))
+    ];
+
+    const monthlyMap = new Map();
+    for (const ev of allGradedEvents) {
+      if (ev.date && ev.date !== '—') {
+        const monthName = String(ev.date).split(' ')[0];
+        if (!monthlyMap.has(monthName)) {
+          monthlyMap.set(monthName, { total: 0, count: 0 });
+        }
+        const item = monthlyMap.get(monthName);
+        item.total += ev.pct;
+        item.count += 1;
+      }
+    }
+
+    const realTrend = Array.from(monthlyMap.entries()).map(([month, data]) => ({
+      month,
+      percentage: Number((data.total / data.count).toFixed(1))
+    }));
+
+    // Dynamic motivational banner
+    let motivationalTitle = 'Academic Progress Tracking Active';
+    let motivationalSubtext = 'Your performance metrics will update as coursework and tests are completed.';
+
+    if (totalMissedCount > 0) {
+      motivationalTitle = `Attention: You have ${totalMissedCount} missed assessment${totalMissedCount > 1 ? 's' : ''}!`;
+      motivationalSubtext = 'Overdue tasks or missed tests are scored as 0. Speak with your faculty to catch up.';
+    } else if (calculatedOverall != null && calculatedOverall >= 85) {
+      motivationalTitle = 'You are performing excellently!';
+      motivationalSubtext = 'Keep it up for even better results.';
+    } else if (calculatedOverall != null && calculatedOverall >= 70) {
+      motivationalTitle = 'Good academic momentum!';
+      motivationalSubtext = 'Stay on top of all upcoming tasks and tests.';
+    }
+
     return {
       summary: {
         ...student,
-        overallAverage: overallAvg,
-        overallAverageDisplay: overallAvg != null ? `${overallAvg}%` : 'Pending Assessment',
+        overallAverage: overallAvg ?? calculatedOverall,
+        overallAverageDisplay: (overallAvg ?? calculatedOverall) != null ? `${overallAvg ?? calculatedOverall}%` : 'Pending Assessment',
         overallGrade,
         gpa: overallGpa,
         totalTasks: classTasks.length,
@@ -598,7 +977,47 @@ export const studentsRepository = {
         evaluationStatus
       },
       subjects: subjectList,
-      recentResults: gradedSubmissions
+      recentResults: gradedSubmissions,
+      academicProgress: {
+        overallGrade: {
+          percentage: calculatedOverall,
+          badge: standingBadge,
+          comparisonText,
+          subtext
+        },
+        tasksSummary: {
+          count: classTasks.length,
+          gradedCount: taskItems.filter((t) => t.percentage != null).length,
+          missedCount: missedTasksCount,
+          avgPercentage: tasksAvg,
+          items: taskItems
+        },
+        testsSummary: {
+          count: nonMidtermTests.length,
+          gradedCount: monthlyTestItems.filter((t) => t.percentage != null).length,
+          missedCount: missedTestsCount,
+          avgPercentage: testsAvg,
+          items: monthlyTestItems
+        },
+        midtermSummary: {
+          percentage: midtermAvg,
+          status: midtermAvg != null ? getStatusLabel(midtermAvg) : (missedMidtermCount > 0 ? 'Missed' : 'Pending'),
+          items: midtermItems
+        },
+        performanceDonut: {
+          tasksAvg: tasksAvg ?? 0,
+          testsAvg: testsAvg ?? 0,
+          midtermAvg: midtermAvg ?? 0,
+          overallGradePct: calculatedOverall ?? 0,
+          hasData: calculatedOverall != null
+        },
+        totalMissedCount,
+        gradeTrend: realTrend,
+        motivational: {
+          title: motivationalTitle,
+          subtext: motivationalSubtext
+        }
+      }
     };
   }
 };

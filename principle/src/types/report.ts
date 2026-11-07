@@ -83,6 +83,14 @@ export interface StudentRecordReportRow {
     examAverage: number | null;
   };
   achievements: number;
+  terminalResult?: {
+    obtainedMarks: number | null;
+    totalMarks: number;
+    percentage: number | null;
+    grade: string;
+    status: string;
+    resultStatus: string;
+  };
 }
 
 export interface StudentMarksReportRow {

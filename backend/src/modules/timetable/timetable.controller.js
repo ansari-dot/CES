@@ -33,6 +33,9 @@ export const timetableController = {
 
   async getMyLessons(req, res, next) {
     try {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       const teacher = await db('teachers').where({ user_id: req.user.id }).first();
       if (!teacher) return sendSuccess(res, []);
       const startDate = req.query.startDate || null;
