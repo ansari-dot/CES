@@ -16,6 +16,7 @@ export interface Subject {
 }
 
 export interface SchoolClass {
+  id?: number;
   classNumber: number; // 1 to 8
   name: string; // e.g. "Class 1", "Class 8"
   academicSession: string;

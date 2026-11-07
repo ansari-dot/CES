@@ -771,6 +771,7 @@ export const api = {
               classAssignments = [];
             }
             return {
+              id: Number(c.id || classNum),
               classNumber: classNum,
               name: c.name || `Class ${classNum}`,
               academicSession: '2026-27',

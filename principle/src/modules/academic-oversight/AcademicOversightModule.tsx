@@ -35,7 +35,6 @@ export const AcademicOversightModule: React.FC = () => {
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
   const [classes, setClasses] = useState<SchoolClass[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
-  const [selectedSection, setSelectedSection] = useState<string>('all');
   const [students, setStudents] = useState<StudentRecordReportRow[]>([]);
   const [subjects, setSubjects] = useState<{ id: string; name: string; code: string }[]>([]);
 
@@ -135,11 +134,11 @@ export const AcademicOversightModule: React.FC = () => {
   const sessionName = currentSessionObj ? currentSessionObj.name : '2026-27';
 
   const selectedClassObj = useMemo(
-    () => classes.find((c) => c.id === selectedClassId),
+    () => classes.find((c) => (c.id || c.classNumber) === selectedClassId),
     [classes, selectedClassId]
   );
 
-  // Filter students by section & search query
+  // Filter students by search query
   const filteredStudents = useMemo(() => {
     return students.filter((s) => {
       // Search matching student name, roll number, or admission number
@@ -516,40 +515,26 @@ export const AcademicOversightModule: React.FC = () => {
               <BookOpen className="w-3.5 h-3.5 text-slate-400" />
               <span className="text-[11px] text-slate-500 font-normal">Class:</span>
               <select
-                value={selectedClassId || ''}
+                value={selectedClassId ?? ''}
                 onChange={(e) => setSelectedClassId(e.target.value ? Number(e.target.value) : null)}
                 className="bg-transparent text-slate-900 font-semibold focus:outline-none cursor-pointer pr-2"
               >
                 <option value="">All Classes (1–8)</option>
-                {classes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Section Selector */}
-          <div className="relative">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 font-medium shadow-2xs">
-              <Users className="w-3.5 h-3.5 text-slate-400" />
-              <span className="text-[11px] text-slate-500 font-normal">Section:</span>
-              <select
-                value={selectedSection}
-                onChange={(e) => setSelectedSection(e.target.value)}
-                className="bg-transparent text-slate-900 font-semibold focus:outline-none cursor-pointer pr-2"
-              >
-                <option value="all">Section: A</option>
-                <option value="A">Section: A</option>
-                <option value="B">Section: B</option>
+                {classes.map((c) => {
+                  const val = c.id ?? c.classNumber;
+                  return (
+                    <option key={val} value={val}>
+                      {c.name}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 2. PURPLE HERO BANNER (Exact Visual Match to User Mockup) */}
+      {/* 2. PURPLE HERO BANNER */}
       <div className="p-6 rounded-3xl bg-gradient-to-r from-purple-50/90 via-indigo-50/60 to-purple-50/40 border border-purple-100/90 shadow-2xs relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-5">
         <div className="flex items-center gap-4">
           {/* 3D Stylized Cap Illustration */}
@@ -562,7 +547,7 @@ export const AcademicOversightModule: React.FC = () => {
               Academic Results Overview
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              View complete results for {selectedClassObj ? selectedClassObj.name : 'current section (Class 1–8)'}
+              View complete results for {selectedClassObj ? selectedClassObj.name : 'all classes (Class 1–8)'}
             </p>
           </div>
         </div>
@@ -570,8 +555,12 @@ export const AcademicOversightModule: React.FC = () => {
         {/* Right Info Pill */}
         <div className="flex items-center gap-2 self-start md:self-auto px-4 py-2 rounded-2xl bg-white/80 backdrop-blur-xs border border-purple-200/80 text-purple-900 text-xs font-semibold shadow-2xs">
           <span>Session: {sessionName}</span>
-          <span className="text-purple-300">|</span>
-          <span>Section: {selectedSection === 'all' ? 'A' : selectedSection}</span>
+          {selectedClassObj && (
+            <>
+              <span className="text-purple-300">|</span>
+              <span>{selectedClassObj.name}</span>
+            </>
+          )}
           <SlidersHorizontal className="w-3.5 h-3.5 text-purple-600 ml-1" />
         </div>
       </div>
@@ -589,7 +578,7 @@ export const AcademicOversightModule: React.FC = () => {
               {stats.totalStudents}
             </span>
             <span className="text-[11px] text-slate-400 block mt-0.5">
-              In Section {selectedSection === 'all' ? 'A' : selectedSection}
+              Enrolled in {selectedClassObj ? selectedClassObj.name : 'Classes 1–8'}
             </span>
           </div>
         </div>
@@ -637,7 +626,7 @@ export const AcademicOversightModule: React.FC = () => {
               {stats.avgTerminalExam}
             </span>
             <span className="text-[11px] text-slate-400 block mt-0.5">
-              Overall Section Average
+              Overall Academic Average
             </span>
           </div>
         </div>
@@ -772,7 +761,7 @@ export const AcademicOversightModule: React.FC = () => {
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 {activeTab === 'terminal'
-                  ? 'Final exam results for all students in this section'
+                  ? `Final exam results for ${selectedClassObj ? selectedClassObj.name : 'all classes'}`
                   : 'Continuous assessment, task submission, and attendance tracking'}
               </p>
             </div>
@@ -818,7 +807,7 @@ export const AcademicOversightModule: React.FC = () => {
           <div className="p-8">
             <EmptyState
               title="No Student Records Found"
-              description="No students match your filter criteria or no academic records have been published for this section."
+              description="No students match your filter criteria or no academic records have been published for this class / session."
             />
           </div>
         ) : activeTab === 'terminal' ? (
@@ -831,7 +820,6 @@ export const AcademicOversightModule: React.FC = () => {
                   <th className="px-5 py-3">Student Name</th>
                   <th className="px-5 py-3">Roll No</th>
                   <th className="px-5 py-3">Class</th>
-                  <th className="px-5 py-3">Section</th>
                   <th className="px-5 py-3">Terminal Exam Marks</th>
                   <th className="px-5 py-3">Percentage</th>
                   <th className="px-5 py-3">Grade</th>
@@ -867,7 +855,6 @@ export const AcademicOversightModule: React.FC = () => {
                         {s.rollNo ? `S-${s.rollNo.padStart(3, '0')}` : '—'}
                       </td>
                       <td className="px-5 py-3.5 text-slate-700 font-medium">{s.className}</td>
-                      <td className="px-5 py-3.5 text-slate-600 font-medium">A</td>
                       <td className="px-5 py-3.5 font-mono text-slate-900 font-semibold">
                         {marksObtained != null ? `${marksObtained} / ${marksTotal}` : '—'}
                       </td>
@@ -1107,8 +1094,8 @@ export const AcademicOversightModule: React.FC = () => {
                   </span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider">Class / Section</span>
-                  <span className="font-bold text-slate-900">{transcriptModal.student.className} - A</span>
+                  <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider">Class</span>
+                  <span className="font-bold text-slate-900">{transcriptModal.student.className}</span>
                 </div>
               </div>
 
