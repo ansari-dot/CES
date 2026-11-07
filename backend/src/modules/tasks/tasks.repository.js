@@ -367,24 +367,54 @@ export const tasksRepository = {
 
   /** Class roster for a task with each student's current submission / marks. */
   async getTaskRoster(task) {
+    const classId = Number(task.classId || task.class_id);
+    const taskId = Number(task.id);
     const students = await db('students')
       .join('users', 'students.user_id', 'users.id')
-      .where({ 'students.current_class_id': task.classId, 'students.status': 'ACTIVE' })
+      .where(function () {
+        this.where('students.current_class_id', classId)
+          .orWhereIn(
+            'students.id',
+            db('enrollments')
+              .select('student_id')
+              .where('class_id', classId)
+              .andWhere('status', 'ACTIVE')
+          );
+      })
+      .where('students.status', 'ACTIVE')
       .select('students.id as studentId', 'users.full_name as studentName', 'students.roll_no as rollNo', 'students.admission_no as admissionNo')
       .orderBy('students.roll_no', 'asc');
 
-    const subs = await db('task_submissions').where('task_id', task.id);
+    const subs = await db('task_submissions').where('task_id', taskId);
     const subMap = new Map(subs.map((s) => [Number(s.student_id), s]));
 
     return students.map((s) => {
       const sub = subMap.get(Number(s.studentId));
+      let parsedRubric = sub?.rubric_scores;
+      if (typeof parsedRubric === 'string') {
+        try {
+          parsedRubric = JSON.parse(parsedRubric);
+        } catch {
+          parsedRubric = null;
+        }
+      }
+
       return {
         ...s,
         submissionId: sub ? sub.id : null,
         status: sub ? sub.status : 'NOT_SUBMITTED',
         hasFile: Boolean(sub?.file_url),
+        fileUrl: sub?.file_url || null,
+        fileName: sub?.file_name || null,
+        fileSize: sub?.file_size || null,
+        studentNotes: sub?.student_notes || null,
+        submittedAt: sub?.submitted_at || null,
+        isLate: sub ? Boolean(sub.is_late) : false,
         marksAwarded: sub?.marks_awarded != null ? Number(sub.marks_awarded) : null,
-        feedback: sub?.feedback || ''
+        rubricScores: parsedRubric || null,
+        feedback: sub?.feedback || '',
+        gradedAt: sub?.graded_at || null,
+        gradedBy: sub?.graded_by || null
       };
     });
   },
