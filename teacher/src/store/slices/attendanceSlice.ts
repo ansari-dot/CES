@@ -206,6 +206,11 @@ export const attendanceSlice = createSlice({
         s.status = 'present';
       });
     },
+    markAllAbsent: (state) => {
+      state.roster.forEach((s) => {
+        s.status = 'absent';
+      });
+    },
     toggleRemarksExpanded: (state) => {
       state.remarksExpanded = !state.remarksExpanded;
     },
@@ -444,6 +449,7 @@ export const {
   setStudentStatus,
   setStudentRemark,
   markAllRemainingPresent,
+  markAllAbsent,
   toggleRemarksExpanded,
   openSubmitModal,
   closeSubmitModal,

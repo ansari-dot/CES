@@ -304,8 +304,8 @@ export const attendanceService = {
     if (user.role === 'TEACHER') {
       const teacher = await db('teachers').where({ user_id: user.id }).first();
       if (!teacher) return [];
-      return await attendanceRepository.getTeacherSubmissions({ teacherId: teacher.id });
+      return await attendanceRepository.getTeacherSubmissions({ teacherId: teacher.id, limit: 200 });
     }
-    return await attendanceRepository.getTeacherSubmissions({});
+    return await attendanceRepository.getTeacherSubmissions({ limit: 200 });
   }
 };
