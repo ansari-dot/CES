@@ -14,16 +14,55 @@ import {
 export async function canAccessUploadedFile(user, fileUrl) {
   if (isStaff(user)) return true;
 
+  const safeFilename = fileUrl ? fileUrl.split('/').pop() : '';
+
   const [submission, handoutTask, resource, proof, lesson] = await Promise.all([
     db('task_submissions')
       .join('learning_tasks', 'task_submissions.task_id', 'learning_tasks.id')
-      .where('task_submissions.file_url', fileUrl)
-      .select('task_submissions.student_id', 'learning_tasks.teacher_id')
+      .where(function () {
+        this.where('task_submissions.file_url', fileUrl);
+        if (safeFilename) {
+          this.orWhere('task_submissions.file_url', 'like', `%${safeFilename}`);
+        }
+      })
+      .select('task_submissions.student_id', 'learning_tasks.teacher_id', 'learning_tasks.class_id')
       .first(),
-    db('learning_tasks').where('handout_url', fileUrl).select('class_id', 'teacher_id', 'status').first(),
-    db('learning_resources').where('file_url', fileUrl).select('class_id', 'uploaded_by', 'is_published').first(),
-    db('fee_payment_proofs').where('proof_document_url', fileUrl).select('student_id').first(),
-    db('timetable_lessons').where('resource_url', fileUrl).select('class_id', 'teacher_id').first()
+    db('learning_tasks')
+      .where(function () {
+        this.where('handout_url', fileUrl);
+        if (safeFilename) {
+          this.orWhere('handout_url', 'like', `%${safeFilename}`);
+        }
+      })
+      .select('class_id', 'teacher_id', 'status')
+      .first(),
+    db('learning_resources')
+      .where(function () {
+        this.where('file_url', fileUrl);
+        if (safeFilename) {
+          this.orWhere('file_url', 'like', `%${safeFilename}`);
+        }
+      })
+      .select('class_id', 'uploaded_by', 'is_published')
+      .first(),
+    db('fee_payment_proofs')
+      .where(function () {
+        this.where('proof_document_url', fileUrl);
+        if (safeFilename) {
+          this.orWhere('proof_document_url', 'like', `%${safeFilename}`);
+        }
+      })
+      .select('student_id')
+      .first(),
+    db('timetable_lessons')
+      .where(function () {
+        this.where('resource_url', fileUrl);
+        if (safeFilename) {
+          this.orWhere('resource_url', 'like', `%${safeFilename}`);
+        }
+      })
+      .select('class_id', 'teacher_id')
+      .first()
   ]);
 
   // Files not linked to any record are only available to staff and teachers
@@ -34,7 +73,12 @@ export async function canAccessUploadedFile(user, fileUrl) {
   if (user.role === 'TEACHER') {
     const scope = await getTeacherScope(user.id);
     const teacherId = scope.teacher ? Number(scope.teacher.id) : null;
-    if (submission && Number(submission.teacher_id) === teacherId) return true;
+    if (
+      submission &&
+      (Number(submission.teacher_id) === teacherId ||
+        (submission.class_id && scope.classIds.has(Number(submission.class_id))))
+    )
+      return true;
     if (handoutTask && (Number(handoutTask.teacher_id) === teacherId || scope.classIds.has(Number(handoutTask.class_id)))) return true;
     if (resource && (Number(resource.uploaded_by) === Number(user.id) || scope.classIds.has(Number(resource.class_id)))) return true;
     if (lesson && (Number(lesson.teacher_id) === teacherId || scope.classIds.has(Number(lesson.class_id)))) return true;

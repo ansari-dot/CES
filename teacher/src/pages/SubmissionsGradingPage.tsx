@@ -289,6 +289,24 @@ export const SubmissionsGradingPage: React.FC = () => {
     dispatch(addToast({ message: `Exported ${taskRoster.length} rows to CSV.`, type: 'success' }));
   };
 
+  // Direct download of student submitted assignment file
+  const handleDownloadSubmission = async (fileUrl: string, fileName?: string) => {
+    try {
+      await openProtectedFile(fileUrl, fileName, true);
+    } catch (err: any) {
+      dispatch(addToast({ message: err.message || 'Unable to download submission file.', type: 'error' }));
+    }
+  };
+
+  // Preview student submitted file in browser
+  const handlePreviewSubmission = async (fileUrl: string, fileName?: string) => {
+    try {
+      await openProtectedFile(fileUrl, fileName, false);
+    } catch (err: any) {
+      dispatch(addToast({ message: err.message || 'Unable to open submission preview.', type: 'error' }));
+    }
+  };
+
   return (
     <div className="flex flex-col w-full pb-10 space-y-5">
       {/* Page Header */}
@@ -500,7 +518,7 @@ export const SubmissionsGradingPage: React.FC = () => {
                     <th className="px-4 py-2 min-w-[140px] text-center uppercase tracking-wider">Submission Status</th>
                     <th className="px-4 py-2 min-w-[140px] uppercase tracking-wider">Submitted At</th>
                     <th className="px-4 py-2 w-28 text-center uppercase tracking-wider">Marks</th>
-                    <th className="px-4 py-2 w-36 text-center uppercase tracking-wider">Actions</th>
+                    <th className="px-4 py-2 min-w-[210px] text-center uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs sm:text-sm text-slate-800">
@@ -611,7 +629,7 @@ export const SubmissionsGradingPage: React.FC = () => {
                             )}
                           </td>
 
-                          {/* Actions: VIEW & MARK */}
+                          {/* Actions: VIEW, DOWNLOAD & MARK */}
                           <td className="px-4 py-2 text-center">
                             <div className="inline-flex items-center gap-1.5">
                               {/* VIEW Action */}
@@ -625,6 +643,24 @@ export const SubmissionsGradingPage: React.FC = () => {
                                 <Eye className="w-3.5 h-3.5" />
                                 <span>View</span>
                               </button>
+
+                              {/* DOWNLOAD Action */}
+                              {student.fileUrl ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleDownloadSubmission(
+                                      student.fileUrl!,
+                                      student.fileName || `${student.studentName.replace(/\s+/g, '_')}_submission`
+                                    )
+                                  }
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+                                  title="Download student assignment file"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  <span>Download</span>
+                                </button>
+                              ) : null}
 
                               {/* MARK Action */}
                               <button
@@ -735,14 +771,31 @@ export const SubmissionsGradingPage: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => openProtectedFile(viewStudent.fileUrl!, viewStudent.fileName || 'submission')}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Open / Download</span>
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handlePreviewSubmission(viewStudent.fileUrl!, viewStudent.fileName || 'submission')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold shadow-2xs cursor-pointer"
+                      title="Preview submission in browser"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Preview</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleDownloadSubmission(
+                          viewStudent.fileUrl!,
+                          viewStudent.fileName || `${viewStudent.studentName.replace(/\s+/g, '_')}_submission`
+                        )
+                      }
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs cursor-pointer"
+                      title="Download file directly"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : null}
@@ -830,20 +883,38 @@ export const SubmissionsGradingPage: React.FC = () => {
             {(markStudent.hasFile || markStudent.fileUrl || markStudent.studentNotes) && (
               <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 flex items-center justify-between text-xs">
                 <span className="text-slate-600 font-medium">Student Submitted Work Available:</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (markStudent.fileUrl) {
-                      openProtectedFile(markStudent.fileUrl, markStudent.fileName || 'submission');
-                    } else {
-                      setViewStudent(markStudent);
-                    }
-                  }}
-                  className="text-indigo-600 font-bold hover:underline flex items-center gap-1 cursor-pointer"
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  <span>Inspect Work</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  {markStudent.fileUrl && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleDownloadSubmission(
+                          markStudent.fileUrl!,
+                          markStudent.fileName || `${markStudent.studentName.replace(/\s+/g, '_')}_submission`
+                        )
+                      }
+                      className="text-emerald-700 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                      title="Download student assignment file"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (markStudent.fileUrl) {
+                        handlePreviewSubmission(markStudent.fileUrl, markStudent.fileName || 'submission');
+                      } else {
+                        setViewStudent(markStudent);
+                      }
+                    }}
+                    className="text-indigo-600 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Inspect Work</span>
+                  </button>
+                </div>
               </div>
             )}
 

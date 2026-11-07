@@ -107,17 +107,62 @@ export async function requestApi<T>(path: string, options: RequestInit = {}, isR
  * Opens (or downloads) a file served by the protected uploads endpoint. The file
  * is fetched with the session cookie (refreshing the session if needed) so the
  * server can check the user's access before anything is shown. External links
- * are opened directly.
+ * can also be downloaded or opened directly.
  */
 export async function openProtectedFile(url: string, fileName?: string, download = false): Promise<void> {
   if (!url) throw new Error('No file is attached');
-  if (/^https?:\/\//i.test(url)) {
+
+  const resolvedFileName =
+    fileName ||
+    url.split('/').pop()?.split('?')[0] ||
+    'assignment_submission';
+
+  const isProtectedUpload = url.includes('/api/v1/uploads/') || !/^https?:\/\//i.test(url);
+
+  // When download is requested:
+  if (download) {
+    try {
+      let res = await fetch(url, { credentials: 'include' });
+      if (res.status === 401 && (await executeTokenRefresh())) {
+        res = await fetch(url, { credentials: 'include' });
+      }
+
+      if (res.ok) {
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = resolvedFileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+        return;
+      }
+    } catch {
+      // If direct fetch is blocked by CORS (e.g. 3rd-party external host), fallback below
+    }
+
+    // Direct anchor download fallback
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = resolvedFileName;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return;
+  }
+
+  // When preview/view is requested:
+  if (!isProtectedUpload) {
     window.open(url, '_blank', 'noopener,noreferrer');
     return;
   }
 
   // Open the tab synchronously so pop-up blockers allow it, then fill it in
-  const viewer = download ? null : window.open('', '_blank');
+  const viewer = window.open('', '_blank');
 
   let res = await fetch(url, { credentials: 'include' });
   if (res.status === 401 && (await executeTokenRefresh())) {
@@ -139,12 +184,7 @@ export async function openProtectedFile(url: string, fileName?: string, download
   if (viewer) {
     viewer.location.href = blobUrl;
   } else {
-    const link = document.createElement('a');
-    link.href = blobUrl;
-    link.download = fileName || url.split('/').pop() || 'download';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    window.open(blobUrl, '_blank');
   }
   setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
 }
