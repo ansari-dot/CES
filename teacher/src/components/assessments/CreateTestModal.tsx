@@ -36,13 +36,69 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
   const teacher = useAppSelector((state) => state.auth.teacher);
   const assignedClasses = teacher?.assignedClasses || [];
 
+  // Deduplicated assigned classes for this teacher
+  const uniqueAssignedClasses = React.useMemo(() => {
+    const map = new Map<number, { classId: number; name: string }>();
+    for (const c of assignedClasses) {
+      const cid = Number(c.classId || c.id);
+      if (!map.has(cid)) {
+        map.set(cid, {
+          classId: cid,
+          name: c.className || c.name?.split(' - ')[0] || `Class ${c.grade || cid}`
+        });
+      }
+    }
+    return Array.from(map.values());
+  }, [assignedClasses]);
+
   const [examType, setExamType] = useState<ExamType>('MONTHLY_TEST');
-  const [selectedClassId, setSelectedClassId] = useState<number>(
-    assignedClasses[0]?.classId ? Number(assignedClasses[0].classId) : 1
-  );
-  const [selectedSubjectId, setSelectedSubjectId] = useState<number>(
-    assignedClasses[0]?.subjectId ? Number(assignedClasses[0].subjectId) : 1
-  );
+  const [selectedClassId, setSelectedClassId] = useState<number>(() => {
+    return uniqueAssignedClasses[0]?.classId || (assignedClasses[0]?.classId ? Number(assignedClasses[0].classId) : 1);
+  });
+
+  // Keep selectedClassId in sync with teacher's assigned classes
+  React.useEffect(() => {
+    if (uniqueAssignedClasses.length > 0) {
+      const exists = uniqueAssignedClasses.some((c) => c.classId === selectedClassId);
+      if (!exists) {
+        setSelectedClassId(uniqueAssignedClasses[0].classId);
+      }
+    }
+  }, [uniqueAssignedClasses, selectedClassId]);
+
+  // Subjects assigned to this teacher specifically for the selected class
+  const availableSubjects = React.useMemo(() => {
+    const matching = assignedClasses.filter(
+      (c) => Number(c.classId || c.id) === Number(selectedClassId)
+    );
+    const pool = matching.length > 0 ? matching : assignedClasses;
+    const map = new Map<number, { id: number; name: string }>();
+    for (const c of pool) {
+      const subId = Number(c.subjectId || 1);
+      const subName = c.subject || 'General';
+      if (!map.has(subId)) {
+        map.set(subId, {
+          id: subId,
+          name: subName
+        });
+      }
+    }
+    return Array.from(map.values());
+  }, [assignedClasses, selectedClassId]);
+
+  const [selectedSubjectId, setSelectedSubjectId] = useState<number>(() => {
+    return availableSubjects[0]?.id || (assignedClasses[0]?.subjectId ? Number(assignedClasses[0].subjectId) : 1);
+  });
+
+  // Keep selectedSubjectId in sync when availableSubjects change (e.g. when changing class)
+  React.useEffect(() => {
+    if (availableSubjects.length > 0) {
+      const exists = availableSubjects.some((s) => s.id === selectedSubjectId);
+      if (!exists) {
+        setSelectedSubjectId(availableSubjects[0].id);
+      }
+    }
+  }, [availableSubjects, selectedSubjectId]);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -62,13 +118,24 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
     teacherDatesheetsApi
       .getActiveDateSheets()
       .then((res) => {
+        const teacherClassIds = new Set(assignedClasses.map((c) => Number(c.classId || c.id)));
+        const teacherSubjectIds = new Set(assignedClasses.map((c) => Number(c.subjectId || 0)));
+
         const entries = (res.activeDateSheets || []).flatMap((ds) =>
           (ds.entries || []).map((e) => ({ ...e, exam_title: ds.title, exam_type: ds.exam_type }))
         );
-        setDateSheetEntries(entries);
+
+        // Strictly show only entries for classes & subjects this teacher teaches
+        const myEntries = entries.filter((e) => {
+          const matchClass = teacherClassIds.size === 0 || teacherClassIds.has(Number(e.class_id));
+          const matchSubj = teacherSubjectIds.size === 0 || teacherSubjectIds.has(Number(e.subject_id)) || !e.subject_id;
+          return matchClass && matchSubj;
+        });
+
+        setDateSheetEntries(myEntries);
       })
       .catch(() => {});
-  }, []);
+  }, [assignedClasses]);
 
   const handleDateSheetEntrySelect = (entryId: number) => {
     setSelectedEntryId(entryId || null);
@@ -108,7 +175,7 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
   const [questions, setQuestions] = useState<LocalQuestion[]>([
     {
       id: 'q1',
-      sectionName: 'Section A: Objective (MCQs)',
+      sectionName: 'Part 1: Objective (MCQs)',
       questionType: 'MCQ',
       prompt: '',
       marks: 2,
@@ -133,19 +200,19 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
 
   const handleClassChange = (cId: number) => {
     setSelectedClassId(cId);
-    const cls = assignedClasses.find((c) => Number(c.classId || c.id) === cId);
-    if (cls?.subjectId) {
-      setSelectedSubjectId(Number(cls.subjectId));
+    const matching = assignedClasses.filter((c) => Number(c.classId || c.id) === cId);
+    if (matching.length > 0 && matching[0].subjectId) {
+      setSelectedSubjectId(Number(matching[0].subjectId));
     }
   };
 
   const handleAddQuestion = (type: QuestionType) => {
     const defaultSection =
       type === 'MCQ'
-        ? 'Section A: Objective (MCQs)'
+        ? 'Part 1: Objective (MCQs)'
         : type === 'SHORT_ANSWER'
-        ? 'Section B: Short Questions'
-        : 'Section C: Long Questions';
+        ? 'Part 2: Short Questions'
+        : 'Part 3: Long Questions';
 
     const newQ: LocalQuestion = {
       id: `q_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -253,7 +320,7 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
         availableUntil: new Date(availableUntil).toISOString(),
         status: publishImmediately ? 'PUBLISHED' : 'DRAFT',
         questions: questions.map((q) => ({
-          sectionName: q.sectionName || 'Section A',
+          sectionName: q.sectionName || 'Part 1',
           questionType: q.questionType,
           prompt: q.prompt.trim(),
           marks: Number(q.marks),
@@ -367,9 +434,9 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
                 onChange={(e) => handleClassChange(Number(e.target.value))}
                 className="w-full text-xs font-medium border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
               >
-                {assignedClasses.map((c) => (
-                  <option key={c.classId || c.id} value={Number(c.classId || c.id)}>
-                    {c.className || c.name} {c.section ? `(${c.section})` : ''}
+                {uniqueAssignedClasses.map((c) => (
+                  <option key={c.classId} value={c.classId}>
+                    {c.name}
                   </option>
                 ))}
               </select>
@@ -382,9 +449,9 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
                 onChange={(e) => setSelectedSubjectId(Number(e.target.value))}
                 className="w-full text-xs font-medium border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
               >
-                {assignedClasses.map((c) => (
-                  <option key={c.subjectId || c.id} value={Number(c.subjectId || 1)}>
-                    {c.subject || 'General'}
+                {availableSubjects.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
                   </option>
                 ))}
               </select>
@@ -523,11 +590,11 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
                       </span>
                       <input
                         type="text"
-                        placeholder="Section (e.g. Section A)"
+                        placeholder="Part (e.g. Part 1)"
                         value={q.sectionName}
                         onChange={(e) => handleQuestionChange(idx, { sectionName: e.target.value })}
                         className="text-[11px] font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-md px-2 py-0.5 w-36 focus:outline-hidden focus:bg-white"
-                        title="Section identifier (e.g. Section A, Section B)"
+                        title="Question group/part (e.g. Part 1, Part 2)"
                       />
                       <span
                         className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${

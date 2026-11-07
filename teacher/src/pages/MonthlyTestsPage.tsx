@@ -25,6 +25,21 @@ export const MonthlyTestsPage: React.FC = () => {
   const teacher = useAppSelector((state) => state.auth.teacher);
   const assignedClasses = teacher?.assignedClasses || [];
 
+  // Deduplicated assigned classes for this teacher
+  const uniqueAssignedClasses = React.useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    for (const c of assignedClasses) {
+      const cid = String(c.classId || c.id);
+      if (!map.has(cid)) {
+        map.set(cid, {
+          id: cid,
+          name: c.className || c.name.split(' - ')[0] || `Class ${c.grade}`
+        });
+      }
+    }
+    return Array.from(map.values());
+  }, [assignedClasses]);
+
   const [tests, setTests] = useState<MonthlyTest[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -189,9 +204,9 @@ export const MonthlyTestsPage: React.FC = () => {
               className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50 focus:outline-hidden focus:ring-1 focus:ring-indigo-500 font-medium"
             >
               <option value="all">All Assigned Classes</option>
-              {assignedClasses.map((c) => (
-                <option key={c.classId || c.id} value={String(c.classId || c.id)}>
-                  {c.className || c.name} {c.section ? `(${c.section})` : ''}
+              {uniqueAssignedClasses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
                 </option>
               ))}
             </select>
