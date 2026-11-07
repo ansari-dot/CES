@@ -32,19 +32,22 @@ export const assessmentsService = {
   async createTest(user, data) {
     let teacherId = null;
 
+    const classId = Number(data.class_id ?? data.classId);
+    const subjectId = Number(data.subject_id ?? data.subjectId);
+
     if (user.role === 'TEACHER') {
       const scope = await getTeacherScope(user.id);
       if (!scope.teacher) throw forbidden('Teacher profile not found for this account.');
-      if (!scope.pairs.has(`${data.class_id}-${data.subject_id}`)) {
+      if (!scope.pairs.has(`${classId}-${subjectId}`)) {
         throw forbidden('You are not assigned to teach this subject in the selected class.');
       }
       teacherId = scope.teacher.id;
     } else if (isStaff(user)) {
-      teacherId = data.teacher_id;
+      teacherId = data.teacher_id || data.teacherId;
       if (!teacherId) {
         // Resolve default assigned teacher
         const ta = await db('teacher_assignments')
-          .where({ class_id: data.class_id, subject_id: data.subject_id })
+          .where({ class_id: classId, subject_id: subjectId })
           .first();
         teacherId = ta ? ta.teacher_id : null;
       }
@@ -53,17 +56,17 @@ export const assessmentsService = {
       throw forbidden();
     }
 
-    const sessionId = data.session_id || (await getCurrentSessionId());
+    const sessionId = data.session_id || data.sessionId || (await getCurrentSessionId());
     if (!sessionId) throw validationError('Active academic session is required.');
 
     // Validate schedule & timing
-    const duration = Number(data.duration_minutes || 45);
+    const duration = Number(data.duration_minutes || data.durationMinutes || 45);
     if (!Number.isInteger(duration) || duration < 5 || duration > 300) {
       throw validationError('Duration must be between 5 and 300 minutes.');
     }
 
-    const availableFrom = new Date(data.available_from);
-    const availableUntil = new Date(data.available_until);
+    const availableFrom = new Date(data.available_from || data.availableFrom);
+    const availableUntil = new Date(data.available_until || data.availableUntil);
     if (isNaN(availableFrom.getTime()) || isNaN(availableUntil.getTime())) {
       throw validationError('Valid availability start and end dates/times are required.');
     }
@@ -71,8 +74,8 @@ export const assessmentsService = {
       throw validationError('Availability start time must be before end time.');
     }
 
-    const totalMarks = Number(data.total_marks || 20);
-    const passingMarks = Number(data.passing_marks || 8);
+    const totalMarks = Number(data.total_marks || data.totalMarks || 20);
+    const passingMarks = Number(data.passing_marks || data.passingMarks || 8);
     if (passingMarks > totalMarks) {
       throw validationError('Passing marks cannot exceed total marks.');
     }
@@ -83,18 +86,21 @@ export const assessmentsService = {
 
     questions.forEach((q, idx) => {
       const qNum = idx + 1;
-      if (!q.question_text || !String(q.question_text).trim()) {
+      const qText = q.question_text || q.prompt;
+      if (!qText || !String(qText).trim()) {
         throw validationError(`Question #${qNum} text is required.`);
       }
       const qMarks = Number(q.marks || 1);
       if (qMarks <= 0) throw validationError(`Question #${qNum} marks must be positive.`);
       computedTotalMarks += qMarks;
 
-      if (q.question_type === 'MCQ') {
+      const qType = q.question_type || q.questionType;
+      if (qType === 'MCQ') {
         if (!Array.isArray(q.options) || q.options.length < 2) {
           throw validationError(`MCQ #${qNum} must have at least 2 options.`);
         }
-        if (!q.correct_option) {
+        const correctOpt = q.correct_option || q.correctOption;
+        if (!correctOpt) {
           throw validationError(`MCQ #${qNum} must designate a correct option key (e.g. 'A').`);
         }
       }
@@ -102,38 +108,39 @@ export const assessmentsService = {
 
     const finalTotalMarks = questions.length > 0 ? computedTotalMarks : totalMarks;
 
-    const examType = ['MONTHLY_TEST', 'MID_TERM', 'FINAL_TERM', 'CLASS_QUIZ'].includes(data.exam_type)
-      ? data.exam_type
+    const rawExamType = data.exam_type || data.examType;
+    const examType = ['MONTHLY_TEST', 'MID_TERM', 'FINAL_TERM', 'CLASS_QUIZ'].includes(rawExamType)
+      ? rawExamType
       : 'MONTHLY_TEST';
 
     const isDedicatedExam = examType === 'MID_TERM' || examType === 'FINAL_TERM';
-    const schedulingMode = isDedicatedExam ? 'DEDICATED_EXAM' : (data.scheduling_mode || 'TIMETABLE_ASSESSMENT');
+    const schedulingMode = isDedicatedExam ? 'DEDICATED_EXAM' : (data.scheduling_mode || data.schedulingMode || 'TIMETABLE_ASSESSMENT');
 
     const test = await db.transaction(async (trx) => {
       const created = await assessmentsRepository.createTest(
         {
           session_id: sessionId,
-          class_id: data.class_id,
-          subject_id: data.subject_id,
+          class_id: classId,
+          subject_id: subjectId,
           teacher_id: teacherId,
           exam_type: examType,
           scheduling_mode: schedulingMode,
-          date_sheet_entry_id: data.date_sheet_entry_id ? Number(data.date_sheet_entry_id) : null,
-          timetable_slot_id: data.timetable_slot_id ? Number(data.timetable_slot_id) : null,
-          assessment_timing: data.assessment_timing || (isDedicatedExam ? 'STANDALONE' : 'ENTIRE_LECTURE'),
-          term_name: data.term_name || (examType === 'MID_TERM' ? 'Mid-Term' : examType === 'FINAL_TERM' ? 'Final-Term' : data.month_name || null),
+          date_sheet_entry_id: (data.date_sheet_entry_id || data.dateSheetEntryId) ? Number(data.date_sheet_entry_id || data.dateSheetEntryId) : null,
+          timetable_slot_id: (data.timetable_slot_id || data.timetableSlotId) ? Number(data.timetable_slot_id || data.timetableSlotId) : null,
+          assessment_timing: data.assessment_timing || data.assessmentTiming || (isDedicatedExam ? 'STANDALONE' : 'ENTIRE_LECTURE'),
+          term_name: data.term_name || data.termName || (examType === 'MID_TERM' ? 'Mid-Term' : examType === 'FINAL_TERM' ? 'Final-Term' : data.month_name || null),
           title: data.title.trim(),
           description: data.description ? data.description.trim() : null,
-          month_name: data.month_name || (examType === 'MID_TERM' ? 'Mid-Term Exam' : examType === 'FINAL_TERM' ? 'Final-Term Exam' : 'Monthly Assessment'),
+          month_name: data.month_name || data.monthName || (examType === 'MID_TERM' ? 'Mid-Term Exam' : examType === 'FINAL_TERM' ? 'Final-Term Exam' : 'Monthly Assessment'),
           duration_minutes: duration,
           total_marks: finalTotalMarks,
           passing_marks: Math.min(passingMarks, finalTotalMarks),
           available_from: availableFrom,
           available_until: availableUntil,
-          shuffle_questions: Boolean(data.shuffle_questions),
-          shuffle_options: Boolean(data.shuffle_options),
+          shuffle_questions: Boolean(data.shuffle_questions || data.shuffleQuestions),
+          shuffle_options: Boolean(data.shuffle_options || data.shuffleOptions),
           max_attempts: 1,
-          status: data.publishImmediately ? 'PUBLISHED' : 'DRAFT',
+          status: data.status || (data.publishImmediately ? 'PUBLISHED' : 'DRAFT'),
           created_by: user.id
         },
         trx

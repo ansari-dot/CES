@@ -89,15 +89,15 @@ export const assessmentsRepository = {
     const toInsert = questionsList.map((q, idx) => ({
       test_id: testId,
       question_number: q.question_number || idx + 1,
-      section_name: q.section_name || 'Section A',
-      section_instructions: q.section_instructions || null,
-      question_type: q.question_type || 'MCQ',
-      question_text: q.question_text,
-      image_url: q.image_url || null,
+      section_name: q.section_name || q.sectionName || 'Part 1',
+      section_instructions: q.section_instructions || q.sectionInstructions || null,
+      question_type: q.question_type || q.questionType || 'MCQ',
+      question_text: q.question_text || q.prompt,
+      image_url: q.image_url || q.imageUrl || null,
       marks: Number(q.marks || 1),
       options: q.options ? JSON.stringify(q.options) : null,
-      correct_option: q.correct_option ? String(q.correct_option).toUpperCase().trim() : null,
-      rubric_guide: q.rubric_guide || null
+      correct_option: (q.correct_option || q.correctOption) ? String(q.correct_option || q.correctOption).toUpperCase().trim() : null,
+      rubric_guide: q.rubric_guide || q.rubricGuide || null
     }));
 
     await trx('test_questions').insert(toInsert);

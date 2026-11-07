@@ -118,18 +118,17 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
     teacherDatesheetsApi
       .getActiveDateSheets()
       .then((res) => {
-        const teacherClassIds = new Set(assignedClasses.map((c) => Number(c.classId || c.id)));
-        const teacherSubjectIds = new Set(assignedClasses.map((c) => Number(c.subjectId || 0)));
+        const teacherPairs = new Set(
+          assignedClasses.map((c) => `${Number(c.classId || c.id)}-${Number(c.subjectId || 0)}`)
+        );
 
         const entries = (res.activeDateSheets || []).flatMap((ds) =>
           (ds.entries || []).map((e) => ({ ...e, exam_title: ds.title, exam_type: ds.exam_type }))
         );
 
-        // Strictly show only entries for classes & subjects this teacher teaches
+        // Strictly show only entries for (class_id, subject_id) pairs this teacher is assigned to
         const myEntries = entries.filter((e) => {
-          const matchClass = teacherClassIds.size === 0 || teacherClassIds.has(Number(e.class_id));
-          const matchSubj = teacherSubjectIds.size === 0 || teacherSubjectIds.has(Number(e.subject_id)) || !e.subject_id;
-          return matchClass && matchSubj;
+          return teacherPairs.has(`${Number(e.class_id)}-${Number(e.subject_id)}`);
         });
 
         setDateSheetEntries(myEntries);
@@ -305,28 +304,44 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
     try {
       setIsSubmitting(true);
 
-      const payload: CreateTestPayload = {
+      const payload: any = {
         classId: selectedClassId,
+        class_id: selectedClassId,
         subjectId: selectedSubjectId,
+        subject_id: selectedSubjectId,
         examType,
+        exam_type: examType,
         dateSheetEntryId: selectedEntryId || undefined,
+        date_sheet_entry_id: selectedEntryId || undefined,
         termName: examType === 'MID_TERM' ? 'Mid-Term Exam' : examType === 'FINAL_TERM' ? 'Final-Term Exam' : 'Monthly Test',
+        term_name: examType === 'MID_TERM' ? 'Mid-Term Exam' : examType === 'FINAL_TERM' ? 'Final-Term Exam' : 'Monthly Test',
         title: title.trim(),
         description: description.trim() || undefined,
         durationMinutes: Number(durationMinutes),
+        duration_minutes: Number(durationMinutes),
         totalMarks: calculatedTotalMarks,
+        total_marks: calculatedTotalMarks,
         passingMarks: Number(passingMarks) || Math.floor(calculatedTotalMarks * 0.4),
+        passing_marks: Number(passingMarks) || Math.floor(calculatedTotalMarks * 0.4),
         availableFrom: new Date(availableFrom).toISOString(),
+        available_from: new Date(availableFrom).toISOString(),
         availableUntil: new Date(availableUntil).toISOString(),
+        available_until: new Date(availableUntil).toISOString(),
         status: publishImmediately ? 'PUBLISHED' : 'DRAFT',
+        publishImmediately,
         questions: questions.map((q) => ({
           sectionName: q.sectionName || 'Part 1',
+          section_name: q.sectionName || 'Part 1',
           questionType: q.questionType,
+          question_type: q.questionType,
           prompt: q.prompt.trim(),
+          question_text: q.prompt.trim(),
           marks: Number(q.marks),
           options: q.questionType === 'MCQ' ? q.options : null,
           correctOption: q.questionType === 'MCQ' ? q.correctOption : null,
-          rubricGuide: q.rubricGuide.trim() || null
+          correct_option: q.questionType === 'MCQ' ? q.correctOption : null,
+          rubricGuide: q.rubricGuide.trim() || null,
+          rubric_guide: q.rubricGuide.trim() || null
         }))
       };
 
