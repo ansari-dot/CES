@@ -6,6 +6,7 @@ export interface AttendanceRecord {
   date: string;
   subject: string;
   teacher: string;
+  topic: string;
   status: string;
 }
 
@@ -73,14 +74,17 @@ const attendanceSlice = createSlice({
           last30Days: `${rate}% Present`,
         };
 
-        // Build timeline from records if provided
+        // Build the lecture-wise history and timeline from records if provided
         if (Array.isArray(d.records)) {
-          state.history = d.records.slice(0, 30).map((r: any) => ({
+          state.history = d.records.slice(0, 60).map((r: any) => ({
             id: String(r.id),
             date: r.lessonDate || r.lesson_date || '',
             subject: r.subjectName || r.subject_name || '',
             teacher: r.teacherName || r.teacher_name || '',
-            status: r.status === 'PRESENT' ? 'Present' : r.status === 'ABSENT' ? 'Absent' : r.status === 'LATE' ? 'Late' : 'Leave',
+            topic: r.topic || r.topic_covered || '',
+            // Same letters as the teacher register: P / A / L (Leave) / E (Excused)
+            status:
+              r.status === 'PRESENT' ? 'Present' : r.status === 'ABSENT' ? 'Absent' : r.status === 'LATE' ? 'Leave' : 'Excused',
           }));
           state.timeline = d.records.slice(0, 30).map((r: any) => {
             switch (r.status) {

@@ -203,9 +203,9 @@ export const attendanceRepository = {
   },
 
   /**
-   * Submit and Lock Lesson Attendance
+   * Submit and Lock Lesson Attendance (or save draft when isLocked is false)
    */
-  async submitAttendance({ lessonId, records, userId }) {
+  async submitAttendance({ lessonId, records, userId, isLocked = true }) {
     return await db.transaction(async (trx) => {
       let presentCount = 0;
       let absentCount = 0;
@@ -213,11 +213,18 @@ export const attendanceRepository = {
       let excusedCount = 0;
 
       for (const rec of records) {
-        const status = (rec.status || 'PRESENT').toUpperCase();
+        let status = (rec.status || 'PRESENT').toUpperCase();
+        if (status === 'P') status = 'PRESENT';
+        else if (status === 'A') status = 'ABSENT';
+        else if (status === 'L' || status === 'LEAVE') status = 'LATE';
+        else if (status === 'E') status = 'EXCUSED';
+
         if (status === 'PRESENT') presentCount++;
         else if (status === 'ABSENT') absentCount++;
         else if (status === 'LATE') lateCount++;
         else if (status === 'EXCUSED') excusedCount++;
+
+        const remarksText = rec.remarks || rec.remark || null;
 
         // Upsert student record
         const existing = await trx('lesson_attendance')
@@ -229,7 +236,7 @@ export const attendanceRepository = {
             .where({ id: existing.id })
             .update({
               status,
-              remarks: rec.remarks || null,
+              remarks: remarksText,
               marked_by_user_id: userId,
               updated_at: trx.fn.now(3)
             });
@@ -238,13 +245,14 @@ export const attendanceRepository = {
             lesson_id: lessonId,
             student_id: rec.studentId,
             status,
-            remarks: rec.remarks || null,
+            remarks: remarksText,
             marked_by_user_id: userId
           });
         }
       }
 
       const totalEnrolled = records.length;
+      const lockVal = isLocked ? 1 : 0;
 
       // Upsert submission lock record
       const existingSub = await trx('lesson_attendance_submissions')
@@ -257,7 +265,7 @@ export const attendanceRepository = {
           .update({
             submitted_by_user_id: userId,
             submitted_at: trx.fn.now(3),
-            is_locked: 1,
+            is_locked: lockVal,
             present_count: presentCount,
             absent_count: absentCount,
             late_count: lateCount,
@@ -269,7 +277,7 @@ export const attendanceRepository = {
           lesson_id: lessonId,
           submitted_by_user_id: userId,
           submitted_at: trx.fn.now(3),
-          is_locked: 1,
+          is_locked: lockVal,
           present_count: presentCount,
           absent_count: absentCount,
           late_count: lateCount,
@@ -280,7 +288,7 @@ export const attendanceRepository = {
 
       return {
         lessonId,
-        isLocked: true,
+        isLocked: Boolean(lockVal),
         presentCount,
         absentCount,
         lateCount,
@@ -456,13 +464,68 @@ export const attendanceRepository = {
 
     const attendanceRate = total > 0 ? Number((((present + late) / total) * 100).toFixed(1)) : 100;
 
+    // For a single student, also return the lecture-wise records so the
+    // student/parent portals can show the per-lesson attendance table.
+    let records = [];
+    if (studentId) {
+      let recQuery = db('lesson_attendance')
+        .join('timetable_lessons', 'lesson_attendance.lesson_id', 'timetable_lessons.id')
+        .join('subjects', 'timetable_lessons.subject_id', 'subjects.id')
+        .leftJoin('teachers', 'timetable_lessons.teacher_id', 'teachers.id')
+        .leftJoin('users as teacher_users', 'teachers.user_id', 'teacher_users.id')
+        .where('lesson_attendance.student_id', studentId)
+        .select(
+          'lesson_attendance.id',
+          'timetable_lessons.lesson_date as lessonDate',
+          'timetable_lessons.start_at as startAt',
+          'timetable_lessons.topic_covered as topic',
+          'subjects.name as subjectName',
+          'teacher_users.full_name as teacherName',
+          'lesson_attendance.status',
+          'lesson_attendance.remarks'
+        )
+        .orderBy('timetable_lessons.lesson_date', 'desc')
+        .orderBy('timetable_lessons.start_at', 'desc');
+      if (startDate) recQuery = recQuery.where('timetable_lessons.lesson_date', '>=', startDate);
+      if (endDate) recQuery = recQuery.where('timetable_lessons.lesson_date', '<=', endDate);
+      records = await recQuery.limit(500);
+    }
+
     return {
       total,
       present,
       absent,
       late,
       excused,
-      attendanceRate
+      attendanceRate,
+      records
     };
+  },
+
+  /** Recent attendance submissions for a teacher's lessons (newest first). */
+  async getTeacherSubmissions({ teacherId = null, limit = 20 } = {}) {
+    let query = db('lesson_attendance_submissions')
+      .join('timetable_lessons', 'lesson_attendance_submissions.lesson_id', 'timetable_lessons.id')
+      .join('classes', 'timetable_lessons.class_id', 'classes.id')
+      .leftJoin('subjects', 'timetable_lessons.subject_id', 'subjects.id')
+      .select(
+        'lesson_attendance_submissions.id',
+        'lesson_attendance_submissions.lesson_id as lessonId',
+        'lesson_attendance_submissions.submitted_at as submittedAt',
+        'lesson_attendance_submissions.is_locked as isLocked',
+        'lesson_attendance_submissions.present_count as presentCount',
+        'lesson_attendance_submissions.absent_count as absentCount',
+        'lesson_attendance_submissions.late_count as lateCount',
+        'lesson_attendance_submissions.excused_count as excusedCount',
+        'lesson_attendance_submissions.total_enrolled as totalEnrolled',
+        'timetable_lessons.lesson_date as lessonDate',
+        'timetable_lessons.start_at as startAt',
+        'classes.name as className',
+        'subjects.name as subjectName'
+      )
+      .orderBy('lesson_attendance_submissions.submitted_at', 'desc')
+      .limit(limit);
+    if (teacherId) query = query.where('timetable_lessons.teacher_id', teacherId);
+    return await query;
   }
 };

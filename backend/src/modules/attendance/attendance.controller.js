@@ -57,11 +57,12 @@ export const attendanceController = {
   async submitAttendance(req, res, next) {
     try {
       const lessonId = Number(req.params.lessonId);
-      const { records } = req.body;
+      const { records, isLocked, isDraft } = req.body;
 
       const result = await attendanceService.submitAttendance({
         lessonId,
         records,
+        isLocked: isDraft === true ? false : (isLocked !== undefined ? Boolean(isLocked) : true),
         userId: req.user.id,
         userRole: req.user.role
       });
@@ -146,6 +147,15 @@ export const attendanceController = {
         });
       }
       return sendSuccess(res, stats);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getTeacherSubmissions(req, res, next) {
+    try {
+      const rows = await attendanceService.getTeacherSubmissions(req.user);
+      return sendSuccess(res, rows);
     } catch (error) {
       next(error);
     }

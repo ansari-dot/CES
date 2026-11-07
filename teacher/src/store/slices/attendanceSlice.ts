@@ -57,24 +57,53 @@ export const submitAttendanceThunk = createAsyncThunk(
     payload: {
       lessonId: number | string;
       records: { studentId: number | string; status: AttendanceStatus; remark?: string }[];
+      isLocked?: boolean;
     },
     { rejectWithValue }
   ) => {
     try {
       const numLessonId = typeof payload.lessonId === 'string' ? parseInt(payload.lessonId.replace(/\D/g, ''), 10) || 1 : payload.lessonId;
-      const formattedRecords = payload.records.map((r) => ({
-        studentId: typeof r.studentId === 'string' ? parseInt(r.studentId.replace(/\D/g, ''), 10) || 35 : r.studentId,
-        status: r.status.toUpperCase() as 'PRESENT' | 'ABSENT' | 'LATE' | 'LEAVE',
-        remark: r.remark || ''
-      }));
+      const formattedRecords = payload.records.map((r) => {
+        let st = (r.status || 'present').toUpperCase();
+        if (st === 'PRESENT') st = 'PRESENT';
+        else if (st === 'ABSENT') st = 'ABSENT';
+        else if (st === 'LEAVE' || st === 'LATE') st = 'LATE';
+        else if (st === 'EXCUSED') st = 'EXCUSED';
+        return {
+          studentId: typeof r.studentId === 'string' ? parseInt(r.studentId.replace(/\D/g, ''), 10) : r.studentId,
+          status: st,
+          remarks: r.remark || '',
+          remark: r.remark || ''
+        };
+      }).filter((r) => Number.isFinite(r.studentId));
 
       const res = await requestApi<any>(`/api/v1/attendance/lessons/${numLessonId}/submit`, {
         method: 'POST',
-        body: JSON.stringify({ records: formattedRecords })
+        body: JSON.stringify({
+          records: formattedRecords,
+          isLocked: payload.isLocked !== undefined ? payload.isLocked : true
+        })
       });
-      return { res, lessonId: String(numLessonId), records: payload.records };
+      return {
+        res,
+        lessonId: String(numLessonId),
+        records: payload.records,
+        isLocked: payload.isLocked !== undefined ? payload.isLocked : true
+      };
     } catch (err: any) {
       return rejectWithValue(err.message || 'Failed to submit attendance');
+    }
+  }
+);
+
+export const fetchSubmittedLogsThunk = createAsyncThunk(
+  'attendance/fetchSubmittedLogs',
+  async (_, { rejectWithValue }) => {
+    try {
+      const res = await requestApi<any[]>('/api/v1/attendance/submissions');
+      return Array.isArray(res) ? res : [];
+    } catch (err: any) {
+      return rejectWithValue(err.message || 'Failed to fetch submitted attendance records');
     }
   }
 );
@@ -105,8 +134,8 @@ export const submitCorrectionVoucherThunk = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const numLessonId = typeof payload.lessonId === 'string' ? parseInt(payload.lessonId.replace(/\D/g, ''), 10) || 1 : payload.lessonId;
-      const numStudentId = typeof payload.studentId === 'string' ? parseInt(payload.studentId.replace(/\D/g, ''), 10) || 35 : payload.studentId;
+      const numLessonId = typeof payload.lessonId === 'string' ? parseInt(payload.lessonId.replace(/\D/g, ''), 10) : payload.lessonId;
+      const numStudentId = typeof payload.studentId === 'string' ? parseInt(payload.studentId.replace(/\D/g, ''), 10) : payload.studentId;
 
       const res = await requestApi<any>('/api/v1/attendance/corrections', {
         method: 'POST',
@@ -265,17 +294,26 @@ export const attendanceSlice = createSlice({
           }
           const list = action.payload.roster || action.payload.students || [];
           if (Array.isArray(list)) {
-            state.roster = list.map((s: any) => ({
-              studentId: String(s.studentId),
-              rollNumber: s.rollNumber || '01',
-              studentName: s.studentName,
-              admissionId: s.admissionNumber || s.admissionId || `ADM-${s.studentId}`,
-              avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120',
-              status: (s.status ? s.status.toLowerCase() : 'present') as AttendanceStatus,
-              remark: s.remarks || '',
-              streak: (Number(s.attendanceRate) >= 95 || !s.attendanceRate) ? 'Perfect Attendance Streak' : 'Consistent',
-              attendanceRate: Number(s.attendanceRate) || 96,
-            }));
+            state.roster = list.map((s: any) => {
+              let st: AttendanceStatus = 'present';
+              const raw = (s.status || 'PRESENT').toUpperCase();
+              if (raw === 'ABSENT' || raw === 'A') st = 'absent';
+              else if (raw === 'LATE' || raw === 'LEAVE' || raw === 'L') st = 'leave';
+              else if (raw === 'EXCUSED' || raw === 'E') st = 'excused';
+              else st = 'present';
+
+              return {
+                studentId: String(s.studentId),
+                rollNumber: s.rollNumber || '01',
+                studentName: s.studentName,
+                admissionId: s.admissionNumber || s.admissionId || `ADM-${s.studentId}`,
+                avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(s.studentName || 'Student')}&background=36348e&color=fff`,
+                status: st,
+                remark: s.remarks || s.remark || '',
+                streak: (Number(s.attendanceRate) >= 95 || !s.attendanceRate) ? 'Perfect Attendance Streak' : 'Consistent',
+                attendanceRate: Number(s.attendanceRate) || 96,
+              };
+            });
           }
         }
       })
@@ -297,17 +335,26 @@ export const attendanceSlice = createSlice({
           }
           const list = action.payload.roster || action.payload.students || [];
           if (Array.isArray(list)) {
-            state.roster = list.map((s: any) => ({
-              studentId: String(s.studentId),
-              rollNumber: s.rollNumber || '01',
-              studentName: s.studentName,
-              admissionId: s.admissionNumber || s.admissionId || `ADM-${s.studentId}`,
-              avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120',
-              status: (s.status ? s.status.toLowerCase() : 'present') as AttendanceStatus,
-              remark: s.remarks || '',
-              streak: (Number(s.attendanceRate) >= 95 || !s.attendanceRate) ? 'Perfect Attendance Streak' : 'Consistent',
-              attendanceRate: Number(s.attendanceRate) || 96,
-            }));
+            state.roster = list.map((s: any) => {
+              let st: AttendanceStatus = 'present';
+              const raw = (s.status || 'PRESENT').toUpperCase();
+              if (raw === 'ABSENT' || raw === 'A') st = 'absent';
+              else if (raw === 'LATE' || raw === 'LEAVE' || raw === 'L') st = 'leave';
+              else if (raw === 'EXCUSED' || raw === 'E') st = 'excused';
+              else st = 'present';
+
+              return {
+                studentId: String(s.studentId),
+                rollNumber: s.rollNumber || '01',
+                studentName: s.studentName,
+                admissionId: s.admissionNumber || s.admissionId || `ADM-${s.studentId}`,
+                avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(s.studentName || 'Student')}&background=36348e&color=fff`,
+                status: st,
+                remark: s.remarks || s.remark || '',
+                streak: (Number(s.attendanceRate) >= 95 || !s.attendanceRate) ? 'Perfect Attendance Streak' : 'Consistent',
+                attendanceRate: Number(s.attendanceRate) || 96,
+              };
+            });
           }
         }
       })
@@ -317,12 +364,12 @@ export const attendanceSlice = createSlice({
       })
       // Submit Attendance
       .addCase(submitAttendanceThunk.fulfilled, (state, action) => {
-        state.isLocked = true;
+        state.isLocked = action.payload.isLocked !== false;
         state.isSubmitModalOpen = false;
         const presentCount = state.roster.filter((r) => r.status === 'present').length;
         const absentCount = state.roster.filter((r) => r.status === 'absent').length;
-        const lateCount = state.roster.filter((r) => r.status === 'late').length;
-        const leaveCount = state.roster.filter((r) => r.status === 'leave').length;
+        const lateCount = state.roster.filter((r) => r.status === 'late' || r.status === 'leave').length;
+        const leaveCount = state.roster.filter((r) => r.status === 'excused').length;
 
         const newLog: AttendanceSubmissionLog = {
           id: `SUB-${action.payload.lessonId}-${Date.now().toString().slice(-4)}`,
@@ -339,9 +386,36 @@ export const attendanceSlice = createSlice({
           lateCount,
           leaveCount,
           totalStudents: state.roster.length,
-          isLocked: true,
+          isLocked: action.payload.isLocked !== false,
         };
         state.submittedLogs.unshift(newLog);
+      })
+      // Fetch Submitted Logs (persistent history from the server)
+      .addCase(fetchSubmittedLogsThunk.fulfilled, (state, action) => {
+        if (Array.isArray(action.payload)) {
+          state.submittedLogs = action.payload.map((s: any) => ({
+            id: `SUB-${s.id}`,
+            lessonId: String(s.lessonId),
+            className: s.className || 'Class Session',
+            subject: s.subjectName || 'Subject',
+            topic: 'Class Attendance',
+            date: s.lessonDate ? String(s.lessonDate).slice(0, 10) : 'Recent',
+            time: s.submittedAt
+              ? new Date(s.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : '',
+            submittedAt: s.submittedAt
+              ? `${String(s.lessonDate || s.submittedAt).slice(0, 10)} ${new Date(s.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+              : String(s.lessonDate || '').slice(0, 10),
+            teacherName: 'You',
+            teacherId: '',
+            presentCount: Number(s.presentCount) || 0,
+            absentCount: Number(s.absentCount) || 0,
+            lateCount: Number(s.lateCount) || 0,
+            leaveCount: Number(s.excusedCount) || 0,
+            totalStudents: Number(s.totalEnrolled) || 0,
+            isLocked: Boolean(s.isLocked),
+          }));
+        }
       })
       // Fetch Correction Vouchers
       .addCase(fetchCorrectionVouchersThunk.fulfilled, (state, action) => {

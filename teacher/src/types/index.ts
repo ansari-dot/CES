@@ -63,6 +63,7 @@ export interface Student {
 export interface TimetableLesson {
   id: string;
   rawId?: number;
+  rawClassId?: number;
   classId: string;
   className: string;
   subject: string;
@@ -160,7 +161,7 @@ export interface SchoolClassSession {
   subjectIcon: string;
 }
 
-export type AttendanceStatus = 'present' | 'absent' | 'late' | 'leave';
+export type AttendanceStatus = 'present' | 'absent' | 'late' | 'leave' | 'excused';
 
 export interface AttendanceRecord {
   studentId: string;
@@ -191,6 +192,7 @@ export interface AttendanceSubmissionLog {
   leaveCount: number;
   totalStudents: number;
   isLocked: boolean;
+  submittedAt?: string;
 }
 
 export interface CorrectionVoucher {

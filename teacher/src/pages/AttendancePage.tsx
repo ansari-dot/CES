@@ -3,10 +3,11 @@ import { useAppDispatch, useAppSelector } from '../store';
 import {
   markAllRemainingPresent,
   toggleRemarksExpanded,
-  openSubmitModal,
   openCorrectionDrawer,
   fetchLessonRosterThunk,
   fetchClassRosterThunk,
+  submitAttendanceThunk,
+  fetchSubmittedLogsThunk,
 } from '../store/slices/attendanceSlice';
 import { addToast } from '../store/slices/uiSlice';
 import { AttendanceStats } from '../components/attendance/AttendanceStats';
@@ -23,7 +24,9 @@ import {
   History,
   Lock,
   Unlock,
-  GraduationCap
+  GraduationCap,
+  Clock,
+  Calendar
 } from 'lucide-react';
 
 export const AttendancePage: React.FC = () => {
@@ -31,13 +34,20 @@ export const AttendancePage: React.FC = () => {
   const isLocked = useAppSelector((state) => state.attendance.isLocked);
   const remarksExpanded = useAppSelector((state) => state.attendance.remarksExpanded);
   const submittedLogs = useAppSelector((state) => state.attendance.submittedLogs);
+  const roster = useAppSelector((state) => state.attendance.roster);
   const teacher = useAppSelector((state) => state.auth.teacher);
   const lessons = useAppSelector((state) => state.timetable.lessons);
   const globalSelectedClassId = useAppSelector((state) => state.auth.selectedClassId);
 
   const [searchFilter, setSearchFilter] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Extract unique classes assigned to this teacher
+  // Load this teacher's previously submitted attendance records (persistent)
+  useEffect(() => {
+    dispatch(fetchSubmittedLogsThunk());
+  }, [dispatch]);
+
+  // Extract unique classes assigned to this logged-in teacher ONLY
   const uniqueClasses = useMemo(() => {
     const list = teacher?.assignedClasses || [];
     const map = new Map<string, { id: string; classId: number; name: string; enrolledCount: number; subject: string }>();
@@ -77,11 +87,16 @@ export const AttendancePage: React.FC = () => {
   // Filter lessons for the currently selected class
   const classLessons = useMemo(() => {
     if (!selectedClassId) return lessons;
+    const numCid = Number(selectedClassId);
+    const targetClass = uniqueClasses.find((c) => c.id === selectedClassId);
     return lessons.filter((l) => {
-      const targetClass = uniqueClasses.find((c) => c.id === selectedClassId);
       return (
+        l.rawClassId === numCid ||
         String(l.classId) === String(selectedClassId) ||
-        (targetClass && l.className?.includes(targetClass.name))
+        (targetClass && (
+          l.className?.toLowerCase() === targetClass.name.toLowerCase() ||
+          l.className?.toLowerCase().includes(`class ${targetClass.classId}`)
+        ))
       );
     });
   }, [lessons, selectedClassId, uniqueClasses]);
@@ -93,24 +108,21 @@ export const AttendancePage: React.FC = () => {
   // Re-sync active lesson when selected class changes
   useEffect(() => {
     if (classLessons.length > 0) {
-      const realLesson = classLessons.find((l) => typeof l.id === 'string' && l.id.startsWith('LES-'));
-      if (realLesson) {
-        const targetId = realLesson.rawId || realLesson.id;
-        setActiveLessonId(targetId);
-        dispatch(fetchLessonRosterThunk(targetId));
-      } else if (selectedClassId) {
-        setActiveLessonId(`CLASS-${selectedClassId}`);
-        dispatch(fetchClassRosterThunk(Number(selectedClassId)));
-      }
+      const realLesson = classLessons[0];
+      const targetId = realLesson.rawId || realLesson.id;
+      setActiveLessonId(targetId);
+      dispatch(fetchLessonRosterThunk(targetId));
     } else if (selectedClassId) {
       setActiveLessonId(`CLASS-${selectedClassId}`);
       dispatch(fetchClassRosterThunk(Number(selectedClassId)));
     }
   }, [selectedClassId, classLessons, dispatch]);
 
-  const activeLesson = classLessons.find(
-    (l) => l.rawId === activeLessonId || l.id === activeLessonId
-  ) || classLessons[0];
+  const activeLesson = useMemo(() => {
+    return classLessons.find(
+      (l) => l.rawId === activeLessonId || l.id === activeLessonId
+    ) || classLessons[0];
+  }, [classLessons, activeLessonId]);
 
   const handleSelectClass = (clsId: string) => {
     setSelectedClassId(clsId);
@@ -134,23 +146,73 @@ export const AttendancePage: React.FC = () => {
     dispatch(addToast({ message: 'All enrolled students marked as Present.', type: 'success' }));
   };
 
-  const handleSaveDraft = () => {
-    dispatch(
-      addToast({
-        message: 'Attendance draft saved to local secure cache.',
-        type: 'info',
-      })
-    );
+  const handleSaveAttendance = async (isFinalize: boolean = false) => {
+    if (isLocked) {
+      dispatch(addToast({ message: 'Attendance is locked. Submit a correction voucher to edit.', type: 'info' }));
+      return;
+    }
+
+    if (roster.length === 0) {
+      dispatch(addToast({ message: 'No students enrolled in this roster to save.', type: 'error' }));
+      return;
+    }
+
+    setIsSaving(true);
+    let targetLessonId: number | string = activeLessonId;
+    if (typeof targetLessonId === 'string' && targetLessonId.startsWith('CLASS-')) {
+      targetLessonId = parseInt(targetLessonId.replace('CLASS-', ''), 10) || Number(selectedClassId);
+    } else if (typeof targetLessonId === 'string' && targetLessonId.startsWith('SLOT-')) {
+      targetLessonId = parseInt(targetLessonId.replace('SLOT-', ''), 10) || Number(selectedClassId);
+    } else if (typeof targetLessonId === 'string' && targetLessonId.startsWith('LES-')) {
+      targetLessonId = parseInt(targetLessonId.replace('LES-', ''), 10);
+    }
+
+    try {
+      await dispatch(
+        submitAttendanceThunk({
+          lessonId: targetLessonId,
+          records: roster.map((r) => ({
+            studentId: r.studentId,
+            status: r.status,
+            remark: r.remark,
+          })),
+          isLocked: isFinalize,
+        })
+      ).unwrap();
+
+      dispatch(
+        addToast({
+          message: isFinalize
+            ? 'Attendance finalized & officially submitted.'
+            : 'Attendance saved successfully.',
+          type: 'success',
+        })
+      );
+      dispatch(fetchSubmittedLogsThunk());
+    } catch (err: any) {
+      dispatch(addToast({ message: err || 'Failed to save attendance', type: 'error' }));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleExportCSV = () => {
     const className = uniqueClasses.find((c) => c.id === selectedClassId)?.name || 'Class';
-    dispatch(
-      addToast({
-        message: `Exporting ${className} roster CSV snapshot...`,
-        type: 'info',
-      })
-    );
+    if (roster.length === 0) {
+      dispatch(addToast({ message: 'No records to export.', type: 'info' }));
+      return;
+    }
+    const header = ['Roll No', 'Student Name', 'Admission No', 'Status', 'Remarks'];
+    const rows = roster.map((r) => [r.rollNumber, r.studentName, r.admissionId, r.status.toUpperCase(), r.remark || '']);
+    const csvContent = [header, ...rows].map((e) => e.map((val) => `"${val}"`).join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `attendance_${className.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    dispatch(addToast({ message: `Exported ${roster.length} student records to CSV.`, type: 'success' }));
   };
 
   return (
@@ -170,23 +232,25 @@ export const AttendancePage: React.FC = () => {
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Select an assigned class to view enrolled students and record session attendance.
+            Select an assigned class and period to review enrolled students and record session attendance.
           </p>
         </div>
 
-        {/* Action Buttons */}
+        {/* Top Quick Actions */}
         <div className="flex items-center gap-2">
           <button
-            onClick={handleSaveDraft}
-            disabled={isLocked}
+            type="button"
+            onClick={() => handleSaveAttendance(false)}
+            disabled={isLocked || isSaving}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold border border-slate-200 transition-all disabled:opacity-50 shadow-xs"
           >
             <Save className="w-3.5 h-3.5 text-slate-500" />
-            <span>Save Draft</span>
+            <span>{isSaving ? 'Saving...' : 'Save Draft'}</span>
           </button>
           <button
-            onClick={() => dispatch(openSubmitModal())}
-            disabled={isLocked}
+            type="button"
+            onClick={() => handleSaveAttendance(true)}
+            disabled={isLocked || isSaving}
             className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-white shadow-xs text-xs font-bold transition-all ${
               isLocked
                 ? 'bg-slate-400 cursor-not-allowed'
@@ -194,82 +258,91 @@ export const AttendancePage: React.FC = () => {
             }`}
           >
             <CheckCircle2 className="w-4 h-4" />
-            <span>{isLocked ? 'Record Locked' : 'Submit Final'}</span>
+            <span>{isLocked ? 'Record Locked' : 'Finalize Attendance'}</span>
           </button>
         </div>
       </div>
 
-      {/* Class Switcher Toolbar */}
-      <div className="bg-white rounded-2xl p-3.5 shadow-xs border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1 mr-1">
+      {/* Step 1: Class Selection & Lecture / Period Dropdowns */}
+      <div className="bg-white rounded-xl p-4 shadow-xs border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Class Dropdown */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
             <GraduationCap className="w-4 h-4 text-indigo-600" />
-            Classes:
-          </span>
-          {uniqueClasses.length === 0 ? (
-            <span className="text-xs text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md font-semibold">
-              Loading classes...
-            </span>
-          ) : (
-            uniqueClasses.map((cls, idx) => {
-              const isSelected = selectedClassId === cls.id;
-              return (
-                <button
-                  key={`att-cls-${cls.id || ''}-${idx}`}
-                  type="button"
-                  onClick={() => handleSelectClass(cls.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
-                    isSelected
-                      ? 'bg-amber-400 text-slate-950 shadow-sm'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  <span>{cls.name}</span>
-                  <span
-                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
-                      isSelected ? 'bg-black/15 text-slate-950' : 'bg-slate-200 text-slate-700'
-                    }`}
-                  >
-                    {cls.enrolledCount}
-                  </span>
-                </button>
-              );
-            })
-          )}
+            Class
+          </label>
+          <select
+            value={selectedClassId}
+            onChange={(e) => handleSelectClass(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          >
+            {uniqueClasses.length === 0 ? (
+              <option value="">No Assigned Classes</option>
+            ) : (
+              uniqueClasses.map((cls, idx) => (
+                <option key={`att-cls-${cls.id || ''}-${idx}`} value={cls.id}>
+                  {cls.name} ({cls.enrolledCount} Enrolled Students)
+                </option>
+              ))
+            )}
+          </select>
         </div>
 
-        {/* Session / Lesson dropdown for the selected class */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500 font-semibold">Session:</span>
-          {classLessons.length > 1 ? (
-            <select
-              value={activeLessonId}
-              onChange={(e) => handleSelectLesson(e.target.value)}
-              className="bg-slate-100 text-xs font-bold text-slate-900 border border-slate-200 rounded-xl px-2.5 py-1.5 focus:outline-hidden cursor-pointer"
-            >
-              {classLessons.map((l, idx) => (
-                <option key={`att-les-${l.id}-${l.rawId || idx}`} value={l.rawId || l.id}>
-                  {l.className} • {l.subject} ({l.startTime} – {l.endTime})
+        {/* Lecture / Period Dropdown */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+            <Clock className="w-4 h-4 text-indigo-600" />
+            Lecture / Period
+          </label>
+          <select
+            value={activeLessonId}
+            onChange={(e) => handleSelectLesson(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          >
+            {classLessons.length > 0 ? (
+              classLessons.map((l, idx) => (
+                <option key={`les-${l.id}-${l.rawId || idx}`} value={l.rawId || l.id}>
+                  Period {l.periodNumber || (idx + 1)}: {l.startTime} – {l.endTime} • {l.subject} ({l.date})
                 </option>
-              ))}
-            </select>
-          ) : classLessons.length === 1 ? (
-            <span className="text-xs font-semibold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
-              {activeLesson?.className} • {activeLesson?.subject} ({activeLesson?.startTime} – {activeLesson?.endTime})
-            </span>
-          ) : (
-            <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
-              {uniqueClasses.find((c) => c.id === selectedClassId)?.name || 'Class'} • General Roster
-            </span>
-          )}
+              ))
+            ) : (
+              <option value={`CLASS-${selectedClassId}`}>
+                General Lecture Session • {new Date().toISOString().slice(0, 10)}
+              </option>
+            )}
+          </select>
         </div>
       </div>
+
+      {/* Selected Session Info Pill */}
+      {activeLesson && (
+        <div className="bg-slate-50 px-4 py-2.5 rounded-lg border border-slate-200 flex flex-wrap items-center justify-between text-xs text-slate-600 gap-2">
+          <div className="flex items-center gap-3">
+            <span className="font-bold text-slate-900">{activeLesson.className}</span>
+            <span>•</span>
+            <span className="text-indigo-700 font-semibold">{activeLesson.subject}</span>
+            <span>•</span>
+            <span className="flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+              {activeLesson.date}
+            </span>
+            <span>•</span>
+            <span className="flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5 text-slate-400" />
+              {activeLesson.startTime} – {activeLesson.endTime}
+            </span>
+          </div>
+          <div className="text-[11px] text-slate-500">
+            Topic: <span className="font-medium text-slate-700">{activeLesson.topic || 'Class Session'}</span>
+          </div>
+        </div>
+      )}
 
       {/* Attendance Stats Cards */}
       <AttendanceStats />
 
-      {/* Roster Control Bar */}
-      <div className="bg-white rounded-2xl p-3 shadow-xs border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+      {/* Roster Search & Filter Bar */}
+      <div className="bg-white rounded-xl p-3 shadow-xs border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="relative w-full sm:w-72">
           <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -277,29 +350,32 @@ export const AttendancePage: React.FC = () => {
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
             placeholder="Search student or Roll #..."
-            className="w-full h-8 pl-8 pr-3 rounded-xl bg-slate-100 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-hidden border border-slate-200"
+            className="w-full h-8 pl-8 pr-3 rounded-lg bg-slate-50 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none border border-slate-200"
           />
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
           <button
+            type="button"
             onClick={handleMarkAllPresent}
             disabled={isLocked}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs font-bold transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs font-bold transition-colors disabled:opacity-50"
           >
             <CheckCheck className="w-4 h-4" />
             <span>Mark All Present</span>
           </button>
           <button
+            type="button"
             onClick={handleExportCSV}
-            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
+            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
             title="Export CSV"
           >
             <Download className="w-4 h-4" />
           </button>
           <button
+            type="button"
             onClick={() => dispatch(toggleRemarksExpanded())}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
               remarksExpanded
                 ? 'bg-indigo-100 text-indigo-800'
                 : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
@@ -311,11 +387,46 @@ export const AttendancePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Student Roster Table */}
+      {/* Step 2: Student Attendance Table */}
       <AttendanceRoster filterQuery={searchFilter} />
 
+      {/* Step 3: Bottom Attendance Action Bar */}
+      <div className="bg-white rounded-xl p-4 shadow-xs border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="text-xs text-slate-500 font-medium">
+          {isLocked ? (
+            <span className="text-emerald-700 font-bold flex items-center gap-1.5">
+              <Lock className="w-4 h-4" /> Attendance is locked for this session. Use Correction Voucher to amend.
+            </span>
+          ) : (
+            <span>All students default to Present. Toggle absent, leave, or excused as needed, then click Save or Finalize.</span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+          <button
+            type="button"
+            onClick={() => handleSaveAttendance(false)}
+            disabled={isLocked || isSaving}
+            className="px-4 py-2 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs sm:text-sm transition-all disabled:opacity-50 flex items-center gap-1.5 shadow-xs"
+          >
+            <Save className="w-4 h-4 text-slate-500" />
+            <span>{isSaving ? 'Saving...' : 'Save Attendance'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSaveAttendance(true)}
+            disabled={isLocked || isSaving}
+            className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-xs transition-all disabled:opacity-50 flex items-center gap-1.5"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            <span>{isLocked ? 'Attendance Finalized' : 'Submit / Finalize Attendance'}</span>
+          </button>
+        </div>
+      </div>
+
       {/* Historical Submissions Table */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
         <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs font-bold text-slate-900">
             <History className="w-4 h-4 text-indigo-600" />
@@ -346,14 +457,17 @@ export const AttendancePage: React.FC = () => {
               ) : (
                 submittedLogs.map((log) => (
                   <tr key={log.id} className="hover:bg-slate-50 h-10 transition-colors">
-                    <td className="px-4 font-mono font-medium text-slate-700">{log.submittedAt}</td>
+                    <td className="px-4 font-mono font-medium text-slate-700">{log.submittedAt || log.time}</td>
                     <td className="px-4 font-bold text-slate-900">{log.className}</td>
                     <td className="px-4 text-center text-emerald-700 font-bold">{log.presentCount}</td>
                     <td className="px-4 text-center text-red-600 font-bold">{log.absentCount}</td>
-                    <td className="px-4 text-center font-bold text-slate-900">{log.turnoutPercentage}%</td>
+                    <td className="px-4 text-center font-bold text-slate-900">
+                      {log.totalStudents > 0 ? Math.round((log.presentCount / log.totalStudents) * 100) : 100}%
+                    </td>
                     <td className="px-4 text-right">
                       <button
-                        onClick={() => dispatch(openCorrectionDrawer())}
+                        type="button"
+                        onClick={() => dispatch(openCorrectionDrawer(log.id))}
                         className="text-indigo-600 hover:text-indigo-800 text-[11px] font-bold"
                       >
                         Request Edit

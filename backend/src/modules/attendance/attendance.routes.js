@@ -18,5 +18,6 @@ router.post('/corrections/:id/review', authenticate, authorize('attendance.corre
 
 // Statistics and Reports
 router.get('/stats', authenticate, attendanceController.getStats);
+router.get('/submissions', authenticate, authorize('attendance.mark'), attendanceController.getTeacherSubmissions);
 
 export default router;
