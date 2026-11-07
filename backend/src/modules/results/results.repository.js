@@ -94,10 +94,26 @@ export const resultsRepository = {
         'task_submissions.marks_awarded as marksAwarded'
       );
 
+    // Also include completed online midterm/final-term tests
+    const testRows = await db('monthly_tests')
+      .leftJoin('test_attempts', 'test_attempts.test_id', 'monthly_tests.id')
+      .where('monthly_tests.class_id', classId)
+      .whereIn('monthly_tests.exam_type', ['MID_TERM', 'FINAL_TERM', 'TERM_EXAM'])
+      .whereBetween('monthly_tests.available_from', [`${termStart} 00:00:00`, `${termEnd} 23:59:59`])
+      .select(
+        'monthly_tests.id as taskId',
+        'monthly_tests.subject_id as subjectId',
+        'monthly_tests.total_marks as taskTotal',
+        'test_attempts.student_id as studentId',
+        'test_attempts.score as marksAwarded'
+      );
+
+    const allExamRows = [...rows, ...testRows];
+
     // taskTotals: subjectId -> total marks of all exam tasks of that subject
     const taskTotals = new Map();
     const seenTasks = new Set();
-    for (const row of rows) {
+    for (const row of allExamRows) {
       if (!seenTasks.has(row.taskId)) {
         seenTasks.add(row.taskId);
         taskTotals.set(row.subjectId, (taskTotals.get(row.subjectId) || 0) + Number(row.taskTotal));
@@ -106,7 +122,7 @@ export const resultsRepository = {
 
     // perStudent: studentId -> subjectId -> { obtained, gradedTasks }
     const perStudent = new Map();
-    for (const row of rows) {
+    for (const row of allExamRows) {
       if (!row.studentId || row.marksAwarded === null) continue;
       if (!perStudent.has(row.studentId)) perStudent.set(row.studentId, new Map());
       const bySubject = perStudent.get(row.studentId);

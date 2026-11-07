@@ -401,74 +401,141 @@ export const resultsService = {
     return {
       term,
       session: { id: session.id, name: session.name, status: session.status },
-      classes: byClass
+      classes: byClass,
+      submissions: submissions.map((s) => ({
+        id: s.id,
+        sessionId: s.session_id,
+        termId: s.term_id,
+        classId: s.class_id,
+        className: s.className,
+        classNumber: s.classNumber,
+        subjectId: s.subject_id,
+        subjectName: s.subjectName,
+        teacherId: s.teacher_id,
+        teacherName: s.teacherName || 'Assigned Teacher',
+        status: s.status,
+        note: s.note,
+        submittedAt: s.created_at || s.updated_at
+      }))
     };
   },
 
   async approveClassResults({ classId, termId }, actor) {
     const { term, session } = await loadTermContext(termId);
-    const rows = await resultsRepository.listResults({
-      termId: term.id,
-      classId: Number(classId),
-      statuses: ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW']
-    });
-    if (rows.length === 0) {
-      throw new AppError('No computed results are awaiting approval for this class', 422, ErrorCodes.VALIDATION_ERROR);
+    let classIdsToApprove = [];
+    if (!classId || classId === 'ALL') {
+      const overview = await resultsRepository.getClassTermOverview(session.id, term.id);
+      classIdsToApprove = overview.classes.map((c) => Number(c.id));
+    } else {
+      classIdsToApprove = [Number(classId)];
     }
-    await db.transaction(async (trx) => {
-      await resultsRepository.updateResultStatus(
-        rows.map((r) => r.id),
-        { result_status: 'APPROVED', approved_by: actor.id, approved_at: db.fn.now(3) },
-        trx
-      );
-      await auditEntry(trx, actor, {
-        action: 'APPROVE_TERM_RESULTS',
-        recordType: 'Final Result',
-        recordIdentifier: `Class ${classId} · ${term.name} · ${session.name}`,
-        newValue: `${rows.length} results approved`
+
+    let totalApproved = 0;
+    for (const cId of classIdsToApprove) {
+      let rows = await resultsRepository.listResults({
+        termId: term.id,
+        classId: cId,
+        statuses: ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW']
       });
-    });
-    return { approved: rows.length };
+      if (rows.length === 0) {
+        try {
+          await this.computeClassResults({ classId: cId, termId: term.id }, actor);
+          rows = await resultsRepository.listResults({
+            termId: term.id,
+            classId: cId,
+            statuses: ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW']
+          });
+        } catch {
+          // No active subjects or exam tasks for this class yet
+        }
+      }
+      if (rows.length > 0) {
+        await db.transaction(async (trx) => {
+          await resultsRepository.updateResultStatus(
+            rows.map((r) => r.id),
+            { result_status: 'APPROVED', approved_by: actor.id, approved_at: db.fn.now(3) },
+            trx
+          );
+          await trx('marks_submissions')
+            .where({ term_id: term.id, class_id: cId })
+            .update({ status: 'APPROVED' });
+          await auditEntry(trx, actor, {
+            action: 'APPROVE_TERM_RESULTS',
+            recordType: 'Final Result',
+            recordIdentifier: `Class ${cId} · ${term.name} · ${session.name}`,
+            newValue: `${rows.length} results approved`
+          });
+        });
+        totalApproved += rows.length;
+      }
+    }
+
+    return { approved: totalApproved };
   },
 
   async publishClassResults({ classId, termId }, actor) {
     const { term, session } = await loadTermContext(termId);
-    const rows = await resultsRepository.listResults({
-      termId: term.id,
-      classId: Number(classId),
-      statuses: ['APPROVED']
-    });
-    if (rows.length === 0) {
-      throw new AppError('No approved results to publish for this class', 422, ErrorCodes.VALIDATION_ERROR);
+    let classIdsToPublish = [];
+    if (!classId || classId === 'ALL') {
+      const overview = await resultsRepository.getClassTermOverview(session.id, term.id);
+      classIdsToPublish = overview.classes.map((c) => Number(c.id));
+    } else {
+      classIdsToPublish = [Number(classId)];
     }
-    await db.transaction(async (trx) => {
-      await resultsRepository.updateResultStatus(
-        rows.map((r) => r.id),
-        { result_status: 'PUBLISHED', published_at: db.fn.now(3) },
-        trx
-      );
-      await auditEntry(trx, actor, {
-        action: 'PUBLISH_TERM_RESULTS',
-        recordType: 'Final Result',
-        recordIdentifier: `Class ${classId} · ${term.name} · ${session.name}`,
-        newValue: `${rows.length} results published`
+
+    let totalPublished = 0;
+    for (const cId of classIdsToPublish) {
+      let rows = await resultsRepository.listResults({
+        termId: term.id,
+        classId: cId,
+        statuses: ['APPROVED']
       });
-    });
-    const recipients = await getClassAudienceUserIds([], {
-      includeStudents: true,
-      includeParents: true,
-      studentIds: rows.map((r) => r.student_id)
-    });
-    notificationService.notifyUsers(recipients, {
-      title: 'Term Results Published',
-      message: `Your ${term.name} (${session.name}) result has been published. Open Results & Progress to view it.`,
-      type: 'Result Published',
-      targetRole: 'ALL',
-      relatedRecordId: String(term.id),
-      relatedRecordType: 'FinalResult',
-      priority: 'High'
-    });
-    return { published: rows.length };
+      if (rows.length === 0) {
+        await this.approveClassResults({ classId: cId, termId: term.id }, actor).catch(() => {});
+        rows = await resultsRepository.listResults({
+          termId: term.id,
+          classId: cId,
+          statuses: ['APPROVED']
+        });
+      }
+      if (rows.length > 0) {
+        await db.transaction(async (trx) => {
+          await resultsRepository.updateResultStatus(
+            rows.map((r) => r.id),
+            { result_status: 'PUBLISHED', published_at: db.fn.now(3) },
+            trx
+          );
+          await trx('marks_submissions')
+            .where({ term_id: term.id, class_id: cId })
+            .update({ status: 'PUBLISHED' });
+          await auditEntry(trx, actor, {
+            action: 'PUBLISH_TERM_RESULTS',
+            recordType: 'Final Result',
+            recordIdentifier: `Class ${cId} · ${term.name} · ${session.name}`,
+            newValue: `${rows.length} results published`
+          });
+        });
+        const recipients = await getClassAudienceUserIds([], {
+          includeStudents: true,
+          includeParents: true,
+          studentIds: rows.map((r) => r.student_id)
+        });
+        if (recipients.length > 0) {
+          notificationService.notifyUsers(recipients, {
+            title: 'Term Results Published',
+            message: `Your ${term.name} (${session.name}) result has been published. Open Results & Progress to view it.`,
+            type: 'Result Published',
+            targetRole: 'ALL',
+            relatedRecordId: String(term.id),
+            relatedRecordType: 'FinalResult',
+            priority: 'High'
+          });
+        }
+        totalPublished += rows.length;
+      }
+    }
+
+    return { published: totalPublished };
   },
 
   /**

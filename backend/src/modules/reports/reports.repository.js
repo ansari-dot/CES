@@ -615,13 +615,13 @@ export const reportsRepository = {
       const finalRes = finalResMap.get(Number(s.id));
       const termMarks = finalRes && finalRes.obtained_marks != null 
         ? Number(finalRes.obtained_marks) 
-        : (overall != null ? Math.round(overall) : null);
+        : null;
       const termTotal = finalRes && finalRes.total_marks != null ? Number(finalRes.total_marks) : 100;
-      const termPct = finalRes && finalRes.percentage != null ? Number(finalRes.percentage) : overall;
-      const termGrade = finalRes && finalRes.overall_grade ? finalRes.overall_grade : letterGrade(overall);
+      const termPct = finalRes && finalRes.percentage != null ? Number(finalRes.percentage) : null;
+      const termGrade = finalRes && finalRes.overall_grade ? finalRes.overall_grade : null;
       const termStatus = finalRes
         ? (finalRes.pass_status === 'PASSED' ? 'Pass' : finalRes.pass_status === 'FAILED' ? 'Fail' : finalRes.pass_status)
-        : (overall != null ? (overall >= 50 ? 'Pass' : 'Fail') : 'Pending');
+        : 'Pending';
 
       return {
         id: String(s.id),
@@ -659,7 +659,8 @@ export const reportsRepository = {
           percentage: termPct,
           grade: termGrade,
           status: termStatus,
-          resultStatus: finalRes ? finalRes.result_status : 'PENDING'
+          resultStatus: finalRes ? finalRes.result_status : null,
+          publishedAt: finalRes ? finalRes.published_at : null
         },
         achievements: achMap.get(Number(s.id)) || 0
       };

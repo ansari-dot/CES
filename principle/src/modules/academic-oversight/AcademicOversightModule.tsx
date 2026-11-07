@@ -24,8 +24,13 @@ import {
   Printer,
   Info,
   Check,
-  Award
+  Award,
+  ShieldCheck,
+  Calculator,
+  RefreshCw
 } from 'lucide-react';
+
+export type AcademicTab = 'terminal' | 'progress' | 'approvals';
 
 export const AcademicOversightModule: React.FC = () => {
   const toast = useToast();
@@ -39,13 +44,33 @@ export const AcademicOversightModule: React.FC = () => {
   const [subjects, setSubjects] = useState<{ id: string; name: string; code: string }[]>([]);
 
   // Navigation & UI states
-  const [activeTab, setActiveTab] = useState<'terminal' | 'progress'>('terminal');
+  const [activeTab, setActiveTab] = useState<AcademicTab>('terminal');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const itemsPerPage = 8;
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Approvals & Overview states
+  const [terms, setTerms] = useState<any[]>([]);
+  const [selectedTermId, setSelectedTermId] = useState<number | null>(null);
+  const [resultsOverview, setResultsOverview] = useState<any | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState<boolean>(false);
+  const [actionBusyClass, setActionBusyClass] = useState<number | 'ALL' | null>(null);
+  const [inspectClassModal, setInspectClassModal] = useState<{
+    open: boolean;
+    classId: number | null;
+    className: string;
+    loading: boolean;
+    rows: any[];
+  }>({
+    open: false,
+    classId: null,
+    className: '',
+    loading: false,
+    rows: []
+  });
 
   // Transcript inspection modal state
   const [transcriptModal, setTranscriptModal] = useState<{
@@ -95,6 +120,14 @@ export const AcademicOversightModule: React.FC = () => {
         const currentSess = sessList.find((s) => s.isCurrent) || sessList[0];
         if (currentSess) {
           setSelectedSessionId(currentSess.id);
+          const termList = await api.getAcademicTerms(currentSess.id).catch(() => []);
+          if (isMounted) {
+            setTerms(termList || []);
+            if (termList && termList.length > 0) {
+              const preferred = termList.find((t: any) => t.is_final) || termList[0];
+              setSelectedTermId(preferred.id);
+            }
+          }
         }
       } catch (err: any) {
         if (isMounted) setError(err.message || 'Failed to initialize session parameters');
@@ -106,6 +139,47 @@ export const AcademicOversightModule: React.FC = () => {
       isMounted = false;
     };
   }, []);
+
+  // Load terms when selectedSessionId changes
+  useEffect(() => {
+    if (!selectedSessionId) return;
+    (async () => {
+      try {
+        const termList = await api.getAcademicTerms(selectedSessionId);
+        setTerms(termList || []);
+        if (termList && termList.length > 0) {
+          const preferred = termList.find((t: any) => t.is_final) || termList[0];
+          setSelectedTermId(preferred.id);
+        } else {
+          setSelectedTermId(null);
+        }
+      } catch {
+        setTerms([]);
+        setSelectedTermId(null);
+      }
+    })();
+  }, [selectedSessionId]);
+
+  // Load results overview whenever selectedTermId changes
+  const loadOverview = useCallback(async () => {
+    if (!selectedTermId) {
+      setResultsOverview(null);
+      return;
+    }
+    try {
+      setOverviewLoading(true);
+      const data = await api.getResultsOverview(selectedTermId);
+      setResultsOverview(data);
+    } catch {
+      setResultsOverview(null);
+    } finally {
+      setOverviewLoading(false);
+    }
+  }, [selectedTermId]);
+
+  useEffect(() => {
+    loadOverview();
+  }, [loadOverview]);
 
   // Fetch student records whenever session or class filter changes
   const loadStudentRecords = useCallback(async () => {
@@ -162,7 +236,14 @@ export const AcademicOversightModule: React.FC = () => {
     let totalPct = 0;
     let scoredCount = 0;
 
+    // Continuous assessment metrics
+    let continuousTotal = 0;
+    let continuousCount = 0;
+    let goodStandingCount = 0;
+    let needAttentionCount = 0;
+
     for (const s of filteredStudents) {
+      // 1. Terminal exam
       const termRes = s.terminalResult;
       const statusUpper = (termRes?.status || '').toUpperCase();
 
@@ -172,15 +253,32 @@ export const AcademicOversightModule: React.FC = () => {
         failed++;
       }
 
-      if (termRes && termRes.percentage != null && termRes.percentage > 0) {
+      if (termRes && termRes.percentage != null) {
         totalPct += Number(termRes.percentage);
         scoredCount++;
       }
+
+      // 2. Continuous academics
+      const avg = s.academics?.averageScore;
+      const att = s.attendance?.rate;
+      if (avg != null) {
+        continuousTotal += Number(avg);
+        continuousCount += 1;
+        if (avg >= 50 && (att === null || att >= 75)) {
+          goodStandingCount += 1;
+        } else {
+          needAttentionCount += 1;
+        }
+      }
     }
 
-    const successRate = total > 0 ? ((passed / total) * 100).toFixed(1) : '0.0';
-    const failRate = total > 0 ? ((failed / total) * 100).toFixed(1) : '0.0';
-    const avgTerminalExam = scoredCount > 0 ? (totalPct / scoredCount).toFixed(1) : '87.5';
+    const successRate = scoredCount > 0 ? ((passed / scoredCount) * 100).toFixed(1) : '0.0';
+    const failRate = scoredCount > 0 ? ((failed / scoredCount) * 100).toFixed(1) : '0.0';
+    const avgTerminalExam = scoredCount > 0 ? `${(totalPct / scoredCount).toFixed(1)}%` : '—';
+
+    const avgContinuousScore = continuousCount > 0 ? `${(continuousTotal / continuousCount).toFixed(1)}%` : '—';
+    const goodStandingRate = total > 0 ? ((goodStandingCount / total) * 100).toFixed(1) : '0.0';
+    const attentionRate = total > 0 ? ((needAttentionCount / total) * 100).toFixed(1) : '0.0';
 
     return {
       totalStudents: total,
@@ -188,7 +286,14 @@ export const AcademicOversightModule: React.FC = () => {
       failedStudents: failed,
       successRate,
       failRate,
-      avgTerminalExam: `${avgTerminalExam}%`
+      avgTerminalExam,
+      scoredCount,
+      continuousCount,
+      goodStandingCount,
+      goodStandingRate,
+      needAttentionCount,
+      attentionRate,
+      avgContinuousScore
     };
   }, [filteredStudents]);
 
@@ -326,16 +431,26 @@ export const AcademicOversightModule: React.FC = () => {
     };
   }, [filteredStudents]);
 
+  const pendingTeacherSubmissionsCount = useMemo(() => {
+    if (!resultsOverview?.classes) return 0;
+    return resultsOverview.classes.reduce(
+      (sum: number, c: any) =>
+        sum + (c.resultsComputed > c.resultsApproved + c.resultsPublished ? 1 : 0),
+      0
+    );
+  }, [resultsOverview]);
+
   const handleApproveResults = async () => {
     if (!selectedClassId) {
       toast.warning('Please select a specific class from the filter above to approve results.');
       return;
     }
+    const termId = selectedTermId || 1;
     try {
       setApproving(true);
-      await api.approveClassResults(selectedClassId, 1);
+      await api.approveClassResults(selectedClassId, termId);
       toast.success('Terminal exam results officially approved by Principal.');
-      await loadStudentRecords();
+      await Promise.all([loadStudentRecords(), loadOverview()]);
     } catch (err: any) {
       toast.error(err.message || 'Failed to approve class results');
     } finally {
@@ -348,15 +463,83 @@ export const AcademicOversightModule: React.FC = () => {
       toast.warning('Please select a specific class from the filter above to publish results.');
       return;
     }
+    const termId = selectedTermId || 1;
     try {
       setPublishing(true);
-      await api.publishClassResults(selectedClassId, 1);
+      await api.publishClassResults(selectedClassId, termId);
       toast.success('Terminal exam results officially published to Students and Parents!');
-      await loadStudentRecords();
+      await Promise.all([loadStudentRecords(), loadOverview()]);
     } catch (err: any) {
       toast.error(err.message || 'Failed to publish results to students and parents');
     } finally {
       setPublishing(false);
+    }
+  };
+
+  const handleComputeClass = async (classId: number) => {
+    if (!selectedTermId) return;
+    try {
+      setActionBusyClass(classId);
+      await api.computeClassResults(classId, selectedTermId);
+      toast.success('Examination marks computed for this class.');
+      await Promise.all([loadOverview(), loadStudentRecords()]);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to compute class results');
+    } finally {
+      setActionBusyClass(null);
+    }
+  };
+
+  const handleApproveClass = async (classId: number | 'ALL') => {
+    if (!selectedTermId) return;
+    try {
+      setActionBusyClass(classId);
+      const res = await api.approveClassResults(classId as any, selectedTermId);
+      toast.success(`Terminal exam results officially approved (${res?.approved ?? 'All'} evaluated).`);
+      await Promise.all([loadOverview(), loadStudentRecords()]);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to approve results');
+    } finally {
+      setActionBusyClass(null);
+    }
+  };
+
+  const handlePublishClass = async (classId: number | 'ALL') => {
+    if (!selectedTermId) return;
+    try {
+      setActionBusyClass(classId);
+      const res = await api.publishClassResults(classId as any, selectedTermId);
+      toast.success(`Official results published! Now live for Students & Parents (${res?.published ?? 'All'} released).`);
+      await Promise.all([loadOverview(), loadStudentRecords()]);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to publish results');
+    } finally {
+      setActionBusyClass(null);
+    }
+  };
+
+  const handleInspectClass = async (classId: number, className: string) => {
+    if (!selectedTermId) return;
+    setInspectClassModal({
+      open: true,
+      classId,
+      className,
+      loading: true,
+      rows: []
+    });
+    try {
+      const rows = await api.listFinalResults({ termId: selectedTermId, classId });
+      setInspectClassModal((prev) => ({
+        ...prev,
+        loading: false,
+        rows: rows || []
+      }));
+    } catch {
+      setInspectClassModal((prev) => ({
+        ...prev,
+        loading: false,
+        rows: []
+      }));
     }
   };
 
@@ -467,11 +650,11 @@ export const AcademicOversightModule: React.FC = () => {
       );
     }
 
-    // Pending marks entry
+    // Pending terminal exam evaluation
     return (
       <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
         <span className="w-2 h-2 rounded-full bg-slate-300" />
-        Pending Marks
+        Pending Terminal Exam
       </span>
     );
   };
@@ -567,7 +750,7 @@ export const AcademicOversightModule: React.FC = () => {
 
       {/* 3. FOUR METRIC STAT CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Students */}
+        {/* Card 1: Total Students */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
             <Users className="w-6 h-6" />
@@ -583,61 +766,71 @@ export const AcademicOversightModule: React.FC = () => {
           </div>
         </div>
 
-        {/* Passed Students */}
+        {/* Card 2: Passed Terminal Exam or In Good Standing */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
             <Trophy className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-xs font-medium text-slate-500 block">Passed Students</span>
+            <span className="text-xs font-medium text-slate-500 block">
+              {activeTab === 'progress' ? 'In Good Standing' : 'Passed Terminal Exam'}
+            </span>
             <span className="text-2xl font-bold text-slate-900 font-mono block mt-0.5">
-              {stats.passedStudents}
+              {activeTab === 'progress' ? stats.goodStandingCount : stats.passedStudents}
             </span>
             <span className="text-[11px] text-emerald-600 font-semibold block mt-0.5">
-              {stats.successRate}% Success Rate
+              {activeTab === 'progress'
+                ? `${stats.goodStandingRate}% Good Standing`
+                : `${stats.successRate}% Success Rate`}
             </span>
           </div>
         </div>
 
-        {/* Failed Students */}
+        {/* Card 3: Failed Students or Academic Alert */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
             <AlertCircle className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-xs font-medium text-slate-500 block">Failed Students</span>
+            <span className="text-xs font-medium text-slate-500 block">
+              {activeTab === 'progress' ? 'Needs Academic Attention' : 'Failed / Supplementary'}
+            </span>
             <span className="text-2xl font-bold text-slate-900 font-mono block mt-0.5">
-              {stats.failedStudents}
+              {activeTab === 'progress' ? stats.needAttentionCount : stats.failedStudents}
             </span>
             <span className="text-[11px] text-rose-600 font-semibold block mt-0.5">
-              {stats.failRate}% Require Attention
+              {activeTab === 'progress'
+                ? `${stats.attentionRate}% Below Benchmark`
+                : `${stats.failRate}% Require Supplementary`}
             </span>
           </div>
         </div>
 
-        {/* Avg. Terminal Exam */}
+        {/* Card 4: Avg Score */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
             <BookOpen className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-xs font-medium text-slate-500 block">Avg. Terminal Exam</span>
+            <span className="text-xs font-medium text-slate-500 block">
+              {activeTab === 'progress' ? 'Continuous Term Average' : 'Avg. Terminal Exam'}
+            </span>
             <span className="text-2xl font-bold text-slate-900 font-mono block mt-0.5">
-              {stats.avgTerminalExam}
+              {activeTab === 'progress' ? stats.avgContinuousScore : stats.avgTerminalExam}
             </span>
             <span className="text-[11px] text-slate-400 block mt-0.5">
-              Overall Academic Average
+              {activeTab === 'progress' ? 'Continuous Tasks & Tests' : 'Official Terminal Results'}
             </span>
           </div>
         </div>
       </div>
 
-      {/* 4. TAB SWITCHER (Terminal Exam Results vs Student Progress) */}
-      <div className="flex items-center gap-2">
+      {/* 4. TAB SWITCHER (Terminal Exam Results vs Student Progress vs Teacher Approvals) */}
+      <div className="flex items-center gap-2 flex-wrap">
         <button
           type="button"
           onClick={() => setActiveTab('terminal')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-150 ${
+          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-150 cursor-pointer ${
             activeTab === 'terminal'
               ? 'bg-indigo-900 text-white shadow-xs'
               : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -650,14 +843,32 @@ export const AcademicOversightModule: React.FC = () => {
         <button
           type="button"
           onClick={() => setActiveTab('progress')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-150 ${
+          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-150 cursor-pointer ${
             activeTab === 'progress'
               ? 'bg-indigo-900 text-white shadow-xs'
               : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
           }`}
         >
           <BarChart3 className="w-3.5 h-3.5" />
-          <span>Student Progress</span>
+          <span>Student Academic Progress &amp; Projections</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('approvals')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-150 cursor-pointer ${
+            activeTab === 'approvals'
+              ? 'bg-indigo-900 text-white shadow-xs'
+              : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+          }`}
+        >
+          <ShieldCheck className="w-3.5 h-3.5" />
+          <span>Teacher Result Approvals &amp; Publishing</span>
+          {pendingTeacherSubmissionsCount > 0 && (
+            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-black">
+              {pendingTeacherSubmissionsCount}
+            </span>
+          )}
         </button>
       </div>
 
@@ -743,8 +954,9 @@ export const AcademicOversightModule: React.FC = () => {
         </div>
       )}
 
-      {/* 5. MAIN TABLE CARD */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+      {/* 5. MAIN TABLE CARD (Terminal and Progress tabs) */}
+      {activeTab !== 'approvals' && (
+        <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
         {/* Table Header Bar */}
         <div className="p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -1030,6 +1242,337 @@ export const AcademicOversightModule: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
+
+      {/* 6. TEACHER RESULT APPROVALS & PUBLISHING DASHBOARD */}
+      {activeTab === 'approvals' && (
+        <div className="space-y-5 animate-in fade-in duration-150">
+          {/* Controls Bar */}
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 text-xs flex-wrap">
+              <span className="font-bold text-slate-500 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                Select Term:
+              </span>
+              <select
+                value={selectedTermId ?? ''}
+                onChange={(e) => setSelectedTermId(Number(e.target.value))}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer"
+              >
+                {terms.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} {t.is_final ? '· Final Term' : ''}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={loadOverview}
+                disabled={overviewLoading}
+                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                title="Refresh Status"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${overviewLoading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+
+            {/* Quick Bulk Actions */}
+            <div className="flex items-center gap-2 self-stretch md:self-auto justify-end">
+              <button
+                type="button"
+                disabled={actionBusyClass !== null || overviewLoading}
+                onClick={() => handleApproveClass('ALL')}
+                className="px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-900 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                title="Approve all computed results across classes"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
+                <span>{actionBusyClass === 'ALL' ? 'Processing...' : 'Approve All Classes'}</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={actionBusyClass !== null || overviewLoading}
+                onClick={() => handlePublishClass('ALL')}
+                className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+                title="Publish all approved results to Student and Parent portals"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>Publish All to Students &amp; Parents</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 4 Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                <GraduationCap className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[11px] font-medium text-slate-500 block">Classes</span>
+                <span className="text-xl font-bold text-slate-900 font-mono">
+                  {resultsOverview?.classes?.length || 0}
+                </span>
+                <span className="text-[10px] text-slate-400 block mt-0.5">Active grade levels</span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <BookOpen className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[11px] font-medium text-slate-500 block">Teacher Submissions</span>
+                <span className="text-xl font-bold text-amber-700 font-mono">
+                  {resultsOverview?.submissions?.length || 0}
+                </span>
+                <span className="text-[10px] text-slate-400 block mt-0.5">Marks hand-offs</span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[11px] font-medium text-slate-500 block">Pending Approval</span>
+                <span className="text-xl font-bold text-rose-700 font-mono">
+                  {(resultsOverview?.classes || []).reduce(
+                    (acc: number, c: any) =>
+                      acc +
+                      (c.resultsComputed > c.resultsApproved + c.resultsPublished
+                        ? c.resultsComputed - c.resultsApproved - c.resultsPublished
+                        : 0),
+                    0
+                  )}
+                </span>
+                <span className="text-[10px] text-slate-400 block mt-0.5">Students awaiting review</span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                <Award className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[11px] font-medium text-slate-500 block">Published Live</span>
+                <span className="text-xl font-bold text-emerald-700 font-mono">
+                  {(resultsOverview?.classes || []).reduce(
+                    (acc: number, c: any) => acc + (c.resultsPublished || 0),
+                    0
+                  )}
+                </span>
+                <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">
+                  Live on Student &amp; Parent Portal
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Class-wise Approvals Table Card */}
+          <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                  <span>Class-wise Results Approval &amp; Publishing Matrix</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Review marks uploaded by teachers for each class, approve computed results, and publish them to students and parents.
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-700">
+                <thead className="bg-slate-50/80 text-slate-500 font-semibold border-b border-slate-100 text-[11px] uppercase tracking-wider">
+                  <tr>
+                    <th className="px-5 py-3">Class</th>
+                    <th className="px-5 py-3 text-center">Enrolled</th>
+                    <th className="px-5 py-3 text-center">Teacher Marks Uploaded</th>
+                    <th className="px-5 py-3 text-center">Computed Results</th>
+                    <th className="px-5 py-3 text-center">Passed / Failed / Suppl.</th>
+                    <th className="px-5 py-3 text-center">Publication Status</th>
+                    <th className="px-5 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(resultsOverview?.classes || []).map((c: any) => {
+                    const hasPendingApproval =
+                      c.resultsComputed > c.resultsApproved + c.resultsPublished;
+                    const isAllPublished =
+                      c.enrolledStudents > 0 && c.resultsPublished >= c.enrolledStudents;
+                    const hasApproved = c.resultsApproved > 0;
+                    const isBusy = actionBusyClass === c.classId;
+
+                    return (
+                      <tr key={c.classId} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="px-5 py-3.5 font-bold text-slate-900">{c.className}</td>
+                        <td className="px-5 py-3.5 text-center font-mono font-medium text-slate-700">
+                          {c.enrolledStudents}
+                        </td>
+                        <td className="px-5 py-3.5 text-center">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold font-mono ${
+                              c.marksSubmitted >= c.subjectsConfigured && c.subjectsConfigured > 0
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : c.marksSubmitted > 0
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}
+                          >
+                            {c.marksSubmitted} / {c.subjectsConfigured} Subjects
+                          </span>
+                        </td>
+                        <td className="px-5 py-3.5 text-center font-mono">
+                          <span className="font-semibold text-slate-900">{c.resultsComputed}</span>
+                          {c.resultsIncomplete > 0 && (
+                            <span className="text-[10px] text-amber-700 ml-1 font-semibold">
+                              ({c.resultsIncomplete} incomplete)
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5 text-center font-mono text-xs">
+                          <span className="text-emerald-700 font-bold">{c.passed}</span>
+                          <span className="text-slate-300 mx-1">/</span>
+                          <span className="text-rose-700 font-bold">{c.failed}</span>
+                          <span className="text-slate-300 mx-1">/</span>
+                          <span className="text-amber-700 font-bold">{c.supplementary}</span>
+                        </td>
+                        <td className="px-5 py-3.5 text-center">
+                          {isAllPublished ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              Published to Students &amp; Parents
+                            </span>
+                          ) : hasApproved ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-800">
+                              <Check className="w-3 h-3 text-indigo-600" />
+                              Approved ({c.resultsApproved} ready to publish)
+                            </span>
+                          ) : hasPendingApproval ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              Awaiting Approval
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-500">
+                              Awaiting Marks
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* Compute Button */}
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => handleComputeClass(c.classId)}
+                              className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-semibold inline-flex items-center gap-1 transition-colors disabled:opacity-40 cursor-pointer shadow-2xs"
+                              title="Recompute results from graded exams"
+                            >
+                              <Calculator className="w-3 h-3 text-slate-500" />
+                              <span>Compute</span>
+                            </button>
+
+                            {/* Approve Button */}
+                            <button
+                              type="button"
+                              disabled={isBusy || c.enrolledStudents === 0}
+                              onClick={() => handleApproveClass(c.classId)}
+                              className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold inline-flex items-center gap-1 transition-colors disabled:opacity-40 cursor-pointer shadow-xs"
+                              title="Approve marks entered by teachers"
+                            >
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>{isBusy ? '...' : 'Approve'}</span>
+                            </button>
+
+                            {/* Publish Button */}
+                            <button
+                              type="button"
+                              disabled={isBusy || c.enrolledStudents === 0}
+                              onClick={() => handlePublishClass(c.classId)}
+                              className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold inline-flex items-center gap-1 transition-colors disabled:opacity-40 cursor-pointer shadow-xs"
+                              title="Publish terminal results to Student and Parent portals"
+                            >
+                              <Send className="w-3 h-3" />
+                              <span>{isBusy ? '...' : 'Publish'}</span>
+                            </button>
+
+                            {/* View / Inspect Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleInspectClass(c.classId, c.className)}
+                              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
+                              title="Inspect students' results"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Teacher Submissions Log */}
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-3">
+            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-amber-600" />
+              <span>Teacher Examination Marks Hand-Offs (Submitted per Subject)</span>
+            </h3>
+
+            {(resultsOverview?.submissions || []).length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-xs">
+                <Clock className="w-8 h-8 text-slate-300 mx-auto mb-1.5" />
+                <p className="font-semibold text-slate-600">No subject marks hand-offs recorded yet for this term.</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  When teachers finalize their evaluations and submit marks from their portal, each subject entry will appear here for review.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {resultsOverview.submissions.map((sub: any) => (
+                  <div
+                    key={sub.id}
+                    className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2 hover:border-slate-300 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-slate-900">{sub.subjectName}</span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          sub.status === 'PUBLISHED'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : sub.status === 'APPROVED'
+                            ? 'bg-indigo-100 text-indigo-800'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        {sub.status}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-600 flex items-center justify-between">
+                      <span>Class: <strong>{sub.className}</strong></span>
+                      <span>Teacher: <strong>{sub.teacherName}</strong></span>
+                    </div>
+                    {sub.note && (
+                      <p className="text-[11px] text-slate-500 italic bg-white p-2 rounded-lg border border-slate-100">
+                        &quot;{sub.note}&quot;
+                      </p>
+                    )}
+                    <div className="text-[10px] text-slate-400 font-mono">
+                      Submitted: {sub.submittedAt ? new Date(sub.submittedAt).toLocaleString() : 'Recently'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 6. BOTTOM RETENTION NOTICE (Exact Text & Styling as Requested) */}
       <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-100 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
@@ -1402,6 +1945,109 @@ export const AcademicOversightModule: React.FC = () => {
                 <span>Dispatch Parent Alert</span>
               </button>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* INSPECT CLASS MARKS MODAL */}
+      {inspectClassModal.open && (
+        <Modal
+          title={`Results Inspection: ${inspectClassModal.className} (${currentSessionObj?.name || '2026-27'})`}
+          onClose={() => setInspectClassModal((prev) => ({ ...prev, open: false }))}
+          size="xl"
+        >
+          <div className="space-y-4">
+            <div className="flex items-center justify-between text-xs text-slate-500">
+              <span>Exam results for all students in <strong>{inspectClassModal.className}</strong></span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={actionBusyClass !== null}
+                  onClick={() => inspectClassModal.classId && handleApproveClass(inspectClassModal.classId)}
+                  className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs cursor-pointer"
+                >
+                  Approve Class
+                </button>
+                <button
+                  type="button"
+                  disabled={actionBusyClass !== null}
+                  onClick={() => inspectClassModal.classId && handlePublishClass(inspectClassModal.classId)}
+                  className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-xs cursor-pointer"
+                >
+                  Publish Class
+                </button>
+              </div>
+            </div>
+
+            {inspectClassModal.loading ? (
+              <LoadingState message="Loading student marks..." rows={4} />
+            ) : inspectClassModal.rows.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 text-xs">
+                <Info className="w-8 h-8 text-slate-300 mx-auto mb-1" />
+                No computed results found for this class yet. Click &quot;Compute&quot; to generate results.
+              </div>
+            ) : (
+              <div className="overflow-x-auto max-h-[60vh]">
+                <table className="w-full text-left text-xs text-slate-700">
+                  <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 uppercase text-[10px] tracking-wider sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2">Student</th>
+                      <th className="px-3 py-2">Roll No</th>
+                      <th className="px-3 py-2 text-right">Obtained Marks</th>
+                      <th className="px-3 py-2 text-right">Total</th>
+                      <th className="px-3 py-2 text-right">Percentage</th>
+                      <th className="px-3 py-2 text-center">Grade</th>
+                      <th className="px-3 py-2 text-center">Pass / Fail</th>
+                      <th className="px-3 py-2 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {inspectClassModal.rows.map((r: any) => (
+                      <tr key={r.id} className="hover:bg-slate-50/60">
+                        <td className="px-3 py-2.5 font-bold text-slate-900">{r.studentName}</td>
+                        <td className="px-3 py-2.5 font-mono text-slate-500">{r.rollNo || '—'}</td>
+                        <td className="px-3 py-2.5 text-right font-mono font-bold text-slate-900">
+                          {r.obtained_marks != null ? Number(r.obtained_marks).toFixed(1) : '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-mono text-slate-500">
+                          {r.total_marks != null ? Number(r.total_marks).toFixed(0) : '100'}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-mono font-bold text-slate-900">
+                          {r.percentage != null ? `${Number(r.percentage).toFixed(1)}%` : '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-center">{renderGradeBadge(r.overall_grade)}</td>
+                        <td className="px-3 py-2.5 text-center">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              r.pass_status === 'PASSED'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : r.pass_status === 'FAILED'
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {r.pass_status}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              r.result_status === 'PUBLISHED'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : r.result_status === 'APPROVED'
+                                ? 'bg-indigo-100 text-indigo-800'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}
+                          >
+                            {r.result_status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </Modal>
       )}
