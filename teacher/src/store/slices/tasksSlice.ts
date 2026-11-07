@@ -8,6 +8,7 @@ interface TasksState {
   selectedSubmissionId: string;
   tasks: Task[];
   submissions: Submission[];
+  taskRoster: RosterEntry[];
   loading: boolean;
   submissionsLoading: boolean;
   error: string | null;
@@ -21,8 +22,17 @@ export interface RosterEntry {
   submissionId: number | null;
   status: string;
   hasFile: boolean;
+  fileUrl?: string | null;
+  fileName?: string | null;
+  fileSize?: number | null;
+  studentNotes?: string | null;
+  submittedAt?: string | null;
+  isLate?: boolean;
   marksAwarded: number | null;
+  rubricScores?: any;
   feedback: string;
+  gradedAt?: string | null;
+  gradedBy?: number | null;
 }
 
 const initialTasks: Task[] = [];
@@ -257,6 +267,7 @@ const initialState: TasksState = {
   selectedSubmissionId: '',
   tasks: initialTasks,
   submissions: initialSubmissions,
+  taskRoster: [],
   loading: false,
   submissionsLoading: false,
   error: null,
@@ -331,6 +342,15 @@ export const tasksSlice = createSlice({
         if (!action.payload) return;
         const updated = mapSubmission(action.payload);
         state.submissions = state.submissions.map((s) => (s.id === updated.id ? updated : s));
+      })
+      // Class Roster for Assessment
+      .addCase(fetchTaskRosterThunk.fulfilled, (state, action) => {
+        state.taskRoster = action.payload || [];
+      })
+      .addCase(recordMarksThunk.fulfilled, (state, action) => {
+        if (Array.isArray(action.payload?.students)) {
+          state.taskRoster = action.payload.students;
+        }
       })
       // Create Task
       .addCase(createTaskThunk.fulfilled, (state, action) => {

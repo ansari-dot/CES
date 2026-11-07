@@ -2,7 +2,7 @@ import React from 'react';
 import { useAppDispatch, useAppSelector } from '../../store';
 import {
   closeSubmitModal,
-  confirmFinalAttendance,
+  submitAttendanceThunk,
 } from '../../store/slices/attendanceSlice';
 import { addToast } from '../../store/slices/uiSlice';
 import { Modal } from '../common/Modal';
@@ -12,46 +12,37 @@ export const SubmitAttendanceModal: React.FC = () => {
   const isOpen = useAppSelector((state) => state.attendance.isSubmitModalOpen);
   const roster = useAppSelector((state) => state.attendance.roster);
   const teacher = useAppSelector((state) => state.auth.teacher);
+  const currentLessonId = useAppSelector((state) => state.attendance.currentLessonId);
 
   const presentCount = roster.filter((r) => r.status === 'present').length;
   const absentCount = roster.filter((r) => r.status === 'absent').length;
-  const lateCount = roster.filter((r) => r.status === 'late').length;
-
-  const currentLessonId = useAppSelector((state) => state.attendance.currentLessonId);
+  const lateCount = roster.filter((r) => r.status === 'late' || r.status === 'leave').length;
+  const excusedCount = roster.filter((r) => r.status === 'excused').length;
 
   const handleConfirm = async () => {
     try {
       const lessonNum = parseInt(currentLessonId.replace(/\D/g, ''), 10) || 1;
-      await fetch(`/api/v1/attendance/lessons/${lessonNum}/submit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+      await dispatch(
+        submitAttendanceThunk({
+          lessonId: lessonNum,
           records: roster.map((r) => ({
-            studentId: parseInt(r.studentId.replace(/\D/g, ''), 10) || 1,
-            status: r.status.toUpperCase(),
-            remarks: r.remark
-          }))
+            studentId: r.studentId,
+            status: r.status,
+            remark: r.remark,
+          })),
+          isLocked: true,
         })
-      });
-    } catch {
-      // Fallback
+      ).unwrap();
+
+      dispatch(
+        addToast({
+          message: 'Attendance finalized & locked into institutional records.',
+          type: 'success',
+        })
+      );
+    } catch (err: any) {
+      dispatch(addToast({ message: err || 'Failed to finalize attendance', type: 'error' }));
     }
-    dispatch(
-      confirmFinalAttendance({
-        className: teacher.assignedClasses?.[0]?.name.split(' - ')[0] || 'Class Session',
-        subject: teacher.assignedClasses?.[0]?.subject || 'Subject',
-        topic: 'Daily Attendance',
-        teacherName: teacher.name,
-        teacherId: teacher.employeeId,
-      })
-    );
-    dispatch(
-      addToast({
-        message: 'Attendance finalized & dispatched to school administration.',
-        type: 'success',
-      })
-    );
   };
 
   return (

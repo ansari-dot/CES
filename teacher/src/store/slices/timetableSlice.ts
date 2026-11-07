@@ -155,6 +155,7 @@ export const fetchTeacherLessonsThunk = createAsyncThunk(
         combinedLessons.push({
           id: `LES-${String(l.id).padStart(2, '0')}`,
           rawId: l.id,
+          rawClassId: Number(l.classId || l.class_id),
           classId: `${l.classNumber}-${(l.subjectCode || 'sub').toLowerCase()}-a`,
           className: l.className || `Class ${l.classNumber}`,
           subject: l.subjectName,
@@ -219,6 +220,7 @@ export const fetchTeacherLessonsThunk = createAsyncThunk(
         combinedLessons.push({
           id: `SLOT-${String(s.id).padStart(2, '0')}`,
           rawId: s.id,
+          rawClassId: Number(s.classId || s.class_id),
           classId: `${s.classNumber}-${(s.subjectCode || 'sub').toLowerCase()}-a`,
           className: s.className || `Class ${s.classNumber}`,
           subject: s.subjectName,
