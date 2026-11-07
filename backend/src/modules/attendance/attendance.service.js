@@ -69,14 +69,80 @@ export const attendanceService = {
     return updated;
   },
 
-  async submitAttendance({ lessonId, records, userId, userRole }) {
-    const lesson = await timetableRepository.findLessonById(lessonId);
+  async submitAttendance({ lessonId, records, userId, userRole, isLocked = true }) {
+    let lesson = await timetableRepository.findLessonById(lessonId);
+    if (!lesson) {
+      // Check if lessonId is a slot or class session that needs a lesson row created
+      const slot = await db('timetable_slots').where({ id: lessonId }).first();
+      if (slot) {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        let existingLesson = await db('timetable_lessons')
+          .where({ slot_id: slot.id, lesson_date: todayStr })
+          .first();
+        if (!existingLesson) {
+          const [newLessonId] = await db('timetable_lessons').insert({
+            slot_id: slot.id,
+            class_id: slot.class_id,
+            subject_id: slot.subject_id,
+            teacher_id: slot.teacher_id,
+            lesson_date: todayStr,
+            start_at: `${todayStr} ${slot.start_time}:00`,
+            end_at: `${todayStr} ${slot.end_time}:00`,
+            status: 'COMPLETED'
+          });
+          lessonId = newLessonId;
+          lesson = await timetableRepository.findLessonById(lessonId);
+        } else {
+          lessonId = existingLesson.id;
+          lesson = await timetableRepository.findLessonById(lessonId);
+        }
+      } else {
+        const classObj = await db('classes').where({ id: lessonId }).first();
+        if (classObj) {
+          const todayStr = new Date().toISOString().slice(0, 10);
+          const teacher = await db('teachers').where({ user_id: userId }).first();
+          let existingLesson = await db('timetable_lessons')
+            .where({ class_id: classObj.id, lesson_date: todayStr })
+            .first();
+          if (!existingLesson) {
+            const teacherSubject = await db('timetable_slots').where({ class_id: classObj.id, teacher_id: teacher?.id }).first();
+            const subjectId = teacherSubject?.subject_id || (await db('subjects').first())?.id || 1;
+            const [newLessonId] = await db('timetable_lessons').insert({
+              class_id: classObj.id,
+              subject_id: subjectId,
+              teacher_id: teacher?.id || 1,
+              lesson_date: todayStr,
+              start_at: `${todayStr} 09:00:00`,
+              end_at: `${todayStr} 09:45:00`,
+              status: 'COMPLETED'
+            });
+            lessonId = newLessonId;
+            lesson = await timetableRepository.findLessonById(lessonId);
+          } else {
+            lessonId = existingLesson.id;
+            lesson = await timetableRepository.findLessonById(lessonId);
+          }
+        }
+      }
+    }
+
     if (!lesson) {
       throw new AppError('Lesson not found', 404, ErrorCodes.NOT_FOUND);
     }
 
+    // Teacher authorization: ensure lesson belongs to logged-in teacher or their assigned classes
+    if (userRole === 'TEACHER') {
+      const teacher = await db('teachers').where({ user_id: userId }).first();
+      if (teacher && lesson.teacher_id && Number(lesson.teacher_id) !== Number(teacher.id) && Number(lesson.substitute_teacher_id) !== Number(teacher.id)) {
+        const teachesClass = await db('timetable_slots').where({ class_id: lesson.class_id, teacher_id: teacher.id }).first();
+        if (!teachesClass) {
+          throw new AppError('You are not authorized to mark attendance for this lesson or class', 403, ErrorCodes.FORBIDDEN);
+        }
+      }
+    }
+
     const currentRoster = await attendanceRepository.getLessonRoster(lessonId);
-    if (currentRoster.isLocked && userRole !== 'ADMIN' && userRole !== 'PRINCIPAL') {
+    if (currentRoster?.isLocked && userRole !== 'ADMIN' && userRole !== 'PRINCIPAL') {
       throw new AppError(
         'Attendance is finalized and locked. Submit a correction voucher to request changes.',
         409,
@@ -88,13 +154,19 @@ export const attendanceService = {
       throw new AppError('Attendance records array is required', 422, ErrorCodes.VALIDATION_ERROR);
     }
 
-    // Validate statuses
+    // Validate and normalize statuses
     const validStatuses = ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'];
     for (const rec of records) {
       if (!rec.studentId) {
         throw new AppError('Each record must specify a studentId', 422, ErrorCodes.VALIDATION_ERROR);
       }
-      const st = (rec.status || 'PRESENT').toUpperCase();
+      let st = (rec.status || 'PRESENT').toUpperCase();
+      if (st === 'P') st = 'PRESENT';
+      else if (st === 'A') st = 'ABSENT';
+      else if (st === 'L' || st === 'LEAVE') st = 'LATE';
+      else if (st === 'E') st = 'EXCUSED';
+
+      rec.status = st;
       if (!validStatuses.includes(st)) {
         throw new AppError(`Invalid attendance status: ${rec.status}`, 422, ErrorCodes.VALIDATION_ERROR);
       }
@@ -103,18 +175,21 @@ export const attendanceService = {
     const result = await attendanceRepository.submitAttendance({
       lessonId,
       records,
-      userId
+      userId,
+      isLocked
     });
 
-    notificationService.notify({
-      title: 'Attendance Roster Finalized',
-      message: `Attendance submitted for Lesson #${lessonId} (${records.length} students rostered).`,
-      type: 'Missing Attendance',
-      targetRole: 'PRINCIPAL',
-      relatedRecordId: lessonId,
-      relatedRecordType: 'Attendance',
-      priority: 'Medium'
-    });
+    if (isLocked) {
+      notificationService.notify({
+        title: 'Attendance Roster Finalized',
+        message: `Attendance submitted for Lesson #${lessonId} (${records.length} students rostered).`,
+        type: 'Missing Attendance',
+        targetRole: 'PRINCIPAL',
+        relatedRecordId: lessonId,
+        relatedRecordType: 'Attendance',
+        priority: 'Medium'
+      });
+    }
 
     return result;
   },
@@ -222,5 +297,15 @@ export const attendanceService = {
 
   async getAttendanceStats(filters) {
     return await attendanceRepository.getAttendanceStats(filters);
+  },
+
+  /** A teacher sees only their own lessons' submission logs; staff see all. */
+  async getTeacherSubmissions(user) {
+    if (user.role === 'TEACHER') {
+      const teacher = await db('teachers').where({ user_id: user.id }).first();
+      if (!teacher) return [];
+      return await attendanceRepository.getTeacherSubmissions({ teacherId: teacher.id });
+    }
+    return await attendanceRepository.getTeacherSubmissions({});
   }
 };
