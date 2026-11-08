@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
 import { updateContactInfo, logoutTeacherThunk } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
+import { requestApi } from '../services/api';
 
 export const ProfileSettingsPage: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -11,6 +12,8 @@ export const ProfileSettingsPage: React.FC = () => {
   const [email, setEmail] = useState(teacher.email);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const handleSaveContact = (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,17 +26,44 @@ export const ProfileSettingsPage: React.FC = () => {
     );
   };
 
-  const handlePasswordChange = (e: React.FormEvent) => {
+  const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!oldPassword || !newPassword) return;
-    dispatch(
-      addToast({
-        message: 'Security credentials updated. Password changed successfully.',
-        type: 'success',
-      })
-    );
-    setOldPassword('');
-    setNewPassword('');
+    if (newPassword.length < 10) {
+      dispatch(addToast({ message: 'New password must be at least 10 characters long.', type: 'error' }));
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      dispatch(addToast({ message: 'New password and confirmation do not match.', type: 'error' }));
+      return;
+    }
+    try {
+      setIsChangingPassword(true);
+      await requestApi('/api/v1/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ currentPassword: oldPassword, newPassword }),
+      });
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      dispatch(
+        addToast({
+          message: 'Password changed successfully. Please sign in again with your new password.',
+          type: 'success',
+        })
+      );
+      // The server invalidates existing sessions when the password changes.
+      dispatch(logoutTeacherThunk());
+    } catch (err: any) {
+      dispatch(
+        addToast({
+          message: err?.message || 'Failed to change password. Please verify your current password.',
+          type: 'error',
+        })
+      );
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   return (
@@ -202,14 +232,29 @@ export const ProfileSettingsPage: React.FC = () => {
                     className="w-full h-10 px-3 bg-[#f1f1fa] border border-indigo-100/60 rounded-lg text-[#292929] focus:outline-none"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#292929] mb-1">
+                    Confirm New Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    className="w-full h-10 px-3 bg-[#f1f1fa] border border-indigo-100/60 rounded-lg text-[#292929] focus:outline-none"
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end">
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
+                  disabled={isChangingPassword}
+                  className="px-5 py-2 bg-slate-800 hover:bg-slate-900 disabled:opacity-60 text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
                 >
-                  Update Password
+                  {isChangingPassword ? 'Updating…' : 'Update Password'}
                 </button>
               </div>
             </form>

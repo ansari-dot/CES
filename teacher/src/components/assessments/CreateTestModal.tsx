@@ -53,7 +53,7 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
 
   const [examType, setExamType] = useState<ExamType>('MONTHLY_TEST');
   const [selectedClassId, setSelectedClassId] = useState<number>(() => {
-    return uniqueAssignedClasses[0]?.classId || (assignedClasses[0]?.classId ? Number(assignedClasses[0].classId) : 1);
+    return uniqueAssignedClasses[0]?.classId || (assignedClasses[0]?.classId ? Number(assignedClasses[0].classId) : 0);
   });
 
   // Keep selectedClassId in sync with teacher's assigned classes
@@ -66,15 +66,17 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
     }
   }, [uniqueAssignedClasses, selectedClassId]);
 
-  // Subjects assigned to this teacher specifically for the selected class
+  // Subjects assigned to this teacher specifically for the selected class.
+  // Never fall back to other classes' subjects: the backend rejects any
+  // (class, subject) pair the teacher is not actually assigned to.
   const availableSubjects = React.useMemo(() => {
     const matching = assignedClasses.filter(
       (c) => Number(c.classId || c.id) === Number(selectedClassId)
     );
-    const pool = matching.length > 0 ? matching : assignedClasses;
     const map = new Map<number, { id: number; name: string }>();
-    for (const c of pool) {
-      const subId = Number(c.subjectId || 1);
+    for (const c of matching) {
+      const subId = Number(c.subjectId);
+      if (!Number.isFinite(subId) || subId <= 0) continue;
       const subName = c.subject || 'General';
       if (!map.has(subId)) {
         map.set(subId, {
@@ -87,8 +89,17 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
   }, [assignedClasses, selectedClassId]);
 
   const [selectedSubjectId, setSelectedSubjectId] = useState<number>(() => {
-    return availableSubjects[0]?.id || (assignedClasses[0]?.subjectId ? Number(assignedClasses[0].subjectId) : 1);
+    return availableSubjects[0]?.id || (assignedClasses[0]?.subjectId ? Number(assignedClasses[0].subjectId) : 0);
   });
+
+  // The pair actually sent to the server must be one of the teacher's real assignments.
+  const isValidPair = React.useMemo(() => {
+    return assignedClasses.some(
+      (c) =>
+        Number(c.classId || c.id) === Number(selectedClassId) &&
+        Number(c.subjectId) === Number(selectedSubjectId)
+    );
+  }, [assignedClasses, selectedClassId, selectedSubjectId]);
 
   // Keep selectedSubjectId in sync when availableSubjects change (e.g. when changing class)
   React.useEffect(() => {
@@ -299,6 +310,13 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
           return;
         }
       }
+    }
+
+    if (!isValidPair) {
+      setErrorMsg(
+        'Select one of your assigned class and subject combinations. If a class you teach is missing, ask the administration to update your teaching assignments.'
+      );
+      return;
     }
 
     try {
