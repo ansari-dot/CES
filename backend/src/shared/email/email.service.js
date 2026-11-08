@@ -50,7 +50,7 @@ class EmailService {
       return { sent: false, reason: 'SMTP_NOT_CONFIGURED' };
     }
 
-    const fromAddress = process.env.SMTP_FROM || `"EduPulse School System" <${process.env.SMTP_USER}>`;
+    const fromAddress = process.env.SMTP_FROM || `"Cambridge Education System" <${process.env.SMTP_USER}>`;
 
     try {
       const info = await transporter.sendMail({
@@ -92,7 +92,7 @@ class EmailService {
     designation = 'Faculty Member',
     portalUrl = process.env.TEACHER_PORTAL_URL || 'http://localhost:3001'
   }) {
-    const subject = `Welcome to Faculty Team - Your EduPulse Teacher Portal Credentials`;
+    const subject = `Welcome to Faculty Team - Your Cambridge Education System Teacher Portal Credentials`;
 
     const html = `
 <!DOCTYPE html>
@@ -127,7 +127,7 @@ class EmailService {
 <body>
   <div class="card">
     <div class="header">
-      <h1>EduPulse School System</h1>
+      <h1>Cambridge Education System</h1>
       <p>Faculty &amp; Academic Staff Onboarding</p>
     </div>
     <div class="body">
@@ -169,7 +169,7 @@ class EmailService {
       </div>
     </div>
     <div class="footer">
-      This is an automated notification from EduPulse School Management System.<br>
+      This is an automated notification from Cambridge Education System.<br>
       Please do not share your login credentials with anyone. If you need assistance, contact school administration.
     </div>
   </div>
@@ -180,7 +180,7 @@ class EmailService {
     const text = `
 Dear ${name},
 
-Welcome to EduPulse School System! Your teacher account has been created.
+Welcome to Cambridge Education System! Your teacher account has been created.
 
 Here are your account credentials:
 - Staff Identifier: ${staffIdentifier}
@@ -213,7 +213,7 @@ Please log in and update your password immediately upon your first sign-in.
     temporaryPassword,
     portalUrl = process.env.STUDENT_PORTAL_URL || 'http://localhost:3000'
   }) {
-    const subject = `Welcome to EduPulse - Student Portal Credentials for ${name}`;
+    const subject = `Welcome to Cambridge Education System - Student Portal Credentials for ${name}`;
 
     const html = `
 <!DOCTYPE html>
@@ -244,7 +244,7 @@ Please log in and update your password immediately upon your first sign-in.
 <body>
   <div class="card">
     <div class="header">
-      <h1>EduPulse School System</h1>
+      <h1>Cambridge Education System</h1>
       <p>Student Admission &amp; Portal Access</p>
     </div>
     <div class="body">
@@ -286,7 +286,7 @@ Please log in and update your password immediately upon your first sign-in.
       </div>
     </div>
     <div class="footer">
-      This is an automated notification from EduPulse School Management System.<br>
+      This is an automated notification from Cambridge Education System.<br>
       Please keep your credentials safe. If you require assistance, contact your school administration.
     </div>
   </div>
@@ -297,7 +297,7 @@ Please log in and update your password immediately upon your first sign-in.
     const text = `
 Dear ${name},
 
-Welcome to EduPulse School System! Your student account has been created.
+Welcome to Cambridge Education System! Your student account has been created.
 
 Here are your account credentials:
 - Admission No: ${admissionNo}
@@ -326,7 +326,7 @@ Please keep your login credentials safe.
     temporaryPassword,
     portalUrl = process.env.PARENT_PORTAL_URL || 'http://localhost:3003'
   }) {
-    const subject = `Your Parent Portal Access Credentials - EduPulse School System`;
+    const subject = `Your Parent Portal Access Credentials - Cambridge Education System`;
 
     const html = `
 <!DOCTYPE html>
@@ -358,7 +358,7 @@ Please keep your login credentials safe.
 <body>
   <div class="card">
     <div class="header">
-      <h1>EduPulse School System</h1>
+      <h1>Cambridge Education System</h1>
       <p>Parent &amp; Guardian Portal Access</p>
     </div>
     <div class="body">
@@ -387,7 +387,7 @@ Please keep your login credentials safe.
       </div>
     </div>
     <div class="footer">
-      This is an automated notification from EduPulse School Management System.<br>
+      This is an automated notification from Cambridge Education System.<br>
       If you did not expect this email, please contact the school office.
     </div>
   </div>
