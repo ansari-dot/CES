@@ -88,7 +88,7 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
   const [papers, setPapers] = useState<LocalPaper[]>([
     {
       id: 'p1',
-      classId: 4,
+      classId: 1,
       subjectId: 1,
       teacherId: null,
       examDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
@@ -168,7 +168,7 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
       setPapers([
         {
           id: 'p1',
-          classId: 4,
+          classId: 1,
           subjectId: 1,
           teacherId: null,
           examDate: tomorrow,
@@ -189,7 +189,11 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
   const handleToggleClass = (classId: number) => {
     if (selectedClasses.includes(classId)) {
       if (selectedClasses.length === 1) return; // Must have at least 1 class
-      setSelectedClasses(selectedClasses.filter((c) => c !== classId));
+      const next = selectedClasses.filter((c) => c !== classId);
+      setSelectedClasses(next);
+      // A paper must never point at a deselected class: its dropdown would
+      // display one class while the saved state silently keeps another.
+      setPapers((prev) => prev.map((p) => (p.classId === classId ? { ...p, classId: next[0] } : p)));
     } else {
       setSelectedClasses([...selectedClasses, classId].sort((a, b) => a - b));
     }
@@ -199,7 +203,10 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
     const lastPaper = papers[papers.length - 1];
     const newPaper: LocalPaper = {
       id: `p_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      classId: lastPaper ? lastPaper.classId : (selectedClasses[0] || 1),
+      classId:
+        lastPaper && selectedClasses.includes(lastPaper.classId)
+          ? lastPaper.classId
+          : (selectedClasses[0] || 1),
       subjectId: 1,
       teacherId: null,
       examDate: lastPaper ? lastPaper.examDate : new Date().toISOString().split('T')[0],
