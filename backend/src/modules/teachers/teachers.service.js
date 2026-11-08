@@ -44,7 +44,9 @@ export const teachersService = {
         phone,
         full_name: name,
         password_hash: passwordHash,
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        // New faculty accounts must replace the temporary password on first login
+        must_change_password: 1
       },
       teacher: {
         employee_no: staffIdentifier,

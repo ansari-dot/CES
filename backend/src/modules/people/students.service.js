@@ -60,7 +60,9 @@ export const studentsService = {
         phone: phone || null,
         full_name: name,
         password_hash: passwordHash,
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        // New student accounts must replace the temporary password on first login
+        must_change_password: 1
       },
       student: {
         admission_no: admissionNo,
