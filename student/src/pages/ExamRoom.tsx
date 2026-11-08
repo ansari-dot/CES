@@ -65,6 +65,14 @@ export default function ExamRoom() {
         const data = await studentAssessmentsApi.startOrResumeTest(Number(testId));
         setExamData(data);
 
+        // Attempt already submitted / expired: show the submitted screen
+        // instead of entering the live room.
+        if (data.is_completed) {
+          setIsSubmitted(true);
+          setRemainingSeconds(0);
+          return;
+        }
+
         // Calculate authoritative remaining seconds
         const expiresAt = new Date(data.attempt.expires_at).getTime();
         const now = Date.now();

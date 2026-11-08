@@ -94,6 +94,9 @@ export interface ExamRoomData {
     started_at: string;
     expires_at: string;
   };
+  /** True when the attempt was already submitted or auto-expired */
+  is_completed?: boolean;
+  message?: string | null;
   remaining_seconds: number;
   test: {
     id: number;

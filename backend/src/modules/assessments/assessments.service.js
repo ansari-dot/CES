@@ -321,6 +321,92 @@ export const assessmentsService = {
   // -------------------------------------------------------------
   // Student Exam Engine (Timed Attempts & Auto-Submission)
   // -------------------------------------------------------------
+  /** Public test header sent to the student exam room. Never includes answers. */
+  _publicTestInfo(test) {
+    return {
+      id: test.id,
+      title: test.title,
+      description: test.description || null,
+      exam_type: test.exam_type,
+      term_name: test.term_name || null,
+      duration_minutes: test.duration_minutes,
+      total_marks: test.total_marks,
+      passing_marks: test.passing_marks,
+      subject_name: test.subject_name,
+      class_name: test.class_name
+    };
+  },
+
+  /** Response shape the student ExamRoom consumes (nested attempt/test/questions). */
+  _buildExamRoomPayload(test, attempt, questions, savedAnswers, now) {
+    const answersByQuestion = new Map((savedAnswers || []).map((a) => [Number(a.question_id), a]));
+    const expiresAt = parseDbDate(attempt.expires_at);
+    const startedAt = parseDbDate(attempt.started_at);
+    return {
+      attempt: {
+        id: attempt.id,
+        test_id: attempt.test_id,
+        student_id: attempt.student_id,
+        status: attempt.status,
+        started_at: startedAt ? startedAt.toISOString() : attempt.started_at,
+        expires_at: expiresAt ? expiresAt.toISOString() : attempt.expires_at
+      },
+      remaining_seconds: expiresAt ? Math.max(0, Math.floor((expiresAt.getTime() - now.getTime()) / 1000)) : 0,
+      server_time: now.toISOString(),
+      test: this._publicTestInfo(test),
+      questions: (questions || []).map((q) => {
+        const saved = answersByQuestion.get(Number(q.id)) || null;
+        return {
+          id: q.id,
+          section_name: q.section_name,
+          section_instructions: q.section_instructions,
+          question_type: q.question_type,
+          prompt: q.question_text,
+          image_url: q.image_url,
+          marks: Number(q.marks),
+          options: q.options || null,
+          savedAnswer: saved
+            ? {
+                selected_option: saved.selected_option ?? null,
+                answer_text: saved.text_answer ?? null,
+                attachment_url: saved.attachment_url ?? null
+              }
+            : null
+        };
+      }),
+      is_completed: false,
+      isCompleted: false
+    };
+  },
+
+  _buildCompletedRoomPayload(test, attempt, { message = null } = {}) {
+    const startedAt = parseDbDate(attempt.started_at);
+    const expiresAt = parseDbDate(attempt.expires_at);
+    const resultsPublished = test.status === 'RESULTS_PUBLISHED';
+    return {
+      attempt: {
+        id: attempt.id,
+        test_id: attempt.test_id,
+        student_id: attempt.student_id,
+        status: attempt.status,
+        started_at: startedAt ? startedAt.toISOString() : attempt.started_at,
+        expires_at: expiresAt ? expiresAt.toISOString() : attempt.expires_at
+      },
+      remaining_seconds: 0,
+      test: this._publicTestInfo(test),
+      questions: [],
+      is_completed: true,
+      isCompleted: true,
+      // Legacy flat fields kept for any other consumer
+      status: attempt.status,
+      attemptId: attempt.id,
+      submittedAt: attempt.submitted_at,
+      totalScore: resultsPublished ? attempt.total_score : null,
+      isPassed: resultsPublished ? attempt.is_passed : null,
+      message
+    };
+  },
+
   async startOrResumeAttempt(user, testId) {
     if (user.role !== 'STUDENT') throw forbidden('Only students can take assessments.');
     const student = await getStudentByUserId(user.id);
@@ -346,14 +432,7 @@ export const assessmentsService = {
     if (attempt) {
       // Check if attempt is already completed
       if (attempt.status !== 'IN_PROGRESS') {
-        return {
-          status: attempt.status,
-          attemptId: attempt.id,
-          submittedAt: attempt.submitted_at,
-          totalScore: test.status === 'RESULTS_PUBLISHED' ? attempt.total_score : null,
-          isPassed: test.status === 'RESULTS_PUBLISHED' ? attempt.is_passed : null,
-          isCompleted: true
-        };
+        return this._buildCompletedRoomPayload(test, attempt);
       }
 
       // If IN_PROGRESS, check if expired
@@ -362,31 +441,15 @@ export const assessmentsService = {
         // Auto-finalize expired attempt immediately
         await this.finalizeAttempt(attempt.id, 'AUTO_EXPIRED');
         attempt = await assessmentsRepository.findAttemptById(attempt.id);
-        return {
-          status: attempt.status,
-          attemptId: attempt.id,
-          submittedAt: attempt.submitted_at,
-          isCompleted: true,
+        return this._buildCompletedRoomPayload(test, attempt, {
           message: 'Examination time has ended. Your answers have been submitted.'
-        };
+        });
       }
 
       // Resume active attempt
       const questions = await assessmentsRepository.getQuestionsForTest(testId, { includeAnswers: false });
       const savedAnswers = await assessmentsRepository.getAttemptAnswers(attempt.id);
-
-      return {
-        attemptId: attempt.id,
-        testId: test.id,
-        testTitle: test.title,
-        durationMinutes: test.duration_minutes,
-        startedAt: parseDbDate(attempt.started_at)?.toISOString() || attempt.started_at,
-        expiresAt: expiresAt.toISOString(),
-        serverTime: now.toISOString(),
-        questions,
-        savedAnswers,
-        isCompleted: false
-      };
+      return this._buildExamRoomPayload(test, attempt, questions, savedAnswers, now);
     }
 
     // Creating new attempt: verify testing window
@@ -436,19 +499,7 @@ export const assessmentsService = {
     }
 
     const questions = await assessmentsRepository.getQuestionsForTest(testId, { includeAnswers: false });
-
-    return {
-      attemptId: attempt.id,
-      testId: test.id,
-      testTitle: test.title,
-      durationMinutes: test.duration_minutes,
-      startedAt: now.toISOString(),
-      expiresAt: expiresAt.toISOString(),
-      serverTime: now.toISOString(),
-      questions,
-      savedAnswers: [],
-      isCompleted: false
-    };
+    return this._buildExamRoomPayload(test, attempt, questions, [], now);
   },
 
   async saveAnswer(user, attemptId, data) {
@@ -475,13 +526,18 @@ export const assessmentsService = {
       throw new AppError('Time has expired! Your test has been automatically submitted.', 403, ErrorCodes.FORBIDDEN);
     }
 
+    // The exam room sends camelCase keys; accept both conventions.
+    const questionId = Number(data.question_id ?? data.questionId);
+    if (!Number.isFinite(questionId) || questionId <= 0) {
+      throw validationError('A valid questionId is required to save an answer.');
+    }
     const saved = await assessmentsRepository.upsertAnswer({
       attemptId,
-      questionId: data.question_id,
-      selectedOption: data.selected_option || null,
-      textAnswer: data.text_answer || null,
-      attachmentUrl: data.attachment_url || null,
-      attachmentName: data.attachment_name || null
+      questionId,
+      selectedOption: data.selected_option ?? data.selectedOption ?? null,
+      textAnswer: data.text_answer ?? data.textAnswer ?? data.answer_text ?? data.answerText ?? null,
+      attachmentUrl: data.attachment_url ?? data.attachmentUrl ?? null,
+      attachmentName: data.attachment_name ?? data.attachmentName ?? null
     });
 
     return { success: true, savedAt: saved.saved_at };
