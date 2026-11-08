@@ -409,19 +409,31 @@ export const assessmentsService = {
     const expiresAt = new Date(now.getTime() + test.duration_minutes * 60 * 1000);
 
     attempt = await db.transaction(async (trx) => {
-      // Atomic insert preventing race condition
-      return assessmentsRepository.createAttempt(
-        {
-          test_id: test.id,
-          student_id: student.id,
-          attempt_number: 1,
-          started_at: now,
-          expires_at: expiresAt,
-          status: 'IN_PROGRESS'
-        },
-        trx
-      );
+      try {
+        return await assessmentsRepository.createAttempt(
+          {
+            test_id: test.id,
+            student_id: student.id,
+            attempt_number: 1,
+            started_at: now,
+            expires_at: expiresAt,
+            status: 'IN_PROGRESS'
+          },
+          trx
+        );
+      } catch (err) {
+        // A parallel "enter room" request (double click, page remount or a
+        // retried request) already created this student's attempt. Signal the
+        // caller to resume it instead of surfacing a duplicate-key conflict.
+        if (err && (err.code === 'ER_DUP_ENTRY' || err.errno === 1062)) return null;
+        throw err;
+      }
     });
+
+    if (!attempt) {
+      // The attempt now exists; take the resume path.
+      return await this.startOrResumeAttempt(user, testId);
+    }
 
     const questions = await assessmentsRepository.getQuestionsForTest(testId, { includeAnswers: false });
 
