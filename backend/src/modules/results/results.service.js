@@ -35,7 +35,15 @@ async function auditEntry(trx, actor, { action, recordType, recordIdentifier, re
 }
 
 async function loadTermContext(termId) {
-  const term = await resultsRepository.getTermById(Number(termId));
+  let id = Number(termId);
+  if (!id || Number.isNaN(id)) {
+    const activeSession = await academicRepository.getCurrentSession();
+    if (activeSession) {
+      const term = await db('academic_terms').where({ session_id: activeSession.id }).first();
+      if (term) id = term.id;
+    }
+  }
+  const term = await resultsRepository.getTermById(Number(id));
   if (!term) throw new AppError('Term not found', 404, ErrorCodes.NOT_FOUND);
   const session = await academicRepository.getSessionById(term.session_id);
   if (!session) throw new AppError('Academic year not found', 404, ErrorCodes.NOT_FOUND);
@@ -435,7 +443,7 @@ export const resultsService = {
       let rows = await resultsRepository.listResults({
         termId: term.id,
         classId: cId,
-        statuses: ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW']
+        statuses: ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'INCOMPLETE']
       });
       if (rows.length === 0) {
         try {
@@ -443,7 +451,7 @@ export const resultsService = {
           rows = await resultsRepository.listResults({
             termId: term.id,
             classId: cId,
-            statuses: ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW']
+            statuses: ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'INCOMPLETE']
           });
         } catch {
           // No active subjects or exam tasks for this class yet

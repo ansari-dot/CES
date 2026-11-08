@@ -480,8 +480,8 @@ export const AcademicOversightModule: React.FC = () => {
     if (!selectedTermId) return;
     try {
       setActionBusyClass(classId);
-      await api.computeClassResults(classId, selectedTermId);
-      toast.success('Examination marks computed for this class.');
+      const res = await api.computeClassResults(classId, selectedTermId);
+      toast.success(`Examination marks computed for this class (${res?.computed ?? 0} computed).`);
       await Promise.all([loadOverview(), loadStudentRecords()]);
     } catch (err: any) {
       toast.error(err.message || 'Failed to compute class results');
@@ -495,7 +495,11 @@ export const AcademicOversightModule: React.FC = () => {
     try {
       setActionBusyClass(classId);
       const res = await api.approveClassResults(classId as any, selectedTermId);
-      toast.success(`Terminal exam results officially approved (${res?.approved ?? 'All'} evaluated).`);
+      if (res?.approved > 0) {
+        toast.success(`Terminal exam results officially approved (${res.approved} evaluated).`);
+      } else {
+        toast.info('Class results are already approved or up to date.');
+      }
       await Promise.all([loadOverview(), loadStudentRecords()]);
     } catch (err: any) {
       toast.error(err.message || 'Failed to approve results');
@@ -509,7 +513,11 @@ export const AcademicOversightModule: React.FC = () => {
     try {
       setActionBusyClass(classId);
       const res = await api.publishClassResults(classId as any, selectedTermId);
-      toast.success(`Official results published! Now live for Students & Parents (${res?.published ?? 'All'} released).`);
+      if (res?.published > 0) {
+        toast.success(`Official results published! Now live for Students & Parents (${res.published} released).`);
+      } else {
+        toast.info('Class results are already published to student and parent portals.');
+      }
       await Promise.all([loadOverview(), loadStudentRecords()]);
     } catch (err: any) {
       toast.error(err.message || 'Failed to publish results');

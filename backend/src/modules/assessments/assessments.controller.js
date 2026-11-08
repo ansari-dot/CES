@@ -182,7 +182,41 @@ export const assessmentsController = {
   async getParentChildAssessments(req, res, next) {
     try {
       const data = await assessmentsService.getParentChildAssessments(req.user, Number(req.params.studentId));
-      return sendSuccess(res, data);
+      return sendSuccess(res, { results: data });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // -------------------------------------------------------------
+  // Manual Parent Academic Alert Dispatch (Low Scorers)
+  // -------------------------------------------------------------
+  async notifyLowPerformers(req, res, next) {
+    try {
+      const { thresholdPercentage, customNote, force } = req.body || {};
+      const result = await assessmentsService.notifyLowPerformers(Number(req.params.id), {
+        actor: req.user,
+        isManual: true,
+        thresholdPercentage,
+        customNote,
+        force
+      });
+      return sendSuccess(res, result, result.message || 'Parent alerts dispatched successfully.');
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async notifyAttemptParent(req, res, next) {
+    try {
+      const { customNote } = req.body || {};
+      const result = await assessmentsService.notifyAttemptParent(
+        req.user,
+        Number(req.params.id),
+        Number(req.params.attemptId),
+        { customNote }
+      );
+      return sendSuccess(res, result, result.message || 'Parent alert dispatched successfully.');
     } catch (err) {
       next(err);
     }

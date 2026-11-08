@@ -3,6 +3,7 @@ import { useAppDispatch, useAppSelector } from '../../store';
 import { createTaskThunk, fetchTasksThunk } from '../../store/slices/tasksSlice';
 import { addToast } from '../../store/slices/uiSlice';
 import { Task } from '../../types';
+import { FilePlus, BookOpen, UploadCloud, Send } from 'lucide-react';
 
 const MAX_HANDOUT_BYTES = 25 * 1024 * 1024;
 
@@ -174,8 +175,8 @@ export const CreateTaskForm: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-100 mb-5">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="p-1 rounded-md bg-[#cdd4fb] text-[#23215c]">
-              <span className="material-symbols-outlined text-[18px]">post_add</span>
+            <span className="p-1.5 rounded-lg bg-indigo-50 text-[#36348e] border border-indigo-100">
+              <FilePlus className="w-4.5 h-4.5" />
             </span>
             <h2 className="text-xl font-bold text-[#292929]">Create New Assignment</h2>
           </div>
@@ -193,10 +194,10 @@ export const CreateTaskForm: React.FC = () => {
               setTotalMarks(20);
               dispatch(addToast({ message: 'Loaded template: Standard Assessment Set', type: 'info' }));
             }}
-            className="px-3 py-1.5 rounded-lg bg-[#f1f1fa] text-[#545454] hover:text-[#292929] text-xs font-semibold flex items-center gap-1 border border-indigo-100/60"
+            className="px-3 py-1.5 rounded-lg bg-[#f1f1fa] text-[#545454] hover:text-[#292929] text-xs font-semibold flex items-center gap-1.5 border border-indigo-100/60"
           >
-            <span className="material-symbols-outlined text-[18px]">library_books</span> Load from
-            Template
+            <BookOpen className="w-4 h-4 text-slate-500" />
+            Load from Template
           </button>
         </div>
       </div>
@@ -344,8 +345,8 @@ export const CreateTaskForm: React.FC = () => {
             }}
             className="bg-[#f1f1fa] p-5 rounded-xl flex flex-col items-center justify-center text-center cursor-pointer hover:bg-[#ffedc2]/70 transition-all border border-dashed border-indigo-200"
           >
-            <div className="w-10 h-10 rounded-full bg-white text-[#36348e] flex items-center justify-center shadow-xs mb-1.5">
-              <span className="material-symbols-outlined text-[24px]">cloud_upload</span>
+            <div className="w-10 h-10 rounded-full bg-white text-[#36348e] flex items-center justify-center shadow-xs mb-1.5 border border-indigo-100">
+              <UploadCloud className="w-5 h-5 text-[#36348e]" />
             </div>
             <p className="text-xs sm:text-sm font-bold text-[#292929]">
               Click to upload worksheet or drag &amp; drop document
@@ -406,9 +407,9 @@ export const CreateTaskForm: React.FC = () => {
             <button
               type="submit"
               disabled={saving}
-              className="px-6 py-2.5 rounded-lg bg-[#36348e] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5 active:scale-98 disabled:opacity-60"
+              className="px-6 py-2.5 rounded-lg bg-[#36348e] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5 active:scale-98 disabled:opacity-60 cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[18px]">send</span>
+              <Send className="w-4 h-4" />
               {saving ? 'Saving...' : 'Publish Task to Class'}
             </button>
           </div>

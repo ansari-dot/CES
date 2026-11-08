@@ -214,10 +214,10 @@ export const attendanceRepository = {
 
       for (const rec of records) {
         let status = (rec.status || 'PRESENT').toUpperCase();
-        if (status === 'P') status = 'PRESENT';
-        else if (status === 'A') status = 'ABSENT';
-        else if (status === 'L' || status === 'LEAVE') status = 'LATE';
-        else if (status === 'E') status = 'EXCUSED';
+        if (status === 'P' || status === 'PRESENT') status = 'PRESENT';
+        else if (status === 'A' || status === 'ABSENT') status = 'ABSENT';
+        else if (status === 'L' || status === 'LATE') status = 'LATE';
+        else if (status === 'E' || status === 'EXCUSED' || status === 'LEAVE') status = 'EXCUSED';
 
         if (status === 'PRESENT') presentCount++;
         else if (status === 'ABSENT') absentCount++;

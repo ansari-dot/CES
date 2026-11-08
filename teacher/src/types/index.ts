@@ -90,7 +90,6 @@ export interface TimetableLesson {
   endAt?: string;
   notes?: string;
   resourceAttachmentUrl?: string;
-  verifiedDutyMinutes?: number;
 }
 
 export type PeriodType = 'instructional' | 'break' | 'duty' | 'assembly' | 'homeroom';
@@ -384,6 +383,8 @@ export interface NotificationItem {
   timestamp: string;
   read: boolean;
   targetTab?: NavTab;
+  category?: string;
+  timeAgo?: string;
 }
 
 export interface ToastState {

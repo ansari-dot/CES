@@ -53,6 +53,29 @@ export const outboxWorker = {
           relatedRecordType: 'AcademicAlert'
         });
 
+        // Dispatch alert email if parent email is provided
+        const parentEmail = payload.parentEmail || payload.email;
+        if (parentEmail) {
+          try {
+            const { emailService } = await import('../../shared/email/email.service.js');
+            await emailService.sendMonthlyTestPerformanceAlert({
+              to: parentEmail,
+              parentName: payload.parentName,
+              studentName: payload.studentName,
+              testTitle: payload.testTitle || payload.title,
+              subjectName: payload.subjectName || 'Academic Subject',
+              totalMarks: payload.totalMarks || 100,
+              passingMarks: payload.passingMarks || 40,
+              obtainedMarks: payload.score,
+              percentage: payload.score,
+              isPassed: false,
+              teacherRemarks: payload.message
+            });
+          } catch (emailErr) {
+            console.warn('[OutboxWorker] Parent alert email dispatch warning:', emailErr.message);
+          }
+        }
+
         // Update outbox and recipient state transactionally
         await db.transaction(async (trx) => {
           await trx('academic_alert_outbox')

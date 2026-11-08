@@ -63,5 +63,16 @@ export const teachersController = {
     } catch (error) {
       next(error);
     }
+  },
+
+  async getDashboardSummary(req, res, next) {
+    try {
+      const period = req.query.period || 'month';
+      const teacherId = req.query.teacherId || null;
+      const summary = await teachersService.getDashboardSummary(req.user, period, teacherId);
+      return sendSuccess(res, summary);
+    } catch (error) {
+      next(error);
+    }
   }
 };

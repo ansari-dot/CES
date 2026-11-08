@@ -3,6 +3,7 @@ import { useAppDispatch, useAppSelector } from '../../store';
 import { openLessonModal } from '../../store/slices/timetableSlice';
 import { addToast } from '../../store/slices/uiSlice';
 import { TimetableLesson } from '../../types';
+import { CheckCircle2, Video } from 'lucide-react';
 
 export const WeeklyGrid: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -136,13 +137,15 @@ export const WeeklyGrid: React.FC = () => {
 
                           <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100/60">
                             <span
-                              className={`text-[10px] font-bold flex items-center gap-0.5 ${
-                                lesson.status === 'completed' ? 'text-[#006c49]' : 'text-[#36348e]'
+                              className={`text-[10px] font-bold flex items-center gap-1 ${
+                                lesson.status === 'completed' ? 'text-emerald-700' : 'text-[#36348e]'
                               }`}
                             >
-                              <span className="material-symbols-outlined text-[13px]">
-                                {lesson.status === 'completed' ? 'check_circle' : 'videocam'}
-                              </span>
+                              {lesson.status === 'completed' ? (
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              ) : (
+                                <Video className="w-3 h-3 text-[#36348e]" />
+                              )}
                               {lesson.status === 'completed' ? 'Done' : 'Ready'}
                             </span>
                             <button

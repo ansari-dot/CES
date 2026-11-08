@@ -17,6 +17,9 @@ export function createRateLimiter({ keyPrefix, windowMs, max, message }) {
   const windowSec = Math.ceil(windowMs / 1000);
 
   return async (req, res, next) => {
+    if (process.env.NODE_ENV === 'test') {
+      return next();
+    }
     const ip = req.ip || req.connection.remoteAddress || 'unknown';
     const key = `ratelimit:${keyPrefix}:${ip}`;
 

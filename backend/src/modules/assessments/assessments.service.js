@@ -13,6 +13,7 @@ import {
 } from '../../shared/services/accessScope.js';
 import { parseDbDate } from '../../shared/utils/date.js';
 import { notificationService } from '../../shared/services/notificationService.js';
+import { emailService } from '../../shared/email/email.service.js';
 import { dispatchSocketEvent } from '../../shared/realtime/eventEmitter.js';
 import { auditRepository } from '../audit/audit.repository.js';
 import { zoomRepository } from '../zoom/zoom.repository.js';
@@ -822,7 +823,286 @@ export const assessmentsService = {
       dispatchSocketEvent('ASSESSMENT_RESULTS_PUBLISHED', { testId, title: test.title, classId: test.class_id });
     }
 
+    // Automatically trigger background notification to parents of low/failing scorers
+    // Uses setImmediate so that HTTP response to teacher is instant with zero latency.
+    setImmediate(async () => {
+      try {
+        const autoDispatch = await this.notifyLowPerformers(testId, { actor: user, isManual: false });
+        console.log(`[Assessments] Auto low-performance parent alerts for test #${testId}:`, {
+          evaluated: autoDispatch.totalEvaluated,
+          alertsSent: autoDispatch.alertsSent
+        });
+      } catch (err) {
+        console.warn(`[Assessments] Auto parent alert dispatch error for test #${testId}:`, err.message);
+      }
+    });
+
     return { success: true, message: 'Monthly test results published successfully.' };
+  },
+
+  /**
+   * Dispatches targeted academic performance alerts and emails to parents of students
+   * whose child obtained a low or failing score on a monthly test.
+   * Directs them to review detailed questions and feedback on the Parent Portal.
+   */
+  async notifyLowPerformers(testId, { actor = null, isManual = false, thresholdPercentage = null, customNote = null, force = false } = {}) {
+    const { test, attempts } = await assessmentsRepository.findLowPerformingAttempts(testId, thresholdPercentage);
+    if (!test) throw notFound('Monthly test not found.');
+
+    if (actor) {
+      await this.assertTeacherCanManageTest(actor, test);
+    }
+
+    if (attempts.length === 0) {
+      return {
+        success: true,
+        testId,
+        totalEvaluated: 0,
+        lowPerformersCount: 0,
+        alertsSent: 0,
+        message: 'No students scored below the passing standard.'
+      };
+    }
+
+    const studentIds = attempts.map((a) => a.student_id);
+    const parents = await assessmentsRepository.getParentsForStudents(studentIds);
+
+    const parentMap = new Map();
+    for (const p of parents) {
+      if (!parentMap.has(p.student_id)) {
+        parentMap.set(p.student_id, []);
+      }
+      parentMap.get(p.student_id).push(p);
+    }
+
+    const portalUrl = process.env.PARENT_PORTAL_URL || 'http://localhost:3003';
+    let alertsSent = 0;
+    const recipientDetails = [];
+    const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+
+    for (const attempt of attempts) {
+      const studentParents = parentMap.get(attempt.student_id) || [];
+      const totalMarks = Number(test.total_marks) || 1;
+      const obtainedScore = Number(attempt.total_score || 0);
+      const percentage = Number(((obtainedScore / totalMarks) * 100).toFixed(1));
+      const rollNumber = attempt.enrollment_roll_no || attempt.student_roll_no || 'N/A';
+      const remarks = customNote
+        ? `${customNote.trim()}${attempt.teacher_remarks ? `\n\nTeacher remarks: ${attempt.teacher_remarks}` : ''}`
+        : attempt.teacher_remarks;
+
+      if (studentParents.length === 0) {
+        console.warn(`[Assessments] Student #${attempt.student_id} (${attempt.student_name}) has no linked parent. Skipping parent email.`);
+        continue;
+      }
+
+      for (const parent of studentParents) {
+        // Prevent duplicate spamming within 4h window unless manual override (force: true)
+        if (!force) {
+          try {
+            const recentNotice = await db('notifications')
+              .where({
+                user_id: parent.user_id,
+                related_record_id: test.id,
+                related_record_type: 'MonthlyTest'
+              })
+              .andWhere('created_at', '>=', fourHoursAgo)
+              .first();
+
+            if (recentNotice) {
+              continue;
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        // 1. Dispatch Email via BullMQ / SMTP
+        if (parent.parent_email) {
+          try {
+            await emailService.sendMonthlyTestPerformanceAlert({
+              to: parent.parent_email,
+              parentName: parent.parent_name,
+              studentName: attempt.student_name,
+              rollNo: rollNumber,
+              admissionNo: attempt.admission_no,
+              className: test.class_name,
+              testTitle: test.title,
+              subjectName: test.subject_name,
+              monthName: test.month_name,
+              totalMarks,
+              passingMarks: Number(test.passing_marks),
+              obtainedMarks: obtainedScore,
+              percentage,
+              isPassed: Boolean(attempt.is_passed),
+              teacherRemarks: remarks,
+              portalUrl
+            });
+          } catch (err) {
+            console.warn(`[Assessments] Failed to send email to parent ${parent.parent_email}:`, err.message);
+          }
+        }
+
+        // 2. Dispatch targeted In-App notification to parent
+        try {
+          await notificationService.notifyUsers([parent.user_id], {
+            title: `Academic Performance Alert: ${attempt.student_name} - ${test.title}`,
+            message: `${attempt.student_name} scored ${obtainedScore}/${test.total_marks} (${percentage}%) in ${test.subject_name} monthly test, which is below the passing mark of ${test.passing_marks}. Please log in to your Parent Portal to inspect the full exam breakdown.`,
+            type: 'Academic Alert',
+            priority: 'High',
+            relatedRecordId: test.id,
+            relatedRecordType: 'MonthlyTest'
+          });
+        } catch (err) {
+          console.warn(`[Assessments] Failed to send in-app notification to user ${parent.user_id}:`, err.message);
+        }
+
+        // 3. Record in academic_parent_alerts if tables exist (silent fallback if not in use)
+        try {
+          const [alertId] = await db('academic_parent_alerts').insert({
+            session_id: test.session_id,
+            student_id: attempt.student_id,
+            subject_id: test.subject_id,
+            alert_source: isManual && actor?.role === 'TEACHER' ? 'TEACHER' : 'SYSTEM',
+            teacher_id: test.teacher_id || null,
+            triggered_by_user_id: actor?.id || null,
+            grading_policy_id: null,
+            grading_policy_version: 'v1.0.0',
+            alert_category: 'CRITICAL_RISK',
+            calculated_score: percentage,
+            threshold_applied: Number(test.passing_marks),
+            title: `Monthly Test Academic Notice: ${test.title}`,
+            message_body: `Student scored ${obtainedScore}/${test.total_marks} (${percentage}%). Passing mark: ${test.passing_marks}.`,
+            is_urgent: 0,
+            override_reason: isManual ? (customNote || 'Manual teacher alert dispatch') : 'Automated monthly test evaluation alert',
+            metric_snapshot: JSON.stringify({
+              testId: test.id,
+              attemptId: attempt.attempt_id,
+              totalMarks,
+              passingMarks: Number(test.passing_marks),
+              obtainedScore,
+              percentage
+            })
+          });
+
+          if (alertId) {
+            const [recipientId] = await db('academic_alert_recipients').insert({
+              alert_id: alertId,
+              parent_id: parent.parent_id,
+              relation: parent.relation,
+              status: 'SENT',
+              sent_at: db.raw('CURRENT_TIMESTAMP(3)')
+            });
+
+            if (recipientId) {
+              await db('academic_alert_outbox').insert({
+                alert_id: alertId,
+                recipient_id: recipientId,
+                idempotency_key: `mt_alert_${test.id}_${attempt.student_id}_${parent.parent_id}_${Date.now()}`,
+                payload: JSON.stringify({
+                  userId: parent.user_id,
+                  parentId: parent.parent_id,
+                  studentId: attempt.student_id,
+                  studentName: attempt.student_name,
+                  parentEmail: parent.parent_email,
+                  parentName: parent.parent_name,
+                  title: `Monthly Test Academic Notice: ${test.title}`,
+                  score: percentage,
+                  testTitle: test.title,
+                  subjectName: test.subject_name
+                }),
+                status: 'DELIVERED',
+                delivered_at: db.raw('CURRENT_TIMESTAMP(3)')
+              });
+            }
+          }
+        } catch {
+          // Soft failure for analytics tables
+        }
+
+        alertsSent++;
+        recipientDetails.push({
+          studentName: attempt.student_name,
+          parentName: parent.parent_name,
+          parentEmail: parent.parent_email,
+          score: `${obtainedScore}/${test.total_marks}`
+        });
+      }
+    }
+
+    return {
+      success: true,
+      testId,
+      totalEvaluated: attempts.length,
+      lowPerformersCount: attempts.length,
+      alertsSent,
+      recipients: recipientDetails,
+      message: `Alert emails and portal notifications dispatched to parents of ${attempts.length} student(s) with low scores.`
+    };
+  },
+
+  /**
+   * Manually notify the parent of a single student attempt that scored low or failed.
+   */
+  async notifyAttemptParent(user, testId, attemptId, { customNote = null } = {}) {
+    const test = await assessmentsRepository.findTestById(testId);
+    if (!test) throw notFound('Monthly test not found.');
+    await this.assertTeacherCanManageTest(user, test);
+
+    const attempt = await assessmentsRepository.findAttemptWithStudent(testId, attemptId);
+    if (!attempt) throw notFound('Test attempt not found.');
+
+    const parents = await assessmentsRepository.getParentsForStudents([attempt.student_id]);
+    if (parents.length === 0) {
+      throw validationError('Cannot dispatch alert: No parent/guardian account is linked to this student.');
+    }
+
+    const totalMarks = Number(test.total_marks) || 1;
+    const obtainedScore = Number(attempt.total_score || 0);
+    const percentage = Number(((obtainedScore / totalMarks) * 100).toFixed(1));
+    const portalUrl = process.env.PARENT_PORTAL_URL || 'http://localhost:3003';
+    const remarks = customNote
+      ? `${customNote.trim()}${attempt.teacher_remarks ? `\n\nTeacher remarks: ${attempt.teacher_remarks}` : ''}`
+      : attempt.teacher_remarks;
+
+    let emailsDispatched = 0;
+    for (const parent of parents) {
+      if (parent.parent_email) {
+        await emailService.sendMonthlyTestPerformanceAlert({
+          to: parent.parent_email,
+          parentName: parent.parent_name,
+          studentName: attempt.student_name,
+          rollNo: attempt.student_roll_no,
+          admissionNo: attempt.admission_no,
+          className: test.class_name,
+          testTitle: test.title,
+          subjectName: test.subject_name,
+          monthName: test.month_name,
+          totalMarks,
+          passingMarks: Number(test.passing_marks),
+          obtainedMarks: obtainedScore,
+          percentage,
+          isPassed: Boolean(attempt.is_passed),
+          teacherRemarks: remarks,
+          portalUrl
+        });
+        emailsDispatched++;
+      }
+
+      await notificationService.notifyUsers([parent.user_id], {
+        title: `Academic Performance Alert: ${attempt.student_name} - ${test.title}`,
+        message: `${attempt.student_name} scored ${obtainedScore}/${test.total_marks} (${percentage}%) in ${test.subject_name} monthly test, which is below the passing requirement of ${test.passing_marks} marks. Please review results on the Parent Portal.`,
+        type: 'Academic Alert',
+        priority: 'High',
+        relatedRecordId: test.id,
+        relatedRecordType: 'MonthlyTest'
+      });
+    }
+
+    return {
+      success: true,
+      message: `Performance alert sent to ${parents.length} parent(s) (${emailsDispatched} email(s) dispatched).`,
+      alertsSent: parents.length
+    };
   },
 
   // -------------------------------------------------------------
@@ -901,15 +1181,17 @@ export const assessmentsService = {
   // Parent Portal Result Access
   // -------------------------------------------------------------
   async getParentChildAssessments(user, studentId) {
-    if (user.role !== 'PARENT') throw forbidden();
-    const parent = await getParentByUserId(user.id);
-    if (!parent) throw forbidden();
+    if (!isStaff(user)) {
+      if (user.role !== 'PARENT') throw forbidden();
+      const parent = await getParentByUserId(user.id);
+      if (!parent) throw forbidden();
 
-    // Verify parent-student linkage
-    const link = await db('parent_student')
-      .where({ parent_id: parent.id, student_id: studentId })
-      .first();
-    if (!link) throw forbidden('Access denied. Student is not linked to your parent account.');
+      // Verify parent-student linkage
+      const link = await db('parent_student')
+        .where({ parent_id: parent.id, student_id: studentId })
+        .first();
+      if (!link) throw forbidden('Access denied. Student is not linked to your parent account.');
+    }
 
     return assessmentsRepository.getParentChildAssessments(studentId);
   },

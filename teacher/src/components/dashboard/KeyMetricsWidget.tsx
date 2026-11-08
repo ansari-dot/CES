@@ -1,6 +1,14 @@
 import React from 'react';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { setCurrentTab } from '../../store/slices/uiSlice';
+import {
+  Clock,
+  Video,
+  FileCheck,
+  Bell,
+  ArrowRight,
+  BarChart3,
+} from 'lucide-react';
 
 export const KeyMetricsWidget: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -13,7 +21,7 @@ export const KeyMetricsWidget: React.FC = () => {
   const notifications = useAppSelector((state) => state.ui.notifications);
   const duty = useAppSelector((state) => state.duty.summary);
 
-  // 1. Pending assignments count (total submissions awaiting review across tasks + direct pending submissions)
+  // 1. Pending assignments count
   const taskPendingSum = tasks.reduce(
     (acc, t) => acc + (t.pendingCount || 0) + (t.lateCount || 0),
     0
@@ -23,7 +31,7 @@ export const KeyMetricsWidget: React.FC = () => {
   ).length;
   const pendingAssignmentsCount = taskPendingSum > 0 ? taskPendingSum : directPendingCount;
 
-  // 2. Upcoming lessons count for today (scheduled or live sessions)
+  // 2. Upcoming lessons count for today
   const todayStr = new Intl.DateTimeFormat('en-CA').format(new Date());
   const todayDayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
   const todayLessons = lessons.filter((l) => {
@@ -37,7 +45,7 @@ export const KeyMetricsWidget: React.FC = () => {
     todayLessons.filter((l) => l.status === 'scheduled' || l.status === 'live' || l.status === 'started').length ||
     todaySchoolSessions.filter((s) => s.status === 'scheduled' || s.status === 'live').length;
 
-  // 3. Student notifications count (unread alerts in the notification center)
+  // 3. Student notifications count
   const studentNotificationsCount = notifications.filter((n) => !n.read).length;
 
   const metrics = [
@@ -46,7 +54,7 @@ export const KeyMetricsWidget: React.FC = () => {
       title: "Today's Teaching Duty",
       count: `${duty.todayTeachingHours || 0}h`,
       unit: `${duty.todayTeachingMinutes || 0} mins`,
-      icon: 'timer',
+      icon: Clock,
       iconBg: 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200/60',
       badgeText: 'Zoom Duty',
       badgeColor: 'bg-emerald-100 text-emerald-800',
@@ -58,7 +66,7 @@ export const KeyMetricsWidget: React.FC = () => {
       title: 'Upcoming Lessons',
       count: upcomingLessonsCount,
       unit: 'Sessions Today',
-      icon: 'videocam',
+      icon: Video,
       iconBg: 'bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200/60',
       badgeText: 'Live Zoom Hub',
       badgeColor: 'bg-indigo-100 text-indigo-800',
@@ -70,7 +78,7 @@ export const KeyMetricsWidget: React.FC = () => {
       title: 'Pending Assignments',
       count: pendingAssignmentsCount,
       unit: 'To Grade',
-      icon: 'assignment_turned_in',
+      icon: FileCheck,
       iconBg: 'bg-rose-50 text-rose-600 ring-1 ring-rose-200/60',
       badgeText: 'Review Queue',
       badgeColor: 'bg-rose-100 text-rose-800',
@@ -82,7 +90,7 @@ export const KeyMetricsWidget: React.FC = () => {
       title: 'Student Notifications',
       count: studentNotificationsCount,
       unit: 'Unread Alerts',
-      icon: 'notifications_active',
+      icon: Bell,
       iconBg: 'bg-amber-50 text-amber-600 ring-1 ring-amber-200/60',
       badgeText: 'Campus Live',
       badgeColor: 'bg-amber-100 text-amber-800',
@@ -95,7 +103,7 @@ export const KeyMetricsWidget: React.FC = () => {
     <div className="w-full">
       <div className="flex items-center justify-between mb-3 px-0.5">
         <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-[20px] text-[#36348e]">query_stats</span>
+          <BarChart3 className="w-5 h-5 text-[#36348e]" />
           <h2 className="text-sm font-bold text-[#292929] uppercase tracking-wider">
             Key Metrics
           </h2>
@@ -104,49 +112,50 @@ export const KeyMetricsWidget: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {metrics.map((metric) => (
-          <div
-            key={metric.id}
-            onClick={() => dispatch(setCurrentTab(metric.targetTab))}
-            className="group bg-white rounded-2xl p-5 border border-slate-200 shadow-xs hover:shadow-md hover:border-indigo-300 transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden"
-          >
-            {/* Top row: Prominent Icon + Action Badge */}
-            <div className="flex items-start justify-between gap-3 mb-4">
-              <div
-                className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform duration-200 ${metric.iconBg}`}
-              >
-                <span className="material-symbols-outlined text-[32px]">{metric.icon}</span>
-              </div>
+        {metrics.map((metric) => {
+          const Icon = metric.icon;
+          return (
+            <div
+              key={metric.id}
+              onClick={() => dispatch(setCurrentTab(metric.targetTab))}
+              className="group bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-md hover:border-indigo-300 transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden"
+            >
+              {/* Top row: Prominent Icon + Action Badge */}
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div
+                  className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform duration-200 ${metric.iconBg}`}
+                >
+                  <Icon className="w-6 h-6" />
+                </div>
 
-              <span
-                className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${metric.badgeColor}`}
-              >
-                {metric.badgeText}
-              </span>
-            </div>
-
-            {/* Middle: Big Metric Number & Title */}
-            <div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl sm:text-4xl font-black text-[#292929] tracking-tight">
-                  {metric.count}
+                <span
+                  className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${metric.badgeColor}`}
+                >
+                  {metric.badgeText}
                 </span>
-                <span className="text-xs font-bold text-[#777587] truncate">{metric.unit}</span>
               </div>
-              <h3 className="text-sm font-bold text-[#292929] mt-1 group-hover:text-[#b98200] transition-colors">
-                {metric.title}
-              </h3>
-            </div>
 
-            {/* Bottom Row: Context note & Quick Arrow */}
-            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-[#777587]">
-              <span className="font-medium truncate">{metric.subtext}</span>
-              <span className="material-symbols-outlined text-[18px] text-[#36348e] transform group-hover:translate-x-1 transition-transform">
-                arrow_forward
-              </span>
+              {/* Middle: Big Metric Number & Title */}
+              <div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl sm:text-3xl font-black text-[#292929] tracking-tight">
+                    {metric.count}
+                  </span>
+                  <span className="text-xs font-bold text-[#777587] truncate">{metric.unit}</span>
+                </div>
+                <h3 className="text-sm font-bold text-[#292929] mt-1 group-hover:text-[#36348e] transition-colors">
+                  {metric.title}
+                </h3>
+              </div>
+
+              {/* Bottom Row: Context note & Quick Arrow */}
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-[#777587]">
+                <span className="font-medium truncate">{metric.subtext}</span>
+                <ArrowRight className="w-4 h-4 text-[#36348e] transform group-hover:translate-x-1 transition-transform" />
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

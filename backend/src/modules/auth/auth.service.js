@@ -16,7 +16,22 @@ import { decryptAesGcm } from '../../shared/crypto/aes.js';
 
 async function enrichUserData(user, permissions) {
   let teacherProfile = null;
+  let studentProfile = null;
+  let gender = null;
   let assignedClasses = [];
+
+  if (user.role_code === 'STUDENT') {
+    const student = await db('students').where({ user_id: user.id }).first();
+    if (student) {
+      gender = student.gender || null;
+      studentProfile = {
+        id: student.id,
+        admissionNo: student.admission_no,
+        rollNo: student.roll_no,
+        gender: student.gender || null
+      };
+    }
+  }
 
   if (user.role_code === 'TEACHER') {
     const teacher = await db('teachers').where({ user_id: user.id }).first();
@@ -170,6 +185,8 @@ async function enrichUserData(user, permissions) {
     mustChangePassword: Boolean(user.must_change_password),
     permissions,
     teacherProfile,
+    studentProfile,
+    gender,
     assignedClasses
   };
 }

@@ -7,6 +7,7 @@ import {
 } from '../../store/slices/timetableSlice';
 import { addToast } from '../../store/slices/uiSlice';
 import { Modal } from '../common/Modal';
+import { Clock, Paperclip, AlertTriangle, CheckCircle2, ClipboardList } from 'lucide-react';
 
 export const LessonDeliveryModal: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -56,14 +57,14 @@ export const LessonDeliveryModal: React.FC = () => {
       isOpen={!!activeLesson}
       onClose={() => dispatch(closeLessonModal())}
       title="Lesson Completion Record"
-      subtitle={`${activeLesson.className} • ${activeLesson.subject} • SRS 5.4 Delivery Log`}
-      icon="receipt_long"
-      iconBgColor="bg-[#cdd4fb] text-[#36348e]"
+      subtitle={`${activeLesson.className} • ${activeLesson.subject} • Official Delivery Log`}
+      icon={<ClipboardList className="w-5 h-5 text-[#36348e]" />}
+      iconBgColor="bg-indigo-50 text-[#36348e] border border-indigo-100"
     >
       <form onSubmit={handleSubmit} className="space-y-4 text-xs sm:text-sm">
         {/* Topic Covered */}
         <div>
-          <label className="block text-xs font-semibold text-[#292929] mb-1">
+          <label className="block text-xs font-bold text-slate-800 mb-1">
             Lesson Topic Covered
           </label>
           <input
@@ -71,14 +72,14 @@ export const LessonDeliveryModal: React.FC = () => {
             required
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
-            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            className="w-full h-10 px-3 bg-white border border-slate-300 rounded-xl text-slate-900 focus:border-[#36348e] focus:outline-hidden focus:ring-2 focus:ring-indigo-100"
           />
         </div>
 
         {/* Start / End Actual Time */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-semibold text-[#292929] mb-1">
+            <label className="block text-xs font-bold text-slate-800 mb-1">
               Actual Start Time
             </label>
             <div className="relative">
@@ -87,15 +88,13 @@ export const LessonDeliveryModal: React.FC = () => {
                 required
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
-                className="w-full h-10 px-3 pl-9 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none"
+                className="w-full h-10 px-3 pl-9 bg-white border border-slate-300 rounded-xl text-slate-900 focus:border-[#36348e] focus:outline-hidden"
               />
-              <span className="material-symbols-outlined text-[18px] text-[#777587] absolute left-2.5 top-1/2 -translate-y-1/2">
-                schedule
-              </span>
+              <Clock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             </div>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-[#292929] mb-1">
+            <label className="block text-xs font-bold text-slate-800 mb-1">
               Actual End Time
             </label>
             <div className="relative">
@@ -104,18 +103,16 @@ export const LessonDeliveryModal: React.FC = () => {
                 required
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
-                className="w-full h-10 px-3 pl-9 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none"
+                className="w-full h-10 px-3 pl-9 bg-white border border-slate-300 rounded-xl text-slate-900 focus:border-[#36348e] focus:outline-hidden"
               />
-              <span className="material-symbols-outlined text-[18px] text-[#777587] absolute left-2.5 top-1/2 -translate-y-1/2">
-                timer_off
-              </span>
+              <Clock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             </div>
           </div>
         </div>
 
         {/* Lesson Notes */}
         <div>
-          <label className="block text-xs font-semibold text-[#292929] mb-1">
+          <label className="block text-xs font-bold text-slate-800 mb-1">
             Lesson Summary &amp; Teacher Observation Notes
           </label>
           <textarea
@@ -123,13 +120,13 @@ export const LessonDeliveryModal: React.FC = () => {
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Detail student engagement, syllabus coverage, or homework assigned..."
-            className="w-full p-3 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none"
+            className="w-full p-3 bg-white border border-slate-300 rounded-xl text-slate-900 focus:border-[#36348e] focus:outline-hidden"
           ></textarea>
         </div>
 
         {/* Resource Attachment */}
         <div>
-          <label className="block text-xs font-semibold text-[#292929] mb-1">
+          <label className="block text-xs font-bold text-slate-800 mb-1">
             Resource Attachment / Whiteboard Export URL
           </label>
           <div className="relative">
@@ -137,25 +134,24 @@ export const LessonDeliveryModal: React.FC = () => {
               type="url"
               value={resourceUrl}
               onChange={(e) => setResourceUrl(e.target.value)}
-              className="w-full h-10 px-3 pl-9 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none"
+              placeholder="https://..."
+              className="w-full h-10 px-3 pl-9 bg-white border border-slate-300 rounded-xl text-slate-900 focus:border-[#36348e] focus:outline-hidden"
             />
-            <span className="material-symbols-outlined text-[18px] text-[#777587] absolute left-2.5 top-1/2 -translate-y-1/2">
-              attachment
-            </span>
+            <Paperclip className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           </div>
         </div>
 
         {/* Incident / Problem category */}
         <div>
-          <label className="block text-xs font-semibold text-[#292929] mb-1.5">
+          <label className="block text-xs font-bold text-slate-800 mb-1.5">
             Problem Category Experienced
           </label>
           <div className="grid grid-cols-3 gap-2">
             <label
-              className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border transition-colors ${
+              className={`flex items-center gap-2 p-2 rounded-xl cursor-pointer border transition-colors ${
                 problemCategory === 'none'
-                  ? 'border-[#006c49] bg-emerald-50 text-[#065f46]'
-                  : 'border-slate-200 bg-[#f1f1fa] text-[#545454]'
+                  ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                  : 'border-slate-200 bg-slate-50 text-slate-600'
               }`}
             >
               <input
@@ -163,16 +159,16 @@ export const LessonDeliveryModal: React.FC = () => {
                 name="probCat"
                 checked={problemCategory === 'none'}
                 onChange={() => setProblemCategory('none')}
-                className="accent-[#006c49]"
+                className="accent-emerald-600"
               />
-              <span className="text-xs font-semibold">None / Clean</span>
+              <span className="text-xs font-bold">None / Clean</span>
             </label>
 
             <label
-              className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border transition-colors ${
+              className={`flex items-center gap-2 p-2 rounded-xl cursor-pointer border transition-colors ${
                 problemCategory === 'attendance'
-                  ? 'border-[#7a5b00] bg-amber-50 text-[#8a6400]'
-                  : 'border-slate-200 bg-[#f1f1fa] text-[#545454]'
+                  ? 'border-amber-600 bg-amber-50 text-amber-900'
+                  : 'border-slate-200 bg-slate-50 text-slate-600'
               }`}
             >
               <input
@@ -180,16 +176,16 @@ export const LessonDeliveryModal: React.FC = () => {
                 name="probCat"
                 checked={problemCategory === 'attendance'}
                 onChange={() => setProblemCategory('attendance')}
-                className="accent-[#7a5b00]"
+                className="accent-amber-600"
               />
-              <span className="text-xs font-semibold">Attendance</span>
+              <span className="text-xs font-bold">Attendance</span>
             </label>
 
             <label
-              className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border transition-colors ${
+              className={`flex items-center gap-2 p-2 rounded-xl cursor-pointer border transition-colors ${
                 problemCategory === 'technical'
-                  ? 'border-[#ba1a1a] bg-red-50 text-[#991b1b]'
-                  : 'border-slate-200 bg-[#f1f1fa] text-[#545454]'
+                  ? 'border-rose-600 bg-rose-50 text-rose-800'
+                  : 'border-slate-200 bg-slate-50 text-slate-600'
               }`}
             >
               <input
@@ -197,9 +193,9 @@ export const LessonDeliveryModal: React.FC = () => {
                 name="probCat"
                 checked={problemCategory === 'technical'}
                 onChange={() => setProblemCategory('technical')}
-                className="accent-[#ba1a1a]"
+                className="accent-rose-600"
               />
-              <span className="text-xs font-semibold">Technical/Zoom</span>
+              <span className="text-xs font-bold">Technical/Zoom</span>
             </label>
           </div>
         </div>
@@ -212,9 +208,9 @@ export const LessonDeliveryModal: React.FC = () => {
               dispatch(closeLessonModal());
               dispatch(openProblemModal(activeLesson));
             }}
-            className="w-full sm:w-auto px-3 py-2 text-[#ba1a1a] hover:bg-red-50 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+            className="w-full sm:w-auto px-3 py-2 text-rose-700 hover:bg-rose-50 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[16px]">report_problem</span>
+            <AlertTriangle className="w-4 h-4 text-rose-600" />
             Report Delivery Issue
           </button>
 
@@ -222,15 +218,15 @@ export const LessonDeliveryModal: React.FC = () => {
             <button
               type="button"
               onClick={() => dispatch(closeLessonModal())}
-              className="px-4 py-2 rounded-lg bg-[#e8e8f6] text-[#292929] hover:bg-[#ffedc2] text-xs font-semibold"
+              className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-lg bg-[#006c49] hover:bg-[#005236] text-white font-semibold text-xs shadow-md transition-all flex items-center justify-center gap-1.5"
+              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[18px]">verified</span>
+              <CheckCircle2 className="w-4 h-4" />
               Mark Lesson Completed
             </button>
           </div>

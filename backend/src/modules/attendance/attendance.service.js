@@ -161,10 +161,10 @@ export const attendanceService = {
         throw new AppError('Each record must specify a studentId', 422, ErrorCodes.VALIDATION_ERROR);
       }
       let st = (rec.status || 'PRESENT').toUpperCase();
-      if (st === 'P') st = 'PRESENT';
-      else if (st === 'A') st = 'ABSENT';
-      else if (st === 'L' || st === 'LEAVE') st = 'LATE';
-      else if (st === 'E') st = 'EXCUSED';
+      if (st === 'P' || st === 'PRESENT') st = 'PRESENT';
+      else if (st === 'A' || st === 'ABSENT') st = 'ABSENT';
+      else if (st === 'L' || st === 'LATE') st = 'LATE';
+      else if (st === 'E' || st === 'EXCUSED' || st === 'LEAVE') st = 'EXCUSED';
 
       rec.status = st;
       if (!validStatuses.includes(st)) {
@@ -178,6 +178,90 @@ export const attendanceService = {
       userId,
       isLocked
     });
+
+    // Alert Parents for students marked Absent, Late, or On Leave (Excused)
+    try {
+      const nonPresentRecords = records.filter(
+        (r) => r.status === 'ABSENT' || r.status === 'LATE' || r.status === 'EXCUSED'
+      );
+
+      if (nonPresentRecords.length > 0) {
+        const lessonInfo = await db('timetable_lessons')
+          .leftJoin('classes', 'timetable_lessons.class_id', 'classes.id')
+          .leftJoin('subjects', 'timetable_lessons.subject_id', 'subjects.id')
+          .where('timetable_lessons.id', lessonId)
+          .select(
+            'timetable_lessons.lesson_date as lessonDate',
+            'classes.name as className',
+            'classes.grade_level as gradeLevel',
+            'subjects.name as subjectName'
+          )
+          .first();
+
+        const studentIds = nonPresentRecords.map((r) => r.studentId);
+
+        const parentLinks = await db('parent_student')
+          .join('parents', 'parent_student.parent_id', 'parents.id')
+          .join('students', 'parent_student.student_id', 'students.id')
+          .join('users as student_users', 'students.user_id', 'student_users.id')
+          .whereIn('parent_student.student_id', studentIds)
+          .select(
+            'parent_student.student_id as studentId',
+            'parents.user_id as parentUserId',
+            'student_users.full_name as studentName',
+            'students.roll_no as rollNumber'
+          );
+
+        const statusMap = new Map();
+        for (const r of nonPresentRecords) {
+          statusMap.set(Number(r.studentId), { status: r.status, remark: r.remarks || r.remark || '' });
+        }
+
+        const dateStr = lessonInfo?.lessonDate
+          ? new Date(lessonInfo.lessonDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+          : new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        const subjectStr = lessonInfo?.subjectName || 'Class Session';
+        const classStr = lessonInfo?.className || (lessonInfo?.gradeLevel ? `Class ${lessonInfo.gradeLevel}` : '');
+
+        for (const link of parentLinks) {
+          const recInfo = statusMap.get(Number(link.studentId));
+          if (!recInfo || !link.parentUserId) continue;
+
+          let title = '';
+          let message = '';
+          let priority = 'Medium';
+
+          if (recInfo.status === 'ABSENT') {
+            title = `Attendance Alert: ${link.studentName} Marked Absent`;
+            message = `${link.studentName} (Roll #${link.rollNumber || 'N/A'}) was marked ABSENT for ${subjectStr}${classStr ? ` (${classStr})` : ''} on ${dateStr}.${recInfo.remark ? ` Note: "${recInfo.remark}".` : ''} If this is an error, please reach out to the administration.`;
+            priority = 'High';
+          } else if (recInfo.status === 'LATE') {
+            title = `Attendance Notice: ${link.studentName} Marked Late`;
+            message = `${link.studentName} (Roll #${link.rollNumber || 'N/A'}) arrived LATE for ${subjectStr}${classStr ? ` (${classStr})` : ''} on ${dateStr}.${recInfo.remark ? ` Note: "${recInfo.remark}".` : ''}`;
+            priority = 'Medium';
+          } else if (recInfo.status === 'EXCUSED') {
+            title = `Attendance Notice: ${link.studentName} On Leave`;
+            message = `${link.studentName} (Roll #${link.rollNumber || 'N/A'}) was recorded ON LEAVE / EXCUSED for ${subjectStr}${classStr ? ` (${classStr})` : ''} on ${dateStr}.${recInfo.remark ? ` Note: "${recInfo.remark}".` : ''}`;
+            priority = 'Low';
+          }
+
+          if (title && message) {
+            notificationService.notify({
+              userId: link.parentUserId,
+              title,
+              message,
+              type: 'Attendance Notice',
+              targetRole: 'PARENT',
+              relatedRecordId: lessonId,
+              relatedRecordType: 'Attendance',
+              priority
+            });
+          }
+        }
+      }
+    } catch (parentNotifyErr) {
+      console.warn('[AttendanceService] Parent notification error:', parentNotifyErr.message);
+    }
 
     if (isLocked) {
       notificationService.notify({

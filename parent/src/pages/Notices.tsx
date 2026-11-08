@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Megaphone, Bell, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Megaphone, Bell, X, Award } from 'lucide-react';
 import { useParent } from '../context/ParentContext';
 import { requestApi } from '../services/api';
 import { LoadingBlock, ErrorBlock, EmptyBlock } from '../components/common';
@@ -233,7 +234,17 @@ export default function Notices() {
             {'createdAt' in activePopup && (
               <p className="text-[11px] text-muted-foreground">{formatDateTime(activePopup.createdAt)}</p>
             )}
-            <div className="flex justify-end pt-2 border-t border-border">
+            <div className="flex items-center justify-between pt-2 border-t border-border gap-2">
+              {'message' in activePopup ? (
+                <Link
+                  to="/results"
+                  onClick={() => setActivePopup(null)}
+                  className="px-3.5 py-1.5 rounded-xl bg-primary hover:bg-primary/90 text-white text-xs font-bold inline-flex items-center gap-1.5 transition"
+                >
+                  <Award className="w-3.5 h-3.5" />
+                  <span>View Test Results</span>
+                </Link>
+              ) : <div />}
               <button onClick={() => setActivePopup(null)} className="px-4 py-1.5 rounded-xl border border-border text-xs font-semibold text-muted-foreground hover:bg-muted">
                 Close
               </button>

@@ -6,6 +6,7 @@ import {
 } from '../../store/slices/dutySlice';
 import { addToast } from '../../store/slices/uiSlice';
 import { Modal } from '../common/Modal';
+import { Clock, ShieldAlert } from 'lucide-react';
 
 export const DutyCorrectionModal: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -43,26 +44,26 @@ export const DutyCorrectionModal: React.FC = () => {
       isOpen={isOpen}
       onClose={() => dispatch(closeAdjustmentModal())}
       title="Teaching Duty Correction Memo"
-      subtitle={`${selectedLog.className} • ${selectedLog.subject} • SRS 15.3`}
-      icon="more_time"
-      iconBgColor="bg-[#ffe9b0] text-[#8a6400]"
+      subtitle={`${selectedLog.className} • ${selectedLog.subject} • Official Faculty Audit`}
+      icon={<Clock className="w-5 h-5 text-amber-600" />}
+      iconBgColor="bg-amber-50 text-amber-700 border border-amber-200"
       maxWidth="max-w-md"
     >
       <form onSubmit={handleSubmit} className="space-y-4 text-xs sm:text-sm">
-        <div className="bg-[#f1f1fa] p-3 rounded-lg border border-indigo-100/60">
-          <p className="text-xs text-[#545454]">
-            Session Date: <strong className="text-[#292929]">{selectedLog.date}</strong>
+        <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+          <p className="text-xs text-slate-600">
+            Session Date: <strong className="text-slate-900 font-bold">{selectedLog.date}</strong>
           </p>
-          <p className="text-xs text-[#545454]">
-            Recorded Scheduled Time: <strong className="text-[#292929]">{selectedLog.scheduledTime}</strong>
+          <p className="text-xs text-slate-600 mt-1">
+            Recorded Scheduled Time: <strong className="text-slate-900 font-bold">{selectedLog.scheduledTime}</strong>
           </p>
-          <p className="text-xs text-[#545454]">
-            Current Logged Duration: <strong className="text-[#292929]">{selectedLog.durationMinutes} mins</strong>
+          <p className="text-xs text-slate-600 mt-1">
+            Current Logged Duration: <strong className="text-slate-900 font-bold">{selectedLog.durationMinutes} mins</strong>
           </p>
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-[#292929] mb-1">
+          <label className="block text-xs font-bold text-slate-800 mb-1">
             Requested Verified Duration (Minutes)
           </label>
           <input
@@ -72,12 +73,12 @@ export const DutyCorrectionModal: React.FC = () => {
             required
             value={requestedDuration}
             onChange={(e) => setRequestedDuration(Number(e.target.value))}
-            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-[#292929] font-bold focus:border-[#36348e] focus:outline-none"
+            className="w-full h-10 px-3 bg-white border border-slate-300 rounded-xl text-slate-900 font-bold focus:border-[#36348e] focus:outline-hidden"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-[#292929] mb-1">
+          <label className="block text-xs font-bold text-slate-800 mb-1">
             Administrative Justification &amp; Zoom Audit Memo
           </label>
           <textarea
@@ -86,17 +87,15 @@ export const DutyCorrectionModal: React.FC = () => {
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="e.g. Session extended by 15 mins for student Q&A. Verified by cloud Zoom recording timestamp."
-            className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-[#292929] focus:border-[#36348e] focus:outline-none"
+            className="w-full p-3 bg-white border border-slate-300 rounded-xl text-slate-900 focus:border-[#36348e] focus:outline-hidden"
           ></textarea>
         </div>
 
-        <div className="p-2.5 rounded-lg bg-amber-50 text-amber-800 text-[11px] flex items-start gap-1.5 border border-amber-200">
-          <span className="material-symbols-outlined text-[16px] text-amber-600 shrink-0 mt-0.5">
-            gavel
-          </span>
+        <div className="p-3 rounded-xl bg-amber-50 text-amber-900 text-xs flex items-start gap-2 border border-amber-200">
+          <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
           <span>
-            Teachers cannot approve their own duty corrections or payroll adjustments. This memo is
-            routed to the Principal for formal validation.
+            Faculty members cannot unilaterally approve their own duty corrections. This memo is
+            routed to the Principal for formal administrative validation.
           </span>
         </div>
 
@@ -104,13 +103,13 @@ export const DutyCorrectionModal: React.FC = () => {
           <button
             type="button"
             onClick={() => dispatch(closeAdjustmentModal())}
-            className="px-4 py-2 rounded-lg bg-[#e8e8f6] text-[#292929] hover:bg-[#ffedc2] text-xs font-semibold"
+            className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold cursor-pointer"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="px-5 py-2 rounded-lg bg-[#36348e] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white font-semibold text-xs shadow-md transition-all"
+            className="px-5 py-2 rounded-xl bg-[#36348e] hover:bg-[#2c2a75] text-white font-bold text-xs shadow-md transition-all cursor-pointer"
           >
             Submit Memo
           </button>

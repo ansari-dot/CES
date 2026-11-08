@@ -69,11 +69,13 @@ export const TeacherExamAnnouncementPopup: React.FC = () => {
     return `${day}-${month}-${year}`;
   };
 
-  const categoryBadge = {
+  const categoryBadgeMap: Record<string, { label: string; bg: string }> = {
+    CLASS_QUIZ: { label: 'Class Quiz', bg: 'bg-amber-100 text-amber-800 border-amber-200' },
     MONTHLY_TEST: { label: 'Monthly Test', bg: 'bg-blue-100 text-blue-800 border-blue-200' },
     MID_TERM: { label: 'Mid-Term Examination', bg: 'bg-purple-100 text-purple-800 border-purple-200' },
     FINAL_TERM: { label: 'Final-Term Examination', bg: 'bg-emerald-100 text-emerald-800 border-emerald-200' }
-  }[announcement.exam_type] || { label: announcement.exam_type, bg: 'bg-slate-100 text-slate-800 border-slate-200' };
+  };
+  const categoryBadge = categoryBadgeMap[announcement.exam_type] || { label: announcement.exam_type, bg: 'bg-slate-100 text-slate-800 border-slate-200' };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
