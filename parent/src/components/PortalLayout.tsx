@@ -43,25 +43,25 @@ function Sidebar({ onNavigate, onLogout }: { onNavigate?: () => void; onLogout: 
   const name = user?.fullName || 'Parent';
 
   return (
-    <div className="w-[240px] shrink-0 bg-primary flex flex-col h-full select-none">
-      <div className="flex flex-col items-center gap-2 px-4 pt-4 pb-3 border-b border-white/15">
-        <div className="w-13 h-13 rounded-full bg-white flex items-center justify-center shadow-xs overflow-hidden shrink-0">
+    <div className="w-64 shrink-0 bg-primary flex flex-col h-full select-none">
+      <div className="flex flex-col items-center gap-2.5 px-4 pt-6 pb-5 border-b border-white/15">
+        <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-md overflow-hidden shrink-0">
           <img
             src="/logowb.png"
             alt="Cambridge Education System logo"
-            className="w-full h-full object-contain"
+            className="w-full h-full object-contain drop-shadow-sm"
             onError={(e) => {
               (e.target as HTMLImageElement).src = '/logo.jpeg';
             }}
           />
         </div>
-        <div className="text-center">
-          <div className="font-headings font-bold text-white text-xs leading-tight">Cambridge Education System</div>
-          <div className="text-[11px] text-white/70">Parent Portal</div>
+        <div className="flex flex-col min-w-0 text-center">
+          <span className="font-headings text-sm font-semibold tracking-tight text-white truncate leading-tight">Cambridge Education System</span>
+          <span className="font-headings text-[10px] text-white/70 font-medium tracking-wide uppercase truncate">Parent Portal</span>
         </div>
       </div>
 
-      <div className="sidebar-scroll flex-1 overflow-y-auto px-2.5 pt-2 pb-2 flex flex-col gap-0.5">
+      <div className="sidebar-scroll flex-1 overflow-y-auto p-3 flex flex-col gap-0.5 text-xs">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const badge = item.path === '/parent/notices' && unreadCount > 0 ? unreadCount : null;
@@ -71,15 +71,14 @@ function Sidebar({ onNavigate, onLogout }: { onNavigate?: () => void; onLogout: 
               to={item.path}
               onClick={onNavigate}
               className={({ isActive }) =>
-                `flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  isActive ? 'bg-secondary text-secondary-foreground font-bold shadow-xs' : 'text-white/85 hover:bg-secondary hover:text-secondary-foreground'
+                `flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                  isActive ? 'bg-secondary text-secondary-foreground font-semibold shadow-xs' : 'text-white/85 hover:bg-secondary hover:text-secondary-foreground'
                 }`
               }
             >
               {({ isActive }) => (
                 <>
-                  {isActive && <span className="w-1 h-4 rounded-full bg-primary -ml-1 mr-0" />}
-                  <Icon className="w-4 h-4 shrink-0 stroke-[2.2]" />
+                  <Icon className="w-4 h-4 shrink-0" />
                   <span className="truncate">{item.name}</span>
                   {badge && (
                     <span className="ml-auto min-w-4 h-4 px-1 rounded-full bg-error text-white text-[10px] flex items-center justify-center font-bold">
@@ -93,7 +92,7 @@ function Sidebar({ onNavigate, onLogout }: { onNavigate?: () => void; onLogout: 
         })}
       </div>
 
-      <div className="p-2.5 border-t border-white/15 mt-auto">
+      <div className="p-3 border-t border-white/15 bg-white/5 mt-auto">
         <NavLink
           to="/parent/profile"
           onClick={onNavigate}
