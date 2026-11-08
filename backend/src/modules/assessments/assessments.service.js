@@ -246,6 +246,44 @@ export const assessmentsService = {
     return assessmentsRepository.updateTest(testId, { status: 'CLOSED' });
   },
 
+  /**
+   * Generic status transition used by the teacher portal's status buttons
+   * (PATCH /:id/status). Dispatches to the dedicated transition handlers so
+   * their validations and notifications keep applying.
+   */
+  async updateTestStatus(user, testId, status) {
+    const target = String(status || '').toUpperCase();
+
+    if (target === 'PUBLISHED') {
+      const test = await this.publishTest(user, testId);
+      return { test };
+    }
+    if (target === 'CLOSED') {
+      const test = await this.closeTest(user, testId);
+      return { test };
+    }
+    if (target === 'RESULTS_PUBLISHED') {
+      await this.publishResults(user, testId);
+      const test = await assessmentsRepository.findTestById(testId);
+      return { test };
+    }
+    if (target === 'DRAFT') {
+      const test = await assessmentsRepository.findTestById(testId);
+      if (!test) throw notFound('Monthly test not found.');
+      await this.assertTeacherCanManageTest(user, test);
+      const attempts = await db('test_attempts').where({ test_id: testId }).count('id as count').first();
+      if (Number(attempts?.count || 0) > 0) {
+        throw validationError(
+          'This test cannot be moved back to draft because students have already attempted it. Close it instead.'
+        );
+      }
+      const updated = await assessmentsRepository.updateTest(testId, { status: 'DRAFT' });
+      return { test: updated };
+    }
+
+    throw validationError(`Unsupported test status transition: ${status}`);
+  },
+
   async getTestDetails(user, testId) {
     const test = await assessmentsRepository.findTestById(testId);
     if (!test) throw notFound('Monthly test not found.');

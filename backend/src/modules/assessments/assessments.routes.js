@@ -46,6 +46,14 @@ router.post(
   assessmentsController.closeTest
 );
 
+// Generic status transition used by the teacher portal (publish/close/
+// publish-results/revert-to-draft via one endpoint)
+router.patch(
+  '/:id/status',
+  requireRole('TEACHER', 'ADMIN', 'PRINCIPAL'),
+  assessmentsController.updateTestStatus
+);
+
 // -------------------------------------------------------------
 // Zoom Invigilation Session Routes
 // -------------------------------------------------------------

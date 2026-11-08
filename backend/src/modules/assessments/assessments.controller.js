@@ -5,6 +5,15 @@ export const assessmentsController = {
   // -------------------------------------------------------------
   // Teacher Test Management
   // -------------------------------------------------------------
+  async updateTestStatus(req, res, next) {
+    try {
+      const data = await assessmentsService.updateTestStatus(req.user, Number(req.params.id), req.body.status);
+      return sendSuccess(res, data, 'Test status updated.');
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async createTest(req, res, next) {
     try {
       const test = await assessmentsService.createTest(req.user, req.body);
