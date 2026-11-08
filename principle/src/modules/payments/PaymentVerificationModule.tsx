@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { api } from '../../services/api';
+import { api, openProtectedFile } from '../../services/api';
 import { PaymentProofSubmission } from '../../types';
 import { DataTable, Column } from '../../components/common/DataTable';
 import { StatusBadge } from '../../components/common/StatusBadge';
@@ -245,18 +245,39 @@ export const PaymentVerificationModule: React.FC = () => {
                 </div>
                 <div>
                   <span className="text-slate-500 block text-[10px]">Proof Document</span>
-                  <span className="text-xs text-sky-600 underline font-mono flex items-center gap-1">
-                    <FileText className="w-3 h-3" />
-                    <span>{selectedProof.proofDocumentUrl}</span>
-                  </span>
+                  {selectedProof.proofDocumentUrl ? (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await openProtectedFile(
+                            selectedProof.proofDocumentUrl,
+                            `payment_proof_${selectedProof.challanNumber || selectedProof.id}`
+                          );
+                        } catch (err) {
+                          toast.error(err instanceof Error ? err.message : 'Could not open the payment proof file.');
+                        }
+                      }}
+                      className="text-xs text-sky-600 underline font-mono flex items-center gap-1 hover:text-sky-800 cursor-pointer"
+                      title="Open the uploaded payment proof"
+                    >
+                      <FileText className="w-3 h-3" />
+                      <span>View Proof</span>
+                    </button>
+                  ) : (
+                    <span className="text-xs text-slate-400 font-mono flex items-center gap-1">
+                      <FileText className="w-3 h-3" />
+                      <span>No proof file attached</span>
+                    </span>
+                  )}
                 </div>
               </div>
 
-              {/* Receipt preview simulation */}
+              {/* Submitted transaction details */}
               <div className="p-3 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-600 font-mono shadow-2xs">
-                <div className="text-slate-400 text-[10px] mb-1">DIGITAL TRANSACTION VOUCHER METADATA</div>
-                <div>BENEFICIARY: ONLINE SCHOOL MANAGEMENT (AC: 0102-0105829102)</div>
-                <div>STATUS: 200 OK · CHANNEL: 1LINK ⁄ RAAST INTEGRATION</div>
+                <div className="text-slate-400 text-[10px] mb-1">SUBMITTED TRANSACTION DETAILS</div>
+                <div>CHANNEL: {selectedProof.bankOrWallet || '—'}</div>
+                <div>REFERENCE: {selectedProof.transactionReference || '—'}</div>
                 <div>TIME: {new Date(selectedProof.submissionTimestamp).toUTCString()}</div>
               </div>
             </div>

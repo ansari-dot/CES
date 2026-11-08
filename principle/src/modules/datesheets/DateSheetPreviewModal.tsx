@@ -148,6 +148,7 @@ export const DateSheetPreviewModal: React.FC<Props> = ({ isOpen, onClose, dateSh
                   <th className="py-2.5 px-3 w-32">Subject Type</th>
                   <th className="py-2.5 px-3 w-24">Start Time</th>
                   <th className="py-2.5 px-3 w-24">End Time</th>
+                  <th className="py-2.5 px-3 w-32">Invigilator</th>
                 </tr>
               </thead>
               <tbody className="divide-y-2 divide-slate-700">
@@ -187,6 +188,9 @@ export const DateSheetPreviewModal: React.FC<Props> = ({ isOpen, onClose, dateSh
                       </td>
                       <td className="py-2 px-3 text-center font-mono font-bold text-slate-800">
                         {e.end_time}
+                      </td>
+                      <td className="py-2 px-3 text-center text-slate-700">
+                        {e.teacher_name || '—'}
                       </td>
                     </tr>
                   ))

@@ -111,7 +111,17 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
     // Load teachers
     api.getTeachers().then((res) => {
       if (Array.isArray(res)) {
-        setTeachersList(res.map((t: any) => ({ id: Number(t.id), name: t.name || t.fullName })));
+        setTeachersList(
+          res
+            .filter((t: any) => !t.accountStatus || t.accountStatus === 'Active')
+            .map((t: any) => ({
+              // Backend list ids are display strings like "TCH-34"; the numeric
+              // teachers.id (rawId) is what date_sheet_entries.teacher_id stores.
+              id: Number(t.rawId) || Number(String(t.id).replace(/\D/g, '')),
+              name: t.name || t.fullName
+            }))
+            .filter((t: any) => Number.isFinite(t.id) && t.id > 0)
+        );
       }
     }).catch(() => {});
   }, []);
@@ -323,7 +333,7 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
       const schedulingMode: SchedulingMode = isDedicatedExam ? 'DEDICATED_EXAM' : 'TIMETABLE_ASSESSMENT';
 
       const payload: CreateDateSheetPayload = {
-        academicSessionId: 1,
+        // Omitted session id: the backend resolves the active academic session.
         examType,
         schedulingMode,
         startDate: isDedicatedExam ? startDate : undefined,
