@@ -29,7 +29,6 @@ router.get('/:id', authenticate, examController.detail);
 router.post(
   '/:id/papers',
   authenticate,
-  authorize('results.manage'),
   validate(createPaperSchema),
   examController.createPaper
 );

@@ -81,7 +81,7 @@ export const examRepository = {
       .first();
   },
 
-  async listPapersByExam(examId, { classId, markingTeacherId, status }, trx = null) {
+  async listPapersByExam(examId, { classId, markingTeacherId, status, teacherPairs }, trx = null) {
     let query = (trx || db)('terminal_exam_papers as tep')
       .join('classes as c', 'tep.class_id', 'c.id')
       .join('subjects as s', 'tep.subject_id', 's.id')
@@ -99,8 +99,21 @@ export const examRepository = {
       .orderBy(['tep.paper_date', 'tep.start_time']);
 
     if (classId) query = query.where('tep.class_id', Number(classId));
-    if (markingTeacherId) query = query.where('tep.marking_teacher_id', Number(markingTeacherId));
     if (status) query = query.where('tep.status', status);
+
+    if (markingTeacherId) {
+      if (teacherPairs && teacherPairs.length > 0) {
+        query = query.where((builder) => {
+          builder.where('tep.marking_teacher_id', Number(markingTeacherId))
+            .orWhere((inner) => {
+              inner.whereNull('tep.marking_teacher_id')
+                .whereIn(db.raw("CONCAT(tep.class_id, '-', tep.subject_id)"), teacherPairs);
+            });
+        });
+      } else {
+        query = query.where('tep.marking_teacher_id', Number(markingTeacherId));
+      }
+    }
 
     return await query;
   },

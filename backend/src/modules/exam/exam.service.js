@@ -81,7 +81,17 @@ export const examService = {
    * Add an exam paper (class, subject, timings, marks configuration).
    */
   async createPaper(examId, paperData, actor) {
-    if (!isStaff(actor)) throw forbidden('Only staff can configure exam papers.');
+    if (!isStaff(actor)) {
+      if (actor.role === 'TEACHER') {
+        const scope = await getTeacherScope(actor.id);
+        if (!scope.pairs.has(`${paperData.classId}-${paperData.subjectId}`)) {
+          throw forbidden('You can only configure exam papers for your assigned classes and subjects.');
+        }
+        paperData.markingTeacherId = scope.teacher?.id;
+      } else {
+        throw forbidden('Only staff or assigned teachers can configure exam papers.');
+      }
+    }
 
     const exam = await examRepository.getExamById(Number(examId));
     if (!exam) throw new AppError('Examination not found', 404, ErrorCodes.NOT_FOUND);
@@ -128,6 +138,7 @@ export const examService = {
       const scope = await getTeacherScope(user.id);
       if (scope.teacher) {
         filters.markingTeacherId = scope.teacher.id;
+        filters.teacherPairs = Array.from(scope.pairs || []);
       }
     }
 
