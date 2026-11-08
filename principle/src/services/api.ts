@@ -382,6 +382,7 @@ export const api = {
       if (Array.isArray(liveTeachers)) {
         const formatted: Teacher[] = liveTeachers.map((t) => ({
           id: String(t.id),
+          rawId: Number(t.rawId) || Number(String(t.id).replace(/\D/g, '')) || undefined,
           staffIdentifier: t.staffIdentifier || `TCH-${t.id}`,
           name: t.name,
           email: t.email,
@@ -1160,7 +1161,63 @@ export const api = {
 
   // 9. Attendance Oversight — Live Only
   async getAttendanceSummaries(): Promise<LessonAttendanceSummary[]> {
-    return [];
+    try {
+      const rows = await requestApi<any[]>('/api/v1/attendance/submissions');
+      if (!Array.isArray(rows) || rows.length === 0) return [];
+
+      const toDisplayStatus = (raw: string): 'Present' | 'Absent' | 'Late' | 'Leave' => {
+        const st = String(raw || 'PRESENT').toUpperCase();
+        if (st === 'ABSENT') return 'Absent';
+        if (st === 'LATE') return 'Late';
+        if (st === 'EXCUSED') return 'Leave';
+        return 'Present';
+      };
+      const toTime = (v: any) =>
+        v ? new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+      // Load the per-student roster of each submitted lesson (bounded set).
+      const summaries = await Promise.all(
+        rows.map(async (s): Promise<LessonAttendanceSummary> => {
+          let records: LessonAttendanceSummary['records'] = [];
+          try {
+            const roster = await requestApi<any>(`/api/v1/attendance/lessons/${s.lessonId}/roster`);
+            const list = roster?.roster || roster?.students || [];
+            if (Array.isArray(list)) {
+              records = list.map((r: any) => ({
+                studentId: String(r.studentId),
+                studentName: r.studentName || 'Student',
+                rollNumber: String(r.rollNumber || r.rollNo || '—'),
+                status: toDisplayStatus(r.status),
+                markedAt: s.submittedAt ? new Date(s.submittedAt).toLocaleString() : '',
+                markedBy: s.teacherName || 'Teacher',
+                remarks: r.remarks || r.remark || undefined
+              }));
+            }
+          } catch {
+            // Roster unavailable for this lesson; counts still shown from the submission row
+          }
+          return {
+            id: `ATT-${s.id}`,
+            lessonId: String(s.lessonId),
+            classNumber: Number(s.classNumber) || 0,
+            subjectName: s.subjectName || 'General Session',
+            teacherId: String(s.teacherId || ''),
+            teacherName: s.teacherName || '—',
+            date: s.lessonDate ? String(s.lessonDate).slice(0, 10) : '',
+            startTime: toTime(s.startAt),
+            endTime: toTime(s.endAt),
+            enrolledStudentsCount: Number(s.totalEnrolled) || records.length,
+            submissionStatus: s.isLocked ? 'Submitted' : 'Pending Review',
+            submittedAt: s.submittedAt ? new Date(s.submittedAt).toLocaleString() : undefined,
+            records
+          };
+        })
+      );
+      return summaries;
+    } catch (err) {
+      console.warn('getAttendanceSummaries failed:', err);
+      return [];
+    }
   },
 
   async getAttendanceCorrections(): Promise<AttendanceCorrectionRequest[]> {
@@ -2109,3 +2166,47 @@ export const api = {
     return res?.data ?? res;
   }
 };
+
+/**
+ * Opens a protected uploaded file (e.g. a parent's payment proof) in a new
+ * tab using the authenticated session. External http(s) links open directly.
+ */
+export async function openProtectedFile(url: string, fileName?: string): Promise<void> {
+  if (!url) throw new Error('No file is attached to this record');
+
+  const isProtectedUpload = url.includes('/api/v1/uploads/') || !/^https?:\/\//i.test(url);
+  if (!isProtectedUpload) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+
+  // Open the tab synchronously so pop-up blockers allow it, then fill it in
+  const viewer = window.open('', '_blank');
+  let res = await fetch(url, { credentials: 'include' });
+  if (res.status === 401 && (await executeTokenRefresh())) {
+    res = await fetch(url, { credentials: 'include' });
+  }
+  if (!res.ok) {
+    viewer?.close();
+    let message = `Unable to open the file (${res.status})`;
+    try {
+      const json = await res.json();
+      message = json?.error?.message || message;
+    } catch {
+      // non-JSON error body
+    }
+    throw new Error(message);
+  }
+  const blobUrl = URL.createObjectURL(await res.blob());
+  if (viewer) {
+    viewer.location.href = blobUrl;
+  } else {
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = fileName || url.split('/').pop() || 'payment_proof';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+}

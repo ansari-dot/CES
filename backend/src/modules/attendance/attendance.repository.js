@@ -508,6 +508,8 @@ export const attendanceRepository = {
       .join('timetable_lessons', 'lesson_attendance_submissions.lesson_id', 'timetable_lessons.id')
       .join('classes', 'timetable_lessons.class_id', 'classes.id')
       .leftJoin('subjects', 'timetable_lessons.subject_id', 'subjects.id')
+      .leftJoin('teachers', 'timetable_lessons.teacher_id', 'teachers.id')
+      .leftJoin('users as teacher_users', 'teachers.user_id', 'teacher_users.id')
       .select(
         'lesson_attendance_submissions.id',
         'lesson_attendance_submissions.lesson_id as lessonId',
@@ -520,11 +522,15 @@ export const attendanceRepository = {
         'lesson_attendance_submissions.total_enrolled as totalEnrolled',
         'timetable_lessons.lesson_date as lessonDate',
         'timetable_lessons.start_at as startAt',
+        'timetable_lessons.end_at as endAt',
+        'timetable_lessons.teacher_id as teacherId',
+        'teacher_users.full_name as teacherName',
         'classes.name as className',
+        'classes.grade_level as classNumber',
         'subjects.name as subjectName'
       )
       .orderBy('lesson_attendance_submissions.submitted_at', 'desc')
-      .limit(limit);
+      .limit(Math.min(Math.max(Number(limit) || 20, 1), 300));
     if (teacherId) query = query.where('timetable_lessons.teacher_id', teacherId);
     return await query;
   }

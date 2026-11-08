@@ -35,6 +35,8 @@ export interface TeacherDutySummary {
 
 export interface Teacher {
   id: string;
+  /** Numeric teachers.id used by backend FKs (invigilator assignment etc.) */
+  rawId?: number;
   staffIdentifier: string; // e.g. TCH-2024-001
   name: string;
   email: string;
