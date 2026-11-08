@@ -89,6 +89,20 @@ router.post(
   assessmentsController.gradeAttempt
 );
 
+// Aliases matching the teacher grading modal's URL scheme
+// (GET /:id/submissions/:attemptId and POST /:id/submissions/:attemptId/grade)
+router.get(
+  '/:id/submissions/:attemptId',
+  requireRole('TEACHER', 'ADMIN', 'PRINCIPAL'),
+  assessmentsController.getAttemptForGrading
+);
+
+router.post(
+  '/:id/submissions/:attemptId/grade',
+  requireRole('TEACHER', 'ADMIN', 'PRINCIPAL'),
+  assessmentsController.gradeAttempt
+);
+
 router.post(
   '/:id/publish-results',
   requireRole('TEACHER', 'ADMIN', 'PRINCIPAL'),
