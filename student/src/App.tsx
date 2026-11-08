@@ -21,7 +21,6 @@ import Attendance from './pages/Attendance';
 import ResultsProgress from './pages/ResultsProgress';
 import Results from './pages/Results';
 import Achievements from './pages/Achievements';
-import FeesChallans from './pages/FeesChallans';
 import Notifications from './pages/Notifications';
 import MyProfile from './pages/MyProfile';
 
@@ -106,7 +105,6 @@ export default function App() {
         <Route path="progress" element={<ResultsProgress />} />
         <Route path="results" element={<Results />} />
         <Route path="achievements" element={<Achievements />} />
-        <Route path="fees" element={<FeesChallans />} />
         <Route path="notifications" element={<Notifications />} />
         <Route path="profile" element={<MyProfile />} />
       </Route>

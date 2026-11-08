@@ -9,7 +9,6 @@ import { logoutStudent, fetchDashboard, setToast } from '../../store/slices/stud
 import { fetchTimetable, fetchStudentZoomSession } from '../../store/slices/classesSlice';
 import { fetchTasks } from '../../store/slices/assignmentsSlice';
 import { fetchResources } from '../../store/slices/resourcesSlice';
-import { fetchChallans } from '../../store/slices/feesSlice';
 import { fetchAttendanceStats } from '../../store/slices/attendanceSlice';
 import { fetchNotifications } from '../../store/slices/notificationsSlice';
 import RestrictedNotice from '../common/RestrictedNotice';
@@ -36,7 +35,6 @@ export default function PortalLayout() {
     dispatch(fetchStudentZoomSession());
     dispatch(fetchTasks());
     dispatch(fetchResources());
-    dispatch(fetchChallans());
     dispatch(fetchAttendanceStats());
     dispatch(fetchNotifications());
   }, [dispatch]);
@@ -99,8 +97,6 @@ export default function PortalLayout() {
         return { title: 'Results & Progress', subtitle: `${profile.session} · Only published results shown` };
       case '/student/achievements':
         return { title: 'Achievements', subtitle: 'Earned by you · awarded by teachers' };
-      case '/student/fees':
-        return { title: 'Fees & Challans', subtitle: 'Amounts in Pakistani rupees (Rs.)' };
       case '/student/notifications':
         return { title: 'Notifications', subtitle: 'Newest first' };
       case '/student/profile':

@@ -247,12 +247,9 @@ export default function Dashboard() {
               {outstandingFee > 0 ? 'Outstanding balance' : 'No pending dues'}
             </div>
           </div>
-          <button
-            onClick={() => navigate('/student/fees')}
-            className="ml-auto text-xs font-semibold bg-primary hover:bg-primary-hover text-primary-foreground px-3.5 py-1.5 rounded-sm transition cursor-pointer"
-          >
-            View Fees
-          </button>
+          <span className="ml-auto text-xs font-semibold text-secondary-foreground bg-secondary px-3.5 py-1.5 rounded-sm">
+            Paid via Parent Portal
+          </span>
         </div>
       </div>
 

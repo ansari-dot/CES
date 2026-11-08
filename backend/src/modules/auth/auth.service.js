@@ -210,6 +210,26 @@ export const authService = {
       throw new AppError('Account is deactivated. Contact administration.', 403, ErrorCodes.ACCOUNT_RESTRICTED);
     }
 
+    // A student suspended for an unpaid fee (past the challan grace period) is
+    // blocked at login itself; the fee is paid and the payment slip uploaded
+    // from the Parent Portal.
+    if (user.status === 'SUSPENDED' && user.role_code === 'STUDENT') {
+      const studentRow = await db('students').where({ user_id: user.id }).first();
+      const openFeeRestriction = studentRow
+        ? await db('fee_restriction_events')
+            .where({ student_id: studentRow.id })
+            .whereNull('resolved_at')
+            .first()
+        : null;
+      if (openFeeRestriction) {
+        throw new AppError(
+          'Your student portal is locked because the fee was not paid within the grace period. Please pay your fee and upload the payment slip from the Parent Portal; access is restored automatically once the payment is verified.',
+          403,
+          ErrorCodes.ACCOUNT_RESTRICTED
+        );
+      }
+    }
+
     // Reset failed counter and update last login
     await authRepository.resetFailedLoginAndSetLastLogin(user.id);
 
