@@ -222,6 +222,7 @@ export const assessmentsRepository = {
       .select(
         'students.id as student_id',
         'students.roll_no as roll_number',
+        'students.admission_no as admission_number',
         'users.full_name as student_name',
         'users.email as student_email'
       )
@@ -251,6 +252,7 @@ export const assessmentsRepository = {
       return {
         studentId: std.student_id,
         rollNumber: std.roll_number,
+        admissionNumber: std.admission_number,
         studentName: std.student_name,
         studentEmail: std.student_email,
         attemptId: attempt ? attempt.id : null,
@@ -293,7 +295,15 @@ export const assessmentsRepository = {
         pendingGradingCount,
         averageScore
       },
-      roster
+      roster,
+      // Aliases matching the teacher grading modal's contract
+      submissions: roster,
+      rosterSummary: {
+        totalEnrolled: totalStudents,
+        totalSubmitted: submittedCount,
+        totalGraded: gradedCount,
+        pendingEvaluation: pendingGradingCount
+      }
     };
   },
 

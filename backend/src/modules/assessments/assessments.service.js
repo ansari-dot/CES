@@ -661,37 +661,52 @@ export const assessmentsService = {
 
     const combinedQuestions = questions.map((q) => {
       const ans = answerMap.get(Number(q.id));
+      // snake_case answer fields match the teacher grading modal's contract
+      const studentAnswer = ans
+        ? {
+            id: ans.id,
+            selected_option: ans.selected_option,
+            answer_text: ans.text_answer,
+            attachment_url: ans.attachment_url,
+            attachment_name: ans.attachment_name,
+            is_correct: ans.is_correct,
+            marks_awarded: ans.marks_awarded != null ? Number(ans.marks_awarded) : null,
+            teacher_feedback: ans.teacher_feedback
+          }
+        : null;
       return {
         ...q,
-        studentAnswer: ans
-          ? {
-              id: ans.id,
-              selectedOption: ans.selected_option,
-              textAnswer: ans.text_answer,
-              attachmentUrl: ans.attachment_url,
-              attachmentName: ans.attachment_name,
-              isCorrect: ans.is_correct,
-              marksAwarded: ans.marks_awarded != null ? Number(ans.marks_awarded) : null,
-              teacherFeedback: ans.teacher_feedback
-            }
-          : null
+        prompt: q.question_text,
+        studentAnswer
       };
     });
 
     return {
-      attempt,
+      // The grading modal reads the student identity from the attempt object
+      attempt: {
+        ...attempt,
+        student_name: student ? student.student_name : null,
+        roll_number: student ? student.roll_no : null,
+        admission_number: student ? student.admission_no : null
+      },
       student,
       test,
       questions: combinedQuestions
     };
   },
 
-  async gradeAttempt(user, attemptId, { questionGrades, teacherRemarks }) {
+  async gradeAttempt(user, attemptId, { questionGrades, grades, teacherRemarks }) {
     const attempt = await assessmentsRepository.findAttemptById(attemptId);
     if (!attempt) throw notFound('Attempt not found.');
 
     const test = await assessmentsRepository.findTestById(attempt.test_id);
     await this.assertTeacherCanManageTest(user, test);
+
+    // The grading modal sends `grades`; accept both payload key styles.
+    const gradeItems = Array.isArray(questionGrades) ? questionGrades : Array.isArray(grades) ? grades : null;
+    if (!gradeItems) {
+      throw validationError('An array of question grades is required.');
+    }
 
     const questions = await assessmentsRepository.getQuestionsForTest(test.id, { includeAnswers: true });
     const qMap = new Map(questions.map((q) => [Number(q.id), q]));
@@ -699,12 +714,12 @@ export const assessmentsService = {
     let subjectiveScore = 0;
 
     await db.transaction(async (trx) => {
-      for (const item of questionGrades) {
-        const q = qMap.get(Number(item.questionId));
+      for (const item of gradeItems) {
+        const q = qMap.get(Number(item.questionId ?? item.question_id));
         if (!q) continue;
 
         if (q.question_type !== 'MCQ') {
-          const marks = Number(item.marksAwarded);
+          const marks = Number(item.marksAwarded ?? item.marks_awarded);
           if (isNaN(marks) || marks < 0 || marks > Number(q.marks)) {
             throw validationError(`Marks for question #${q.question_number} must be between 0 and ${q.marks}`);
           }
@@ -714,7 +729,7 @@ export const assessmentsService = {
             .where({ attempt_id: attemptId, question_id: q.id })
             .update({
               marks_awarded: marks,
-              teacher_feedback: item.teacherFeedback || null,
+              teacher_feedback: item.teacherFeedback ?? item.teacher_feedback ?? null,
               updated_at: trx.raw('CURRENT_TIMESTAMP(3)')
             });
         }
