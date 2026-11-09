@@ -439,18 +439,13 @@ export default function MonthlyTests() {
                           <span>Resume Exam In Progress</span>
                         </button>
                       ) : t.attemptStatus === 'UPCOMING' ? (
-                        <div className="space-y-1.5">
-                          <button
-                            disabled
-                            className="w-full py-2 bg-slate-100 border border-slate-200 text-slate-400 rounded-md text-xs font-bold flex items-center justify-center gap-1.5 cursor-not-allowed"
-                          >
-                            <Lock className="w-3.5 h-3.5" />
-                            <span>Locked · Opens in {formatCountdown(t.secondsUntilOpen)}</span>
-                          </button>
-                          <div className="text-[10px] text-center text-amber-700 font-semibold bg-amber-50 border border-amber-200/80 rounded py-1 animate-pulse">
-                            ⏳ Starts automatically in {formatCountdown(t.secondsUntilOpen)}
-                          </div>
-                        </div>
+                        <button
+                          disabled
+                          className="w-full py-2 bg-slate-100 border border-slate-200 text-slate-400 rounded-md text-xs font-bold flex items-center justify-center gap-1.5 cursor-not-allowed"
+                        >
+                          <Lock className="w-3.5 h-3.5" />
+                          <span>Locked · Opens in {formatCountdown(t.secondsUntilOpen)}</span>
+                        </button>
                       ) : (
                         <button
                           onClick={() => setSelectedStartTest(t)}
