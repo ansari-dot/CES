@@ -1,4 +1,5 @@
 import { db } from '../../shared/db/knex.js';
+import { parseDbDate } from '../../shared/utils/date.js';
 
 export const assessmentsRepository = {
   // -------------------------------------------------------------
@@ -243,7 +244,8 @@ export const assessmentsRepository = {
 
     const attemptsByStudent = new Map(attempts.map((a) => [Number(a.student_id), a]));
     const now = new Date();
-    const isWindowClosed = now > new Date(test.available_until);
+    // available_until is stored in UTC; naive new Date() would parse it as local time
+    const isWindowClosed = now > parseDbDate(test.available_until);
 
     const roster = students.map((std) => {
       const attempt = attemptsByStudent.get(Number(std.student_id));
@@ -350,8 +352,9 @@ export const assessmentsRepository = {
 
     return tests.map((t) => {
       const attempt = attemptsByStudent.get(Number(t.id));
-      const availableFrom = new Date(t.available_from);
-      const availableUntil = new Date(t.available_until);
+      // DB datetimes are UTC; parseDbDate avoids the local-timezone shift
+      const availableFrom = parseDbDate(t.available_from);
+      const availableUntil = parseDbDate(t.available_until);
 
       let calculatedStatus = 'UPCOMING';
       let isMissed = false;
@@ -386,8 +389,8 @@ export const assessmentsRepository = {
         durationMinutes: t.duration_minutes,
         totalMarks: Number(t.total_marks),
         passingMarks: Number(t.passing_marks),
-        availableFrom: t.available_from,
-        availableUntil: t.available_until,
+        availableFrom: availableFrom ? availableFrom.toISOString() : null,
+        availableUntil: availableUntil ? availableUntil.toISOString() : null,
         testStatus: t.status,
         attemptStatus: calculatedStatus,
         isMissed,

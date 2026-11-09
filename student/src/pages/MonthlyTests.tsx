@@ -43,14 +43,43 @@ export default function MonthlyTests() {
     loadTests();
   }, []);
 
+  // The backend returns camelCase fields; map them onto the snake_case
+  // names this page renders, and rebuild the nested attempt object.
+  const normalizeTest = (t: any): StudentMonthlyTest => ({
+    ...t,
+    exam_type: t.exam_type ?? t.examType,
+    subject_name: t.subject_name ?? t.subjectName,
+    total_marks: t.total_marks ?? t.totalMarks,
+    duration_minutes: t.duration_minutes ?? t.durationMinutes,
+    available_from: t.available_from ?? t.availableFrom,
+    available_until: t.available_until ?? t.availableUntil,
+    status: t.status ?? t.testStatus,
+    attempt:
+      t.attempt ??
+      (t.attemptId
+        ? {
+            id: t.attemptId,
+            status: t.attemptStatus,
+            started_at: t.startedAt,
+            submitted_at: t.submittedAt,
+            expires_at: t.expiresAt,
+            mcq_score: t.mcqScore,
+            subjective_score: t.subjectiveScore,
+            total_score: t.totalScore,
+            is_passed: t.isPassed,
+            teacher_remarks: t.teacherRemarks
+          }
+        : undefined)
+  });
+
   const loadTests = async () => {
     try {
       setLoading(true);
       setErrorMsg(null);
       const res: any = await studentAssessmentsApi.getStudentTests();
-      const all: StudentMonthlyTest[] = Array.isArray(res) ? res : res.allTests || [];
-      const avail = res.availableTests || all.filter((t) => !t.isMissed && t.attemptStatus !== 'SUBMITTED' && t.attemptStatus !== 'GRADED');
-      const comp = res.completedTests || all.filter((t) => t.isMissed || t.attemptStatus === 'SUBMITTED' || t.attemptStatus === 'GRADED');
+      const all: StudentMonthlyTest[] = (Array.isArray(res) ? res : res.allTests || []).map(normalizeTest);
+      const avail = (res.availableTests ? res.availableTests.map(normalizeTest) : all.filter((t) => !t.isMissed && t.attemptStatus !== 'SUBMITTED' && t.attemptStatus !== 'GRADED'));
+      const comp = (res.completedTests ? res.completedTests.map(normalizeTest) : all.filter((t) => t.isMissed || t.attemptStatus === 'SUBMITTED' || t.attemptStatus === 'GRADED'));
       setAvailableTests(avail);
       setCompletedTests(comp);
     } catch (err: any) {
@@ -492,8 +521,10 @@ export default function MonthlyTests() {
                         <p className="text-[11px] text-rose-700 leading-relaxed">
                           The scheduled window closed on{' '}
                           <strong>
-                            {new Date(t.available_until).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} at{' '}
-                            {formatLocalTime(t.available_until)} ({detectedTimezone})
+                            {t.available_until
+                              ? new Date(t.available_until).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+                              : 'the scheduled date'}{' '}
+                            at {formatLocalTime(t.available_until)} ({detectedTimezone})
                           </strong>
                           . You did not attempt this exam and were marked absent.
                         </p>
