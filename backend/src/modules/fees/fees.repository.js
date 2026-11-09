@@ -463,7 +463,8 @@ export const feesRepository = {
         'fee_challans.paid_amount as paidAmount',
         'fee_challans.status',
         'fee_challans.reminders_sent_count as remindersSentCount',
-        'fee_challans.last_reminder_at as lastReminderDate'
+        'fee_challans.last_reminder_at as lastReminderDate',
+        'student_users.status as studentPortalStatus'
       )
       .orderBy('fee_challans.created_at', 'desc');
 
@@ -889,6 +890,99 @@ export const feesRepository = {
       restrictedForMonths: [...new Set(open.map((o) => o.billing_month))],
       ...(await this.getOutstandingSummary(studentId))
     };
+  },
+
+  /**
+   * Principal manual fee block for one challan's student. Mirrors the
+   * scheduler's applyFeeRestriction but attributed to the Principal, and
+   * reopens a previously resolved event for the same challan (the table has a
+   * unique (student_id, challan_id) key). reason_code stays FEE_OVERDUE so
+   * automatic reactivation on settlement and manual restore both keep working.
+   * Returns { outcome, studentName? } with outcome one of
+   * 'RESTRICTED' | 'ALREADY_BLOCKED' | 'SETTLED' | 'NON_FEE_SUSPENSION' | 'NOT_FOUND'.
+   */
+  async applyManualFeeRestriction({ challanId, actor, now = new Date() }) {
+    return await db.transaction(async (trx) => {
+      const challan = await trx('fee_challans').where({ id: challanId }).first();
+      if (!challan) return { outcome: 'NOT_FOUND' };
+
+      const outstanding = Number(challan.total_payable) - Number(challan.paid_amount);
+      const challanStatus = String(challan.status).toUpperCase().replace(/\s+/g, '_');
+      if (outstanding <= 0 || !['UNPAID', 'PARTIALLY_PAID', 'OVERDUE', 'PENDING_VERIFICATION'].includes(challanStatus)) {
+        return { outcome: 'SETTLED' };
+      }
+
+      const student = await trx('students')
+        .join('users', 'students.user_id', 'users.id')
+        .where('students.id', challan.student_id)
+        .select('students.id', 'students.user_id as userId', 'users.full_name as studentName')
+        .first();
+      if (!student) return { outcome: 'NOT_FOUND' };
+
+      const user = await trx('users').where({ id: student.userId }).forUpdate().first();
+      if (!user) return { outcome: 'NOT_FOUND' };
+
+      const openEvent = await trx('fee_restriction_events')
+        .where({ student_id: student.id })
+        .whereNull('resolved_at')
+        .first();
+      if (user.status === 'SUSPENDED') {
+        return { outcome: openEvent ? 'ALREADY_BLOCKED' : 'NON_FEE_SUSPENSION', studentName: student.studentName };
+      }
+      if (user.status !== 'ACTIVE') {
+        return { outcome: 'NON_FEE_SUSPENSION', studentName: student.studentName };
+      }
+
+      const reason = `Manual fee restriction by ${actor.name} (${challan.billing_month} unpaid)`;
+
+      const existingEvent = await trx('fee_restriction_events')
+        .where({ student_id: student.id, challan_id: challan.id })
+        .first();
+      if (existingEvent) {
+        await trx('fee_restriction_events').where({ id: existingEvent.id }).update({
+          reason,
+          restricted_at: now,
+          resolved_at: null,
+          resolved_by: null,
+          resolution: null,
+          resolve_reason: null
+        });
+      } else {
+        await trx('fee_restriction_events').insert({
+          student_id: student.id,
+          user_id: student.userId,
+          challan_id: challan.id,
+          session_id: challan.session_id,
+          billing_month: challan.billing_month,
+          reason,
+          restricted_at: now
+        });
+      }
+
+      await trx('users').where({ id: student.userId }).update({ status: 'SUSPENDED' });
+      await trx('account_status_history').insert({
+        user_id: student.userId,
+        old_status: 'ACTIVE',
+        new_status: 'SUSPENDED',
+        reason_code: 'FEE_OVERDUE',
+        reason_text: `${reason}. Challan ID: ${challan.id}.`,
+        effective_from: now,
+        changed_by: actor.id
+      });
+      await trx('audit_logs').insert({
+        actor_id: actor.id,
+        actor_name: actor.name,
+        actor_role: actor.role,
+        action: 'RESTRICT_STUDENT_PORTAL_ACCESS',
+        record_type: 'Student Account',
+        record_identifier: String(student.id),
+        reason,
+        previous_value: 'ACTIVE',
+        new_value: 'SUSPENDED'
+      });
+
+      return { outcome: 'RESTRICTED', studentName: student.studentName };
+    });
   },
 
   async findStudentForRestore(studentId) {

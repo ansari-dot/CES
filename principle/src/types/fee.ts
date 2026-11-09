@@ -66,6 +66,8 @@ export interface MonthlyChallan {
   status: ChallanStatus;
   remindersSentCount: number;
   lastReminderDate?: string;
+  /** Student portal account status (ACTIVE / SUSPENDED) for the fee-block button */
+  studentPortalStatus?: string;
 }
 
 export type PaymentVerificationStatus = 'Pending' | 'Approved' | 'Rejected' | 'Resubmission Requested';

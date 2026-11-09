@@ -20,7 +20,8 @@ import {
   Send,
   Phone,
   Globe,
-  MapPin
+  MapPin,
+  Ban
 } from 'lucide-react';
 
 export const ChallansModule: React.FC = () => {
@@ -47,6 +48,10 @@ export const ChallansModule: React.FC = () => {
   // Printable Challan View
   const [selectedChallan, setSelectedChallan] = useState<MonthlyChallan | null>(null);
   const [isChallanModalOpen, setIsChallanModalOpen] = useState(false);
+
+  // Manual portal block for unpaid fee
+  const [blockTarget, setBlockTarget] = useState<MonthlyChallan | null>(null);
+  const [blocking, setBlocking] = useState(false);
 
   const toast = useToast();
 
@@ -89,6 +94,21 @@ export const ChallansModule: React.FC = () => {
       loadChallans();
     } catch {
       toast.error('Failed to dispatch reminder');
+    }
+  };
+
+  const handleBlockConfirmed = async () => {
+    if (!blockTarget) return;
+    try {
+      setBlocking(true);
+      const res = await api.blockStudentAccess(blockTarget.id);
+      toast.success(`Portal access blocked for ${res.studentName || blockTarget.studentName}. Restore it anytime from Restricted Students.`);
+      setBlockTarget(null);
+      loadChallans();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to block student portal access');
+    } finally {
+      setBlocking(false);
     }
   };
 
@@ -203,6 +223,23 @@ export const ChallansModule: React.FC = () => {
               <Bell className="w-3.5 h-3.5" strokeWidth={1.75} />
             </button>
           )}
+          {ch.status !== 'Paid' &&
+            (ch.studentPortalStatus === 'SUSPENDED' ? (
+              <span
+                title="Student portal is already blocked — restore from Restricted Students"
+                className="p-1.5 rounded-lg border border-rose-200 bg-rose-100 text-rose-400 cursor-not-allowed inline-flex"
+              >
+                <Ban className="w-3.5 h-3.5" strokeWidth={1.75} />
+              </span>
+            ) : (
+              <button
+                onClick={() => setBlockTarget(ch)}
+                title="Block student portal for this unpaid fee"
+                className="p-1.5 rounded-lg border border-rose-200 bg-rose-50/60 text-rose-700 hover:bg-rose-100 transition-colors shadow-2xs"
+              >
+                <Ban className="w-3.5 h-3.5" strokeWidth={1.75} />
+              </button>
+            ))}
         </div>
       )
     }
@@ -352,6 +389,48 @@ export const ChallansModule: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Confirm Manual Portal Block */}
+      {blockTarget && (
+        <Modal
+          isOpen={!!blockTarget}
+          onClose={() => setBlockTarget(null)}
+          title="Block Student Portal Access?"
+          description={`${blockTarget.studentName} · Class ${blockTarget.classNumber} · Challan ${blockTarget.challanNumber} (${blockTarget.billingMonth})`}
+        >
+          <div className="space-y-4 text-xs">
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 leading-relaxed">
+              <p className="font-semibold mb-1">This is the same restriction the system applies automatically after the grace period.</p>
+              <p>
+                The student will not be able to log in and will be told to pay the fee from the Parent Portal.
+                Outstanding balance on this challan: <strong>Rs. {blockTarget.outstandingBalance.toLocaleString()}</strong>.
+              </p>
+              <p className="mt-1 text-[11px] text-rose-700">
+                Access is restored automatically once the invoice is settled, or manually from the Restricted Students module.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setBlockTarget(null)}
+                className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={blocking}
+                onClick={handleBlockConfirmed}
+                className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-medium shadow-xs flex items-center gap-1.5"
+              >
+                <Ban className="w-3.5 h-3.5" strokeWidth={1.75} />
+                {blocking ? 'Blocking...' : 'Block Portal Access'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* 3-Part Bank Challan Printable Slip View */}
       {selectedChallan && (

@@ -26,6 +26,7 @@ router.post('/concessions/:id/revoke', authenticate, authorize('fees.structure.m
 
 // 3. Challans
 router.post('/challans/generate', authenticate, authorize('fees.challan.generate'), feesController.generateMonthlyChallans);
+router.post('/challans/:id/block', authenticate, authorize('fees.access.restore'), feesController.blockStudentAccess);
 router.get('/challans', authenticate, feesController.getChallans);
 router.get('/challans/consumer/:consumerNo', authenticate, feesController.getChallanByConsumerNo);
 router.get('/challans/:id', authenticate, feesController.getChallanById);

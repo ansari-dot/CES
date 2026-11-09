@@ -192,6 +192,29 @@ export const feesService = {
     return await feesRepository.getRestrictedStudents();
   },
 
+  // Principal manual portal block for a specific unpaid challan — the same
+  // restriction the fee scheduler applies after the grace period, but applied
+  // on demand. Reversible from Restricted Students, and lifted automatically
+  // once the invoice settles.
+  async blockStudentAccess({ challanId, actor }) {
+    if (!Number.isInteger(challanId) || challanId <= 0) {
+      throw new AppError('Invalid challan ID', 422, ErrorCodes.VALIDATION_ERROR);
+    }
+    const result = await feesRepository.applyManualFeeRestriction({ challanId, actor });
+    switch (result.outcome) {
+      case 'RESTRICTED':
+        return { blocked: true, studentName: result.studentName };
+      case 'ALREADY_BLOCKED':
+        throw new AppError('This student\'s portal is already blocked for overdue fees.', 409, ErrorCodes.INVALID_STATE);
+      case 'SETTLED':
+        throw new AppError('This challan has no outstanding balance, so there is nothing to block.', 409, ErrorCodes.INVALID_STATE);
+      case 'NON_FEE_SUSPENSION':
+        throw new AppError('This student\'s account is suspended for a non-fee reason and cannot be fee-blocked.', 409, ErrorCodes.INVALID_STATE);
+      default:
+        throw new AppError('Challan or student not found', 404, ErrorCodes.NOT_FOUND);
+    }
+  },
+
   // Principal manual access restoration. No payment receipt/verification step:
   // the Principal's explicit action is the authorisation. Invoice status is not changed.
   async restoreStudentAccess({ studentId, actor, ipAddress }) {

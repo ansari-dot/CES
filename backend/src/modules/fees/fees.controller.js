@@ -268,6 +268,24 @@ export const feesController = {
     }
   },
 
+  async blockStudentAccess(req, res, next) {
+    try {
+      const challanId = Number(req.params.id);
+      const actorRecord = await authRepository.findUserById(req.user.id);
+      const result = await feesService.blockStudentAccess({
+        challanId,
+        actor: {
+          id: req.user.id,
+          name: actorRecord?.full_name || req.user.username,
+          role: req.user.role === 'ADMIN' ? 'Administrator' : 'Principal'
+        }
+      });
+      return sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async restoreStudentAccess(req, res, next) {
     try {
       const studentId = Number(req.params.id);

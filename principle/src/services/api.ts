@@ -1458,9 +1458,10 @@ export const api = {
           },
           paidAmount: Number(ch.paidAmount || 0),
           outstandingBalance: Number(ch.outstandingBalance ?? (ch.totalPayable - ch.paidAmount)),
-          status: (ch.status === 'PAID' ? 'Paid' : ch.status === 'PENDING_VERIFICATION' ? 'Pending Verification' : ch.status === 'PARTIALLY_PAID' ? 'Partially Paid' : 'Unpaid') as any,
+          status: (ch.status === 'PAID' ? 'Paid' : ch.status === 'PENDING_VERIFICATION' ? 'Pending Verification' : ch.status === 'PARTIALLY_PAID' ? 'Partially Paid' : ch.status === 'OVERDUE' ? 'Overdue' : 'Unpaid') as any,
           remindersSentCount: Number(ch.remindersSentCount || 0),
-          lastReminderDate: ch.lastReminderDate
+          lastReminderDate: ch.lastReminderDate,
+          studentPortalStatus: ch.studentPortalStatus
         }));
       }
     } catch {
@@ -1566,6 +1567,13 @@ export const api = {
         outstanding: Number(i.outstanding || 0)
       }))
     }));
+  },
+
+  async blockStudentAccess(challanId: string): Promise<{ blocked: boolean; studentName: string }> {
+    return await requestApi(`/api/v1/fees/challans/${encodeURIComponent(challanId)}/block`, {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
   },
 
   async restoreStudentAccess(studentId: string): Promise<{ studentId: number; studentName: string; restoredAt: string }> {
