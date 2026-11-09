@@ -17,6 +17,7 @@ import { randomInt } from 'crypto';
 import { notificationService } from '../../shared/services/notificationService.js';
 import { emailService } from '../../shared/email/email.service.js';
 import { auditRepository } from '../audit/audit.repository.js';
+import { parseDbDate } from '../../shared/utils/date.js';
 
 async function enrichUserData(user, permissions) {
   let teacherProfile = null;
@@ -610,7 +611,8 @@ export const authService = {
       .first();
     if (!request || !request.otp_hash) throw fail();
 
-    if (!request.otp_expires_at || new Date(request.otp_expires_at) < new Date()) {
+    // otp_expires_at is stored in UTC; parseDbDate avoids the local-timezone shift
+    if (!request.otp_expires_at || parseDbDate(request.otp_expires_at) < new Date()) {
       await db('password_reset_requests').where({ id: request.id }).update({ status: 'EXPIRED' });
       throw fail();
     }
