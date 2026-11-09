@@ -898,7 +898,11 @@ export const api = {
           6: 'Saturday',
           7: 'Sunday'
         };
-        return list.map((slot: any) => ({
+        return list
+          // A deleted slot is archived on the server: its period is free and
+          // it must not render as an occupied "Scheduled" entry.
+          .filter((slot: any) => slot.status !== 'ARCHIVED')
+          .map((slot: any) => ({
           id: `SLOT-${slot.id}`,
           classNumber: slot.classNumber,
           subjectId: String(slot.subjectId),
@@ -981,15 +985,12 @@ export const api = {
 
   async cancelTimetableLesson(lessonId: string, reason: string): Promise<TimetableLesson> {
     const numId = parseInt(lessonId.replace(/\D/g, ''), 10);
-    if (numId) {
-      try {
-        await requestApi(`/api/v1/timetable/slots/${numId}`, {
-          method: 'DELETE'
-        });
-      } catch (err) {
-        console.warn('cancelTimetableLesson backend warning:', err);
-      }
-    }
+    if (!numId) throw new Error('Invalid timetable slot reference');
+    // Archives the slot on the server, freeing its period and cancelling
+    // future lessons. Failures must surface instead of faking success.
+    await requestApi(`/api/v1/timetable/slots/${numId}`, {
+      method: 'DELETE'
+    });
     const lessons = await this.getTimetableLessons();
     const found = lessons.find(l => l.id === lessonId);
     if (found) {
