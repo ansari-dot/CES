@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { AppDispatch, RootState } from '../store';
 import { loginStudent, clearAuthError } from '../store/slices/studentSlice';
+import { requestApi } from '../services/api';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -30,10 +31,16 @@ export default function Login() {
   const [showPw, setShowPw] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
 
-  // Student Registrar / Support modal state
+  // Forgot-password modal state (principal-approved OTP flow)
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [helpEmail, setHelpEmail] = useState('');
-  const [helpSubmitted, setHelpSubmitted] = useState(false);
+  const [fpPhase, setFpPhase] = useState<'request' | 'verify' | 'done'>('request');
+  const [fpOtp, setFpOtp] = useState('');
+  const [fpNew, setFpNew] = useState('');
+  const [fpConfirm, setFpConfirm] = useState('');
+  const [fpBusy, setFpBusy] = useState(false);
+  const [fpMsg, setFpMsg] = useState<string | null>(null);
+  const [fpErr, setFpErr] = useState<string | null>(null);
 
   useEffect(() => {
     if (isAuthenticated) navigate('/student/dashboard', { replace: true });
@@ -52,15 +59,63 @@ export default function Login() {
     dispatch(loginStudent({ identifier: cleanId, password, rememberMe }));
   };
 
-  const handleHelpSubmit = (e: React.FormEvent) => {
+  const resetForgotState = () => {
+    setIsHelpOpen(false);
+    setFpPhase('request');
+    setFpOtp('');
+    setFpNew('');
+    setFpConfirm('');
+    setFpMsg(null);
+    setFpErr(null);
+  };
+
+  const handleHelpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!helpEmail.trim()) return;
-    setHelpSubmitted(true);
-    setTimeout(() => {
-      setHelpSubmitted(false);
-      setIsHelpOpen(false);
-      setHelpEmail('');
-    }, 1500);
+    setFpErr(null);
+    setFpBusy(true);
+    try {
+      const res = await requestApi<{ message: string }>('/api/v1/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ identifier: helpEmail.trim() })
+      });
+      setFpMsg(res.message);
+      setFpPhase('verify');
+    } catch (err: any) {
+      setFpErr(err.message || 'Could not submit the request. Please try again.');
+    } finally {
+      setFpBusy(false);
+    }
+  };
+
+  const handleResetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFpErr(null);
+    if (!/^\d{6}$/.test(fpOtp.trim())) {
+      setFpErr('The one-time code is the 6-digit number from your email.');
+      return;
+    }
+    if (fpNew.length < 10) {
+      setFpErr('The new password must be at least 10 characters long.');
+      return;
+    }
+    if (fpNew !== fpConfirm) {
+      setFpErr('The new password and its confirmation do not match.');
+      return;
+    }
+    setFpBusy(true);
+    try {
+      await requestApi('/api/v1/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ identifier: helpEmail.trim(), otp: fpOtp.trim(), newPassword: fpNew })
+      });
+      setFpPhase('done');
+      setFpMsg('Your password has been updated. Sign in with your new password.');
+    } catch (err: any) {
+      setFpErr(err.message || 'Could not reset the password. Please check the code and try again.');
+    } finally {
+      setFpBusy(false);
+    }
   };
 
   return (
@@ -312,49 +367,145 @@ export default function Login() {
                 </div>
               </div>
               <button
-                onClick={() => setIsHelpOpen(false)}
+                onClick={resetForgotState}
                 className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <p className="text-xs text-slate-600 leading-relaxed">
-              If you have lost your student credentials or admission number, contact your school administration office or submit your registered email below to receive assistance.
-            </p>
-
-            <form onSubmit={handleHelpSubmit} className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Registered Student or Parent Email
-                </label>
-                <input
-                  type="email"
-                  value={helpEmail}
-                  onChange={(e) => setHelpEmail(e.target.value)}
-                  placeholder="e.g. student@school.pk"
-                  required
-                  className="w-full text-xs px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-hidden focus:border-[#36348e] focus:ring-1 focus:ring-[#36348e] font-medium"
-                />
+            {fpErr && (
+              <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium">
+                {fpErr}
               </div>
+            )}
+            {fpMsg && (
+              <div className="p-2.5 rounded-xl bg-indigo-50 border border-indigo-100 text-[#1b1a47] text-xs font-medium">
+                {fpMsg}
+              </div>
+            )}
 
-              <div className="flex items-center justify-end gap-2.5 pt-2">
+            {fpPhase === 'done' ? (
+              <div className="flex items-center justify-end pt-1">
                 <button
                   type="button"
-                  onClick={() => setIsHelpOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                  onClick={resetForgotState}
+                  className="px-5 py-2 bg-[#1b1a47] hover:bg-[#36348e] text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={helpSubmitted}
-                  className="px-5 py-2 bg-[#1b1a47] hover:bg-[#36348e] text-white text-xs font-bold rounded-xl shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  {helpSubmitted ? 'Sending Request...' : 'Request Credentials'}
+                  Back to Sign In
                 </button>
               </div>
-            </form>
+            ) : (
+              <>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {fpPhase === 'request'
+                    ? 'Enter your registered email (or admission number). Your request goes to the school for approval; once the Principal allows it, a one-time code is emailed to you.'
+                    : 'Once your request is approved, enter the 6-digit code from the email together with your new password. If the code has not arrived yet, keep this window open and check again shortly.'}
+                </p>
+
+                <form onSubmit={fpPhase === 'request' ? handleHelpSubmit : handleResetSubmit} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Registered Email or Admission Number
+                    </label>
+                    <input
+                      type="text"
+                      value={helpEmail}
+                      onChange={(e) => setHelpEmail(e.target.value)}
+                      placeholder="e.g. student@school.pk or ADM-0936"
+                      required
+                      disabled={fpPhase === 'verify'}
+                      className="w-full text-xs px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-hidden focus:border-[#36348e] focus:ring-1 focus:ring-[#36348e] font-medium disabled:bg-slate-50 disabled:text-slate-500"
+                    />
+                  </div>
+
+                  {fpPhase === 'verify' && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">One-Time Code (6 digits)</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          value={fpOtp}
+                          onChange={(e) => setFpOtp(e.target.value.replace(/\D/g, ''))}
+                          placeholder="e.g. 482913"
+                          required
+                          className="w-full text-xs px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-hidden focus:border-[#36348e] focus:ring-1 focus:ring-[#36348e] font-mono tracking-widest"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">New Password</label>
+                          <input
+                            type="password"
+                            value={fpNew}
+                            onChange={(e) => setFpNew(e.target.value)}
+                            placeholder="Min. 10 characters"
+                            required
+                            className="w-full text-xs px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-hidden focus:border-[#36348e] focus:ring-1 focus:ring-[#36348e]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">Confirm Password</label>
+                          <input
+                            type="password"
+                            value={fpConfirm}
+                            onChange={(e) => setFpConfirm(e.target.value)}
+                            placeholder="Repeat password"
+                            required
+                            className="w-full text-xs px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-hidden focus:border-[#36348e] focus:ring-1 focus:ring-[#36348e]"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="flex items-center justify-between gap-2.5 pt-2">
+                    {fpPhase === 'verify' ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFpPhase('request');
+                          setFpMsg(null);
+                          setFpErr(null);
+                        }}
+                        className="text-xs font-bold text-[#36348e] hover:underline cursor-pointer"
+                      >
+                        Change email
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFpPhase('verify');
+                          setFpErr(null);
+                        }}
+                        className="text-xs font-bold text-[#36348e] hover:underline cursor-pointer"
+                      >
+                        I already have a code
+                      </button>
+                    )}
+                    <div className="flex items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={resetForgotState}
+                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={fpBusy}
+                        className="px-5 py-2 bg-[#1b1a47] hover:bg-[#36348e] text-white text-xs font-bold rounded-xl shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                      >
+                        {fpBusy ? 'Please wait…' : fpPhase === 'request' ? 'Submit Request' : 'Set New Password'}
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </>
+            )}
           </div>
         </div>
       )}

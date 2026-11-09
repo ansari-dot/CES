@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
 import { loginTeacherThunk, setLoginError } from '../store/slices/authSlice';
 import { addToast } from '../store/slices/uiSlice';
+import { requestApi } from '../services/api';
 import {
   BookOpen,
   Users,
@@ -27,10 +28,26 @@ export const LoginPage: React.FC = () => {
   const [rememberMe, setRememberMe] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Forgot Password modal state
+  // Forgot Password modal state (principal-approved OTP flow)
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
-  const [forgotSubmitted, setForgotSubmitted] = useState(false);
+  const [fpPhase, setFpPhase] = useState<'request' | 'verify' | 'done'>('request');
+  const [fpOtp, setFpOtp] = useState('');
+  const [fpNew, setFpNew] = useState('');
+  const [fpConfirm, setFpConfirm] = useState('');
+  const [fpBusy, setFpBusy] = useState(false);
+  const [fpMsg, setFpMsg] = useState<string | null>(null);
+  const [fpErr, setFpErr] = useState<string | null>(null);
+
+  const resetForgotState = () => {
+    setIsForgotModalOpen(false);
+    setFpPhase('request');
+    setFpOtp('');
+    setFpNew('');
+    setFpConfirm('');
+    setFpMsg(null);
+    setFpErr(null);
+  };
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -79,22 +96,60 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleForgotSubmit = (e: React.FormEvent) => {
+  const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!forgotEmail.trim()) return;
-    setForgotSubmitted(true);
-    setTimeout(() => {
-      setForgotSubmitted(false);
-      setIsForgotModalOpen(false);
+    setFpErr(null);
+    setFpBusy(true);
+    try {
+      const res = await requestApi<{ message: string }>('/api/v1/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ identifier: forgotEmail.trim() })
+      });
+      setFpMsg(res.message);
+      setFpPhase('verify');
+    } catch (err: any) {
+      setFpErr(err.message || 'Could not submit the request. Please try again.');
+    } finally {
+      setFpBusy(false);
+    }
+  };
+
+  const handleForgotReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFpErr(null);
+    if (!/^\d{6}$/.test(fpOtp.trim())) {
+      setFpErr('The one-time code is the 6-digit number from your email.');
+      return;
+    }
+    if (fpNew.length < 10) {
+      setFpErr('The new password must be at least 10 characters long.');
+      return;
+    }
+    if (fpNew !== fpConfirm) {
+      setFpErr('The new password and its confirmation do not match.');
+      return;
+    }
+    setFpBusy(true);
+    try {
+      await requestApi('/api/v1/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ identifier: forgotEmail.trim(), otp: fpOtp.trim(), newPassword: fpNew })
+      });
+      setFpPhase('done');
+      setFpMsg('Your password has been updated. Sign in with your new password.');
       dispatch(
         addToast({
-          title: 'Reset Link Dispatched',
-          message: `A secure password reset link was sent to ${forgotEmail}.`,
-          type: 'info',
+          title: 'Password Updated',
+          message: 'Sign in with your new password.',
+          type: 'success',
         })
       );
-      setForgotEmail('');
-    }, 1200);
+    } catch (err: any) {
+      setFpErr(err.message || 'Could not reset the password. Please check the code and try again.');
+    } finally {
+      setFpBusy(false);
+    }
   };
 
   return (
@@ -346,49 +401,141 @@ export const LoginPage: React.FC = () => {
                 </div>
               </div>
               <button
-                onClick={() => setIsForgotModalOpen(false)}
+                onClick={resetForgotState}
                 className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Enter your registered faculty email address. If an active faculty record exists, an instant password reset link will be dispatched.
-            </p>
+            {fpErr && (
+              <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium">{fpErr}</div>
+            )}
+            {fpMsg && (
+              <div className="p-2.5 rounded-xl bg-indigo-50 border border-indigo-100 text-[#1b1a47] text-xs font-medium">{fpMsg}</div>
+            )}
 
-            <form onSubmit={handleForgotSubmit} className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Institutional Email
-                </label>
-                <input
-                  type="email"
-                  value={forgotEmail}
-                  onChange={(e) => setForgotEmail(e.target.value)}
-                  placeholder="e.g. sarah.jenkins@school.pk"
-                  required
-                  className="w-full text-xs px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-hidden focus:border-[#36348e] focus:ring-1 focus:ring-[#36348e] font-medium"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2.5 pt-2">
+            {fpPhase === 'done' ? (
+              <div className="flex items-center justify-end pt-1">
                 <button
                   type="button"
-                  onClick={() => setIsForgotModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
+                  onClick={resetForgotState}
+                  className="px-5 py-2 bg-[#1b1a47] hover:bg-[#36348e] text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={forgotSubmitted}
-                  className="px-5 py-2 bg-[#1b1a47] hover:bg-[#36348e] text-white text-xs font-bold rounded-xl shadow-xs transition-colors disabled:opacity-50"
-                >
-                  {forgotSubmitted ? 'Sending Link...' : 'Send Reset Link'}
+                  Back to Sign In
                 </button>
               </div>
-            </form>
+            ) : (
+              <>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {fpPhase === 'request'
+                    ? 'Enter your registered faculty email. Your request goes to the Principal for approval; once allowed, a one-time code is emailed to you.'
+                    : 'Once approved, enter the 6-digit code from the email together with your new password.'}
+                </p>
+
+                <form onSubmit={fpPhase === 'request' ? handleForgotSubmit : handleForgotReset} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Institutional Email or Employee No
+                    </label>
+                    <input
+                      type="text"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      placeholder="e.g. sarah.jenkins@school.pk"
+                      required
+                      disabled={fpPhase === 'verify'}
+                      className="w-full text-xs px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-hidden focus:border-[#36348e] focus:ring-1 focus:ring-[#36348e] font-medium disabled:bg-slate-50 disabled:text-slate-500"
+                    />
+                  </div>
+
+                  {fpPhase === 'verify' && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">One-Time Code (6 digits)</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          value={fpOtp}
+                          onChange={(e) => setFpOtp(e.target.value.replace(/\D/g, ''))}
+                          placeholder="e.g. 482913"
+                          required
+                          className="w-full text-xs px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-hidden focus:border-[#36348e] focus:ring-1 focus:ring-[#36348e] font-mono tracking-widest"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">New Password</label>
+                          <input
+                            type="password"
+                            value={fpNew}
+                            onChange={(e) => setFpNew(e.target.value)}
+                            placeholder="Min. 10 characters"
+                            required
+                            className="w-full text-xs px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-hidden focus:border-[#36348e] focus:ring-1 focus:ring-[#36348e]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">Confirm Password</label>
+                          <input
+                            type="password"
+                            value={fpConfirm}
+                            onChange={(e) => setFpConfirm(e.target.value)}
+                            placeholder="Repeat password"
+                            required
+                            className="w-full text-xs px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-hidden focus:border-[#36348e] focus:ring-1 focus:ring-[#36348e]"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="flex items-center justify-between gap-2.5 pt-2">
+                    {fpPhase === 'verify' ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFpPhase('request');
+                          setFpMsg(null);
+                          setFpErr(null);
+                        }}
+                        className="text-xs font-bold text-[#36348e] hover:underline"
+                      >
+                        Change email
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFpPhase('verify');
+                          setFpErr(null);
+                        }}
+                        className="text-xs font-bold text-[#36348e] hover:underline"
+                      >
+                        I already have a code
+                      </button>
+                    )}
+                    <div className="flex items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={resetForgotState}
+                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={fpBusy}
+                        className="px-5 py-2 bg-[#1b1a47] hover:bg-[#36348e] text-white text-xs font-bold rounded-xl shadow-xs transition-colors disabled:opacity-50"
+                      >
+                        {fpBusy ? 'Please wait…' : fpPhase === 'request' ? 'Submit Request' : 'Set New Password'}
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </>
+            )}
           </div>
         </div>
       )}
