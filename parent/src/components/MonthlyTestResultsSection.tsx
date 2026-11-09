@@ -28,7 +28,7 @@ export const MonthlyTestResultsSection: React.FC = () => {
     (id) => `/api/v1/assessments/parent/${id}/results`
   );
 
-  const results = data?.results || [];
+  const results: MonthlyTestResultItem[] = (data as any)?.results || (Array.isArray(data) ? (data as MonthlyTestResultItem[]) : []);
 
   if (loading && !data) {
     return null;
@@ -44,11 +44,11 @@ export const MonthlyTestResultsSection: React.FC = () => {
         <div className="flex items-center gap-2">
           <Award className="w-5 h-5 text-primary" />
           <h3 className="font-headings font-bold text-base text-foreground">
-            Tests &amp; Examinations Results
+            Monthly Tests &amp; Examinations
           </h3>
         </div>
         <span className="text-xs text-muted-foreground font-semibold">
-          {results.length} Published {results.length === 1 ? 'Exam' : 'Exams'}
+          {results.length} Evaluated {results.length === 1 ? 'Assessment' : 'Assessments'}
         </span>
       </div>
 
@@ -59,7 +59,9 @@ export const MonthlyTestResultsSection: React.FC = () => {
           return (
             <div
               key={r.testId}
-              className="bg-card border border-border rounded-md p-4 shadow-xs space-y-3"
+              className={`bg-card border rounded-md p-4 shadow-xs space-y-3 ${
+                r.isPassed ? 'border-border' : 'border-rose-200 bg-rose-50/20'
+              }`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
@@ -70,21 +72,35 @@ export const MonthlyTestResultsSection: React.FC = () => {
                 </div>
 
                 <div className="text-right shrink-0">
-                  <div className="text-sm font-mono font-bold px-2 py-0.5 rounded-sm bg-success-bg text-success border border-success/30 inline-block">
+                  <div
+                    className={`text-sm font-mono font-bold px-2 py-0.5 rounded-sm inline-block ${
+                      r.isPassed
+                        ? 'bg-success-bg text-success border border-success/30'
+                        : 'bg-rose-100 text-rose-800 border border-rose-300'
+                    }`}
+                  >
                     {r.totalScore} / {r.totalMarks}
                   </div>
-                  <div className="text-[11px] text-muted-foreground mt-0.5">
-                    {percentage}% · {r.isPassed ? 'Passed' : 'Needs Work'}
+                  <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center justify-end gap-1">
+                    {r.isPassed ? (
+                      <span className="text-emerald-600 font-bold flex items-center gap-0.5">
+                        <CheckCircle2 className="w-3 h-3" /> {percentage}% · Passed
+                      </span>
+                    ) : (
+                      <span className="text-rose-600 font-bold flex items-center gap-0.5">
+                        <XCircle className="w-3 h-3" /> {percentage}% · Below Passing
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-[11px] text-muted-foreground border-t border-border/60 pt-2">
                 <div>
-                  MCQ Score: <strong className="text-foreground">{r.mcqScore} pts</strong>
+                  Passing Mark: <strong className="text-foreground">{r.passingMarks} pts</strong>
                 </div>
                 <div>
-                  Subjective: <strong className="text-foreground">{r.subjectiveScore} pts</strong>
+                  MCQ / Subjective: <strong className="text-foreground">{r.mcqScore} + {r.subjectiveScore} pts</strong>
                 </div>
               </div>
 

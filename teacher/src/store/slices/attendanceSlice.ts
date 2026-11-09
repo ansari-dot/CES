@@ -65,10 +65,10 @@ export const submitAttendanceThunk = createAsyncThunk(
       const numLessonId = typeof payload.lessonId === 'string' ? parseInt(payload.lessonId.replace(/\D/g, ''), 10) || 1 : payload.lessonId;
       const formattedRecords = payload.records.map((r) => {
         let st = (r.status || 'present').toUpperCase();
-        if (st === 'PRESENT') st = 'PRESENT';
-        else if (st === 'ABSENT') st = 'ABSENT';
-        else if (st === 'LEAVE' || st === 'LATE') st = 'LATE';
-        else if (st === 'EXCUSED') st = 'EXCUSED';
+        if (st === 'PRESENT' || st === 'P') st = 'PRESENT';
+        else if (st === 'ABSENT' || st === 'A') st = 'ABSENT';
+        else if (st === 'LATE' || st === 'L') st = 'LATE';
+        else if (st === 'LEAVE' || st === 'EXCUSED' || st === 'E') st = 'EXCUSED';
         return {
           studentId: typeof r.studentId === 'string' ? parseInt(r.studentId.replace(/\D/g, ''), 10) : r.studentId,
           status: st,
@@ -211,6 +211,16 @@ export const attendanceSlice = createSlice({
         s.status = 'absent';
       });
     },
+    markAllLate: (state) => {
+      state.roster.forEach((s) => {
+        s.status = 'late';
+      });
+    },
+    markAllExcused: (state) => {
+      state.roster.forEach((s) => {
+        s.status = 'excused';
+      });
+    },
     toggleRemarksExpanded: (state) => {
       state.remarksExpanded = !state.remarksExpanded;
     },
@@ -230,7 +240,7 @@ export const attendanceSlice = createSlice({
       const presentCount = state.roster.filter((r) => r.status === 'present').length;
       const absentCount = state.roster.filter((r) => r.status === 'absent').length;
       const lateCount = state.roster.filter((r) => r.status === 'late').length;
-      const leaveCount = state.roster.filter((r) => r.status === 'leave').length;
+      const leaveCount = state.roster.filter((r) => r.status === 'excused' || r.status === 'leave').length;
 
       const newLog: AttendanceSubmissionLog = {
         id: `SUB-${Date.now().toString().slice(-6)}`,
@@ -303,8 +313,8 @@ export const attendanceSlice = createSlice({
               let st: AttendanceStatus = 'present';
               const raw = (s.status || 'PRESENT').toUpperCase();
               if (raw === 'ABSENT' || raw === 'A') st = 'absent';
-              else if (raw === 'LATE' || raw === 'LEAVE' || raw === 'L') st = 'leave';
-              else if (raw === 'EXCUSED' || raw === 'E') st = 'excused';
+              else if (raw === 'LATE' || raw === 'L') st = 'late';
+              else if (raw === 'EXCUSED' || raw === 'LEAVE' || raw === 'E') st = 'excused';
               else st = 'present';
 
               return {
@@ -344,8 +354,8 @@ export const attendanceSlice = createSlice({
               let st: AttendanceStatus = 'present';
               const raw = (s.status || 'PRESENT').toUpperCase();
               if (raw === 'ABSENT' || raw === 'A') st = 'absent';
-              else if (raw === 'LATE' || raw === 'LEAVE' || raw === 'L') st = 'leave';
-              else if (raw === 'EXCUSED' || raw === 'E') st = 'excused';
+              else if (raw === 'LATE' || raw === 'L') st = 'late';
+              else if (raw === 'EXCUSED' || raw === 'LEAVE' || raw === 'E') st = 'excused';
               else st = 'present';
 
               return {
@@ -373,8 +383,8 @@ export const attendanceSlice = createSlice({
         state.isSubmitModalOpen = false;
         const presentCount = state.roster.filter((r) => r.status === 'present').length;
         const absentCount = state.roster.filter((r) => r.status === 'absent').length;
-        const lateCount = state.roster.filter((r) => r.status === 'late' || r.status === 'leave').length;
-        const leaveCount = state.roster.filter((r) => r.status === 'excused').length;
+        const lateCount = state.roster.filter((r) => r.status === 'late').length;
+        const leaveCount = state.roster.filter((r) => r.status === 'excused' || r.status === 'leave').length;
 
         const newLog: AttendanceSubmissionLog = {
           id: `SUB-${action.payload.lessonId}-${Date.now().toString().slice(-4)}`,
@@ -450,6 +460,8 @@ export const {
   setStudentRemark,
   markAllRemainingPresent,
   markAllAbsent,
+  markAllLate,
+  markAllExcused,
   toggleRemarksExpanded,
   openSubmitModal,
   closeSubmitModal,

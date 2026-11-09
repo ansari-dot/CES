@@ -13,6 +13,7 @@ export interface StudentProfile {
   name: string;
   username?: string;
   avatar: string;
+  gender?: 'MALE' | 'FEMALE' | string;
   grade: string;
   rollNumber: string;
   session: string;
@@ -203,6 +204,7 @@ function mapUserToProfile(data: any, existing: StudentProfile): StudentProfile {
     username: data.username || existing.username,
     email: data.email || existing.email,
     userId: data.id,
+    gender: data.gender || data.studentProfile?.gender || existing.gender,
     status: data.status === 'ACTIVE' ? 'Active' : data.status || existing.status,
   };
 }
@@ -211,6 +213,7 @@ function mapStudentToProfile(student: any, existing: StudentProfile): StudentPro
   return {
     ...existing,
     name: student.name || existing.name,
+    gender: student.gender || existing.gender,
     grade: student.className ? `${student.className}` : existing.grade,
     rollNumber: student.rollNo || student.admissionNo || existing.rollNumber,
     admissionNo: student.admissionNo,

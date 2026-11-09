@@ -121,6 +121,44 @@ export const assessmentsApi = {
     return requestApi<any>(`/api/v1/assessments/${testId}/start-invigilation`, {
       method: 'POST'
     });
+  },
+
+  /**
+   * Send performance alert emails & notifications to parents of students
+   * who scored low or failed this monthly test.
+   */
+  async notifyLowPerformers(
+    testId: number,
+    options?: { thresholdPercentage?: number; customNote?: string; force?: boolean }
+  ): Promise<{
+    success: boolean;
+    totalEvaluated: number;
+    lowPerformersCount: number;
+    alertsSent: number;
+    message: string;
+  }> {
+    return requestApi<any>(`/api/v1/assessments/${testId}/notify-low-performers`, {
+      method: 'POST',
+      body: JSON.stringify(options || {})
+    });
+  },
+
+  /**
+   * Send performance alert email & notification to the parent of a single student attempt
+   */
+  async notifyAttemptParent(
+    testId: number,
+    attemptId: number,
+    options?: { customNote?: string }
+  ): Promise<{
+    success: boolean;
+    alertsSent: number;
+    message: string;
+  }> {
+    return requestApi<any>(`/api/v1/assessments/${testId}/attempts/${attemptId}/notify-parent`, {
+      method: 'POST',
+      body: JSON.stringify(options || {})
+    });
   }
 };
 

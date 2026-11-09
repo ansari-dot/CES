@@ -129,5 +129,19 @@ export const teachersService = {
       teacherId: rawId,
       status: newStatus
     };
+  },
+
+  async getDashboardSummary(user, period = 'month', queryTeacherId = null) {
+    let teacherId = queryTeacherId ? Number(queryTeacherId) : null;
+    let userId = user?.id;
+
+    if (!teacherId && userId) {
+      const teacher = await teachersRepository.findTeacherByUserId(userId);
+      if (teacher) {
+        teacherId = teacher.id;
+      }
+    }
+
+    return await teachersRepository.getDashboardSummaryData(teacherId, userId, period);
   }
 };

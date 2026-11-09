@@ -8,6 +8,20 @@ import {
 } from '../../store/slices/tasksSlice';
 import { addToast } from '../../store/slices/uiSlice';
 import { openProtectedFile } from '../../services/api';
+import {
+  FileEdit,
+  CheckCircle2,
+  RotateCcw,
+  Edit3,
+  Clock,
+  Info,
+  ShieldCheck,
+  FileText,
+  Eye,
+  Download,
+  Zap,
+  Send
+} from 'lucide-react';
 
 export const GradingDetail: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -39,7 +53,7 @@ export const GradingDetail: React.FC = () => {
   if (!submission) {
     return (
       <div className="bg-white p-12 rounded-xl text-center text-[#777587] border border-slate-100 shadow-xs">
-        <span className="material-symbols-outlined text-4xl mb-2 text-slate-300">rate_review</span>
+        <FileEdit className="w-10 h-10 mb-2 text-slate-300 mx-auto" />
         <p className="font-semibold text-sm text-[#292929]">No Submission Selected</p>
         <p className="text-xs text-[#777587] mt-1">Select a student from the queue on the left to grade their submission.</p>
       </div>
@@ -158,19 +172,19 @@ export const GradingDetail: React.FC = () => {
               <span>•</span>
               {isPublished ? (
                 <span className="text-[#006c49] font-bold flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[14px]">verified</span> Grade published
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Grade published
                 </span>
               ) : submission.status === 'resubmit_requested' ? (
                 <span className="text-[#ba1a1a] font-bold flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[14px]">undo</span> Returned for resubmission
+                  <RotateCcw className="w-3.5 h-3.5" /> Returned for resubmission
                 </span>
               ) : hasDraftGrade ? (
                 <span className="text-[#7a5b00] font-bold flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[14px]">edit_note</span> Draft grade (not visible to student)
+                  <Edit3 className="w-3.5 h-3.5" /> Draft grade (not visible to student)
                 </span>
               ) : (
                 <span className="text-[#36348e] font-bold flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[14px]">schedule</span> Awaiting review
+                  <Clock className="w-3.5 h-3.5" /> Awaiting review
                   {submission.isLate ? ' · Late' : ''}
                 </span>
               )}
@@ -189,8 +203,8 @@ export const GradingDetail: React.FC = () => {
       {currentTask && (
         <div className="bg-[#f1f1fa] p-4 rounded-xl space-y-1 border border-indigo-100/60">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wide text-[#545454] flex items-center gap-1">
-              <span className="material-symbols-outlined text-[16px] text-[#36348e]">info</span>{' '}
+            <span className="text-xs font-bold uppercase tracking-wide text-[#545454] flex items-center gap-1.5">
+              <Info className="w-4 h-4 text-[#36348e]" />
               Assignment Instructions
             </span>
             <span className="text-xs text-[#36348e] font-bold">{currentTask.title}</span>
@@ -208,7 +222,7 @@ export const GradingDetail: React.FC = () => {
             Student Submission Artifact
           </span>
           <span className="text-[11px] text-[#006c49] font-semibold flex items-center gap-1">
-            <span className="material-symbols-outlined text-[14px]">verified_user</span>
+            <ShieldCheck className="w-3.5 h-3.5" />
             File type checked on upload
           </span>
         </div>
@@ -217,7 +231,7 @@ export const GradingDetail: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-[#e8e8f6]/60 rounded-xl border border-indigo-100/60">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 rounded-lg bg-[#fee2e2] text-[#ba1a1a] flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-[24px]">picture_as_pdf</span>
+                <FileText className="w-5 h-5" />
               </div>
               <div className="truncate">
                 <p className="text-xs sm:text-sm font-bold text-[#292929] truncate">
@@ -232,16 +246,16 @@ export const GradingDetail: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleOpenFile(false)}
-                className="px-3 py-1.5 rounded-lg bg-white text-[#36348e] text-xs font-bold hover:bg-[#ffedc2] shadow-xs flex items-center gap-1"
+                className="px-3 py-1.5 rounded-lg bg-white text-[#36348e] text-xs font-bold hover:bg-[#ffedc2] shadow-xs flex items-center gap-1 cursor-pointer"
               >
-                <span className="material-symbols-outlined text-[16px]">visibility</span> Preview
+                <Eye className="w-3.5 h-3.5" /> Preview
               </button>
               <button
                 type="button"
                 onClick={() => handleOpenFile(true)}
-                className="px-3 py-1.5 rounded-lg bg-white text-[#545454] text-xs font-bold hover:text-[#292929] hover:bg-[#ffedc2] shadow-xs flex items-center gap-1"
+                className="px-3 py-1.5 rounded-lg bg-white text-[#545454] text-xs font-bold hover:text-[#292929] hover:bg-[#ffedc2] shadow-xs flex items-center gap-1 cursor-pointer"
               >
-                <span className="material-symbols-outlined text-[16px]">download</span> Download
+                <Download className="w-3.5 h-3.5" /> Download
               </button>
             </div>
           </div>
@@ -343,23 +357,23 @@ export const GradingDetail: React.FC = () => {
       {/* Teacher Written Feedback Area */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <label className="text-xs font-bold text-[#292929] flex items-center gap-1">
-            <span className="material-symbols-outlined text-[16px] text-[#36348e]">edit_note</span>
+          <label className="text-xs font-bold text-[#292929] flex items-center gap-1.5">
+            <Edit3 className="w-4 h-4 text-[#36348e]" />
             Teacher Written Feedback
           </label>
           <button
             type="button"
             onClick={handleInsertQuickPhrase}
-            className="text-xs text-[#36348e] font-bold hover:underline flex items-center gap-1"
+            className="text-xs text-[#36348e] font-bold hover:underline flex items-center gap-1 cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[14px]">bolt</span> Quick Phrases
+            <Zap className="w-3.5 h-3.5" /> Quick Phrases
           </button>
         </div>
         <textarea
           rows={3}
           value={feedback}
           onChange={(e) => setFeedback(e.target.value)}
-          className="w-full bg-[#f1f1fa] p-3 rounded-xl text-xs sm:text-sm text-[#292929] placeholder:text-[#777587] focus:outline-none focus:ring-2 focus:ring-[#36348e]/30 border border-indigo-100/60"
+          className="w-full bg-[#f1f1fa] p-3 rounded-xl text-xs sm:text-sm text-[#292929] placeholder:text-[#777587] focus:outline-hidden focus:ring-2 focus:ring-[#36348e]/30 border border-indigo-100/60"
         ></textarea>
         <div className="flex items-center justify-between text-[#777587] text-[11px] px-1">
           <span>Visible to: Student and Parents on portal</span>
@@ -372,9 +386,9 @@ export const GradingDetail: React.FC = () => {
         <button
           type="button"
           onClick={handleReturnResubmission}
-          className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-[#dfdff2] hover:bg-[#d7d7ee] text-[#ba1a1a] font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5"
+          className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-[#dfdff2] hover:bg-[#d7d7ee] text-[#ba1a1a] font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer"
         >
-          <span className="material-symbols-outlined text-[18px]">undo</span>
+          <RotateCcw className="w-4 h-4" />
           Return for Resubmission
         </button>
 
@@ -384,7 +398,7 @@ export const GradingDetail: React.FC = () => {
             disabled={isSubmitting || isPublished}
             title={isPublished ? 'This grade is already published' : undefined}
             onClick={() => handlePublishGrade(false)}
-            className="flex-1 sm:flex-initial px-4 py-2.5 rounded-lg bg-[#e8e8f6] text-[#292929] hover:bg-[#ffedc2] font-semibold text-xs sm:text-sm transition-all disabled:opacity-50"
+            className="flex-1 sm:flex-initial px-4 py-2.5 rounded-lg bg-[#e8e8f6] text-[#292929] hover:bg-[#ffedc2] font-semibold text-xs sm:text-sm transition-all disabled:opacity-50 cursor-pointer"
           >
             Save Draft
           </button>
@@ -392,9 +406,9 @@ export const GradingDetail: React.FC = () => {
             type="button"
             disabled={isSubmitting}
             onClick={() => handlePublishGrade(true)}
-            className="flex-1 sm:flex-initial px-6 py-2.5 rounded-lg bg-[#36348e] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-98"
+            className="flex-1 sm:flex-initial px-6 py-2.5 rounded-lg bg-[#36348e] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-98 cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[18px]">publish</span>
+            <Send className="w-4 h-4" />
             {isSubmitting ? 'Publishing Marks...' : 'Submit & Publish Grade'}
           </button>
         </div>

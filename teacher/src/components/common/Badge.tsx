@@ -3,7 +3,7 @@ import React from 'react';
 interface BadgeProps {
   variant?: 'primary' | 'secondary' | 'tertiary' | 'error' | 'neutral';
   children: React.ReactNode;
-  icon?: string;
+  icon?: React.ReactNode;
   size?: 'sm' | 'md';
 }
 
@@ -14,11 +14,11 @@ export const Badge: React.FC<BadgeProps> = ({
   size = 'sm',
 }) => {
   const variantStyles = {
-    primary: 'bg-[#cdd4fb] text-[#36348e]',
-    secondary: 'bg-[#d1fae5] text-[#065f46]',
-    tertiary: 'bg-[#ffe9b0] text-[#8a6400]',
-    error: 'bg-[#fee2e2] text-[#991b1b]',
-    neutral: 'bg-[#dfdff2] text-[#545454]',
+    primary: 'bg-indigo-50 text-[#36348e] border border-indigo-100',
+    secondary: 'bg-emerald-50 text-emerald-800 border border-emerald-100',
+    tertiary: 'bg-amber-50 text-amber-900 border border-amber-200',
+    error: 'bg-rose-50 text-rose-700 border border-rose-100',
+    neutral: 'bg-slate-100 text-slate-700 border border-slate-200',
   };
 
   const sizeStyles = {
@@ -30,7 +30,7 @@ export const Badge: React.FC<BadgeProps> = ({
     <span
       className={`inline-flex items-center gap-1 font-semibold rounded-full ${variantStyles[variant]} ${sizeStyles[size]}`}
     >
-      {icon && <span className="material-symbols-outlined text-[14px]">{icon}</span>}
+      {icon && (typeof icon === 'string' ? <span className="text-[12px]">{icon}</span> : icon)}
       {children}
     </span>
   );

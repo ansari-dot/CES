@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { setSelectedSubmissionId } from '../../store/slices/tasksSlice';
+import { ArrowUpDown, Inbox, CheckCircle2, AlertTriangle, RotateCcw, Clock } from 'lucide-react';
 
 interface SubmissionQueueProps {
   statusFilter: string;
@@ -50,8 +51,8 @@ export const SubmissionQueue: React.FC<SubmissionQueueProps> = ({
             {filteredSubmissions.length} Shown
           </span>
         </div>
-        <div className="flex items-center gap-1 text-xs text-[#545454]">
-          <span className="material-symbols-outlined text-[16px]">swap_vert</span>
+        <div className="flex items-center gap-1.5 text-xs text-[#545454]">
+          <ArrowUpDown className="w-3.5 h-3.5" />
           <span className="font-semibold">Sort: Roll #</span>
         </div>
       </div>
@@ -59,7 +60,7 @@ export const SubmissionQueue: React.FC<SubmissionQueueProps> = ({
       <div className="p-2 space-y-1">
         {filteredSubmissions.length === 0 ? (
           <div className="py-10 text-center text-[#777587]">
-            <span className="material-symbols-outlined text-3xl mb-1 text-slate-300">inbox</span>
+            <Inbox className="w-8 h-8 mb-1 text-slate-300 mx-auto" />
             <p className="font-semibold text-xs text-[#292929]">No Submissions in Queue</p>
             <p className="text-[11px] text-[#777587] mt-0.5">There are no student submissions matching the filter criteria.</p>
           </div>
@@ -124,20 +125,20 @@ export const SubmissionQueue: React.FC<SubmissionQueueProps> = ({
                 <div className="flex flex-col items-end gap-1 shrink-0">
                   {sub.status === 'graded' ? (
                     <span className="px-2 py-0.5 rounded-full bg-[#d1fae5] text-[#065f46] text-[11px] font-bold flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[13px]">check_circle</span>
+                      <CheckCircle2 className="w-3 h-3" />
                       {sub.marksAwarded} / {sub.maxMarks}
                     </span>
                   ) : sub.status === 'late' ? (
                     <span className="px-2 py-0.5 rounded-full bg-[#ffe9b0] text-[#8a6400] text-[11px] font-bold flex items-center gap-0.5">
-                      <span className="material-symbols-outlined text-[12px]">warning</span> Late
+                      <AlertTriangle className="w-3 h-3" /> Late
                     </span>
                   ) : sub.status === 'resubmit_requested' ? (
                     <span className="px-2 py-0.5 rounded-full bg-[#fee2e2] text-[#991b1b] text-[11px] font-bold flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[13px]">undo</span> Returned
+                      <RotateCcw className="w-3 h-3" /> Returned
                     </span>
                   ) : sub.status === 'missing' ? (
                     <span className="px-2 py-0.5 rounded-full bg-[#fee2e2] text-[#991b1b] text-[11px] font-bold flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[13px]">schedule</span> Missing
+                      <Clock className="w-3 h-3" /> Missing
                     </span>
                   ) : (
                     <span className="px-2 py-0.5 rounded-full bg-[#dfdff2] text-[#36348e] text-[11px] font-bold flex items-center gap-1">

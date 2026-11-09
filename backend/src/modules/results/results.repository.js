@@ -105,10 +105,24 @@ export const resultsRepository = {
         'monthly_tests.subject_id as subjectId',
         'monthly_tests.total_marks as taskTotal',
         'test_attempts.student_id as studentId',
-        'test_attempts.score as marksAwarded'
+        'test_attempts.total_score as marksAwarded'
       );
 
-    const allExamRows = [...rows, ...testRows];
+    // Also include official terminal examination paper marks from dedicated exam module
+    const paperRows = await db('terminal_exam_papers as tep')
+      .join('terminal_exams as te', 'tep.exam_id', 'te.id')
+      .leftJoin('terminal_exam_marks as tem', 'tem.paper_id', 'tep.id')
+      .where('tep.class_id', classId)
+      .where('te.session_id', sessionId)
+      .select(
+        db.raw('CONCAT("paper-", tep.id) as taskId'),
+        'tep.subject_id as subjectId',
+        'tep.total_marks as taskTotal',
+        'tem.student_id as studentId',
+        'tem.total_obtained as marksAwarded'
+      );
+
+    const allExamRows = [...rows, ...testRows, ...paperRows];
 
     // taskTotals: subjectId -> total marks of all exam tasks of that subject
     const taskTotals = new Map();

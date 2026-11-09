@@ -2066,6 +2066,24 @@ export const api = {
     return res?.data ?? res;
   },
 
+  // Monthly Tests & Assessment Engine
+  async listMonthlyTests(params?: { classId?: number; subjectId?: number; status?: string }): Promise<any> {
+    const qs = new URLSearchParams();
+    if (params?.classId) qs.set('classId', String(params.classId));
+    if (params?.subjectId) qs.set('subjectId', String(params.subjectId));
+    if (params?.status) qs.set('status', params.status);
+    const res = await requestApi<any>(`/api/v1/assessments?${qs.toString()}`);
+    return res?.data ?? res;
+  },
+
+  async notifyMonthlyTestLowPerformers(testId: number, options?: { force?: boolean }): Promise<any> {
+    const res = await requestApi<any>(`/api/v1/assessments/${testId}/notify-low-performers`, {
+      method: 'POST',
+      body: JSON.stringify(options || {})
+    });
+    return res?.data ?? res;
+  },
+
   // 20. Supplementary Examination Ledger & Re-sit Engine
   async listFailedTerminalSubjects(filters?: { sessionId?: number; classId?: number; studentId?: number }): Promise<any[]> {
     const qs = new URLSearchParams();

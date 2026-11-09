@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { removeToast } from '../../store/slices/uiSlice';
+import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 export const ToastContainer: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -23,22 +24,16 @@ export const ToastContainer: React.FC = () => {
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className="pointer-events-auto bg-[#292929] text-[#f9f9fc] px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 transition-all transform animate-in fade-in slide-in-from-bottom-2 duration-200 border border-slate-700/50"
+          className="pointer-events-auto bg-[#191847] text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 transition-all transform animate-in fade-in slide-in-from-bottom-2 duration-200 border border-indigo-400/20"
         >
           {toast.type === 'success' && (
-            <span className="material-symbols-outlined text-[#4edea3] text-[20px]">
-              check_circle
-            </span>
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
           )}
           {toast.type === 'error' && (
-            <span className="material-symbols-outlined text-[#ff8080] text-[20px]">
-              error
-            </span>
+            <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
           )}
           {toast.type === 'info' && (
-            <span className="material-symbols-outlined text-[#a5a4db] text-[20px]">
-              info
-            </span>
+            <Info className="w-5 h-5 text-blue-300 shrink-0" />
           )}
           <div className="flex flex-col text-left">
             {toast.title && (
@@ -48,9 +43,10 @@ export const ToastContainer: React.FC = () => {
           </div>
           <button
             onClick={() => dispatch(removeToast(toast.id))}
-            className="text-slate-400 hover:text-white transition-colors ml-2"
+            className="text-slate-400 hover:text-white transition-colors ml-2 cursor-pointer"
+            title="Dismiss"
           >
-            <span className="material-symbols-outlined text-[16px]">close</span>
+            <X className="w-4 h-4" />
           </button>
         </div>
       ))}

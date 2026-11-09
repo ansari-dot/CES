@@ -525,7 +525,7 @@ export const SubmissionsGradingPage: React.FC = () => {
                   {filteredRoster.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-12 text-center text-slate-400">
-                        <span className="material-symbols-outlined text-3xl mb-1 text-slate-300 block">assignment</span>
+                        <FileText className="w-8 h-8 mx-auto mb-1 text-slate-300" />
                         <p className="font-medium text-xs text-slate-600">No students found matching this criteria.</p>
                       </td>
                     </tr>

@@ -18,7 +18,8 @@ import {
   ArrowLeft,
   ChevronRight,
   ShieldCheck,
-  FileText
+  FileText,
+  Mail
 } from 'lucide-react';
 
 interface Props {
@@ -47,6 +48,8 @@ export const TestGradingModal: React.FC<Props> = ({ testId, isOpen, onClose, onR
   const [teacherRemarks, setTeacherRemarks] = useState('');
   const [isSavingGrades, setIsSavingGrades] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isNotifyingLow, setIsNotifyingLow] = useState(false);
+  const [notifyingAttemptId, setNotifyingAttemptId] = useState<number | null>(null);
 
   useEffect(() => {
     if (isOpen && testId) {
@@ -155,6 +158,38 @@ export const TestGradingModal: React.FC<Props> = ({ testId, isOpen, onClose, onR
     }
   };
 
+  const handleNotifyLowPerformers = async () => {
+    if (!window.confirm('Send academic performance alert emails and portal notices to parents of all students who scored below the passing standard?')) {
+      return;
+    }
+
+    try {
+      setIsNotifyingLow(true);
+      setErrorMsg(null);
+      const res = await assessmentsApi.notifyLowPerformers(testId, { force: true });
+      setSuccessMsg(res.message || 'Parent alerts dispatched successfully!');
+      setTimeout(() => setSuccessMsg(null), 5000);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to dispatch parent alerts.');
+    } finally {
+      setIsNotifyingLow(false);
+    }
+  };
+
+  const handleNotifySingleAttempt = async (attemptId: number) => {
+    try {
+      setNotifyingAttemptId(attemptId);
+      setErrorMsg(null);
+      const res = await assessmentsApi.notifyAttemptParent(testId, attemptId);
+      setSuccessMsg(res.message || 'Alert email and portal notice sent to parent!');
+      setTimeout(() => setSuccessMsg(null), 4000);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to notify parent.');
+    } finally {
+      setNotifyingAttemptId(null);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -258,6 +293,39 @@ export const TestGradingModal: React.FC<Props> = ({ testId, isOpen, onClose, onR
                 </div>
               </div>
 
+              {/* Alert Actions Bar */}
+              {(() => {
+                const lowPerformersCount = submissions.filter(
+                  (s) => s.isPassed === false || (s.attemptId != null && test?.passing_marks != null && s.totalScore != null && s.totalScore < test.passing_marks)
+                ).length;
+
+                return (
+                  <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
+                        lowPerformersCount > 0 ? 'bg-rose-100 text-rose-800' : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {lowPerformersCount} Low/Failing {lowPerformersCount === 1 ? 'Score' : 'Scores'}
+                      </span>
+                      <span className="text-slate-500">
+                        Passing standard: <strong>{test?.passing_marks} marks</strong>
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isNotifyingLow || lowPerformersCount === 0}
+                      onClick={handleNotifyLowPerformers}
+                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="Send Academic Alert emails & in-app portal notifications to all parents of failing students"
+                    >
+                      <Mail className="w-3.5 h-3.5" />
+                      <span>{isNotifyingLow ? 'Dispatching Alerts...' : 'Alert Parents of Low Scorers'}</span>
+                    </button>
+                  </div>
+                );
+              })()}
+
               {/* Roster Table */}
               <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
                 <table className="w-full text-left border-collapse text-xs">
@@ -328,13 +396,27 @@ export const TestGradingModal: React.FC<Props> = ({ testId, isOpen, onClose, onR
                           </td>
                           <td className="py-2.5 px-3 text-right">
                             {sub.attemptId ? (
-                              <button
-                                onClick={() => handleOpenAttempt(sub.attemptId!)}
-                                className="px-3 py-1 bg-[#1b1a47] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white rounded-lg font-bold text-[11px] shadow-2xs inline-flex items-center gap-1 transition"
-                              >
-                                <span>{sub.status === 'GRADED' ? 'Review / Edit' : 'Evaluate'}</span>
-                                <ChevronRight className="w-3.5 h-3.5" />
-                              </button>
+                              <div className="flex items-center justify-end gap-1.5">
+                                {(sub.isPassed === false || (sub.totalScore != null && test?.passing_marks != null && sub.totalScore < test.passing_marks)) && (
+                                  <button
+                                    type="button"
+                                    disabled={notifyingAttemptId === sub.attemptId}
+                                    onClick={() => handleNotifySingleAttempt(sub.attemptId!)}
+                                    title="Send Alert Email & Portal Notification to Parent"
+                                    className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg font-bold text-[10px] inline-flex items-center gap-1 transition disabled:opacity-50"
+                                  >
+                                    <Mail className="w-3 h-3 text-rose-600" />
+                                    <span>{notifyingAttemptId === sub.attemptId ? '...' : 'Alert Parent'}</span>
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleOpenAttempt(sub.attemptId!)}
+                                  className="px-3 py-1 bg-[#1b1a47] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white rounded-lg font-bold text-[11px] shadow-2xs inline-flex items-center gap-1 transition"
+                                >
+                                  <span>{sub.status === 'GRADED' ? 'Review / Edit' : 'Evaluate'}</span>
+                                  <ChevronRight className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             ) : sub.status === 'MISSED' ? (
                               <span className="text-rose-600 text-[11px] font-bold">Absent (0.0)</span>
                             ) : (
@@ -369,11 +451,36 @@ export const TestGradingModal: React.FC<Props> = ({ testId, isOpen, onClose, onR
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-slate-500">Current Score:</span>
-                  <span className="px-2.5 py-1 bg-indigo-100 text-indigo-900 font-extrabold rounded-lg">
+                  <span className={`px-2.5 py-1 font-extrabold rounded-lg ${
+                    test?.passing_marks != null && activeAttemptDetail.attempt.total_score < test.passing_marks
+                      ? 'bg-rose-100 text-rose-900 border border-rose-200'
+                      : 'bg-indigo-100 text-indigo-900'
+                  }`}>
                     {activeAttemptDetail.attempt.total_score} / {activeAttemptDetail.test.total_marks} Marks
                   </span>
                 </div>
               </div>
+
+              {/* Low Score Alert Banner for Individual Attempt */}
+              {(activeAttemptDetail.attempt.is_passed === false || (test?.passing_marks != null && activeAttemptDetail.attempt.total_score < test.passing_marks)) && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2 text-rose-800 font-semibold">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+                    <span>
+                      Performance Notice: Student score ({activeAttemptDetail.attempt.total_score}/{activeAttemptDetail.test.total_marks}) is below the required passing standard ({test?.passing_marks} marks).
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={notifyingAttemptId === activeAttemptDetail.attempt.id}
+                    onClick={() => handleNotifySingleAttempt(activeAttemptDetail.attempt.id)}
+                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition shadow-xs disabled:opacity-50"
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>{notifyingAttemptId === activeAttemptDetail.attempt.id ? 'Sending...' : 'Send Alert Email to Parent'}</span>
+                  </button>
+                </div>
+              )}
 
               {/* Questions Grading List */}
               <div className="space-y-4">

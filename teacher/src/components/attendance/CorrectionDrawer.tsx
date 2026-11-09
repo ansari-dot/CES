@@ -6,6 +6,14 @@ import {
 } from '../../store/slices/attendanceSlice';
 import { addToast } from '../../store/slices/uiSlice';
 import { requestApi } from '../../services/api';
+import {
+  History,
+  X,
+  Info,
+  Send,
+  FileEdit,
+  ShieldAlert
+} from 'lucide-react';
 
 export const CorrectionDrawer: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -17,8 +25,9 @@ export const CorrectionDrawer: React.FC = () => {
   const [studentChoice, setStudentChoice] = useState(
     roster[0] ? `#${roster[0].rollNumber} ${roster[0].studentName} (${roster[0].admissionId})` : ''
   );
-  const [correctionType, setCorrectionType] = useState('Absent to Excused');
+  const [correctionType, setCorrectionType] = useState('Absent to Excused (Leave)');
   const [reason, setReason] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
@@ -26,9 +35,15 @@ export const CorrectionDrawer: React.FC = () => {
     e.preventDefault();
     if (!reason.trim()) return;
 
+    setIsSubmitting(true);
     try {
       const lessonNum = parseInt((targetLogId || '').replace(/\D/g, ''), 10) || 1;
-      const proposed = correctionType.includes('Excused') ? 'EXCUSED' : correctionType.includes('Present') ? 'PRESENT' : 'LATE';
+      const proposed = correctionType.includes('Excused') || correctionType.includes('Leave')
+        ? 'EXCUSED'
+        : correctionType.includes('Present')
+        ? 'PRESENT'
+        : 'LATE';
+
       await requestApi('/api/v1/attendance/corrections', {
         method: 'POST',
         body: JSON.stringify({
@@ -39,7 +54,9 @@ export const CorrectionDrawer: React.FC = () => {
         })
       });
     } catch {
-      // Fallback
+      // Offline / fallback tolerance
+    } finally {
+      setIsSubmitting(false);
     }
 
     dispatch(
@@ -60,51 +77,59 @@ export const CorrectionDrawer: React.FC = () => {
     setReason('');
   };
 
+  const correctionOptions = [
+    'Absent to Excused (Leave)',
+    'Absent to Present',
+    'Late to Present',
+    'Present to Excused (Leave)'
+  ];
+
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/30 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="w-full max-w-md bg-white h-full shadow-2xl p-6 flex flex-col justify-between overflow-y-auto animate-in slide-in-from-right duration-200">
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="w-full max-w-md bg-white h-full shadow-2xl p-5 sm:p-6 flex flex-col justify-between overflow-y-auto animate-in slide-in-from-right duration-200">
         <div>
           {/* Header */}
           <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[#7a5b00] text-[22px]">
-                history_toggle_off
-              </span>
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center shrink-0 border border-amber-200/60">
+                <FileEdit className="w-5 h-5 stroke-[2.2]" />
+              </div>
               <div>
-                <h3 className="text-base font-bold text-[#292929]">Correction Voucher</h3>
-                <span className="text-[11px] text-[#777587]">SRS 6.5 Audit Protocol</span>
+                <h3 className="text-base font-extrabold text-[#1e1b4b]">Correction Voucher</h3>
+                <span className="text-[11px] font-semibold text-slate-400">Institutional Audit Protocol</span>
               </div>
             </div>
             <button
+              type="button"
               onClick={() => dispatch(closeCorrectionDrawer())}
-              className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[20px]">close</span>
+              <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Form */}
           <form id="correctionForm" onSubmit={handleSubmit} className="space-y-4 text-xs sm:text-sm">
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[#545454] mb-1">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                 Target Submission Log
               </label>
               <input
                 type="text"
                 readOnly
-                value={targetLogId || 'SUB-20241022-5A (Oct 22, 2024)'}
-                className="w-full bg-[#f1f1fa] rounded-lg px-3 py-2 text-[#292929] font-mono text-xs focus:outline-none border border-indigo-100/60"
+                value={targetLogId || 'SUB-ActiveSession'}
+                className="w-full bg-slate-50 rounded-xl px-3.5 py-2.5 text-slate-800 font-mono text-xs focus:outline-none border border-slate-200"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[#545454] mb-1">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                 Affected Student
               </label>
               <select
                 value={studentChoice}
                 onChange={(e) => setStudentChoice(e.target.value)}
-                className="w-full bg-[#f1f1fa] rounded-lg px-3 py-2 text-[#292929] font-medium focus:outline-none border border-indigo-100/60"
+                className="w-full bg-white rounded-xl px-3.5 py-2.5 text-slate-800 font-medium focus:outline-none border border-slate-200 focus:ring-2 focus:ring-indigo-300 cursor-pointer"
               >
                 {roster.length === 0 ? (
                   <option value="" disabled>No students enrolled</option>
@@ -119,47 +144,34 @@ export const CorrectionDrawer: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[#545454] mb-1">
-                Correction Type
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                Correction Status Shift
               </label>
-              <div className="grid grid-cols-2 gap-2">
-                <label
-                  className={`flex items-center gap-2 p-2.5 rounded-lg cursor-pointer border transition-colors ${
-                    correctionType === 'Absent to Excused'
-                      ? 'border-[#36348e] bg-indigo-50/60 text-[#36348e]'
-                      : 'border-slate-200 bg-[#f1f1fa] text-[#545454]'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="corr-type"
-                    checked={correctionType === 'Absent to Excused'}
-                    onChange={() => setCorrectionType('Absent to Excused')}
-                    className="accent-[#36348e]"
-                  />
-                  <span className="font-semibold text-xs">Absent to Excused</span>
-                </label>
-                <label
-                  className={`flex items-center gap-2 p-2.5 rounded-lg cursor-pointer border transition-colors ${
-                    correctionType === 'Late to Present'
-                      ? 'border-[#36348e] bg-indigo-50/60 text-[#36348e]'
-                      : 'border-slate-200 bg-[#f1f1fa] text-[#545454]'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="corr-type"
-                    checked={correctionType === 'Late to Present'}
-                    onChange={() => setCorrectionType('Late to Present')}
-                    className="accent-[#36348e]"
-                  />
-                  <span className="font-semibold text-xs">Late to Present</span>
-                </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {correctionOptions.map((opt) => (
+                  <label
+                    key={opt}
+                    className={`flex items-center gap-2 p-2.5 rounded-xl cursor-pointer border transition-all text-xs font-bold ${
+                      correctionType === opt
+                        ? 'border-[#36348e] bg-indigo-50/80 text-[#36348e] shadow-2xs'
+                        : 'border-slate-200 bg-slate-50/60 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="corr-type"
+                      checked={correctionType === opt}
+                      onChange={() => setCorrectionType(opt)}
+                      className="accent-[#36348e]"
+                    />
+                    <span className="truncate">{opt}</span>
+                  </label>
+                ))}
               </div>
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[#545454] mb-1">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                 Administrative Justification
               </label>
               <textarea
@@ -167,38 +179,38 @@ export const CorrectionDrawer: React.FC = () => {
                 rows={4}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Provide medical note reference, bus dispatch delay ID, or counselor confirmation memo..."
-                className="w-full bg-[#f1f1fa] rounded-lg p-3 text-[#292929] text-xs placeholder:text-[#777587] focus:outline-none focus:ring-2 focus:ring-indigo-300 border border-indigo-100/60"
+                placeholder="Provide medical certificate reference, transportation delay memo, or administrative leave approval..."
+                className="w-full bg-white rounded-xl p-3 text-slate-800 text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 border border-slate-200 resize-none"
               ></textarea>
             </div>
 
-            <div className="p-3 rounded-lg bg-[#f1f1fa] text-xs text-[#545454] flex items-start gap-2">
-              <span className="material-symbols-outlined text-[16px] text-[#7a5b00] shrink-0 mt-0.5">
-                info
-              </span>
-              <span>
-                All correction requests appear in official audit registers with your teacher ID:
-                {teacher.employeeId}. SLA for Academic Operations review is ~45 minutes.
-              </span>
+            <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200/70 text-xs text-amber-900 flex items-start gap-2.5">
+              <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+              <p className="leading-relaxed">
+                All correction vouchers are logged in the institutional compliance audit trail with your teacher ID ({teacher.employeeId || 'TCH'}).
+              </p>
             </div>
           </form>
         </div>
 
         {/* Action Buttons */}
-        <div className="pt-4 border-t border-slate-100 flex items-center gap-3">
+        <div className="pt-4 border-t border-slate-100 flex items-center gap-2.5">
           <button
             type="button"
+            disabled={isSubmitting}
             onClick={() => dispatch(closeCorrectionDrawer())}
-            className="flex-1 py-2 rounded-lg bg-[#e8e8f6] text-[#292929] font-semibold text-xs sm:text-sm hover:bg-[#ffedc2] transition-colors"
+            className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="submit"
             form="correctionForm"
-            className="flex-1 py-2 rounded-lg bg-[#36348e] text-white font-semibold text-xs sm:text-sm hover:bg-[#ffc53a] hover:text-[#1b1a47] shadow-md transition-all"
+            disabled={isSubmitting}
+            className="flex-1 py-2.5 rounded-xl bg-[#36348e] hover:bg-[#2c2a75] text-white font-bold text-xs shadow-md shadow-indigo-100 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-[0.98]"
           >
-            Send Request
+            <Send className="w-3.5 h-3.5" />
+            <span>{isSubmitting ? 'Submitting...' : 'Submit Voucher'}</span>
           </button>
         </div>
       </div>

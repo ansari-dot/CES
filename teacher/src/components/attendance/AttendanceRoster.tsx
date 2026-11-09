@@ -126,7 +126,7 @@ export const AttendanceRoster: React.FC<AttendanceRosterProps> = ({ filterQuery 
             {filteredRoster.length === 0 ? (
               <tr>
                 <td colSpan={9} className="py-12 text-center text-slate-400">
-                  <span className="material-symbols-outlined text-3xl mb-1 text-slate-300 block">group_off</span>
+                  <Users className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                   <p className="font-medium text-xs text-slate-600">No students enrolled in this roster.</p>
                 </td>
               </tr>
@@ -134,12 +134,12 @@ export const AttendanceRoster: React.FC<AttendanceRosterProps> = ({ filterQuery 
               filteredRoster.map((student) => {
                 const isP = student.status === 'present';
                 const isA = student.status === 'absent';
-                const isL = student.status === 'leave' || student.status === 'late';
-                const isE = student.status === 'excused';
+                const isL = student.status === 'late';
+                const isE = student.status === 'excused' || student.status === 'leave';
 
                 const togglePresence = () => {
                   if (isLocked) return;
-                  // If present, uncheck to absent. If absent/leave/excused, check to present.
+                  // If present, uncheck to absent. If absent/late/leave/excused, check to present.
                   if (isP) {
                     dispatch(setStudentStatus({ studentId: student.studentId, status: 'absent' }));
                   } else {
@@ -215,7 +215,7 @@ export const AttendanceRoster: React.FC<AttendanceRosterProps> = ({ filterQuery 
                         {isL && <Clock className="w-3.5 h-3.5 text-amber-600" />}
                         {isE && <HelpCircle className="w-3.5 h-3.5 text-indigo-600" />}
                         <span>
-                          {isP ? 'Present' : isA ? 'Absent' : isL ? 'Leave' : 'Excused'}
+                          {isP ? 'Present' : isA ? 'Absent' : isL ? 'Late' : 'Leave'}
                         </span>
                       </button>
                     </td>
@@ -258,20 +258,20 @@ export const AttendanceRoster: React.FC<AttendanceRosterProps> = ({ filterQuery 
                       </button>
                     </td>
 
-                    {/* Column L: Leave Quick Button */}
+                    {/* Column L: Late Quick Button */}
                     <td className="px-3 py-2 text-center border-l border-slate-100">
                       <button
                         type="button"
                         disabled={isLocked}
                         onClick={() =>
-                          dispatch(setStudentStatus({ studentId: student.studentId, status: 'leave' }))
+                          dispatch(setStudentStatus({ studentId: student.studentId, status: 'late' }))
                         }
                         className={`w-8 h-8 rounded-lg inline-flex items-center justify-center font-bold text-xs transition-all cursor-pointer ${
                           isL
                             ? 'bg-amber-500 text-white shadow-xs ring-2 ring-amber-300'
                             : 'border border-slate-300 hover:border-amber-500 text-slate-400 hover:text-amber-600 bg-white'
                         } disabled:opacity-50 disabled:cursor-not-allowed`}
-                        title={`Mark ${student.studentName} on Leave`}
+                        title={`Mark ${student.studentName} Late`}
                       >
                         {isL ? <Clock className="w-4 h-4 stroke-[2.5]" /> : 'L'}
                       </button>

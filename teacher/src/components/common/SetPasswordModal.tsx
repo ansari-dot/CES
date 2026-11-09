@@ -6,6 +6,7 @@ import {
   logoutTeacherThunk
 } from '../../store/slices/authSlice';
 import { addToast } from '../../store/slices/uiSlice';
+import { Key, Eye, EyeOff } from 'lucide-react';
 
 const MIN_LENGTH = 10;
 
@@ -59,8 +60,8 @@ export const SetPasswordModal: React.FC = () => {
         className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 p-6"
       >
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 rounded-xl bg-[#cdd4fb] text-[#36348e] flex items-center justify-center shrink-0">
-            <span className="material-symbols-outlined text-[22px]">key</span>
+          <div className="w-11 h-11 rounded-xl bg-indigo-50 text-[#36348e] flex items-center justify-center shrink-0 border border-indigo-100">
+            <Key className="w-5 h-5 text-[#36348e]" />
           </div>
           <div>
             <h2 id="set-password-title" className="text-lg font-bold text-slate-900">
@@ -101,12 +102,14 @@ export const SetPasswordModal: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
                 aria-label={showPassword ? 'Hide passwords' : 'Show passwords'}
               >
-                <span className="material-symbols-outlined text-[18px]">
-                  {showPassword ? 'visibility_off' : 'visibility'}
-                </span>
+                {showPassword ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
               </button>
             </div>
           </div>

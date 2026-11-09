@@ -109,6 +109,26 @@ router.post(
   assessmentsController.publishResults
 );
 
+// Manual trigger: Send academic performance alerts to parents of students who got low or failing marks
+router.post(
+  '/:id/notify-low-performers',
+  requireRole('TEACHER', 'ADMIN', 'PRINCIPAL'),
+  assessmentsController.notifyLowPerformers
+);
+
+// Manual trigger for a single student attempt
+router.post(
+  '/:id/attempts/:attemptId/notify-parent',
+  requireRole('TEACHER', 'ADMIN', 'PRINCIPAL'),
+  assessmentsController.notifyAttemptParent
+);
+
+router.post(
+  '/:id/submissions/:attemptId/notify-parent',
+  requireRole('TEACHER', 'ADMIN', 'PRINCIPAL'),
+  assessmentsController.notifyAttemptParent
+);
+
 // -------------------------------------------------------------
 // Student Live Exam Room Routes
 // -------------------------------------------------------------
@@ -170,7 +190,7 @@ router.post(
 // Parent Child Assessment Results
 // -------------------------------------------------------------
 router.get(
-  '/parent/children/:studentId',
+  ['/parent/children/:studentId', '/parent/:studentId/results'],
   requireRole('PARENT', 'ADMIN', 'PRINCIPAL'),
   assessmentsController.getParentChildAssessments
 );

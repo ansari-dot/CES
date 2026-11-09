@@ -398,6 +398,208 @@ Please keep your login credentials safe.
 
     return await this.queueMail({ to: email, subject, html, text });
   }
+
+  /**
+   * Send Monthly Test Academic Performance Alert to Parent / Guardian
+   * Informs them that their child received a low or failing score on a monthly test,
+   * provides full score details and teacher remarks, and instructs them to review the
+   * full question breakdown on the Parent Portal.
+   */
+  async sendMonthlyTestPerformanceAlert({
+    to,
+    parentName,
+    studentName,
+    rollNo,
+    admissionNo,
+    className,
+    testTitle,
+    subjectName,
+    monthName,
+    totalMarks,
+    passingMarks,
+    obtainedMarks,
+    percentage,
+    isPassed,
+    teacherRemarks,
+    portalUrl = process.env.PARENT_PORTAL_URL || 'http://localhost:3003'
+  }) {
+    if (!to) {
+      console.warn('[EmailService] Monthly test alert skipped: No recipient parent email.');
+      return { sent: false, reason: 'NO_RECIPIENT' };
+    }
+
+    const safeTotal = Number(totalMarks) || 1;
+    const safeObtained = Number(obtainedMarks) || 0;
+    const safePassing = Number(passingMarks) || 0;
+    const safePct = percentage != null ? Number(percentage) : Math.round((safeObtained / safeTotal) * 100);
+    const passingPct = Math.round((safePassing / safeTotal) * 100);
+
+    const subject = `Academic Performance Alert: ${studentName} - ${testTitle} (${subjectName})`;
+    const resultsPageUrl = `${portalUrl.replace(/\/+$/, '')}/results`;
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(subject)}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #1e293b; }
+    .card { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.07); border: 1px solid #e2e8f0; }
+    .header { background: linear-gradient(135deg, #991b1b 0%, #1e1b4b 100%); padding: 32px 28px; text-align: center; color: #ffffff; }
+    .badge { display: inline-block; background: #fef2f2; color: #991b1b; padding: 4px 12px; border-radius: 9999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+    .header h1 { margin: 0 0 6px; font-size: 22px; font-weight: 700; letter-spacing: -0.3px; }
+    .header p { margin: 0; font-size: 13px; opacity: 0.9; }
+    .body { padding: 28px; }
+    .greeting { font-size: 16px; font-weight: 600; margin-bottom: 14px; color: #0f172a; }
+    .intro { font-size: 14px; line-height: 1.6; color: #475569; margin-bottom: 20px; }
+    .score-banner { background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 16px; margin-bottom: 22px; text-align: center; }
+    .score-title { font-size: 12px; font-weight: 700; color: #991b1b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .score-number { font-size: 28px; font-weight: 800; color: #7f1d1d; }
+    .score-sub { font-size: 12px; color: #b91c1c; margin-top: 2px; }
+    .result-box { background: #f8fafc; border-radius: 12px; padding: 18px; border: 1px solid #e2e8f0; margin-bottom: 22px; }
+    .result-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px dashed #e2e8f0; font-size: 13px; }
+    .result-row:last-child { border-bottom: none; }
+    .label { color: #64748b; font-weight: 500; }
+    .value { font-weight: 700; color: #0f172a; }
+    .value.danger { color: #b91c1c; }
+    .remarks-box { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 8px; margin-bottom: 22px; font-size: 13px; color: #78350f; font-style: italic; }
+    .btn-container { text-align: center; margin: 26px 0; }
+    .btn { background: #1e1b4b; color: #ffffff !important; padding: 14px 30px; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 700; display: inline-block; box-shadow: 0 4px 12px rgba(30, 27, 75, 0.3); }
+    .btn:hover { background: #2e287a; }
+    .action-steps { background: #eff6ff; border-radius: 12px; padding: 16px 20px; border: 1px solid #bfdbfe; font-size: 13px; color: #1e3a8a; margin-bottom: 22px; }
+    .action-steps h4 { margin: 0 0 8px; font-size: 13px; font-weight: 700; }
+    .action-steps ol { margin: 0; padding-left: 18px; }
+    .action-steps li { margin-bottom: 6px; line-height: 1.4; }
+    .footer { padding: 18px 28px; background: #f8fafc; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div class="badge">Academic Intervention Alert</div>
+      <h1>Cambridge Education System</h1>
+      <p>Monthly Test Performance Notification</p>
+    </div>
+    <div class="body">
+      <div class="greeting">Dear ${escapeHtml(parentName || 'Parent / Guardian')},</div>
+      <div class="intro">
+        This is an official performance alert regarding your child, <strong>${escapeHtml(studentName)}</strong>. 
+        In the recently evaluated <strong>${escapeHtml(testTitle)}</strong> for <strong>${escapeHtml(subjectName)}</strong>${monthName ? ` (${escapeHtml(monthName)})` : ''}, your child's score did not meet the required passing standard.
+      </div>
+
+      <div class="score-banner">
+        <div class="score-title">Monthly Test Result</div>
+        <div class="score-number">${safeObtained} / ${safeTotal}</div>
+        <div class="score-sub">${safePct}% &bull; Passing Requirement: ${safePassing} Marks (${passingPct}%) &bull; ${isPassed ? 'Satisfactory' : 'Needs Immediate Improvement'}</div>
+      </div>
+
+      <div class="result-box">
+        <div class="result-row">
+          <span class="label">Student Name:</span>
+          <span class="value">${escapeHtml(studentName)}</span>
+        </div>
+        ${rollNo ? `
+        <div class="result-row">
+          <span class="label">Roll Number:</span>
+          <span class="value">${escapeHtml(rollNo)}</span>
+        </div>` : ''}
+        ${admissionNo ? `
+        <div class="result-row">
+          <span class="label">Admission No:</span>
+          <span class="value">${escapeHtml(admissionNo)}</span>
+        </div>` : ''}
+        ${className ? `
+        <div class="result-row">
+          <span class="label">Class:</span>
+          <span class="value">${escapeHtml(className)}</span>
+        </div>` : ''}
+        <div class="result-row">
+          <span class="label">Subject:</span>
+          <span class="value">${escapeHtml(subjectName)}</span>
+        </div>
+        <div class="result-row">
+          <span class="label">Evaluation / Test:</span>
+          <span class="value">${escapeHtml(testTitle)}</span>
+        </div>
+        <div class="result-row">
+          <span class="label">Obtained Marks:</span>
+          <span class="value danger">${safeObtained} / ${safeTotal} (${safePct}%)</span>
+        </div>
+        <div class="result-row">
+          <span class="label">Minimum Passing Standard:</span>
+          <span class="value">${safePassing} Marks (${passingPct}%)</span>
+        </div>
+        <div class="result-row">
+          <span class="label">Status:</span>
+          <span class="value danger">${isPassed ? 'Passed' : 'Needs Work (Below Passing Standard)'}</span>
+        </div>
+      </div>
+
+      ${teacherRemarks ? `
+      <div class="remarks-box">
+        <strong>Teacher Feedback:</strong><br>
+        &ldquo;${escapeHtml(teacherRemarks)}&rdquo;
+      </div>` : ''}
+
+      <div class="action-steps">
+        <h4>Review Instructions on the Parent Portal:</h4>
+        <ol>
+          <li>Click the button below to log into the <strong>Parent Portal</strong>.</li>
+          <li>Navigate to the <strong>Results &amp; Assessments</strong> section to review individual questions, marks per question, and correct answer explanations.</li>
+          <li>Review key subject concepts with your child to prepare for upcoming formative assessments.</li>
+        </ol>
+      </div>
+
+      <div class="btn-container">
+        <a href="${resultsPageUrl}" class="btn">View Full Results on Parent Portal &rarr;</a>
+      </div>
+
+      <p class="intro" style="font-size: 13px; color: #64748b; margin-bottom: 0;">
+        If you have questions or would like to request academic support or consultation with the subject teacher, please reach out via the portal or school administration.
+      </p>
+    </div>
+    <div class="footer">
+      Cambridge Education System &bull; Continuous Academic Monitoring &bull; Automated System Notice<br>
+      Direct portal link: <a href="${resultsPageUrl}" style="color: #64748b;">${resultsPageUrl}</a>
+    </div>
+  </div>
+</body>
+</html>
+    `;
+
+    const text = `
+Cambridge Education System - Monthly Test Academic Performance Alert
+
+Dear ${parentName || 'Parent / Guardian'},
+
+This is an official performance notice regarding your child, ${studentName}.
+In the recently evaluated ${testTitle} for ${subjectName}${monthName ? ` (${monthName})` : ''}, your child's score was below the required passing standard.
+
+Evaluation Details:
+- Student: ${studentName} (Roll: ${rollNo || 'N/A'}${admissionNo ? `, Admission: ${admissionNo}` : ''})
+- Class: ${className || 'Enrolled Class'}
+- Subject: ${subjectName}
+- Test: ${testTitle}
+- Marks Obtained: ${safeObtained} / ${safeTotal} (${safePct}%)
+- Passing Requirement: ${safePassing} Marks (${passingPct}%)
+- Performance Status: ${isPassed ? 'Passed' : 'Needs Immediate Improvement (Below Passing)'}
+${teacherRemarks ? `- Teacher Feedback: "${teacherRemarks}"\n` : ''}
+
+Please log in to your Parent Portal account to inspect the full question-by-question breakdown, view incorrect answers, and read teacher feedback:
+${resultsPageUrl}
+
+For questions or tutoring support, contact the school administration or subject teacher.
+    `.trim();
+
+    return await this.queueMail({
+      to,
+      subject,
+      html,
+      text
+    });
+  }
 }
 
 export const emailService = new EmailService();

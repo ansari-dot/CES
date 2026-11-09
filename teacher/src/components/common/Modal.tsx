@@ -1,11 +1,12 @@
 import React, { useEffect } from 'react';
+import { X } from 'lucide-react';
 
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
   subtitle?: string;
-  icon?: string;
+  icon?: React.ReactNode;
   iconBgColor?: string;
   maxWidth?: string;
   children: React.ReactNode;
@@ -48,7 +49,11 @@ export const Modal: React.FC<ModalProps> = ({
               <div
                 className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${iconBgColor}`}
               >
-                <span className="material-symbols-outlined text-[22px]">{icon}</span>
+                {typeof icon === 'string' ? (
+                  <span className="text-[18px] font-bold">{icon}</span>
+                ) : (
+                  icon
+                )}
               </div>
             )}
             <div>
@@ -58,9 +63,10 @@ export const Modal: React.FC<ModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            title="Close"
           >
-            <span className="material-symbols-outlined text-[20px]">close</span>
+            <X className="w-5 h-5" />
           </button>
         </div>
         <div className="mt-4">{children}</div>

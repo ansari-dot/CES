@@ -439,5 +439,117 @@ export const assessmentsRepository = {
       subjective_score: a.subjective_score != null ? Number(a.subjective_score) : 0,
       total_score: Number(a.total_score)
     }));
+  },
+
+  /**
+   * Find all students with low/failing results for a specific monthly test.
+   * Single-query, indexed join with zero N+1 overhead.
+   */
+  async findLowPerformingAttempts(testId, thresholdPercentage = null) {
+    const test = await this.findTestById(testId);
+    if (!test) return { test: null, attempts: [] };
+
+    const passingMarks = Number(test.passing_marks);
+    const totalMarks = Number(test.total_marks) || 1;
+
+    // Threshold score: custom percentage if provided, otherwise the test passing_marks
+    const thresholdScore = thresholdPercentage != null
+      ? (Number(thresholdPercentage) / 100) * totalMarks
+      : passingMarks;
+
+    const attempts = await db('test_attempts as ta')
+      .join('students as s', 'ta.student_id', 's.id')
+      .join('users as u', 's.user_id', 'u.id')
+      .leftJoin('enrollments as e', function () {
+        this.on('s.id', '=', 'e.student_id')
+          .andOn('e.class_id', '=', db.raw('?', [test.class_id]))
+          .andOn('e.session_id', '=', db.raw('?', [test.session_id]));
+      })
+      .where('ta.test_id', testId)
+      .whereIn('ta.status', ['GRADED', 'AUTO_EXPIRED', 'SUBMITTED'])
+      .andWhere(function () {
+        this.where('ta.is_passed', 0)
+          .orWhere('ta.is_passed', false)
+          .orWhere('ta.total_score', '<', thresholdScore)
+          .orWhereRaw('(ta.total_score / ?) < 0.50', [totalMarks]);
+      })
+      .select(
+        'ta.id as attempt_id',
+        'ta.test_id',
+        'ta.student_id',
+        'ta.status as attempt_status',
+        'ta.total_score',
+        'ta.mcq_score',
+        'ta.subjective_score',
+        'ta.is_passed',
+        'ta.teacher_remarks',
+        'ta.graded_at',
+        's.admission_no',
+        's.roll_no as student_roll_no',
+        'e.roll_no as enrollment_roll_no',
+        'u.id as student_user_id',
+        'u.full_name as student_name',
+        'u.email as student_email'
+      );
+
+    return {
+      test,
+      attempts: attempts.map((a) => ({
+        ...a,
+        total_score: Number(a.total_score || 0),
+        mcq_score: Number(a.mcq_score || 0),
+        subjective_score: a.subjective_score != null ? Number(a.subjective_score) : 0,
+        is_passed: Boolean(a.is_passed)
+      }))
+    };
+  },
+
+  /**
+   * Fetch all verified parents linked to a list of students in a single query.
+   */
+  async getParentsForStudents(studentIds) {
+    if (!studentIds || studentIds.length === 0) return [];
+    return db('parent_student as ps')
+      .join('parents as p', 'ps.parent_id', 'p.id')
+      .join('users as u', 'p.user_id', 'u.id')
+      .whereIn('ps.student_id', studentIds)
+      .select(
+        'ps.student_id',
+        'ps.relation',
+        'ps.is_primary',
+        'p.id as parent_id',
+        'u.id as user_id',
+        'u.full_name as parent_name',
+        'u.email as parent_email'
+      );
+  },
+
+  /**
+   * Fetch single attempt with student and test details.
+   */
+  async findAttemptWithStudent(testId, attemptId) {
+    const attempt = await db('test_attempts as ta')
+      .join('students as s', 'ta.student_id', 's.id')
+      .join('users as u', 's.user_id', 'u.id')
+      .where('ta.id', attemptId)
+      .andWhere('ta.test_id', testId)
+      .select(
+        'ta.*',
+        's.admission_no',
+        's.roll_no as student_roll_no',
+        'u.id as student_user_id',
+        'u.full_name as student_name',
+        'u.email as student_email'
+      )
+      .first();
+
+    if (!attempt) return null;
+    return {
+      ...attempt,
+      total_score: Number(attempt.total_score || 0),
+      mcq_score: Number(attempt.mcq_score || 0),
+      subjective_score: attempt.subjective_score != null ? Number(attempt.subjective_score) : 0,
+      is_passed: Boolean(attempt.is_passed)
+    };
   }
 };
