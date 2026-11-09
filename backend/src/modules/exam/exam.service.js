@@ -57,6 +57,57 @@ export const examService = {
   },
 
   /**
+   * Find the examination series for a term, creating it on first use.
+   *
+   * Marks entry needs a terminal_exams row per term, but no portal screen
+   * is dedicated to creating one — so the first teacher (or staff member)
+   * to open the marks register for a term initializes the series here.
+   * Idempotent: an existing non-cancelled series for the term is returned as is.
+   */
+  async ensureTermExam(termId, actor) {
+    if (!isStaff(actor) && actor.role !== 'TEACHER') {
+      throw forbidden('Only staff or teachers can initialize an examination series.');
+    }
+
+    const term = await resultsRepository.getTermById(Number(termId));
+    if (!term) throw new AppError('Term not found', 404, ErrorCodes.NOT_FOUND);
+
+    const existing = await examRepository.listExams({ termId: term.id });
+    const active = (existing || []).find((e) => e.status !== EXAM_STATUS.CANCELLED);
+    if (active) return await examRepository.getExamById(active.id);
+
+    const session = await academicRepository.getSessionById(term.session_id);
+    if (!session) throw new AppError('Academic session not found', 404, ErrorCodes.NOT_FOUND);
+    if (session.status === 'CLOSED') {
+      throw new AppError('Cannot schedule an exam for a closed academic year', 409, ErrorCodes.INVALID_STATE);
+    }
+
+    const title = `${term.name} Terminal Examination (${session.name})`.slice(0, 150);
+    const examId = await examRepository.createExam({
+      session_id: term.session_id,
+      term_id: term.id,
+      title,
+      exam_type: 'TERMINAL',
+      start_date: term.start_date || null,
+      end_date: term.end_date || null,
+      status: EXAM_STATUS.SCHEDULED,
+      created_by: actor.id
+    });
+
+    notificationService.notify({
+      title: 'New Examination Series Created',
+      message: `${title} has been scheduled for marks entry.`,
+      type: 'Exam Created',
+      targetRole: 'PRINCIPAL',
+      relatedRecordId: String(examId),
+      relatedRecordType: 'TerminalExam',
+      priority: 'Medium'
+    });
+
+    return await examRepository.getExamById(examId);
+  },
+
+  /**
    * List all examination series with filters.
    */
   async listExams(query, user) {

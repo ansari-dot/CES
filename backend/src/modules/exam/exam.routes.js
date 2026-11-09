@@ -5,6 +5,7 @@ import { authorize } from '../../shared/middleware/authorize.js';
 import { validate } from '../../shared/middleware/validate.js';
 import {
   createExamSchema,
+  ensureExamSchema,
   createPaperSchema,
   submitMarksSchema,
   calculateResultsSchema,
@@ -20,6 +21,14 @@ router.post(
   authorize('results.manage'),
   validate(createExamSchema),
   examController.create
+);
+
+// Find-or-create the term's examination series (teachers initialize it from marks entry)
+router.post(
+  '/ensure',
+  authenticate,
+  validate(ensureExamSchema),
+  examController.ensure
 );
 
 router.get('/', authenticate, examController.list);

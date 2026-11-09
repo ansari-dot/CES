@@ -11,6 +11,12 @@ export const createExamSchema = {
   })
 };
 
+export const ensureExamSchema = {
+  body: z.object({
+    termId: z.coerce.number().int().positive('Term ID must be positive')
+  })
+};
+
 export const createPaperSchema = {
   body: z.object({
     classId: z.coerce.number().int().positive('Class ID is required'),

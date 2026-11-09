@@ -10,6 +10,15 @@ export const examController = {
     }
   },
 
+  async ensure(req, res, next) {
+    try {
+      const exam = await examService.ensureTermExam(req.body.termId, req.user);
+      res.json({ success: true, data: exam });
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async list(req, res, next) {
     try {
       const data = await examService.listExams(req.query, req.user);

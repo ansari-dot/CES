@@ -88,16 +88,21 @@ export const ExamMarksEntryModal: React.FC<Props> = ({
         setError(null);
         setNeedsPaperSetup(false);
 
-        // 1. Find the examination series for this term
+        // 1. Find the examination series for this term, initializing it on first use
         const examsRes = await requestApi<any[]>(`/api/v1/exams?termId=${termId}`);
         const examList = Array.isArray(examsRes) ? examsRes : [];
-        if (examList.length === 0) {
+        let currentExam = examList.find((e) => e.status !== 'CANCELLED') || null;
+        if (!currentExam) {
+          currentExam = await requestApi<any>('/api/v1/exams/ensure', {
+            method: 'POST',
+            body: JSON.stringify({ termId })
+          });
+        }
+        if (!currentExam) {
           setError('No examination series is scheduled for this academic term.');
           setLoading(false);
           return;
         }
-
-        const currentExam = examList[0];
         setExamId(currentExam.id);
 
         // 2. Fetch papers for this exam and class
