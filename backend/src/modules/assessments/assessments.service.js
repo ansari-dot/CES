@@ -298,6 +298,10 @@ export const assessmentsService = {
   },
 
   async listTests(user, query = {}) {
+    // Lazy correction so the list is accurate even between sweeper ticks:
+    // any published test past its end time becomes CLOSED right now.
+    await assessmentsRepository.autoCloseExpiredTests(new Date()).catch(() => {});
+
     const sessionId = query.sessionId || (await getCurrentSessionId());
     const limit = Math.min(Number(query.limit) || 50, 100);
     const offset = Number(query.offset) || 0;
@@ -496,10 +500,18 @@ export const assessmentsService = {
     const availableUntil = parseDbDate(test.available_until);
 
     if (now.getTime() < availableFrom.getTime()) {
-      const waitSecs = Math.max(1, Math.ceil((availableFrom.getTime() - now.getTime()) / 1000));
-      throw validationError(
-        `This examination is not open yet. It is scheduled to start at ${availableFrom.toISOString()} (in ${waitSecs} seconds).`
-      );
+      // Structured waiting payload: the exam room renders a live countdown
+      // against the server clock. No attempt is created and no questions leak.
+      return {
+        notOpenYet: true,
+        not_open_yet: true,
+        available_from: availableFrom.toISOString(),
+        availableFrom: availableFrom.toISOString(),
+        server_time: now.toISOString(),
+        test: this._publicTestInfo(test),
+        is_completed: false,
+        isCompleted: false
+      };
     }
     if (now.getTime() > availableUntil.getTime()) {
       throw validationError(

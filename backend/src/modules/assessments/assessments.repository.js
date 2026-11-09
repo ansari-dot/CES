@@ -40,6 +40,14 @@ export const assessmentsRepository = {
     };
   },
 
+  /** Flip PUBLISHED tests whose availability window has ended to CLOSED. */
+  async autoCloseExpiredTests(nowDate = new Date()) {
+    return db('monthly_tests')
+      .where('status', 'PUBLISHED')
+      .where('available_until', '<=', nowDate)
+      .update({ status: 'CLOSED', updated_at: db.raw('CURRENT_TIMESTAMP(3)') });
+  },
+
   async getTestsList({ classId, subjectId, teacherId, status, examType, sessionId, limit = 50, offset = 0 }) {
     let query = db('monthly_tests')
       .join('classes', 'monthly_tests.class_id', 'classes.id')

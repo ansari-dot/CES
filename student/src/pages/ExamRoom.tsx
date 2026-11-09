@@ -54,6 +54,11 @@ export default function ExamRoom() {
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isAutoSubmittingRef = useRef<boolean>(false);
 
+  // Waiting room: test exists but has not opened yet (server-authoritative)
+  const [waitInfo, setWaitInfo] = useState<{ targetMs: number; test: any } | null>(null);
+  const [waitSeconds, setWaitSeconds] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
+
   // 1. Initial Load of Exam Data & Timer
   useEffect(() => {
     if (!testId) return;
@@ -63,6 +68,18 @@ export default function ExamRoom() {
         setLoading(true);
         setErrorMsg(null);
         const data = await studentAssessmentsApi.startOrResumeTest(Number(testId));
+
+        // Test not open yet: show the live countdown waiting room. The target
+        // time is computed against the server clock, never the device clock.
+        const raw = data as any;
+        if (raw.notOpenYet) {
+          const clockOffset = new Date(raw.server_time).getTime() - Date.now();
+          const targetMs = new Date(raw.available_from).getTime() - clockOffset;
+          setWaitInfo({ targetMs, test: raw.test });
+          setWaitSeconds(Math.max(1, Math.ceil((targetMs - Date.now()) / 1000)));
+          return;
+        }
+        setWaitInfo(null);
         setExamData(data);
 
         // Attempt already submitted / expired: show the submitted screen
@@ -101,7 +118,23 @@ export default function ExamRoom() {
     };
 
     loadExam();
-  }, [testId]);
+  }, [testId, reloadKey]);
+
+  // 1b. Waiting-room ticking countdown; re-enters the room at zero.
+  useEffect(() => {
+    if (!waitInfo) return;
+    const timer = setInterval(() => {
+      const secs = Math.ceil((waitInfo.targetMs - Date.now()) / 1000);
+      if (secs <= 0) {
+        clearInterval(timer);
+        setWaitInfo(null);
+        setReloadKey((k) => k + 1);
+      } else {
+        setWaitSeconds(secs);
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [waitInfo]);
 
   // 2. Authoritative Ticking Countdown Timer
   useEffect(() => {
@@ -231,6 +264,38 @@ export default function ExamRoom() {
         <div className="w-10 h-10 border-3 border-indigo-400 border-t-transparent rounded-full animate-spin mb-4" />
         <h2 className="text-sm font-bold tracking-wider uppercase">Entering Secure Examination Room...</h2>
         <p className="text-xs text-slate-400 mt-1">Connecting to authoritative server countdown</p>
+      </div>
+    );
+  }
+
+  // Waiting room: the test opens soon — live server-authoritative countdown
+  if (waitInfo) {
+    const h = Math.floor(waitSeconds / 3600);
+    const m = Math.floor((waitSeconds % 3600) / 60);
+    const s = waitSeconds % 60;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-md w-full shadow-lg text-center space-y-4">
+          <div className="w-12 h-12 rounded-full bg-[#f1f1fa] text-[#36348e] flex items-center justify-center mx-auto">
+            <Clock className="w-6 h-6" />
+          </div>
+          <h2 className="text-base font-bold text-slate-800">{waitInfo.test?.title || 'Examination'}</h2>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            {waitInfo.test?.subject_name ? `${waitInfo.test.subject_name} · ` : ''}
+            This examination has not opened yet. It will start automatically when the countdown ends.
+          </p>
+          <div className="font-mono text-3xl font-extrabold text-[#1b1a47] tracking-widest tabular-nums">
+            {pad(h)}:{pad(m)}:{pad(s)}
+          </div>
+          <p className="text-[11px] text-slate-400">Synced with the school server clock — keep this page open.</p>
+          <button
+            onClick={() => navigate('/student/tests')}
+            className="w-full py-2.5 bg-[#1b1a47] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white rounded-xl text-xs font-bold transition shadow-xs"
+          >
+            Return to Monthly Tests
+          </button>
+        </div>
       </div>
     );
   }

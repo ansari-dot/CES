@@ -12,9 +12,13 @@ export async function runAssessmentExpirySweep() {
   isRunning = true;
 
   try {
+    // Auto-close published tests whose availability window has ended, so
+    // teachers never need to press Close at the end time.
+    const autoClosedCount = await assessmentsRepository.autoCloseExpiredTests(new Date());
+
     const expiredAttempts = await assessmentsRepository.findExpiredInProgressAttempts(new Date());
     if (expiredAttempts.length === 0) {
-      return { finalizedCount: 0 };
+      return { finalizedCount: 0, autoClosedCount };
     }
 
     let finalizedCount = 0;
@@ -27,7 +31,7 @@ export async function runAssessmentExpirySweep() {
       }
     }
 
-    return { finalizedCount };
+    return { finalizedCount, autoClosedCount };
   } finally {
     isRunning = false;
   }
