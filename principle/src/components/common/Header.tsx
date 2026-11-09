@@ -127,6 +127,7 @@ export const Header: React.FC<HeaderProps> = ({
     payroll: { section: 'Financials', title: 'Teacher Payroll & Duty Review' },
     'academic-oversight': { section: 'Academics', title: 'Terminal Exam Results & Academic Progress' },
     'academic-year': { section: 'Governance', title: 'Academic Year & Promotion Management' },
+    'password-resets': { section: 'Access & Controls', title: 'Password Reset Requests' },
     notices: { section: 'Governance', title: 'Official Notices & Circulars' },
     notifications: { section: 'Governance', title: 'Operational Notifications' },
     reports: { section: 'Governance', title: 'Operational Reports & Exports' },

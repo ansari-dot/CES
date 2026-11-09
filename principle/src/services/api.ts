@@ -1957,6 +1957,19 @@ export const api = {
     return await requestApi<any>(`/api/v1/promotions/preview?sessionId=${sessionId}&toSessionId=${toSessionId}`);
   },
 
+  // 19. Password Reset Requests (Principal approval) — Live Only
+  async getPasswordResetRequests(): Promise<any[]> {
+    const data = await requestApi<any[]>('/api/v1/auth/password-reset-requests');
+    return Array.isArray(data) ? data : [];
+  },
+
+  async reviewPasswordResetRequest(id: number, decision: 'APPROVED' | 'REJECTED'): Promise<any> {
+    return await requestApi<any>(`/api/v1/auth/password-reset-requests/${id}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ decision })
+    });
+  },
+
   async executePromotions(sessionId: number, toSessionId: number): Promise<any> {
     return await requestApi<any>('/api/v1/promotions/execute', {
       method: 'POST',

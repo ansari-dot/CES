@@ -16,6 +16,7 @@ import {
   History,
   UserCheck,
   ShieldAlert,
+  KeyRound,
   Lock,
   ChevronRight,
   LogOut,
@@ -44,6 +45,7 @@ export type ActiveModule =
   | 'notifications'
   | 'reports'
   | 'audit'
+  | 'password-resets'
   | 'profile';
 
 interface SidebarProps {
@@ -155,6 +157,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       title: 'Access & Controls',
       items: [
+        { id: 'password-resets', label: 'Password Reset Requests', icon: KeyRound },
         { id: 'profile', label: 'Principal Profile & Settings', icon: ShieldAlert }
       ]
     }
