@@ -255,7 +255,12 @@ export const PaymentVerificationModule: React.FC = () => {
                             `payment_proof_${selectedProof.challanNumber || selectedProof.id}`
                           );
                         } catch (err) {
-                          toast.error(err instanceof Error ? err.message : 'Could not open the payment proof file.');
+                          const msg = err instanceof Error ? err.message : 'Could not open the payment proof file.';
+                          toast.error(
+                            /not found/i.test(msg)
+                              ? 'The receipt file no longer exists on the server (it may be an old test record). Ask the parent to re-upload the payment proof.'
+                              : msg
+                          );
                         }
                       }}
                       className="text-xs text-sky-600 underline font-mono flex items-center gap-1 hover:text-sky-800 cursor-pointer"
