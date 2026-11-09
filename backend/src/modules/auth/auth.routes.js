@@ -3,6 +3,7 @@ import { authController } from './auth.controller.js';
 import { authenticate, authenticateOptional } from '../../shared/middleware/authenticate.js';
 import { validate } from '../../shared/middleware/validate.js';
 import { loginRateLimiter, passwordResetRateLimiter } from '../../shared/middleware/rateLimit.js';
+import { requireRole } from '../../shared/services/accessScope.js';
 import {
   loginSchema,
   changePasswordSchema,
@@ -15,6 +16,24 @@ const router = Router();
 // Public auth endpoints with brute-force / DDoS rate limiting
 router.post('/login', loginRateLimiter, validate(loginSchema), authController.login);
 router.post('/refresh', authController.refresh);
+
+// Principal-approved OTP password reset (public request + completion)
+router.post('/forgot-password', passwordResetRateLimiter, validate(forgotPasswordSchema), authController.forgotPassword);
+router.post('/reset-password', passwordResetRateLimiter, validate(resetPasswordSchema), authController.resetPassword);
+
+// Principal/Admin review of reset requests
+router.get(
+  '/password-reset-requests',
+  authenticate,
+  requireRole('ADMIN', 'PRINCIPAL'),
+  authController.listPasswordResetRequests
+);
+router.post(
+  '/password-reset-requests/:id/review',
+  authenticate,
+  requireRole('ADMIN', 'PRINCIPAL'),
+  authController.reviewPasswordResetRequest
+);
 
 // CSRF token retrieval — optional authentication binds to session if present, else anonymous
 router.get('/csrf', authenticateOptional, authController.getCsrf);

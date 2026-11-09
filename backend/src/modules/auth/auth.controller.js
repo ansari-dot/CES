@@ -133,5 +133,47 @@ export const authController = {
     } catch (error) {
       next(error);
     }
+  },
+
+  // ── Principal-approved OTP password reset ──────────────────────────
+
+  async forgotPassword(req, res, next) {
+    try {
+      const data = await authService.requestPasswordReset({ identifier: req.body.identifier });
+      return sendSuccess(res, data);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async resetPassword(req, res, next) {
+    try {
+      const data = await authService.completePasswordReset({
+        identifier: req.body.identifier,
+        otp: req.body.otp,
+        newPassword: req.body.newPassword
+      });
+      return sendSuccess(res, data);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async listPasswordResetRequests(req, res, next) {
+    try {
+      const rows = await authService.listPasswordResetRequests(req.query.status || null);
+      return sendSuccess(res, rows);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async reviewPasswordResetRequest(req, res, next) {
+    try {
+      const row = await authService.reviewPasswordResetRequest(req.params.id, req.body.decision, req.user);
+      return sendSuccess(res, row);
+    } catch (error) {
+      next(error);
+    }
   }
 };

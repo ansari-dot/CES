@@ -13,6 +13,10 @@ import { ErrorCodes } from '../../shared/errors/errorCodes.js';
 import { config } from '../../config/index.js';
 import { db } from '../../shared/db/knex.js';
 import { decryptAesGcm } from '../../shared/crypto/aes.js';
+import { randomInt } from 'crypto';
+import { notificationService } from '../../shared/services/notificationService.js';
+import { emailService } from '../../shared/email/email.service.js';
+import { auditRepository } from '../audit/audit.repository.js';
 
 async function enrichUserData(user, permissions) {
   let teacherProfile = null;
@@ -462,6 +466,185 @@ export const authService = {
     if (user.must_change_password) {
       await db('users').where({ id: userId }).update({ must_change_password: 0 });
     }
+  },
+
+  // ── Principal-approved OTP password reset ──────────────────────────
+
+  /**
+   * Public: a teacher/student/parent asks for a password reset. Creates a
+   * PENDING request the Principal must approve. Always answers neutrally so
+   * account existence is never revealed.
+   */
+  async requestPasswordReset({ identifier }) {
+    const neutral = {
+      message:
+        'If the account exists, your request has been submitted to the school for approval. You will receive an email with a one-time code once the Principal approves it.'
+    };
+    const user = await authRepository.findUserByIdentifier(identifier);
+    if (!user || (user.status !== 'ACTIVE' && user.status !== 'SUSPENDED')) return neutral;
+    if (!['TEACHER', 'STUDENT', 'PARENT'].includes(user.role_code)) return neutral;
+    if (!user.email || !user.email.includes('@')) return neutral;
+
+    const open = await db('password_reset_requests')
+      .where({ user_id: user.id })
+      .whereIn('status', ['PENDING', 'APPROVED'])
+      .first();
+    if (!open) {
+      const [id] = await db('password_reset_requests').insert({
+        user_id: user.id,
+        role_code: user.role_code,
+        email: user.email
+      });
+      notificationService.notify({
+        title: 'Password Reset Request',
+        message: `${user.full_name} (${user.role_code.toLowerCase()}) has requested a password reset. Review it under Access & Controls → Password Resets.`,
+        type: 'Password Reset',
+        targetRole: 'PRINCIPAL',
+        relatedRecordId: String(id),
+        relatedRecordType: 'PasswordResetRequest',
+        priority: 'High'
+      });
+      await auditRepository.recordAuditLog({
+        actorId: user.id,
+        actorName: user.username,
+        actorRole: user.role_code,
+        action: 'REQUEST_PASSWORD_RESET',
+        recordType: 'Password Reset',
+        recordIdentifier: `${user.username} (#${id})`
+      });
+    }
+    return neutral;
+  },
+
+  async listPasswordResetRequests(status = null) {
+    let query = db('password_reset_requests')
+      .join('users', 'password_reset_requests.user_id', 'users.id')
+      .select(
+        'password_reset_requests.id',
+        'password_reset_requests.user_id as userId',
+        'password_reset_requests.role_code as roleCode',
+        'password_reset_requests.email',
+        'password_reset_requests.status',
+        'password_reset_requests.created_at as requestedAt',
+        'password_reset_requests.reviewed_at as reviewedAt',
+        'password_reset_requests.completed_at as completedAt',
+        'users.full_name as fullName',
+        'users.username'
+      )
+      .orderBy('password_reset_requests.id', 'desc')
+      .limit(100);
+    if (status) query = query.where('password_reset_requests.status', status);
+    return await query;
+  },
+
+  /** Principal approves (emails a hashed, 15-minute, single-use OTP) or rejects. */
+  async reviewPasswordResetRequest(requestId, decision, actor) {
+    const upper = String(decision || '').toUpperCase();
+    if (upper !== 'APPROVED' && upper !== 'REJECTED') {
+      throw new AppError('Decision must be APPROVED or REJECTED', 422, ErrorCodes.VALIDATION_ERROR);
+    }
+    const request = await db('password_reset_requests').where({ id: Number(requestId) }).first();
+    if (!request) throw new AppError('Password reset request not found', 404, ErrorCodes.NOT_FOUND);
+    if (request.status !== 'PENDING') {
+      throw new AppError(`This request has already been ${request.status.toLowerCase()}`, 409, ErrorCodes.INVALID_STATE);
+    }
+    const user = await authRepository.findUserById(request.user_id);
+    if (!user) throw new AppError('The requesting account no longer exists', 404, ErrorCodes.NOT_FOUND);
+
+    if (upper === 'REJECTED') {
+      await db('password_reset_requests')
+        .where({ id: request.id })
+        .update({ status: 'REJECTED', reviewed_by: actor.id, reviewed_at: db.fn.now(3) });
+    } else {
+      const otp = String(randomInt(100000, 1000000)); // 6 digits, crypto-secure
+      const otpHash = await hashPassword(otp);
+      await db('password_reset_requests')
+        .where({ id: request.id })
+        .update({
+          status: 'APPROVED',
+          otp_hash: otpHash,
+          otp_expires_at: new Date(Date.now() + 15 * 60 * 1000),
+          attempt_count: 0,
+          reviewed_by: actor.id,
+          reviewed_at: db.fn.now(3)
+        });
+      // Fire-and-forget email; approval stands even if SMTP hiccups (the
+      // Principal can re-approve a new request if the mail never arrives).
+      emailService
+        .sendPasswordResetOtp({ to: request.email, name: user.full_name, otp })
+        .catch((err) => console.warn('[PasswordReset] OTP email failed:', err.message));
+    }
+
+    await auditRepository.recordAuditLog({
+      actorId: actor.id,
+      actorName: actor.username,
+      actorRole: actor.role,
+      action: upper === 'APPROVED' ? 'APPROVE_PASSWORD_RESET' : 'REJECT_PASSWORD_RESET',
+      recordType: 'Password Reset',
+      recordIdentifier: `${user.username} (#${request.id})`
+    });
+
+    const updated = await db('password_reset_requests').where({ id: request.id }).first();
+    // Never expose the OTP hash through the API
+    if (updated) {
+      delete updated.otp_hash;
+    }
+    return updated;
+  },
+
+  /** Public: email/identifier + OTP + new password → password updated. */
+  async completePasswordReset({ identifier, otp, newPassword }) {
+    const fail = () =>
+      new AppError(
+        'Invalid or expired code. Check the one-time code from your email, or ask the school to approve a new request.',
+        400,
+        ErrorCodes.VALIDATION_ERROR
+      );
+
+    const user = await authRepository.findUserByIdentifier(identifier);
+    if (!user) throw fail();
+
+    const request = await db('password_reset_requests')
+      .where({ user_id: user.id, status: 'APPROVED' })
+      .orderBy('id', 'desc')
+      .first();
+    if (!request || !request.otp_hash) throw fail();
+
+    if (!request.otp_expires_at || new Date(request.otp_expires_at) < new Date()) {
+      await db('password_reset_requests').where({ id: request.id }).update({ status: 'EXPIRED' });
+      throw fail();
+    }
+    if (Number(request.attempt_count) >= 5) {
+      await db('password_reset_requests').where({ id: request.id }).update({ status: 'EXPIRED' });
+      throw fail();
+    }
+
+    const otpValid = await verifyPassword(request.otp_hash, String(otp || ''));
+    if (!otpValid) {
+      const attempts = Number(request.attempt_count) + 1;
+      await db('password_reset_requests')
+        .where({ id: request.id })
+        .update({ attempt_count: attempts, ...(attempts >= 5 ? { status: 'EXPIRED' } : {}) });
+      throw fail();
+    }
+
+    const newHash = await hashPassword(newPassword);
+    // Updates the hash, bumps token_version and revokes refresh tokens
+    await authRepository.updateUserPassword(user.id, newHash);
+    await db('password_reset_requests')
+      .where({ id: request.id })
+      .update({ status: 'COMPLETED', completed_at: db.fn.now(3) });
+
+    await auditRepository.recordAuditLog({
+      actorId: user.id,
+      actorName: user.username,
+      actorRole: user.role_code,
+      action: 'COMPLETE_PASSWORD_RESET',
+      recordType: 'Password Reset',
+      recordIdentifier: `${user.username} (#${request.id})`
+    });
+
+    return { message: 'Password updated successfully. Please log in with your new password.' };
   },
 
   async getMe({ userId }) {

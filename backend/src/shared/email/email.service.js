@@ -600,6 +600,35 @@ For questions or tutoring support, contact the school administration or subject 
       text
     });
   }
+
+  /** One-time password reset code, sent only after the Principal approves. */
+  async sendPasswordResetOtp({ to, name, otp }) {
+    const subject = 'Your Password Reset Code - Cambridge Education System';
+    const html = `
+      <div style="font-family: Arial, Helvetica, sans-serif; max-width: 560px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+        <div style="background: #36348e; color: #ffffff; padding: 18px 24px;">
+          <h1 style="margin: 0; font-size: 18px;">Cambridge Education System</h1>
+        </div>
+        <div style="padding: 24px; color: #252525; font-size: 14px; line-height: 1.6;">
+          <p>Dear ${name || 'User'},</p>
+          <p>The school has approved your password reset request. Use the one-time code below on the portal's
+          <strong>Forgot Password</strong> screen together with your email and your new password:</p>
+          <div style="text-align: center; margin: 20px 0;">
+            <span style="display: inline-block; background: #f4f4f4; border: 1px dashed #36348e; border-radius: 8px; padding: 12px 28px; font-size: 28px; letter-spacing: 8px; font-weight: bold; color: #36348e;">${otp}</span>
+          </div>
+          <p style="font-size: 12px; color: #545454;">
+            This code expires in <strong>15 minutes</strong> and can be used only once.
+            If you did not request a password reset, please inform the school office immediately.
+          </p>
+        </div>
+        <div style="background: #fafafa; padding: 12px 24px; font-size: 11px; color: #545454; border-top: 1px solid #e2e8f0;">
+          This is an automated notification from Cambridge Education System.
+        </div>
+      </div>
+    `;
+    const text = `Cambridge Education System\n\nDear ${name || 'User'},\n\nYour password reset request was approved. Your one-time code is: ${otp}\nIt expires in 15 minutes and can be used only once.\n\nIf you did not request this, inform the school office immediately.`;
+    return await this.sendMail({ to, subject, html, text });
+  }
 }
 
 export const emailService = new EmailService();
