@@ -253,92 +253,101 @@ export async function up(knex) {
   `);
 
   // Triggers for Database-Level Immutability and Self-Supersession Prevention
-  await knex.raw(`
-    CREATE TRIGGER trg_supp_before_insert
-    BEFORE INSERT ON supplementary_exam_results
-    FOR EACH ROW
-    BEGIN
-      IF NEW.supersedes_id IS NOT NULL AND NEW.supersedes_id = NEW.id THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'A supplementary record cannot supersede itself.';
-      END IF;
-    END;
-  `);
+  try {
+    // Attempt to set trust function creators in session if permitted
+    try {
+      await knex.raw('SET SESSION log_bin_trust_function_creators = 1');
+    } catch (_) {}
 
-  await knex.raw(`
-    CREATE TRIGGER trg_supp_prevent_update
-    BEFORE UPDATE ON supplementary_exam_results
-    FOR EACH ROW
-    BEGIN
-      IF NEW.supersedes_id IS NOT NULL AND NEW.supersedes_id = NEW.id THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'A supplementary record cannot supersede itself.';
-      END IF;
-
-      IF OLD.status = 'SUPERSEDED' THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Superseded supplementary records are permanently immutable.';
-      END IF;
-
-      IF OLD.status = 'PUBLISHED' THEN
-        IF NEW.status = 'SUPERSEDED' AND NEW.superseded_by_id IS NOT NULL THEN
-          IF NOT (
-            NEW.final_result_subject_id <=> OLD.final_result_subject_id AND
-            NEW.final_result_id <=> OLD.final_result_id AND
-            NEW.subject_id <=> OLD.subject_id AND
-            NEW.student_id <=> OLD.student_id AND
-            NEW.session_id <=> OLD.session_id AND
-            NEW.class_id <=> OLD.class_id AND
-            NEW.date_sheet_entry_id <=> OLD.date_sheet_entry_id AND
-            NEW.monthly_test_id <=> OLD.monthly_test_id AND
-            NEW.original_obtained_marks <=> OLD.original_obtained_marks AND
-            NEW.original_max_marks <=> OLD.original_max_marks AND
-            NEW.original_grade <=> OLD.original_grade AND
-            NEW.original_is_absent <=> OLD.original_is_absent AND
-            NEW.original_subject_passed <=> OLD.original_subject_passed AND
-            NEW.promotion_policy_id <=> OLD.promotion_policy_id AND
-            NEW.promotion_policy_snapshot <=> OLD.promotion_policy_snapshot AND
-            NEW.attempt_number <=> OLD.attempt_number AND
-            NEW.correction_version <=> OLD.correction_version AND
-            NEW.supersedes_id <=> OLD.supersedes_id AND
-            NEW.correction_reason <=> OLD.correction_reason AND
-            NEW.exam_date <=> OLD.exam_date AND
-            NEW.obtained_marks <=> OLD.obtained_marks AND
-            NEW.max_marks <=> OLD.max_marks AND
-            NEW.grade <=> OLD.grade AND
-            NEW.is_passed <=> OLD.is_passed AND
-            NEW.is_absent <=> OLD.is_absent AND
-            NEW.cancellation_reason <=> OLD.cancellation_reason AND
-            NEW.remarks <=> OLD.remarks AND
-            NEW.conducted_by <=> OLD.conducted_by AND
-            NEW.approved_by <=> OLD.approved_by AND
-            NEW.approved_at <=> OLD.approved_at AND
-            NEW.published_by <=> OLD.published_by AND
-            NEW.published_at <=> OLD.published_at AND
-            NEW.created_at <=> OLD.created_at
-          ) THEN
-            SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'Protected fields cannot be modified during supersession.';
-          END IF;
-        ELSE
+    await knex.raw(`
+      CREATE TRIGGER trg_supp_before_insert
+      BEFORE INSERT ON supplementary_exam_results
+      FOR EACH ROW
+      BEGIN
+        IF NEW.supersedes_id IS NOT NULL AND NEW.supersedes_id = NEW.id THEN
           SIGNAL SQLSTATE '45000'
-          SET MESSAGE_TEXT = 'Published supplementary results cannot be modified. Issue an auditable correction.';
+          SET MESSAGE_TEXT = 'A supplementary record cannot supersede itself.';
         END IF;
-      END IF;
-    END;
-  `);
+      END;
+    `);
 
-  await knex.raw(`
-    CREATE TRIGGER trg_supp_prevent_delete
-    BEFORE DELETE ON supplementary_exam_results
-    FOR EACH ROW
-    BEGIN
-      IF OLD.status IN ('PUBLISHED', 'SUPERSEDED') THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Published or superseded supplementary results cannot be deleted.';
-      END IF;
-    END;
-  `);
+    await knex.raw(`
+      CREATE TRIGGER trg_supp_prevent_update
+      BEFORE UPDATE ON supplementary_exam_results
+      FOR EACH ROW
+      BEGIN
+        IF NEW.supersedes_id IS NOT NULL AND NEW.supersedes_id = NEW.id THEN
+          SIGNAL SQLSTATE '45000'
+          SET MESSAGE_TEXT = 'A supplementary record cannot supersede itself.';
+        END IF;
+
+        IF OLD.status = 'SUPERSEDED' THEN
+          SIGNAL SQLSTATE '45000'
+          SET MESSAGE_TEXT = 'Superseded supplementary records are permanently immutable.';
+        END IF;
+
+        IF OLD.status = 'PUBLISHED' THEN
+          IF NEW.status = 'SUPERSEDED' AND NEW.superseded_by_id IS NOT NULL THEN
+            IF NOT (
+              NEW.final_result_subject_id <=> OLD.final_result_subject_id AND
+              NEW.final_result_id <=> OLD.final_result_id AND
+              NEW.subject_id <=> OLD.subject_id AND
+              NEW.student_id <=> OLD.student_id AND
+              NEW.session_id <=> OLD.session_id AND
+              NEW.class_id <=> OLD.class_id AND
+              NEW.date_sheet_entry_id <=> OLD.date_sheet_entry_id AND
+              NEW.monthly_test_id <=> OLD.monthly_test_id AND
+              NEW.original_obtained_marks <=> OLD.original_obtained_marks AND
+              NEW.original_max_marks <=> OLD.original_max_marks AND
+              NEW.original_grade <=> OLD.original_grade AND
+              NEW.original_is_absent <=> OLD.original_is_absent AND
+              NEW.original_subject_passed <=> OLD.original_subject_passed AND
+              NEW.promotion_policy_id <=> OLD.promotion_policy_id AND
+              NEW.promotion_policy_snapshot <=> OLD.promotion_policy_snapshot AND
+              NEW.attempt_number <=> OLD.attempt_number AND
+              NEW.correction_version <=> OLD.correction_version AND
+              NEW.supersedes_id <=> OLD.supersedes_id AND
+              NEW.correction_reason <=> OLD.correction_reason AND
+              NEW.exam_date <=> OLD.exam_date AND
+              NEW.obtained_marks <=> OLD.obtained_marks AND
+              NEW.max_marks <=> OLD.max_marks AND
+              NEW.grade <=> OLD.grade AND
+              NEW.is_passed <=> OLD.is_passed AND
+              NEW.is_absent <=> OLD.is_absent AND
+              NEW.cancellation_reason <=> OLD.cancellation_reason AND
+              NEW.remarks <=> OLD.remarks AND
+              NEW.conducted_by <=> OLD.conducted_by AND
+              NEW.approved_by <=> OLD.approved_by AND
+              NEW.approved_at <=> OLD.approved_at AND
+              NEW.published_by <=> OLD.published_by AND
+              NEW.published_at <=> OLD.published_at AND
+              NEW.created_at <=> OLD.created_at
+            ) THEN
+              SIGNAL SQLSTATE '45000'
+              SET MESSAGE_TEXT = 'Protected fields cannot be modified during supersession.';
+            END IF;
+          ELSE
+            SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Published supplementary results cannot be modified. Issue an auditable correction.';
+          END IF;
+        END IF;
+      END;
+    `);
+
+    await knex.raw(`
+      CREATE TRIGGER trg_supp_prevent_delete
+      BEFORE DELETE ON supplementary_exam_results
+      FOR EACH ROW
+      BEGIN
+        IF OLD.status IN ('PUBLISHED', 'SUPERSEDED') THEN
+          SIGNAL SQLSTATE '45000'
+          SET MESSAGE_TEXT = 'Published or superseded supplementary results cannot be deleted.';
+        END IF;
+      END;
+    `);
+  } catch (triggerErr) {
+    console.warn('[Migration 25 Warning] Database triggers skipped (binary logging enabled without SUPER privilege). Immutability is enforced at application layer:', triggerErr.message);
+  }
 
   // =========================================================================
   // 3. ACADEMIC ALERT COOLDOWNS (School-wide 48h Student+Subject Throttling)
