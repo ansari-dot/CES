@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
 import { setSelectedType, toggleResourcePublishThunk, deleteResourceThunk } from '../store/slices/resourcesSlice';
 import { addToast } from '../store/slices/uiSlice';
 import { CreateResourceModal } from '../components/resources/CreateResourceModal';
+import { Pagination } from '../components/common/Pagination';
 import { openProtectedFile } from '../services/api';
 import {
   BookOpen,
@@ -31,6 +32,12 @@ export const LearningResourcesPage: React.FC = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [filterQuery, setFilterQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedClassId, selectedType, filterQuery]);
 
   const filteredResources = useMemo(() => {
     return resources.filter((res) => {
@@ -43,6 +50,12 @@ export const LearningResourcesPage: React.FC = () => {
       return true;
     });
   }, [resources, selectedClassId, selectedType, filterQuery]);
+
+  const totalPages = Math.ceil(filteredResources.length / pageSize) || 1;
+  const paginatedResources = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredResources.slice(start, start + pageSize);
+  }, [filteredResources, currentPage, pageSize]);
 
   const handleTogglePublish = async (id: string, title: string, publish: boolean) => {
     const result = await dispatch(toggleResourcePublishThunk({ id, isPublished: publish }));
@@ -93,7 +106,7 @@ export const LearningResourcesPage: React.FC = () => {
   const slidesCount = resources.filter((r) => r.type === 'slides' || r.type === 'notes').length;
 
   return (
-    <div className="flex flex-col w-full pb-16 space-y-5 bg-[#f6f7fb] min-h-screen p-3 sm:p-5 lg:p-6 rounded-2xl">
+    <div className="flex flex-col w-full pb-12 space-y-5 animate-in fade-in duration-150">
       {/* ------------------------------------------------------------- */}
       {/* 1. HERO HEADER BANNER */}
       {/* ------------------------------------------------------------- */}
@@ -302,7 +315,7 @@ export const LearningResourcesPage: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredResources.map((res) => (
+                paginatedResources.map((res) => (
                   <tr key={res.id} className="hover:bg-slate-50/80 h-14 transition-colors">
                     <td className="px-5 py-2 text-center">
                       <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center mx-auto">
@@ -376,6 +389,22 @@ export const LearningResourcesPage: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Pagination Controls */}
+      {filteredResources.length > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredResources.length}
+          itemsPerPage={pageSize}
+          onPageChange={(page) => setCurrentPage(page)}
+          onItemsPerPageChange={(limit) => {
+            setPageSize(limit);
+            setCurrentPage(1);
+          }}
+          pageSizeOptions={[10, 25, 50]}
+        />
+      )}
 
       <CreateResourceModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </div>

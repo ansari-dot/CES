@@ -4,6 +4,7 @@ import { addToast } from '../store/slices/uiSlice';
 import { requestApi } from '../services/api';
 import { BrandLoader } from '../components/common/BrandLoader';
 import { ExamMarksEntryModal } from '../components/exams/ExamMarksEntryModal';
+import { Pagination } from '../components/common/Pagination';
 import {
   Award,
   Layers,
@@ -199,6 +200,13 @@ export const ExamResultsPage: React.FC = () => {
   const overallProgressRate = totalStudentsCount > 0 ? Math.round((gradedStudentsCount / totalStudentsCount) * 100) : 100;
 
   // Class Results Filtered
+  const [resultsPage, setResultsPage] = useState(1);
+  const [resultsLimit, setResultsLimit] = useState(10);
+
+  useEffect(() => {
+    setResultsPage(1);
+  }, [selectedClassId, searchQuery]);
+
   const filteredClassResults = useMemo(() => {
     if (!searchQuery.trim()) return classResults;
     const q = searchQuery.toLowerCase().trim();
@@ -209,12 +217,18 @@ export const ExamResultsPage: React.FC = () => {
     );
   }, [classResults, searchQuery]);
 
+  const totalResultsPages = Math.ceil(filteredClassResults.length / resultsLimit) || 1;
+  const paginatedClassResults = useMemo(() => {
+    const start = (resultsPage - 1) * resultsLimit;
+    return filteredClassResults.slice(start, start + resultsLimit);
+  }, [filteredClassResults, resultsPage, resultsLimit]);
+
   const passCount = classResults.filter((r) => r.pass_status === 'PASSED').length;
   const failCount = classResults.filter((r) => r.pass_status === 'FAILED').length;
   const supplCount = classResults.filter((r) => r.pass_status === 'SUPPLEMENTARY').length;
 
   return (
-    <div className="flex flex-col w-full pb-16 space-y-5 bg-[#f6f7fb] min-h-screen p-3 sm:p-5 lg:p-6 rounded-2xl">
+    <div className="flex flex-col w-full pb-12 space-y-5 animate-in fade-in duration-150">
       {/* ------------------------------------------------------------- */}
       {/* 1. HERO HEADER BANNER */}
       {/* ------------------------------------------------------------- */}
@@ -641,7 +655,7 @@ export const ExamResultsPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {filteredClassResults.map((r) => (
+                      {paginatedClassResults.map((r) => (
                         <tr key={r.id} className="hover:bg-slate-50/80 h-14 transition-colors">
                           <td className="px-5 py-2">
                             <span className="font-bold text-slate-900 block">{r.studentName}</span>
@@ -677,6 +691,23 @@ export const ExamResultsPage: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
+
+                {filteredClassResults.length > 0 && (
+                  <div className="mt-4">
+                    <Pagination
+                      currentPage={resultsPage}
+                      totalPages={totalResultsPages}
+                      totalItems={filteredClassResults.length}
+                      itemsPerPage={resultsLimit}
+                      onPageChange={(page) => setResultsPage(page)}
+                      onItemsPerPageChange={(limit) => {
+                        setResultsLimit(limit);
+                        setResultsPage(1);
+                      }}
+                      pageSizeOptions={[10, 25, 50]}
+                    />
+                  </div>
+                )}
               </>
             )}
           </div>

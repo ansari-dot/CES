@@ -12,6 +12,7 @@ import noticesReducer from './slices/noticesSlice';
 import dutyReducer from './slices/dutySlice';
 import uiReducer from './slices/uiSlice';
 import schoolTimetableReducer from './slices/schoolTimetableSlice';
+import chatReducer from './slices/chatSlice';
 
 export const store = configureStore({
   reducer: {
@@ -26,6 +27,7 @@ export const store = configureStore({
     notices: noticesReducer,
     duty: dutyReducer,
     ui: uiReducer,
+    chat: chatReducer,
   },
 });
 

@@ -137,8 +137,8 @@ export const DateSheetsModule: React.FC = () => {
   // Counters
   const totalCount = dateSheets.length;
   const publishedCount = dateSheets.filter((ds) => ds.is_published).length;
-  const dedicatedCount = dateSheets.filter((ds) => ds.exam_type === 'MID_TERM' || ds.exam_type === 'FINAL_TERM').length;
-  const timetableCount = dateSheets.filter((ds) => ds.exam_type === 'MONTHLY_TEST' || ds.exam_type === 'CLASS_QUIZ').length;
+  const midTermCount = dateSheets.filter((ds) => ds.exam_type === 'MID_TERM').length;
+  const finalTermCount = dateSheets.filter((ds) => ds.exam_type === 'FINAL_TERM').length;
 
   return (
     <div className="space-y-6">
@@ -147,10 +147,10 @@ export const DateSheetsModule: React.FC = () => {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-2.5">
             <CalendarDays className="w-6 h-6 text-indigo-600" />
-            Examination &amp; Assessment Management
+            Official Examination Date Sheets
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Manage Date Sheets across 4 categories: Monthly Tests, Class Quizzes, Mid-Term, and Final-Term examinations.
+            Institutional Date Sheets strictly for formal Mid-Term and Final / Terminal Examinations.
           </p>
         </div>
 
@@ -190,7 +190,7 @@ export const DateSheetsModule: React.FC = () => {
               <span className="font-bold text-sm text-indigo-100">{activeExamModeSheet.title}</span>
             </div>
             <p className="text-xs text-indigo-200 mt-1 leading-relaxed">
-              Regular timetable lectures are currently suppressed for all classes (Classes 1–8). No false teacher absence alerts are triggered. 
+              Regular timetable lectures are currently suspended for all classes (Classes 1–8). No false teacher absence alerts are triggered. 
               Examinations run in permanent Zoom classrooms with assigned invigilators.
             </p>
           </div>
@@ -211,15 +211,15 @@ export const DateSheetsModule: React.FC = () => {
         </div>
 
         <div className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-2xs">
-          <div className="text-[11px] font-semibold text-indigo-600 uppercase">Mode A: Dedicated Exams</div>
-          <div className="text-2xl font-black text-indigo-700 mt-0.5">{dedicatedCount}</div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Mid-Term &amp; Final-Term</div>
+          <div className="text-[11px] font-semibold text-indigo-600 uppercase">Mid-Term Exams</div>
+          <div className="text-2xl font-black text-indigo-700 mt-0.5">{midTermCount}</div>
+          <div className="text-[10px] text-slate-400 mt-0.5">Dedicated Exam Period</div>
         </div>
 
         <div className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-2xs">
-          <div className="text-[11px] font-semibold text-sky-600 uppercase">Mode B: Timetable Tests</div>
-          <div className="text-2xl font-black text-sky-700 mt-0.5">{timetableCount}</div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Monthly Tests &amp; Quizzes</div>
+          <div className="text-[11px] font-semibold text-purple-600 uppercase">Final / Terminal Exams</div>
+          <div className="text-2xl font-black text-purple-700 mt-0.5">{finalTermCount}</div>
+          <div className="text-[10px] text-slate-400 mt-0.5">School-Wide Final Schedule</div>
         </div>
       </div>
 
@@ -234,11 +234,9 @@ export const DateSheetsModule: React.FC = () => {
       <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto">
           {[
-            { id: 'ALL', label: 'All Assessments' },
-            { id: 'MONTHLY_TEST', label: '1. Monthly Tests' },
-            { id: 'CLASS_QUIZ', label: '2. Class Quizzes' },
-            { id: 'MID_TERM', label: '3. Mid-Term Exams' },
-            { id: 'FINAL_TERM', label: '4. Final-Term Exams' }
+            { id: 'ALL', label: 'All Examinations' },
+            { id: 'MID_TERM', label: 'Mid-Term Examinations' },
+            { id: 'FINAL_TERM', label: 'Final / Terminal Examinations' }
           ].map((cat) => (
             <button
               key={cat.id}
@@ -321,14 +319,10 @@ export const DateSheetsModule: React.FC = () => {
                           className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
                             ds.exam_type === 'FINAL_TERM'
                               ? 'bg-purple-100 text-purple-800'
-                              : ds.exam_type === 'MID_TERM'
-                              ? 'bg-blue-100 text-blue-800'
-                              : ds.exam_type === 'CLASS_QUIZ'
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-emerald-100 text-emerald-800'
+                              : 'bg-blue-100 text-blue-800'
                           }`}
                         >
-                          {ds.exam_type.replace('_', ' ')}
+                          {ds.exam_type === 'FINAL_TERM' ? 'Final-Term Exam' : 'Mid-Term Exam'}
                         </span>
                       </td>
 

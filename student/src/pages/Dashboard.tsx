@@ -6,12 +6,14 @@ import {
   ClipboardList, Receipt, Video, User, Info, CheckCircle2,
   Star, Award, Sparkles, ChevronRight, Clock, BookOpen,
   ArrowUpRight, AlertCircle, ShieldCheck, Activity, BookCheck,
-  Check, ArrowRight, Bell, Calendar
+  Check, ArrowRight, Bell, Calendar, Umbrella
 } from 'lucide-react';
 import { RootState, AppDispatch } from '../store';
 import StatusChip from '../components/common/StatusChip';
 import { LoadingBlock } from '../components/common/LoadingBlock';
 import ZoomMeetingModal from '../components/dialogs/ZoomMeetingModal';
+import { HolidayAnnouncementModal } from '../components/dialogs/HolidayAnnouncementModal';
+import { studentCalendarApi, ActiveHolidayAnnouncement } from '../services/calendarApi';
 import { joinLesson, fetchTimetable, fetchStudentZoomSession } from '../store/slices/classesSlice';
 import { setToast, fetchDashboard } from '../store/slices/studentSlice';
 import { fetchMyGrades, SubjectGradeItem } from '../store/slices/gradesSlice';
@@ -29,6 +31,32 @@ export default function Dashboard() {
 
   const [showZoomModal, setShowZoomModal] = useState(false);
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<'all' | 'high' | 'progress'>('all');
+  const [holidayAnnouncement, setHolidayAnnouncement] = useState<ActiveHolidayAnnouncement | null>(null);
+  const [showHolidayModal, setShowHolidayModal] = useState(false);
+  const [isCurrentlyOnHoliday, setIsCurrentlyOnHoliday] = useState(false);
+
+  const loadHolidayAnnouncement = () => {
+    studentCalendarApi.getActiveAnnouncement().then((res) => {
+      if (res?.popupAnnouncement) {
+        setHolidayAnnouncement(res.popupAnnouncement);
+        setIsCurrentlyOnHoliday(Boolean(res.isCurrentlyOnHoliday));
+        const dismissedKey = `dismissed_holiday_${res.popupAnnouncement.id}`;
+        if (!sessionStorage.getItem(dismissedKey)) {
+          setShowHolidayModal(true);
+        }
+      } else {
+        setHolidayAnnouncement(null);
+        setIsCurrentlyOnHoliday(false);
+      }
+    }).catch(() => {});
+  };
+
+  const handleCloseHolidayModal = () => {
+    if (holidayAnnouncement) {
+      sessionStorage.setItem(`dismissed_holiday_${holidayAnnouncement.id}`, 'true');
+    }
+    setShowHolidayModal(false);
+  };
 
   const classId = profile?.currentClassId || (profile as any)?.class_id;
   useClassRoomSubscription(classId);
@@ -39,7 +67,19 @@ export default function Dashboard() {
     dispatch(fetchMyGrades());
     dispatch(fetchTimetable());
     dispatch(fetchStudentZoomSession());
+    loadHolidayAnnouncement();
   }, [dispatch]);
+
+  // Real-time socket event updates
+  useSocketEvent('HOLIDAY_ANNOUNCEMENT', () => {
+    loadHolidayAnnouncement();
+  });
+
+  useSocketEvent(RealtimeEvents.TIMETABLE_CHANGE, () => {
+    dispatch(fetchTimetable());
+    dispatch(fetchStudentZoomSession());
+    loadHolidayAnnouncement();
+  });
 
   // Real-time socket event updates
   useSocketEvent(RealtimeEvents.CLASS_STATUS_UPDATED, () => {
@@ -204,6 +244,34 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 pb-8">
+      {/* Active Holiday Announcement Banner */}
+      {holidayAnnouncement && (holidayAnnouncement.isCurrent || isCurrentlyOnHoliday) && (
+        <div className="bg-rose-50 border border-rose-200/90 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 shadow-xs">
+              <Umbrella className="w-5 h-5 stroke-[2.2]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-rose-800 bg-rose-100 px-2 py-0.5 rounded border border-rose-200">
+                  School Holiday Break
+                </span>
+                <span className="text-sm font-black text-rose-950">{holidayAnnouncement.title}</span>
+              </div>
+              <p className="text-xs text-rose-800 font-medium mt-1">
+                Official institutional break in effect. Scheduled classes and live Zoom teaching sessions are suspended.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowHolidayModal(true)}
+            className="self-start sm:self-auto px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-xl transition-colors shrink-0 shadow-xs"
+          >
+            View Official Notice
+          </button>
+        </div>
+      )}
+
       {/* =========================================================================
           HERO BANNER: Reference Layout (media_1794162237164_809c515c.png)
           Rich Cambridge Brand Colors: Deep Navy -> Royal Indigo -> Electric Violet
@@ -307,8 +375,8 @@ export default function Dashboard() {
                 alt={isFemaleStudent ? 'Cambridge Girl Student 3D Avatar' : 'Cambridge Boy Student 3D Avatar'}
                 className="w-full h-full object-contain filter drop-shadow-2xl transition-transform duration-500 hover:scale-105"
                 onError={(e) => {
-                  // Fallback if custom image fails to load
-                  (e.target as HTMLImageElement).src = '/student_3d_avatar.png';
+                  // Keep gender-correct avatar fallback
+                  (e.target as HTMLImageElement).src = isFemaleStudent ? '/student_girl_3d_avatar.png' : '/student_3d_avatar.png';
                 }}
               />
 
@@ -1090,6 +1158,13 @@ export default function Dashboard() {
 
       {/* Zoom Classroom Launch Modal */}
       <ZoomMeetingModal isOpen={showZoomModal} onClose={() => setShowZoomModal(false)} lesson={nextClass} />
+
+      {/* Official Holiday Announcement Popup Modal */}
+      <HolidayAnnouncementModal
+        isOpen={showHolidayModal}
+        onClose={handleCloseHolidayModal}
+        announcement={holidayAnnouncement}
+      />
     </div>
   );
 }

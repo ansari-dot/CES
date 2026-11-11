@@ -423,11 +423,12 @@ export const zoomService = {
       .orderBy('class_id', 'asc');
 
     const today = new Date().toISOString().split('T')[0];
-    const todayLessons = await db('timetable_lessons').where({ lesson_date: today }).count('id as count').first();
-    const absenceAlerts = await db('timetable_lessons').where({ lesson_date: today }).whereNotNull('teacher_absence_alert_at').count('id as count').first();
-    const liveLessons = await db('timetable_lessons').where({ lesson_date: today, status: 'LIVE' }).count('id as count').first();
-
-    const apiStatus = await zoomApiClient.testConnection();
+    const [todayLessons, absenceAlerts, liveLessons, apiStatus] = await Promise.all([
+      db('timetable_lessons').where({ lesson_date: today }).count('id as count').first(),
+      db('timetable_lessons').where({ lesson_date: today }).whereNotNull('teacher_absence_alert_at').count('id as count').first(),
+      db('timetable_lessons').where({ lesson_date: today, status: 'LIVE' }).count('id as count').first(),
+      zoomApiClient.testConnection().catch(() => ({ connected: false }))
+    ]);
 
     const hostMappings = activeMeetings.map((m) => ({
       classId: m.class_id,

@@ -59,3 +59,19 @@ export function unsubscribeFromClass(classId: number | string) {
   const s = getSocket();
   s.emit('leave:class', { classId: Number(classId) });
 }
+
+export function joinChatThread(threadId: number | string) {
+  const s = getSocket();
+  s.emit('chat:join', { threadId: Number(threadId) });
+}
+
+export function leaveChatThread(threadId: number | string) {
+  const s = getSocket();
+  s.emit('chat:leave', { threadId: Number(threadId) });
+}
+
+export function sendChatTyping(threadId: number | string, isTyping: boolean) {
+  const s = getSocket();
+  s.emit('chat:typing', { threadId: Number(threadId), isTyping });
+}
+

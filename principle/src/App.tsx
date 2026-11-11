@@ -12,6 +12,7 @@ import { TeachersView } from './modules/teachers/TeachersView';
 import { StudentsView } from './modules/students/StudentsView';
 import { ParentsView } from './modules/parents/ParentsView';
 import { AcademicSetupView } from './modules/academics/AcademicSetupView';
+import { AcademicCalendarModule } from './modules/calendar/AcademicCalendarModule';
 import { TimetableModule } from './modules/timetable/TimetableModule';
 import { DateSheetsModule } from './modules/datesheets/DateSheetsModule';
 import { ZoomLinksModule } from './modules/zoom/ZoomLinksModule';
@@ -29,6 +30,9 @@ import { NotificationsModule } from './modules/notifications/NotificationsModule
 import { ReportsModule } from './modules/reports/ReportsModule';
 import { AuditLogModule } from './modules/audit/AuditLogModule';
 import { ProfileModule } from './modules/profile/ProfileModule';
+import { ChatOversightModule } from './modules/chat-oversight/ChatOversightModule';
+import { HolidayAnnouncementModal } from './components/dialogs/HolidayAnnouncementModal';
+import { calendarApi, ActiveHolidayAnnouncement } from './services/calendarApi';
 
 function PrincipalPortalApp() {
   const { isAuthenticated, currentUser } = useAuth();
@@ -40,6 +44,30 @@ function PrincipalPortalApp() {
     zoomDegraded?: number;
     restrictedStudents?: number;
   }>({});
+
+  const [holidayAnnouncement, setHolidayAnnouncement] = useState<ActiveHolidayAnnouncement | null>(null);
+  const [showHolidayModal, setShowHolidayModal] = useState(false);
+
+  const loadHolidayAnnouncement = useCallback(() => {
+    calendarApi.getActiveAnnouncement().then((res) => {
+      if (res?.popupAnnouncement) {
+        setHolidayAnnouncement(res.popupAnnouncement);
+        const dismissedKey = `dismissed_holiday_${res.popupAnnouncement.id}`;
+        if (!sessionStorage.getItem(dismissedKey)) {
+          setShowHolidayModal(true);
+        }
+      } else {
+        setHolidayAnnouncement(null);
+      }
+    }).catch(() => {});
+  }, []);
+
+  const handleCloseHolidayModal = () => {
+    if (holidayAnnouncement) {
+      sessionStorage.setItem(`dismissed_holiday_${holidayAnnouncement.id}`, 'true');
+    }
+    setShowHolidayModal(false);
+  };
 
   const refreshBadges = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -69,8 +97,9 @@ function PrincipalPortalApp() {
   useEffect(() => {
     if (isAuthenticated) {
       refreshBadges();
+      loadHolidayAnnouncement();
     }
-  }, [activeModule, isAuthenticated, refreshBadges]);
+  }, [activeModule, isAuthenticated, refreshBadges, loadHolidayAnnouncement]);
 
   // STRICT ROUTE & PORTAL PROTECTION:
   // If not logged in, absolutely no portal route or module can be accessed.
@@ -90,6 +119,8 @@ function PrincipalPortalApp() {
         return <ParentsView />;
       case 'academics':
         return <AcademicSetupView />;
+      case 'academic-calendar':
+        return <AcademicCalendarModule />;
       case 'timetable':
         return <TimetableModule />;
       case 'datesheets':
@@ -122,6 +153,8 @@ function PrincipalPortalApp() {
         return <ReportsModule />;
       case 'audit':
         return <AuditLogModule />;
+      case 'chat-oversight':
+        return <ChatOversightModule />;
       case 'profile':
         return <ProfileModule />;
       default:
@@ -160,6 +193,13 @@ function PrincipalPortalApp() {
           </div>
         </main>
       </div>
+
+      {/* Official Holiday Announcement Popup Modal */}
+      <HolidayAnnouncementModal
+        isOpen={showHolidayModal}
+        onClose={handleCloseHolidayModal}
+        announcement={holidayAnnouncement}
+      />
     </div>
   );
 }

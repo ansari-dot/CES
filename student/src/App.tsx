@@ -23,6 +23,7 @@ import Results from './pages/Results';
 import Achievements from './pages/Achievements';
 import Notifications from './pages/Notifications';
 import MyProfile from './pages/MyProfile';
+import TeacherChat from './pages/TeacherChat';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, mustChangePassword } = useSelector((state: RootState) => state.student);
@@ -106,6 +107,7 @@ export default function App() {
         <Route path="results" element={<Results />} />
         <Route path="achievements" element={<Achievements />} />
         <Route path="notifications" element={<Notifications />} />
+        <Route path="chat" element={<TeacherChat />} />
         <Route path="profile" element={<MyProfile />} />
       </Route>
       <Route path="*" element={<Navigate to="/student/dashboard" replace />} />

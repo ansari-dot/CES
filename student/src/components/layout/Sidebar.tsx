@@ -25,7 +25,8 @@ import {
   Sparkles,
   BarChart3,
   ScrollText,
-  User
+  User,
+  MessageSquare
 } from 'lucide-react';
 
 interface SubNavItem {
@@ -147,6 +148,12 @@ export default function Sidebar({ mobileClose, onLogout }: SidebarProps) {
       path: '/student/homework',
       badge: pendingAssignmentsCount > 0 ? pendingAssignmentsCount : undefined,
       badgeColor: 'amber',
+    },
+    {
+      id: 'faculty-chat',
+      label: 'Ask Teacher',
+      icon: MessageSquare,
+      path: '/student/chat',
     },
     {
       id: 'zoom',

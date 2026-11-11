@@ -335,6 +335,25 @@ export const timetableService = {
       const targetDate = new Date(Date.UTC(startYear, startMonth - 1, startDay + dayOffset, 12, 0, 0));
       const dateString = formatter.format(targetDate);
 
+      // Check if this date falls within a declared holiday break
+      const holiday = await db('academic_holidays')
+        .where('session_id', sessionId)
+        .whereRaw('DATE(?) BETWEEN DATE(start_date) AND DATE(end_date)', [dateString])
+        .first();
+
+      if (holiday) {
+        // Holiday break in effect: No classes occur during declared holidays
+        await db('timetable_lessons')
+          .where('status', 'SCHEDULED')
+          .whereRaw('DATE(lesson_date) = ?', [dateString])
+          .update({
+            status: 'CANCELLED',
+            cancel_reason: `Holiday Break: ${holiday.title}`,
+            updated_at: db.fn.now()
+          });
+        continue;
+      }
+
       const dayParts = new Intl.DateTimeFormat('en-US', {
         timeZone: schoolTz,
         weekday: 'short'

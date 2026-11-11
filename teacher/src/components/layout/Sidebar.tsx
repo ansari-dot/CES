@@ -25,13 +25,16 @@ import {
   CalendarDays,
   Clock,
   Sparkles,
-  FileCheck
+  FileCheck,
+  AlertCircle
 } from 'lucide-react';
 
 interface SubNavItem {
   id: NavTab;
   label: string;
   icon?: React.ComponentType<{ className?: string }>;
+  badge?: number | string;
+  badgeColor?: 'red' | 'green' | 'amber';
 }
 
 interface NavItemConfig {
@@ -52,6 +55,7 @@ export const Sidebar: React.FC = () => {
   const submissions = useAppSelector((state) => state.tasks.submissions);
   const lessons = useAppSelector((state) => state.timetable.lessons);
   const notices = useAppSelector((state) => state.notices.notices);
+  const totalUnreadChat = useAppSelector((state) => state.chat?.totalUnreadCount || 0);
 
   const pendingGradingCount = submissions.filter(
     (s) => s.status === 'pending' || s.status === 'late'
@@ -62,18 +66,18 @@ export const Sidebar: React.FC = () => {
   // Track expanded state for dropdown items
   const [expandedDropdowns, setExpandedDropdowns] = useState<Record<string, boolean>>({
     classes: false,
-    examinations: false,
-    reports: false,
+    assessments: false,
+    resources: false,
   });
 
   // Automatically expand parent dropdown if active tab belongs to its children
   useEffect(() => {
-    if (['timetable', 'student-performance', 'learning-resources', 'student-projects'].includes(currentTab)) {
+    if (['timetable', 'live-lessons', 'student-attendance', 'student-performance'].includes(currentTab)) {
       setExpandedDropdowns((prev) => ({ ...prev, classes: true }));
-    } else if (['monthly-tests', 'datesheet', 'exam-results', 'achievements-feedback'].includes(currentTab)) {
-      setExpandedDropdowns((prev) => ({ ...prev, examinations: true }));
-    } else if (['duty-salary', 'submissions-grading'].includes(currentTab)) {
-      setExpandedDropdowns((prev) => ({ ...prev, reports: true }));
+    } else if (['monthly-tests', 'exam-results', 'datesheet', 'achievements-feedback', 'student-mistakes'].includes(currentTab)) {
+      setExpandedDropdowns((prev) => ({ ...prev, assessments: true }));
+    } else if (['learning-resources', 'student-projects', 'notices', 'duty-salary'].includes(currentTab)) {
+      setExpandedDropdowns((prev) => ({ ...prev, resources: true }));
     }
   }, [currentTab]);
 
@@ -101,7 +105,7 @@ export const Sidebar: React.FC = () => {
     );
   };
 
-  // Menu items configured exactly to reference image
+  // Clean, uncluttered Cambridge Teacher navigation with Assignments & Paper Checking separate
   const navigationItems: NavItemConfig[] = [
     {
       id: 'dashboard',
@@ -110,82 +114,62 @@ export const Sidebar: React.FC = () => {
       tabId: 'dashboard',
     },
     {
-      id: 'classes',
-      label: 'My Classes',
-      icon: Layers,
-      subItems: [
-        { id: 'timetable', label: 'Class Timetable', icon: Calendar },
-        { id: 'student-performance', label: 'Student Performance', icon: Users },
-        { id: 'learning-resources', label: 'Learning Materials', icon: BookOpen },
-        { id: 'student-projects', label: 'Student Projects', icon: Sparkles },
-      ],
-    },
-    {
-      id: 'students',
-      label: 'Students',
-      icon: Users,
-      tabId: 'student-performance',
-    },
-    {
-      id: 'attendance',
-      label: 'Attendance',
-      icon: CheckCircle2,
-      tabId: 'student-attendance',
-    },
-    {
-      id: 'examinations',
-      label: 'Examinations',
-      icon: ClipboardCheck,
-      subItems: [
-        { id: 'monthly-tests', label: 'Tests & Quizzes', icon: ClipboardCheck },
-        { id: 'datesheet', label: 'Exam Date Sheets', icon: CalendarDays },
-        { id: 'exam-results', label: 'Marks & Grading', icon: Award },
-        { id: 'achievements-feedback', label: 'Faculty Feedback', icon: Sparkles },
-      ],
-    },
-    {
       id: 'assignments',
       label: 'Assignments',
       icon: FileText,
       tabId: 'tasks-assignments',
     },
     {
-      id: 'zoom',
-      label: 'Zoom Classes',
-      icon: Video,
-      tabId: 'live-lessons',
-      badge: isAnyClassLive ? 'LIVE' : undefined,
-      badgeColor: 'green',
-    },
-    {
-      id: 'results',
-      label: 'Results',
-      icon: Award,
-      tabId: 'exam-results',
-    },
-    {
-      id: 'notices',
-      label: 'Notices',
-      icon: Bell,
-      tabId: 'notices',
-      badge: notices.length > 0 ? notices.length : undefined,
-      badgeColor: 'amber',
-    },
-    {
-      id: 'messages',
-      label: 'Messages',
-      icon: MessageSquare,
+      id: 'paper-checking',
+      label: 'Paper Checking',
+      icon: FileCheck,
       tabId: 'submissions-grading',
-      badge: pendingGradingCount > 0 ? pendingGradingCount : 3, // Matches reference red pill '3'
+      badge: pendingGradingCount > 0 ? pendingGradingCount : undefined,
       badgeColor: 'red',
     },
     {
-      id: 'reports',
-      label: 'Reports',
-      icon: BarChart3,
+      id: 'student-chat',
+      label: 'Student Chat',
+      icon: MessageSquare,
+      tabId: 'student-chat',
+      badge: totalUnreadChat > 0 ? totalUnreadChat : undefined,
+      badgeColor: 'red',
+    },
+    {
+      id: 'classes',
+      label: 'Classes',
+      icon: Layers,
+      badge: isAnyClassLive ? 'LIVE' : undefined,
+      badgeColor: 'green',
       subItems: [
-        { id: 'duty-salary', label: 'Duty & Payroll Hours', icon: Clock },
-        { id: 'submissions-grading', label: 'Submission Roster', icon: FileCheck },
+        { id: 'timetable', label: 'Timetable', icon: Calendar },
+        { id: 'live-lessons', label: 'Live Classes', icon: Video, badge: isAnyClassLive ? 'LIVE' : undefined, badgeColor: 'green' },
+        { id: 'student-attendance', label: 'Attendance', icon: CheckCircle2 },
+        { id: 'student-performance', label: 'Students', icon: Users },
+      ],
+    },
+    {
+      id: 'assessments',
+      label: 'Exams & Tests',
+      icon: ClipboardCheck,
+      subItems: [
+        { id: 'monthly-tests', label: 'Monthly Tests', icon: ClipboardCheck },
+        { id: 'exam-results', label: 'Terminal Exams', icon: Award },
+        { id: 'datesheet', label: 'Date Sheets', icon: CalendarDays },
+        { id: 'student-mistakes', label: 'Student Mistakes', icon: AlertCircle },
+      ],
+    },
+    {
+      id: 'resources',
+      label: 'Resources',
+      icon: BookOpen,
+      badge: notices.length > 0 ? notices.length : undefined,
+      badgeColor: 'amber',
+      subItems: [
+        { id: 'learning-resources', label: 'Lectures & Notes', icon: BookOpen },
+        { id: 'student-projects', label: 'Projects', icon: Sparkles },
+        { id: 'notices', label: 'Notices', icon: Bell, badge: notices.length > 0 ? notices.length : undefined, badgeColor: 'amber' },
+        { id: 'duty-salary', label: 'Duty & Payroll', icon: Clock },
       ],
     },
     {
@@ -208,7 +192,7 @@ export const Sidebar: React.FC = () => {
 
       {/* Sidebar Drawer */}
       <aside
-        className={`fixed left-0 top-0 h-full w-56 bg-gradient-to-b from-[#191847] via-[#211f5d] to-[#131236] z-40 shadow-2xl lg:shadow-none border-r border-white/10 transition-transform duration-200 ease-in-out select-none ${
+        className={`fixed left-0 top-0 h-full w-60 bg-gradient-to-b from-[#191847] via-[#211f5d] to-[#131236] z-40 shadow-2xl lg:shadow-none border-r border-white/10 transition-transform duration-200 ease-in-out select-none ${
           isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
@@ -327,7 +311,20 @@ export const Sidebar: React.FC = () => {
                             }`}
                           >
                             <SubIcon className="w-3 h-3 shrink-0 opacity-80" />
-                            <span className="truncate">{sub.label}</span>
+                            <span className="truncate flex-1">{sub.label}</span>
+                            {sub.badge !== undefined && (
+                              <span
+                                className={`px-1.5 min-w-[16px] h-3.5 rounded-full flex items-center justify-center text-[9px] font-black tracking-tight shrink-0 shadow-2xs ${
+                                  sub.badgeColor === 'green'
+                                    ? 'bg-emerald-500 text-white animate-pulse'
+                                    : sub.badgeColor === 'amber'
+                                    ? 'bg-amber-500 text-slate-950 font-bold'
+                                    : 'bg-rose-500 text-white'
+                                }`}
+                              >
+                                {sub.badge}
+                              </span>
+                            )}
                           </button>
                         );
                       })}

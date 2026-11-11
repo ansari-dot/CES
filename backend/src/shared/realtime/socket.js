@@ -9,6 +9,18 @@ import { sessionStore } from '../session/sessionStore.js';
 
 let io = null;
 
+// Global Real-Time User Presence Tracker
+const activeUserPresence = new Map(); // userId -> active socket count
+
+export function isUserOnline(userId) {
+  const uid = Number(userId);
+  return (activeUserPresence.get(uid) || 0) > 0;
+}
+
+export function getOnlineUsers() {
+  return Array.from(activeUserPresence.keys());
+}
+
 export function getSocketServer() {
   return io;
 }
@@ -140,6 +152,20 @@ export function initSocketServer(httpServer) {
 
   io.on('connection', (socket) => {
     const user = socket.user;
+    let currentSocketUserId = user?.id ? Number(user.id) : null;
+
+    const trackOnline = (uid) => {
+      const id = Number(uid);
+      if (!id) return;
+      currentSocketUserId = id;
+      const count = (activeUserPresence.get(id) || 0) + 1;
+      activeUserPresence.set(id, count);
+      io.emit('chat:presence', { userId: id, isOnline: true });
+    };
+
+    if (currentSocketUserId) {
+      trackOnline(currentSocketUserId);
+    }
 
     if (user) {
       // 1. Personal User Room
@@ -174,15 +200,16 @@ export function initSocketServer(httpServer) {
 
     // Dynamic Class Room Subscription with Role Authorization
     socket.on('identify', (data) => {
+      if (data?.userId) {
+        socket.join(`user:${data.userId}`);
+        trackOnline(data.userId);
+      }
       if (data?.teacherId) {
         const tid = Number(String(data.teacherId).replace(/\D/g, ''));
         if (tid) {
           socket.join(`teacher:${tid}`);
         }
         socket.join('role:TEACHER');
-      }
-      if (data?.userId) {
-        socket.join(`user:${data.userId}`);
       }
       if (data?.classId) {
         socket.join(`class:${data.classId}`);
@@ -239,8 +266,113 @@ export function initSocketServer(httpServer) {
       if (cid) socket.leave(`class:${cid}`);
     });
 
+    // -------------------------------------------------------------
+    // Academic Chat Real-Time Handlers with Strict Server-Side Auth
+    // -------------------------------------------------------------
+    socket.on('chat:join', async ({ threadId }) => {
+      try {
+        const tid = Number(threadId);
+        if (!tid || isNaN(tid)) return;
+
+        const user = socket.user || { id: currentSocketUserId };
+        if (!user || !user.id) {
+          socket.emit('chat:error', { message: 'Unauthenticated socket session' });
+          return;
+        }
+
+        const thread = await db('chat_threads').where('id', tid).first();
+        if (!thread) {
+          socket.emit('chat:error', { message: 'Thread not found' });
+          return;
+        }
+
+        // Strict authorization check - resolve teacherId/studentId dynamically
+        let teacherId = user.teacherId;
+        if (!teacherId) {
+          const t = await db('teachers').where('user_id', user.id).first();
+          if (t) {
+            teacherId = t.id;
+            user.teacherId = t.id;
+          }
+        }
+
+        let studentId = user.studentId;
+        if (!studentId) {
+          const s = await db('students').where('user_id', user.id).first();
+          if (s) {
+            studentId = s.id;
+            user.studentId = s.id;
+          }
+        }
+
+        let authorized = false;
+        if (['PRINCIPAL', 'ADMIN'].includes(user.role)) {
+          authorized = true;
+        } else if (teacherId && Number(teacherId) === Number(thread.teacher_id)) {
+          authorized = true;
+        } else if (studentId && Number(studentId) === Number(thread.student_id)) {
+          authorized = true;
+        }
+
+        if (!authorized) {
+          socket.emit('chat:error', { message: 'Access denied: You are not authorized to join this conversation' });
+          return;
+        }
+
+        socket.join(`chat:thread:${tid}`);
+        socket.emit('chat:joined', { threadId: tid, authorized: true });
+
+        // Notify room of current presence
+        io.to(`chat:thread:${tid}`).emit('chat:presence', {
+          threadId: tid,
+          userId: user.id,
+          isOnline: true
+        });
+      } catch (err) {
+        socket.emit('chat:error', { message: 'Failed to join chat room' });
+      }
+    });
+
+    socket.on('chat:leave', ({ threadId }) => {
+      const tid = Number(threadId);
+      if (tid) socket.leave(`chat:thread:${tid}`);
+    });
+
+    socket.on('chat:typing', ({ threadId, isTyping }) => {
+      const tid = Number(threadId);
+      if (!tid) return;
+      const typingPayload = {
+        threadId: tid,
+        userId: socket.user?.id || currentSocketUserId,
+        role: socket.user?.role,
+        name: socket.user?.name,
+        isTyping: Boolean(isTyping)
+      };
+      socket.to(`chat:thread:${tid}`).emit('chat:typing', typingPayload);
+      socket.to(`chat:thread:${tid}`).emit('chat:user_typing', typingPayload);
+    });
+
+    socket.on('chat:check_presence', ({ userIds } = {}, callback) => {
+      if (typeof callback !== 'function') return;
+      const result = {};
+      if (Array.isArray(userIds)) {
+        userIds.forEach((uid) => {
+          result[uid] = isUserOnline(uid);
+        });
+      }
+      callback(result);
+    });
+
     socket.on('disconnect', () => {
-      // Clean cleanup handled automatically by Socket.IO
+      if (currentSocketUserId) {
+        const count = (activeUserPresence.get(currentSocketUserId) || 1) - 1;
+        if (count <= 0) {
+          activeUserPresence.delete(currentSocketUserId);
+          io.emit('chat:presence', { userId: currentSocketUserId, isOnline: false });
+        } else {
+          activeUserPresence.set(currentSocketUserId, count);
+        }
+      }
     });
   });
 

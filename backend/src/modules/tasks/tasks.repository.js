@@ -204,11 +204,69 @@ function baseAchievementQuery() {
     .leftJoin('subjects', 'student_achievements.subject_id', 'subjects.id');
 }
 
+const MISTAKE_COLUMNS = [
+  'student_mistakes.id',
+  'student_mistakes.student_id as studentId',
+  'student_users.full_name as studentName',
+  'students.admission_no as admissionNo',
+  'students.roll_no as rollNo',
+  'student_mistakes.class_id as classId',
+  'classes.name as className',
+  'student_mistakes.subject_id as subjectId',
+  'subjects.name as subjectName',
+  'subjects.code as subjectCode',
+  'student_mistakes.teacher_id as teacherId',
+  'teacher_users.full_name as teacherName',
+  'student_mistakes.session_id as sessionId',
+  'student_mistakes.topic',
+  'student_mistakes.mistake_type as mistakeType',
+  'student_mistakes.severity',
+  'student_mistakes.description',
+  'student_mistakes.remediation_plan as remediationPlan',
+  'student_mistakes.teacher_private_notes as teacherPrivateNotes',
+  'student_mistakes.status',
+  'student_mistakes.resolved_at as resolvedAt',
+  'student_mistakes.created_at as createdAt',
+  'student_mistakes.updated_at as updatedAt'
+];
+
+function baseMistakeQuery() {
+  return db('student_mistakes')
+    .join('students', 'student_mistakes.student_id', 'students.id')
+    .join('users as student_users', 'students.user_id', 'student_users.id')
+    .join('teachers', 'student_mistakes.teacher_id', 'teachers.id')
+    .join('users as teacher_users', 'teachers.user_id', 'teacher_users.id')
+    .join('classes', 'student_mistakes.class_id', 'classes.id')
+    .join('subjects', 'student_mistakes.subject_id', 'subjects.id');
+}
+
 export const tasksRepository = {
   // Tasks
   async createTask(data) {
     const [id] = await db('learning_tasks').insert(data);
     return id;
+  },
+
+  async countTasks({
+    classId = null,
+    subjectId = null,
+    teacherId = null,
+    status = null,
+    statuses = null,
+    taskType = null,
+    sessionId = null
+  } = {}) {
+    let query = baseTaskQuery();
+    if (classId) query = query.where('learning_tasks.class_id', classId);
+    if (subjectId) query = query.where('learning_tasks.subject_id', subjectId);
+    if (teacherId) query = query.where('learning_tasks.teacher_id', teacherId);
+    if (status) query = query.where('learning_tasks.status', status);
+    if (statuses) query = query.whereIn('learning_tasks.status', statuses);
+    if (taskType) query = query.where('learning_tasks.task_type', taskType);
+    if (sessionId) query = query.where('learning_tasks.session_id', sessionId);
+
+    const result = await query.count('learning_tasks.id as count').first();
+    return Number(result?.count || 0);
   },
 
   async getTasks({
@@ -219,7 +277,9 @@ export const tasksRepository = {
     statuses = null,
     taskType = null,
     sessionId = null,
-    studentId = null
+    studentId = null,
+    limit = null,
+    offset = null
   } = {}) {
     let query = baseTaskQuery().select(TASK_COLUMNS).orderBy('learning_tasks.deadline', 'desc');
 
@@ -230,6 +290,9 @@ export const tasksRepository = {
     if (statuses) query = query.whereIn('learning_tasks.status', statuses);
     if (taskType) query = query.where('learning_tasks.task_type', taskType);
     if (sessionId) query = query.where('learning_tasks.session_id', sessionId);
+
+    if (limit) query = query.limit(Number(limit));
+    if (offset) query = query.offset(Number(offset));
 
     const tasks = await attachSubmissionCounts(await query);
     if (!studentId) return tasks;
@@ -542,6 +605,75 @@ export const tasksRepository = {
     if (classId) query = query.where('student_achievements.class_id', classId);
     if (teacherId) query = query.where('student_achievements.teacher_id', teacherId);
     if (publishedOnly) query = query.where('student_achievements.visibility', 'PUBLISHED');
+
+    return await query;
+  },
+
+  // Student Mistakes & Weak Areas Tracking (Academic Workspace Section 8)
+  async recordMistake(payload) {
+    const [id] = await db('student_mistakes').insert(payload);
+    return id;
+  },
+
+  async findMistakeById(id) {
+    return await baseMistakeQuery().where('student_mistakes.id', id).select(MISTAKE_COLUMNS).first();
+  },
+
+  async updateMistake(id, updates) {
+    await db('student_mistakes')
+      .where({ id })
+      .update({ ...updates, updated_at: db.fn.now(3) });
+    return await this.findMistakeById(id);
+  },
+
+  async deleteMistake(id) {
+    return await db('student_mistakes').where({ id }).del();
+  },
+
+  async countMistakes({ studentId = null, classId = null, subjectId = null, teacherId = null, status = null, severity = null, search = null } = {}) {
+    let query = baseMistakeQuery();
+
+    if (studentId) query = query.where('student_mistakes.student_id', studentId);
+    if (classId) query = query.where('student_mistakes.class_id', classId);
+    if (subjectId) query = query.where('student_mistakes.subject_id', subjectId);
+    if (teacherId) query = query.where('student_mistakes.teacher_id', teacherId);
+    if (status) query = query.where('student_mistakes.status', status);
+    if (severity) query = query.where('student_mistakes.severity', severity);
+    if (search && search.trim()) {
+      const q = `%${search.trim().toLowerCase()}%`;
+      query = query.where((b) => {
+        b.whereILike('student_mistakes.topic', q)
+          .orWhereILike('student_mistakes.description', q)
+          .orWhereILike('student_users.full_name', q)
+          .orWhereILike('students.admission_no', q);
+      });
+    }
+
+    const result = await query.count('student_mistakes.id as count').first();
+    return Number(result?.count || 0);
+  },
+
+  async getMistakes({ studentId = null, classId = null, subjectId = null, teacherId = null, status = null, severity = null, search = null, limit = null, offset = null } = {}) {
+    let query = baseMistakeQuery().select(MISTAKE_COLUMNS).orderBy('student_mistakes.created_at', 'desc');
+
+    if (studentId) query = query.where('student_mistakes.student_id', studentId);
+    if (classId) query = query.where('student_mistakes.class_id', classId);
+    if (subjectId) query = query.where('student_mistakes.subject_id', subjectId);
+    if (teacherId) query = query.where('student_mistakes.teacher_id', teacherId);
+    if (status) query = query.where('student_mistakes.status', status);
+    if (severity) query = query.where('student_mistakes.severity', severity);
+    if (search && search.trim()) {
+      const q = `%${search.trim().toLowerCase()}%`;
+      query = query.where((b) => {
+        b.whereILike('student_mistakes.topic', q)
+          .orWhereILike('student_mistakes.description', q)
+          .orWhereILike('student_users.full_name', q)
+          .orWhereILike('students.admission_no', q);
+      });
+    }
+
+    if (limit) query = query.limit(Number(limit));
+    if (offset) query = query.offset(Number(offset));
 
     return await query;
   }

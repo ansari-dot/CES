@@ -22,6 +22,8 @@ import { AchievementsFeedbackPage } from './pages/AchievementsFeedbackPage';
 import { NoticesPage } from './pages/NoticesPage';
 import { DutySalaryPage } from './pages/DutySalaryPage';
 import { ProfileSettingsPage } from './pages/ProfileSettingsPage';
+import { StudentMistakesPage } from './pages/StudentMistakesPage';
+import { StudentChatPage } from './pages/StudentChatPage';
 
 // Import Live Backend Async Thunks
 import { checkTeacherSessionThunk } from './store/slices/authSlice';
@@ -34,6 +36,7 @@ import { fetchPerformanceDataThunk } from './store/slices/performanceSlice';
 import { fetchLessonRosterThunk, fetchCorrectionVouchersThunk } from './store/slices/attendanceSlice';
 import { fetchDutySummaryThunk } from './store/slices/dutySlice';
 import { fetchTeacherNotificationsThunk } from './store/slices/uiSlice';
+import { fetchThreadsThunk } from './store/slices/chatSlice';
 import { useLessonReminderTicker } from './hooks/useLessonReminderTicker';
 import { useTeacherRealtime } from './hooks/useTeacherRealtime';
 
@@ -72,6 +75,7 @@ export default function App() {
       dispatch(fetchCorrectionVouchersThunk());
       dispatch(fetchLessonRosterThunk(1));
       dispatch(fetchDutySummaryThunk(teacher?.id || 45));
+      dispatch(fetchThreadsThunk());
     }
   }, [isAuthenticated, mustChangePassword, dispatch, teacher?.id]);
 
@@ -138,6 +142,10 @@ export default function App() {
         return <DutySalaryPage />;
       case 'profile-settings':
         return <ProfileSettingsPage />;
+      case 'student-mistakes':
+        return <StudentMistakesPage />;
+      case 'student-chat':
+        return <StudentChatPage />;
       default:
         return <DashboardPage />;
     }

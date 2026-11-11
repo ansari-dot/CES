@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
 import { toggleMilestone } from '../store/slices/projectsSlice';
 import { addToast } from '../store/slices/uiSlice';
+import { Pagination } from '../components/common/Pagination';
 import {
   FolderKanban,
   Plus,
@@ -22,12 +23,24 @@ export const StudentProjectsPage: React.FC = () => {
   const projects = useAppSelector((state) => state.projects.projects);
   const selectedClassId = useAppSelector((state) => state.auth.selectedClassId);
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedClassId]);
 
   const filteredProjects = useMemo(() => {
     return projects.filter(
       (p) => selectedClassId === 'all' || p.classId === selectedClassId
     );
   }, [projects, selectedClassId]);
+
+  const totalPages = Math.ceil(filteredProjects.length / pageSize) || 1;
+  const paginatedProjects = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredProjects.slice(start, start + pageSize);
+  }, [filteredProjects, currentPage, pageSize]);
 
   // Metrics
   const totalProjects = projects.length;
@@ -40,7 +53,7 @@ export const StudentProjectsPage: React.FC = () => {
   const overallMilestoneRate = totalMilestones > 0 ? Math.round((completedMilestones / totalMilestones) * 100) : 100;
 
   return (
-    <div className="flex flex-col w-full pb-16 space-y-5 bg-[#f6f7fb] min-h-screen p-3 sm:p-5 lg:p-6 rounded-2xl">
+    <div className="flex flex-col w-full pb-12 space-y-5 animate-in fade-in duration-150">
       {/* ------------------------------------------------------------- */}
       {/* 1. HERO HEADER BANNER */}
       {/* ------------------------------------------------------------- */}
@@ -221,7 +234,7 @@ export const StudentProjectsPage: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredProjects.map((project) => {
+                paginatedProjects.map((project) => {
                   const isExpanded = expandedProjectId === project.id;
 
                   return (
@@ -338,6 +351,22 @@ export const StudentProjectsPage: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Pagination Controls */}
+      {filteredProjects.length > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredProjects.length}
+          itemsPerPage={pageSize}
+          onPageChange={(page) => setCurrentPage(page)}
+          onItemsPerPageChange={(limit) => {
+            setPageSize(limit);
+            setCurrentPage(1);
+          }}
+          pageSizeOptions={[10, 25, 50]}
+        />
+      )}
     </div>
   );
 };

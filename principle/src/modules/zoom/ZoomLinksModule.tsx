@@ -17,24 +17,27 @@ import {
   RotateCcw,
   Copy,
   Settings,
-  Info,
   Plus,
   Trash2,
   ExternalLink,
   Radio,
-  XCircle,
   Clock,
   Calendar,
   UserCheck,
-  UserX,
   Search,
   Check,
-  X
+  X,
+  LayoutGrid,
+  List,
+  Key,
+  ShieldCheck,
+  GraduationCap
 } from 'lucide-react';
 
 export const ZoomLinksModule: React.FC = () => {
   // Tab Navigation: 'classrooms' | 'reviews'
   const [activeTab, setActiveTab] = useState<'classrooms' | 'reviews'>('classrooms');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   const [meetings, setMeetings] = useState<ClassZoomMeeting[]>([]);
   const [capacity, setCapacity] = useState<any>(null);
@@ -85,117 +88,76 @@ export const ZoomLinksModule: React.FC = () => {
 
   const toast = useToast();
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (isInitial = false) => {
     try {
-      setLoading(true);
+      if (isInitial && meetings.length === 0) {
+        setLoading(true);
+      }
       setError(null);
-      const [meetingsData, capacityData, apiStatusData, reviewsData] = await Promise.all([
-        api.getZoomMeetings(),
+
+      // 1. Fetch classrooms immediately (instant local database query: ~10ms)
+      const meetingsData = await api.getZoomMeetings();
+      setMeetings(meetingsData);
+      setLoading(false); // UI appears instantly with 0 delay!
+
+      // 2. Fetch secondary data asynchronously in background without blocking UI
+      Promise.all([
         api.getZoomCapacityStatus().catch(() => null),
         api.getZoomApiStatus().catch(() => null),
         api.getAttendanceReviews({ status: undefined, limit: 100 }).catch(() => [])
-      ]);
-      setMeetings(meetingsData);
-      setCapacity(capacityData);
-      setApiStatus(apiStatusData);
-      setReviews(reviewsData);
+      ]).then(([capacityData, apiStatusData, reviewsData]) => {
+        if (capacityData) setCapacity(capacityData);
+        if (apiStatusData) setApiStatus(apiStatusData);
+        if (reviewsData) setReviews(reviewsData);
+      });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load Zoom links');
-    } finally {
+      setError(err instanceof Error ? err.message : 'Failed to load Zoom links directory');
       setLoading(false);
     }
+  }, [meetings.length]);
+
+  useEffect(() => {
+    loadData(true);
   }, []);
 
-  useSocketEvent(RealtimeEvents.CLASS_STATUS_UPDATED, () => {
-    loadData();
-  });
-  useSocketEvent(RealtimeEvents.TEACHER_DUTY_UPDATED, () => {
-    loadData();
-  });
-  useSocketEvent(RealtimeEvents.TEACHER_ATTENDANCE_UPDATED, () => {
-    loadData();
-  });
-  useSocketEvent(RealtimeEvents.STUDENT_ATTENDANCE_UPDATED, () => {
-    loadData();
-  });
+  // Realtime updates
+  useSocketEvent(RealtimeEvents.CLASS_STATUS_UPDATED, () => loadData());
+  useSocketEvent(RealtimeEvents.STUDENT_ATTENDANCE_UPDATED, () => loadData());
 
-  const handleOpenResolveModal = (item: AttendanceReviewItem, decision: 'APPROVE' | 'REJECT') => {
-    setSelectedReview(item);
-    setResolveDecision(decision);
-    setResolveNote(
-      decision === 'APPROVE'
-        ? `Principal verified presence for ${item.matchedTeacherName || item.participantName}. Approved for payroll duty crediting.`
-        : ''
-    );
-    setIsResolveModalOpen(true);
-  };
-
-  const handleResolveSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedReview) return;
-    if (resolveDecision === 'REJECT' && !resolveNote.trim()) {
-      toast.warning('Please enter a note explaining the reason for duty rejection.');
-      return;
-    }
-
-    try {
-      setResolving(true);
-      await api.resolveAttendanceReview(selectedReview.id, {
-        decision: resolveDecision,
-        reviewNote: resolveNote.trim()
-      });
-      toast.success(
-        resolveDecision === 'APPROVE'
-          ? `Attendance duty approved for ${selectedReview.matchedTeacherName || selectedReview.participantName}. Duty minutes credited and verified for payroll.`
-          : `Duty rejected for ${selectedReview.participantName}. Excluded from payroll calculation.`
-      );
-      setIsResolveModalOpen(false);
-      setSelectedReview(null);
-      loadData();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Review action failed');
-    } finally {
-      setResolving(false);
-    }
-  };
-
-  const pendingReviewCount = useMemo(
-    () => reviews.filter((r) => r.verificationStatus === 'REQUIRES_REVIEW' || r.verificationStatus === 'FLAGGED').length,
-    [reviews]
-  );
+  const pendingReviewCount = useMemo(() => {
+    return reviews.filter(
+      (r) => r.verificationStatus === 'REQUIRES_REVIEW' || r.verificationStatus === 'FLAGGED'
+    ).length;
+  }, [reviews]);
 
   const filteredReviews = useMemo(() => {
     return reviews.filter((r) => {
-      if (reviewStatusFilter === 'REQUIRES_REVIEW' && r.verificationStatus !== 'REQUIRES_REVIEW') return false;
-      if (reviewStatusFilter === 'FLAGGED' && r.verificationStatus !== 'FLAGGED') return false;
-      if (reviewStatusFilter === 'VERIFIED' && r.verificationStatus !== 'VERIFIED') return false;
-      if (reviewStatusFilter === 'REJECTED' && r.verificationStatus !== 'REJECTED') return false;
-
+      if (reviewStatusFilter !== 'ALL' && r.verificationStatus !== reviewStatusFilter) {
+        return false;
+      }
       if (reviewSearch.trim()) {
-        const s = reviewSearch.toLowerCase();
-        const matchName = r.participantName?.toLowerCase().includes(s);
-        const matchTeacher = r.matchedTeacherName?.toLowerCase().includes(s);
-        const matchClass = r.className?.toLowerCase().includes(s);
-        const matchSubject = r.subjectName?.toLowerCase().includes(s);
-        const matchReason = r.verificationReason?.toLowerCase().includes(s);
-        const matchEmail = r.participantEmail?.toLowerCase().includes(s);
-        if (!matchName && !matchTeacher && !matchClass && !matchSubject && !matchReason && !matchEmail) {
-          return false;
-        }
+        const q = reviewSearch.toLowerCase().trim();
+        const teacherMatch = (r.matchedTeacherName || '').toLowerCase().includes(q);
+        const participantMatch = (r.participantName || '').toLowerCase().includes(q);
+        const classMatch = (r.className || '').toLowerCase().includes(q) || String(r.classNumber || '').includes(q);
+        return teacherMatch || participantMatch || classMatch;
       }
       return true;
     });
   }, [reviews, reviewStatusFilter, reviewSearch]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  const handleOpenAddModal = (classNum?: number) => {
+  const handleOpenAddModal = (defaultClassNum?: number) => {
     setIsAddMode(true);
-    setSelectedMeeting(null);
-    const existingClasses = new Set(meetings.map((m) => m.classNumber));
-    const chosenClass = classNum || [1, 2, 3, 4, 5, 6, 7, 8].find((c) => !existingClasses.has(c)) || 1;
+    const existing = new Set(meetings.map((m) => m.classNumber));
+    let chosenClass = defaultClassNum || 1;
+    if (!defaultClassNum) {
+      for (let i = 1; i <= 8; i++) {
+        if (!existing.has(i)) {
+          chosenClass = i;
+          break;
+        }
+      }
+    }
     setTargetClassNumber(chosenClass);
     setConfigTopic(`Class ${chosenClass} Official Live Classroom`);
     setConfigMeetingId('');
@@ -256,7 +218,7 @@ export const ZoomLinksModule: React.FC = () => {
         configNotes: configNotes.trim() || 'Persistent room configured with Join-Before-Host (JBH) enabled.',
         reason: isAddMode ? 'Principal added new classroom link' : 'Principal updated classroom setup'
       });
-      toast.success(`Class ${classNum} permanent Zoom room ${isAddMode ? 'added' : 'updated'} successfully.`);
+      toast.success(`Class ${classNum} Zoom room ${isAddMode ? 'added' : 'updated'} successfully.`);
       setIsConfigModalOpen(false);
       loadData();
     } catch (err: unknown) {
@@ -315,27 +277,14 @@ export const ZoomLinksModule: React.FC = () => {
     }
   };
 
-  const handleTestEventDelivery = async (classNumber: number) => {
-    try {
-      setTestingDeliveryClassNum(classNumber);
-      const res = await api.testClassEventDelivery(classNumber);
-      toast.success(res.message || `Event delivery verified for Class ${classNumber}`);
-      loadData();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Event delivery test failed');
-    } finally {
-      setTestingDeliveryClassNum(null);
-    }
-  };
-
   const handleDeleteMeeting = async (classNumber: number) => {
-    if (!window.confirm(`Are you sure you want to delete the persistent Zoom link for Class ${classNumber}? This will remove it from the database.`)) {
+    if (!window.confirm(`Are you sure you want to delete the persistent Zoom link for Class ${classNumber}?`)) {
       return;
     }
     try {
       setDeletingClassNum(classNumber);
       await api.deleteZoomMeeting(classNumber);
-      toast.success(`Class ${classNumber} Zoom link removed from database.`);
+      toast.success(`Class ${classNumber} Zoom link removed.`);
       loadData();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete meeting');
@@ -344,33 +293,18 @@ export const ZoomLinksModule: React.FC = () => {
     }
   };
 
-  const handleDeleteAll = async () => {
-    if (!window.confirm('Are you sure you want to delete ALL Zoom classroom links from the database? This cannot be undone.')) {
-      return;
-    }
-    try {
-      setLoading(true);
-      await api.deleteAllZoomMeetings();
-      toast.success('All Zoom classroom links deleted from database.');
-      loadData();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete all meetings');
-      setLoading(false);
-    }
-  };
-
   const handleRenewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMeeting) return;
     if (!renewalReason.trim()) {
-      toast.warning('A reason is mandatory for renewing or replacing a class Zoom room link.');
+      toast.warning('A reason is mandatory for rotating a room link.');
       return;
     }
 
     try {
       setRenewing(true);
       await api.renewZoomMeeting(selectedMeeting.classNumber, renewalReason);
-      toast.success(`Class ${selectedMeeting.classNumber} Zoom meeting renewed successfully. Historical credentials archived.`);
+      toast.success(`Class ${selectedMeeting.classNumber} Zoom meeting renewed.`);
       setIsRenewModalOpen(false);
       setRenewalReason('');
       setSelectedMeeting(null);
@@ -382,813 +316,792 @@ export const ZoomLinksModule: React.FC = () => {
     }
   };
 
-  if (loading) return <LoadingState message="Loading reusable Zoom classroom links for Classes 1–8..." rows={6} />;
+  const handleOpenResolveModal = (review: AttendanceReviewItem, decision: 'APPROVE' | 'REJECT') => {
+    setSelectedReview(review);
+    setResolveDecision(decision);
+    setResolveNote(
+      decision === 'APPROVE'
+        ? `Principal verified identity for ${review.participantName} based on classroom schedule.`
+        : `Principal rejected duty credit: unverified participant identity.`
+    );
+    setIsResolveModalOpen(true);
+  };
+
+  const handleResolveReview = async () => {
+    if (!selectedReview) return;
+    try {
+      setResolving(true);
+      await api.resolveAttendanceReview(selectedReview.id, {
+        decision: resolveDecision,
+        note: resolveNote
+      });
+      toast.success(`Review #${selectedReview.id} ${resolveDecision === 'APPROVE' ? 'Approved' : 'Rejected'}.`);
+      setIsResolveModalOpen(false);
+      loadData();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to resolve review');
+    } finally {
+      setResolving(false);
+    }
+  };
+
+  if (loading) return <LoadingState message="Loading Zoom classrooms directory..." rows={6} />;
   if (error) return <ErrorState message={error} onRetry={loadData} />;
 
   const configuredClasses = new Set(meetings.map((m) => m.classNumber));
 
   return (
-    <div className="space-y-5">
-      {/* Top Tab Bar: Classrooms & Dedicated Hosts vs Faculty Attendance Reviews */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setActiveTab('classrooms')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
-              activeTab === 'classrooms'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-            }`}
-          >
-            <Video className="w-4 h-4" />
-            <span>Classroom Rooms &amp; Dedicated Hosts</span>
-            <span
-              className={`px-1.5 py-0.5 rounded-full text-[10px] ${
-                activeTab === 'classrooms' ? 'bg-blue-700 text-blue-100' : 'bg-slate-100 text-slate-600'
-              }`}
-            >
-              {meetings.length}/8
-            </span>
-          </button>
+    <div className="flex flex-col w-full pb-12 space-y-6 animate-in fade-in duration-150">
+      {/* =========================================================================
+          1. HEADER BANNER: Clean, Modern Cambridge Styling
+          ========================================================================= */}
+      <div className="relative overflow-hidden rounded-3xl bg-white border border-slate-200/90 p-5 sm:p-6 shadow-xs select-none">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
+              <Video className="w-6 h-6 stroke-[2.2]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-100">
+                  Online Classrooms
+                </span>
+                <span className="text-[11px] font-extrabold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                  Classes 1–8
+                </span>
+              </div>
+              <h1 className="text-xl sm:text-2xl font-black text-[#1e1b4b] tracking-tight mt-1">
+                Zoom Classrooms &amp; Live Links
+              </h1>
+              <p className="text-xs text-slate-500 font-medium">
+                Permanent online meeting rooms for Classes 1 to 8. Teachers and students connect automatically.
+              </p>
+            </div>
+          </div>
 
-          <button
-            onClick={() => setActiveTab('reviews')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
-              activeTab === 'reviews'
-                ? 'bg-amber-500 text-amber-950 shadow-xs'
-                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-            }`}
-          >
-            <AlertTriangle className="w-4 h-4" />
-            <span>Faculty Attendance Verification</span>
-            {pendingReviewCount > 0 ? (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500 text-white animate-pulse">
-                {pendingReviewCount} Needs Review
-              </span>
-            ) : (
-              <span
-                className={`px-1.5 py-0.5 rounded-full text-[10px] ${
-                  activeTab === 'reviews' ? 'bg-amber-700 text-amber-100' : 'bg-slate-100 text-slate-600'
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* View Mode Toggle */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/80">
+              <button
+                type="button"
+                onClick={() => setViewMode('cards')}
+                className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  viewMode === 'cards'
+                    ? 'bg-white text-blue-600 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-900'
                 }`}
+                title="Card View"
               >
-                {reviews.length}
-              </span>
+                <LayoutGrid className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  viewMode === 'table'
+                    ? 'bg-white text-blue-600 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+                title="Table View"
+              >
+                <List className="w-4 h-4" />
+              </button>
+            </div>
+
+            {apiStatus?.connected && (
+              <button
+                type="button"
+                onClick={handleGenerateAllViaApi}
+                disabled={generatingAllApi}
+                className="px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs border border-blue-200 transition cursor-pointer active:scale-[0.98]"
+              >
+                {generatingAllApi ? 'Generating...' : 'Auto-Create on Zoom'}
+              </button>
             )}
-          </button>
+
+            <button
+              type="button"
+              onClick={() => handleOpenAddModal()}
+              className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-blue-500/20 transition cursor-pointer active:scale-[0.98]"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Classroom</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={loadData}
+              className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition cursor-pointer"
+              title="Refresh Zoom data"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          2. TOP 4 KPI CARDS (Wave Style)
+          ========================================================================= */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Active Rooms */}
+        <div className="relative overflow-hidden rounded-2xl bg-white border border-emerald-100/80 hover:border-emerald-300 p-4 sm:p-4.5 shadow-xs transition-all duration-200 group flex flex-col justify-between min-h-[120px]">
+          <div className="flex items-center justify-between relative z-10 w-full gap-2">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white shadow-sm shadow-emerald-500/30 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <Video className="w-5 h-5 stroke-[2.2]" />
+            </div>
+            <div className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 border bg-emerald-50 text-emerald-700 border-emerald-100">
+              <span>{meetings.length}/8 Configured</span>
+            </div>
+          </div>
+          <div className="mt-3 relative z-10 min-w-0">
+            <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-tight">
+              {meetings.length} Active
+            </div>
+            <div className="text-xs font-semibold text-slate-500 mt-0.5 truncate">
+              Permanent Class Rooms
+            </div>
+          </div>
+          <div className="absolute inset-x-0 bottom-0 h-10 pointer-events-none overflow-hidden z-0">
+            <svg viewBox="0 0 500 120" preserveAspectRatio="none" className="w-full h-full opacity-60 group-hover:opacity-85 transition-opacity">
+              <path d="M0,40 C150,90 350,0 500,50 L500,120 L0,120 Z" fill="rgba(16, 185, 129, 0.08)" />
+              <path d="M0,45 C150,95 350,5 500,55" fill="none" stroke="#10b981" strokeWidth="2.5" strokeOpacity="0.4" />
+            </svg>
+          </div>
         </div>
 
+        {/* Card 2: Today's Scheduled Lessons */}
+        <div className="relative overflow-hidden rounded-2xl bg-white border border-blue-100/80 hover:border-blue-300 p-4 sm:p-4.5 shadow-xs transition-all duration-200 group flex flex-col justify-between min-h-[120px]">
+          <div className="flex items-center justify-between relative z-10 w-full gap-2">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white shadow-sm shadow-blue-500/30 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <Calendar className="w-5 h-5 stroke-[2.2]" />
+            </div>
+            <div className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 border bg-blue-50 text-blue-700 border-blue-100">
+              <span>Scheduled</span>
+            </div>
+          </div>
+          <div className="mt-3 relative z-10 min-w-0">
+            <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-tight">
+              {capacity?.todayScheduledLessons || 0} Lessons
+            </div>
+            <div className="text-xs font-semibold text-slate-500 mt-0.5 truncate">
+              Today's Live Sessions
+            </div>
+          </div>
+          <div className="absolute inset-x-0 bottom-0 h-10 pointer-events-none overflow-hidden z-0">
+            <svg viewBox="0 0 500 120" preserveAspectRatio="none" className="w-full h-full opacity-60 group-hover:opacity-85 transition-opacity">
+              <path d="M0,40 C150,90 350,0 500,50 L500,120 L0,120 Z" fill="rgba(59, 130, 246, 0.08)" />
+              <path d="M0,45 C150,95 350,5 500,55" fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeOpacity="0.4" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Card 3: Host Claim PIN */}
+        <div className="relative overflow-hidden rounded-2xl bg-white border border-amber-100/80 hover:border-amber-300 p-4 sm:p-4.5 shadow-xs transition-all duration-200 group flex flex-col justify-between min-h-[120px]">
+          <div className="flex items-center justify-between relative z-10 w-full gap-2">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white shadow-sm shadow-amber-500/30 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <Key className="w-5 h-5 stroke-[2.2]" />
+            </div>
+            <div className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 border bg-amber-50 text-amber-800 border-amber-200">
+              <span>Universal PIN</span>
+            </div>
+          </div>
+          <div className="mt-3 relative z-10 min-w-0">
+            <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-tight font-mono">
+              884422
+            </div>
+            <div className="text-xs font-semibold text-slate-500 mt-0.5 truncate">
+              Teacher Host Key
+            </div>
+          </div>
+          <div className="absolute inset-x-0 bottom-0 h-10 pointer-events-none overflow-hidden z-0">
+            <svg viewBox="0 0 500 120" preserveAspectRatio="none" className="w-full h-full opacity-60 group-hover:opacity-85 transition-opacity">
+              <path d="M0,40 C150,90 350,0 500,50 L500,120 L0,120 Z" fill="rgba(245, 158, 11, 0.08)" />
+              <path d="M0,45 C150,95 350,5 500,55" fill="none" stroke="#f59e0b" strokeWidth="2.5" strokeOpacity="0.4" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Card 4: Attendance Tracking Status */}
+        <div className="relative overflow-hidden rounded-2xl bg-white border border-purple-100/80 hover:border-purple-300 p-4 sm:p-4.5 shadow-xs transition-all duration-200 group flex flex-col justify-between min-h-[120px]">
+          <div className="flex items-center justify-between relative z-10 w-full gap-2">
+            <div className="w-10 h-10 rounded-xl bg-purple-600 text-white shadow-sm shadow-purple-500/30 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <ShieldCheck className="w-5 h-5 stroke-[2.2]" />
+            </div>
+            <div className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 border bg-purple-50 text-purple-700 border-purple-100">
+              <span>Real-Time</span>
+            </div>
+          </div>
+          <div className="mt-3 relative z-10 min-w-0">
+            <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-tight">
+              Automated
+            </div>
+            <div className="text-xs font-semibold text-slate-500 mt-0.5 truncate">
+              Attendance &amp; Hours Tracking
+            </div>
+          </div>
+          <div className="absolute inset-x-0 bottom-0 h-10 pointer-events-none overflow-hidden z-0">
+            <svg viewBox="0 0 500 120" preserveAspectRatio="none" className="w-full h-full opacity-60 group-hover:opacity-85 transition-opacity">
+              <path d="M0,40 C150,90 350,0 500,50 L500,120 L0,120 Z" fill="rgba(139, 92, 246, 0.08)" />
+              <path d="M0,45 C150,95 350,5 500,55" fill="none" stroke="#8b5cf6" strokeWidth="2.5" strokeOpacity="0.4" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          3. NAVIGATION TABS (Classrooms vs Faculty Attendance Reviews)
+          ========================================================================= */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
         <button
-          onClick={loadData}
-          className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors self-end sm:self-auto"
-          title="Refresh Zoom data"
+          type="button"
+          onClick={() => setActiveTab('classrooms')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer ${
+            activeTab === 'classrooms'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
+          }`}
         >
-          <RefreshCw className="w-3.5 h-3.5" />
+          <Video className="w-4 h-4" />
+          <span>Classrooms Directory ({meetings.length}/8)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('reviews')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer ${
+            activeTab === 'reviews'
+              ? 'bg-amber-500 text-slate-950 shadow-xs'
+              : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
+          }`}
+        >
+          <AlertTriangle className="w-4 h-4 text-amber-600" />
+          <span>Attendance Reviews</span>
+          {pendingReviewCount > 0 && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500 text-white animate-pulse">
+              {pendingReviewCount}
+            </span>
+          )}
         </button>
       </div>
 
+      {/* =========================================================================
+          4. MAIN VIEW (CARDS OR TABLE)
+          ========================================================================= */}
       {activeTab === 'classrooms' ? (
         <>
-          {/* Overview & Security Policy Banner */}
-          <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <Lock className="w-4 h-4 text-emerald-600" />
-            <h2 className="text-sm font-semibold text-slate-900">
-              Persistent Class Meeting Architecture · Classes 1–8
-            </h2>
-          </div>
-          <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
-            Each class maintains one permanent, reusable Zoom meeting room. The principal configures each room once, and subject teachers hand over sessions automatically each timetable period without recreating links.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          {apiStatus?.connected ? (
-            <span className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 font-medium flex items-center gap-1.5 shadow-2xs">
-              <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
-              Zoom API: Connected ({apiStatus.accountEmail})
-            </span>
-          ) : (
-            <span
-              className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 font-medium flex items-center gap-1.5 shadow-2xs"
-              title="Add ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, and ZOOM_CLIENT_SECRET in .env for one-click Zoom API generation"
-            >
-              <span className="w-2 h-2 rounded-full bg-slate-400" />
-              Manual Mode (Zoom API optional)
-            </span>
-          )}
-
-          <span
-            className="px-3 py-1.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 font-medium flex items-center gap-1.5 shadow-2xs"
-            title="Webhook listener at /api/v1/zoom/webhook tracks teacher join, leave, daily hours & attendance for automated payroll"
-          >
-            <span className="w-2 h-2 rounded-full bg-purple-600 animate-pulse" />
-            Server-to-Server Hours &amp; Duty Tracking: Active
-          </span>
-
-          {apiStatus?.connected && (
-            <button
-              onClick={handleGenerateAllViaApi}
-              disabled={generatingAllApi}
-              className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
-            >
-              <Video className="w-3.5 h-3.5" />
-              <span>{generatingAllApi ? 'Generating...' : 'Auto-Create All on Zoom'}</span>
-            </button>
-          )}
-
-          <button
-            onClick={() => handleOpenAddModal()}
-            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add Classroom Link</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Zoom Pro Account Capacity & Concurrency Card */}
-      {capacity && (
-        <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50/70 via-slate-50 to-indigo-50/50 border border-blue-200/80 shadow-xs">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-blue-600 text-white rounded-xl shadow-xs">
-                <Video className="w-4 h-4" />
+          {meetings.length === 0 ? (
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-12 text-center shadow-xs">
+              <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shadow-2xs">
+                <Video className="w-7 h-7" />
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-900">{capacity.accountType}</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-medium">
-                    Host: {capacity.licensedHost}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-600 mt-0.5">
-                  {capacity.concurrencyArchitecture} · Concurrency: {capacity.simultaneousCapacity} simultaneous periods supported
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-4 text-xs">
-              <div className="text-right">
-                <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Today's Sessions</span>
-                <span className="font-bold text-slate-800">{capacity.todayScheduledLessons} Scheduled</span>
-              </div>
-              <div className="h-6 w-px bg-slate-200" />
-              <div className="text-right">
-                <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Absence Alerts</span>
-                <span className={`font-bold ${capacity.todayAbsenceAlerts > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                  {capacity.todayAbsenceAlerts} Reported
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="mt-2.5 pt-2.5 border-t border-blue-100/80 flex items-start gap-1.5 text-[11px] text-slate-600">
-            <Info className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
-            <span>
-              <strong>Operational Architecture:</strong> Persistent rooms with Join-Before-Host (JBH) and passcodes enabled eliminate link recreation. The school timetable handles 5-minute pre-class teacher notifications, absence detection (10-minute grace period), and teacher handover transitions automatically.
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Directory Table Layout (Replaces Old Cards/Boxes) */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
-        {/* Table Header Bar */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-50/50">
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-slate-900">Classroom Zoom Meeting Directory</h3>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-800">
-                {meetings.length} of 8 Classes Configured
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Permanent meeting rooms mapped per class. Clean table layout for fast auditing and updates.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {meetings.length > 0 && (
+              <h4 className="text-sm font-bold text-slate-900">No Classroom Links Configured</h4>
+              <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto leading-relaxed">
+                Add permanent Zoom links for Class 1 through Class 8 to enable scheduled teacher handovers and instant student attendance.
+              </p>
               <button
-                onClick={handleDeleteAll}
-                className="px-3 py-1.5 rounded-xl border border-rose-200 hover:bg-rose-50 text-rose-600 font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Delete all meetings from database"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Clear All Links</span>
-              </button>
-            )}
-
-            <button
-              onClick={() => handleOpenAddModal()}
-              className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Classroom Link</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Empty State Banner */}
-        {meetings.length === 0 ? (
-          <div className="p-12 text-center">
-            <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shadow-2xs">
-              <Video className="w-7 h-7" />
-            </div>
-            <h4 className="text-sm font-semibold text-slate-900">No Classroom Links in Database</h4>
-            <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto leading-relaxed">
-              The database is currently empty. Click below to add persistent Zoom links for Class 1 through Class 8 to enable scheduled teacher handovers and student joins.
-            </p>
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-              <button
+                type="button"
                 onClick={() => handleOpenAddModal()}
-                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                className="mt-4 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs inline-flex items-center gap-1.5 transition cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
-                <span>+ Add Classroom Link</span>
+                <span>Add Classroom Link</span>
               </button>
-
-              {apiStatus?.connected && (
-                <button
-                  onClick={handleGenerateAllViaApi}
-                  disabled={generatingAllApi}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs flex items-center gap-1.5 transition-all cursor-pointer"
-                >
-                  <Video className="w-3.5 h-3.5" />
-                  <span>{generatingAllApi ? 'Creating...' : 'Auto-Create All on Zoom'}</span>
-                </button>
-              )}
             </div>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200/80 bg-slate-50/70 text-slate-600 font-semibold text-[11px] uppercase tracking-wider">
-                  <th className="py-3 px-4">Classroom</th>
-                  <th className="py-3 px-4">Dedicated Licensed Host</th>
-                  <th className="py-3 px-4">Meeting ID &amp; PIN</th>
-                  <th className="py-3 px-4">Passcode</th>
-                  <th className="py-3 px-4">Permanent Join Link</th>
-                  <th className="py-3 px-4">Event Delivery</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {meetings.map((m) => {
-                  const isDegraded = m.status === 'Requires Renewal' || m.healthCheckStatus === 'Degraded';
-                  return (
-                    <tr
-                      key={m.id}
-                      className={`transition-colors hover:bg-slate-50/70 ${isDegraded ? 'bg-amber-50/30' : ''}`}
-                    >
-                      {/* Class */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
+          ) : viewMode === 'cards' ? (
+            /* 4A. BEAUTIFUL GRID OF CLASS CARDS (Minimal text, rich icons) */
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              {meetings.map((m) => {
+                const isDegraded = m.status === 'Requires Renewal' || m.healthCheckStatus === 'Degraded';
+                return (
+                  <div
+                    key={m.id}
+                    className="bg-white rounded-2xl border border-slate-200/90 hover:border-blue-300 p-4 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group"
+                  >
+                    {/* Top Header: Class badge & Status */}
+                    <div>
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                         <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200/80 font-bold text-blue-900 text-xs">
-                            Class {m.classNumber}
-                          </span>
-                          <span className="text-[10px] text-slate-500 font-mono bg-slate-100 px-1.5 py-0.5 rounded">
-                            Slot #{m.concurrencySlot || m.classNumber}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Dedicated Licensed Host */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-[11px] font-bold text-slate-900 flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0"></span>
-                            <span className="truncate max-w-[160px]" title={m.hostName || `Class ${m.classNumber} Dedicated Host`}>
-                              {m.hostName || `Class ${m.classNumber} Dedicated Host`}
+                          <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs border border-blue-100">
+                            C{m.classNumber}
+                          </div>
+                          <div>
+                            <span className="font-black text-slate-900 text-sm block">
+                              Class {m.classNumber}
                             </span>
-                          </span>
-                          <span className="text-[10px] text-slate-500 font-mono truncate max-w-[160px]" title={m.accountEmail}>
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              Room #{m.concurrencySlot || m.classNumber}
+                            </span>
+                          </div>
+                        </div>
+
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${
+                            isDegraded
+                              ? 'bg-amber-50 text-amber-800 border-amber-200'
+                              : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          }`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              isDegraded ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'
+                            }`}
+                          />
+                          <span>{m.status || 'Active'}</span>
+                        </span>
+                      </div>
+
+                      {/* Room Credentials (Clean pills with 1-click copy) */}
+                      <div className="py-3.5 space-y-2 text-xs">
+                        {/* Meeting ID */}
+                        <div className="flex items-center justify-between bg-slate-50 p-2 rounded-xl border border-slate-100">
+                          <span className="text-[11px] font-bold text-slate-500">Meeting ID:</span>
+                          <div className="flex items-center gap-1.5 font-mono font-black text-slate-900">
+                            <span>{m.zoomMeetingId}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(m.zoomMeetingId);
+                                toast.success(`Copied Meeting ID ${m.zoomMeetingId}`);
+                              }}
+                              className="p-1 rounded text-slate-400 hover:text-blue-600 transition cursor-pointer"
+                              title="Copy Meeting ID"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Passcode */}
+                        <div className="flex items-center justify-between bg-slate-50 p-2 rounded-xl border border-slate-100">
+                          <span className="text-[11px] font-bold text-slate-500">Passcode:</span>
+                          <div className="flex items-center gap-1.5 font-mono font-bold text-slate-800">
+                            <span className="bg-white px-2 py-0.5 rounded-md border border-slate-200 text-xs">
+                              {m.passcode}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(m.passcode);
+                                toast.success(`Copied Passcode ${m.passcode}`);
+                              }}
+                              className="p-1 rounded text-slate-400 hover:text-blue-600 transition cursor-pointer"
+                              title="Copy Passcode"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Host PIN & Host Name */}
+                        <div className="flex items-center justify-between text-[11px] text-slate-500 px-1 pt-1 font-medium">
+                          <span>Host PIN: <strong className="font-mono text-slate-800">{m.hostKey || '884422'}</strong></span>
+                          <span className="truncate max-w-[130px] font-mono text-[10px]" title={m.accountEmail}>
                             {m.accountEmail || `zoom.class${m.classNumber}@school.pk`}
                           </span>
                         </div>
-                      </td>
+                      </div>
+                    </div>
 
-                      {/* Meeting ID & Host Key */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md">
-                            {m.zoomMeetingId}
-                          </span>
-                          <span className="text-[10px] text-amber-900 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded font-mono font-bold" title="Host Key PIN">
-                            {m.hostKey || '884422'}
-                          </span>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(m.zoomMeetingId);
-                              toast.success(`Copied Meeting ID ${m.zoomMeetingId}`);
-                            }}
-                            className="p-1 rounded text-slate-400 hover:text-slate-700 transition-colors"
-                            title="Copy Meeting ID"
-                          >
-                            <Copy className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </td>
+                    {/* Bottom Action Buttons */}
+                    <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        {/* Join Link */}
+                        <a
+                          href={m.joinUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-2xs active:scale-[0.98]"
+                        >
+                          <Video className="w-3.5 h-3.5" />
+                          <span>Join Room</span>
+                        </a>
 
-                      {/* Passcode */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <span className="font-mono text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md">
-                          {m.passcode}
-                        </span>
-                      </td>
+                        {/* Copy Link */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(m.joinUrl);
+                            toast.success(`Copied Class ${m.classNumber} link`);
+                          }}
+                          className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer active:scale-[0.98]"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy Link</span>
+                        </button>
+                      </div>
 
-                      {/* Permanent Join Link */}
-                      <td className="py-3.5 px-4 max-w-xs">
-                        <div className="flex items-center gap-1.5">
-                          <span className="truncate font-mono text-[11px] text-slate-600 block max-w-[170px]" title={m.joinUrl}>
-                            {m.joinUrl}
-                          </span>
-                          <a
-                            href={m.joinUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-1 rounded text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors shrink-0"
-                            title="Test / Open Join Link"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(m.joinUrl);
-                              toast.success(`Copied Class ${m.classNumber} join link`);
-                            }}
-                            className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
-                            title="Copy link"
-                          >
-                            <Copy className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </td>
+                      {/* Micro actions row (Edit, Health Check, Delete) */}
+                      <div className="flex items-center justify-between pt-1 text-[11px] text-slate-400">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenConfigModal(m)}
+                          className="hover:text-blue-600 flex items-center gap-1 transition cursor-pointer font-semibold"
+                        >
+                          <Settings className="w-3 h-3" />
+                          <span>Edit</span>
+                        </button>
 
-                      {/* Event Delivery Verification */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5 text-xs">
-                          {m.webhookVerifiedAt ? (
-                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold inline-flex items-center gap-1" title={`Verified at ${m.webhookVerifiedAt}`}>
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                              Webhook Verified
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => handleTestEventDelivery(m.classNumber)}
-                              disabled={testingDeliveryClassNum === m.classNumber}
-                              className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 text-[10px] font-bold border border-purple-200 inline-flex items-center gap-1 cursor-pointer transition-colors"
-                              title="Test webhook event delivery for automatic attendance tracking"
-                            >
-                              <Radio className={`w-2.5 h-2.5 ${testingDeliveryClassNum === m.classNumber ? 'animate-ping' : ''}`} />
-                              {testingDeliveryClassNum === m.classNumber ? 'Testing...' : 'Test Delivery'}
-                            </button>
-                          )}
-                        </div>
-                      </td>
+                        <button
+                          type="button"
+                          onClick={() => handleRunHealthCheck(m.classNumber)}
+                          disabled={checkingClassNum === m.classNumber}
+                          className="hover:text-emerald-600 flex items-center gap-1 transition cursor-pointer font-semibold"
+                        >
+                          <RefreshCw className={`w-3 h-3 ${checkingClassNum === m.classNumber ? 'animate-spin' : ''}`} />
+                          <span>Check</span>
+                        </button>
 
-                      {/* Status */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <StatusBadge status={m.status} />
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-3.5 px-4 whitespace-nowrap text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => handleTestEventDelivery(m.classNumber)}
-                            disabled={testingDeliveryClassNum === m.classNumber}
-                            title="Test webhook event delivery"
-                            className="p-1.5 rounded-lg border border-purple-200 hover:bg-purple-50 text-purple-700 transition-colors text-[11px] flex items-center gap-1 cursor-pointer"
-                          >
-                            <Radio className={`w-3 h-3 ${testingDeliveryClassNum === m.classNumber ? 'animate-ping' : ''}`} />
-                            <span className="hidden xl:inline">Test Event</span>
-                          </button>
-
-                          <button
-                            onClick={() => handleOpenConfigModal(m)}
-                            title="Edit link details"
-                            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors text-[11px] flex items-center gap-1 cursor-pointer"
-                          >
-                            <Settings className="w-3 h-3" />
-                            <span>Edit</span>
-                          </button>
-
-                          <button
-                            onClick={() => handleRunHealthCheck(m.classNumber)}
-                            disabled={checkingClassNum === m.classNumber}
-                            title="Run health check"
-                            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors text-[11px] flex items-center gap-1 cursor-pointer"
-                          >
-                            <RefreshCw className={`w-3 h-3 ${checkingClassNum === m.classNumber ? 'animate-spin text-amber-600' : ''}`} />
-                            <span>Check</span>
-                          </button>
-
-                          {m.renewalHistory.length > 0 && (
-                            <button
-                              onClick={() => {
-                                setSelectedMeeting(m);
-                                setIsHistoryModalOpen(true);
-                              }}
-                              title="View link audit trail"
-                              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
-                            >
-                              <History className="w-3 h-3" />
-                            </button>
-                          )}
-
-                          <button
-                            onClick={() => {
-                              setSelectedMeeting(m);
-                              setIsRenewModalOpen(true);
-                            }}
-                            title="Rotate meeting link"
-                            className="px-2 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium text-[11px] transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
-                          >
-                            <RotateCcw className="w-3 h-3" />
-                            <span>Rotate</span>
-                          </button>
-
-                          <button
-                            onClick={() => handleDeleteMeeting(m.classNumber)}
-                            disabled={deletingClassNum === m.classNumber}
-                            title="Delete class link from database"
-                            className="p-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-600 transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </td>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteMeeting(m.classNumber)}
+                          disabled={deletingClassNum === m.classNumber}
+                          className="hover:text-rose-600 flex items-center gap-1 transition cursor-pointer font-semibold"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Delete</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* 4B. STREAMLINED DIRECTORY TABLE VIEW */
+            <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200/80 bg-slate-50 text-slate-500 font-bold text-[11px] uppercase tracking-wider h-11">
+                      <th className="py-2 px-5">Class</th>
+                      <th className="py-2 px-5">Meeting ID &amp; PIN</th>
+                      <th className="py-2 px-5">Passcode</th>
+                      <th className="py-2 px-5">Join Link</th>
+                      <th className="py-2 px-5 text-center">Status</th>
+                      <th className="py-2 px-5 text-right">Actions</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {meetings.map((m) => {
+                      return (
+                        <tr key={m.id} className="hover:bg-slate-50/80 h-14 transition-colors">
+                          <td className="py-2 px-5">
+                            <span className="px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 font-bold text-xs border border-blue-200">
+                              Class {m.classNumber}
+                            </span>
+                          </td>
+
+                          <td className="py-2 px-5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-slate-900 text-xs">
+                                {m.zoomMeetingId}
+                              </span>
+                              <span className="text-[10px] text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded font-mono font-bold border border-amber-200">
+                                PIN: {m.hostKey || '884422'}
+                              </span>
+                            </div>
+                          </td>
+
+                          <td className="py-2 px-5">
+                            <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                              {m.passcode}
+                            </span>
+                          </td>
+
+                          <td className="py-2 px-5 max-w-xs">
+                            <div className="flex items-center gap-1.5">
+                              <span className="truncate font-mono text-[11px] text-slate-500 block max-w-[180px]">
+                                {m.joinUrl}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(m.joinUrl);
+                                  toast.success(`Copied Class ${m.classNumber} link`);
+                                }}
+                                className="p-1 rounded text-slate-400 hover:text-blue-600 transition cursor-pointer"
+                                title="Copy link"
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+
+                          <td className="py-2 px-5 text-center">
+                            <StatusBadge status={m.status} />
+                          </td>
+
+                          <td className="py-2 px-5 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <a
+                                href={m.joinUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1 transition shadow-2xs"
+                              >
+                                <Video className="w-3.5 h-3.5" />
+                                <span>Join</span>
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenConfigModal(m)}
+                                className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition cursor-pointer"
+                                title="Edit Link"
+                              >
+                                <Settings className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteMeeting(m.classNumber)}
+                                className="p-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-600 transition cursor-pointer"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        /* =========================================================================
+            FACULTY ATTENDANCE REVIEWS TAB
+            ========================================================================= */
+        <div className="space-y-4">
+          <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+            {/* Filter and Search Bar */}
+            <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-slate-50/50">
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setReviewStatusFilter('REQUIRES_REVIEW')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer ${
+                    reviewStatusFilter === 'REQUIRES_REVIEW'
+                      ? 'bg-amber-500 text-slate-950 shadow-2xs'
+                      : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  Needs Review ({pendingReviewCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReviewStatusFilter('ALL')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer ${
+                    reviewStatusFilter === 'ALL'
+                      ? 'bg-blue-600 text-white shadow-2xs'
+                      : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  All Logs ({reviews.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReviewStatusFilter('VERIFIED')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer ${
+                    reviewStatusFilter === 'VERIFIED'
+                      ? 'bg-emerald-600 text-white shadow-2xs'
+                      : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  Verified ({reviews.filter((r) => r.verificationStatus === 'VERIFIED').length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReviewStatusFilter('REJECTED')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer ${
+                    reviewStatusFilter === 'REJECTED'
+                      ? 'bg-rose-600 text-white shadow-2xs'
+                      : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  Rejected ({reviews.filter((r) => r.verificationStatus === 'REJECTED').length})
+                </button>
+              </div>
+
+              <div className="relative w-full md:w-64">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Search faculty or class..."
+                  value={reviewSearch}
+                  onChange={(e) => setReviewSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-white border border-slate-200 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Reviews Table */}
+            {filteredReviews.length === 0 ? (
+              <div className="p-12 text-center text-slate-500">
+                <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
+                <p className="text-sm font-bold text-slate-800">
+                  {reviewStatusFilter === 'REQUIRES_REVIEW'
+                    ? 'No Attendance Reviews Pending'
+                    : 'No Matching Attendance Records'}
+                </p>
+                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                  All faculty Zoom sessions have been verified. Teaching duty is cleanly synced for payroll.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200/80 bg-slate-50 text-slate-600 font-bold text-[11px] uppercase tracking-wider h-11">
+                      <th className="py-2 px-4">Classroom</th>
+                      <th className="py-2 px-4">Scheduled Window</th>
+                      <th className="py-2 px-4">Faculty vs Zoom Identity</th>
+                      <th className="py-2 px-4">Presence</th>
+                      <th className="py-2 px-4">Status</th>
+                      <th className="py-2 px-4 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredReviews.map((r) => {
+                      const isNeedsReview = r.verificationStatus === 'REQUIRES_REVIEW' || r.verificationStatus === 'FLAGGED';
+                      const durMins = r.durationSeconds ? Math.round(r.durationSeconds / 60) : 0;
+                      return (
+                        <tr
+                          key={r.id}
+                          className={`hover:bg-slate-50/80 h-14 transition-colors ${
+                            isNeedsReview ? 'bg-amber-50/25' : ''
+                          }`}
+                        >
+                          <td className="py-2 px-4 whitespace-nowrap">
+                            <span className="font-bold text-slate-900 block">
+                              {r.className || `Class ${r.classNumber || 'Room'}`}
+                            </span>
+                            <span className="text-[11px] text-slate-500">
+                              {r.subjectName || 'Core Curriculum'}
+                            </span>
+                          </td>
+
+                          <td className="py-2 px-4 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5 text-slate-800 font-medium">
+                              <Calendar className="w-3 h-3 text-slate-400" />
+                              <span>
+                                {r.scheduledStart
+                                  ? new Date(r.scheduledStart).toLocaleDateString([], {
+                                      month: 'short',
+                                      day: 'numeric'
+                                    })
+                                  : 'Scheduled'}
+                              </span>
+                            </div>
+                            <div className="font-mono text-[11px] text-slate-400">
+                              {r.scheduledStart ? String(r.scheduledStart).substring(11, 16) : ''} -{' '}
+                              {r.scheduledEnd ? String(r.scheduledEnd).substring(11, 16) : ''}
+                            </div>
+                          </td>
+
+                          <td className="py-2 px-4">
+                            <div className="font-bold text-slate-900 flex items-center gap-1">
+                              <UserCheck className="w-3.5 h-3.5 text-blue-600" />
+                              <span>{r.matchedTeacherName || 'Unknown Faculty'}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              Zoom: "{r.participantName}"
+                            </span>
+                          </td>
+
+                          <td className="py-2 px-4 whitespace-nowrap">
+                            <span className="font-bold text-slate-800 font-mono">
+                              {durMins} mins
+                            </span>
+                          </td>
+
+                          <td className="py-2 px-4 whitespace-nowrap">
+                            {r.verificationStatus === 'REQUIRES_REVIEW' ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                Needs Review
+                              </span>
+                            ) : r.verificationStatus === 'VERIFIED' ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                Verified
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+                                {r.verificationStatus}
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-2 px-4 whitespace-nowrap text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {isNeedsReview ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenResolveModal(r, 'APPROVE')}
+                                    className="px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer"
+                                  >
+                                    Approve
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenResolveModal(r, 'REJECT')}
+                                    className="px-2.5 py-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition cursor-pointer"
+                                  >
+                                    Reject
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenResolveModal(r, r.verificationStatus === 'VERIFIED' ? 'REJECT' : 'APPROVE')}
+                                  className="px-2.5 py-1 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold transition cursor-pointer"
+                                >
+                                  Re-evaluate
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
-    </div>
-    </>
-  ) : (
-    /* Faculty Attendance Reviews Section */
-    <div className="space-y-4">
-      {/* Header Banner */}
-      <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-600" />
-            <h2 className="text-sm font-semibold text-slate-900">
-              Faculty Duty Verification &amp; Identity Escrow
-            </h2>
-          </div>
-          <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
-            When faculty join Zoom sessions using unverified display names or unauthorized personal accounts, the webhook attendance engine flags the session and holds duty hours in escrow. Approved sessions are immediately credited to verified teaching hours in monthly payroll drafts.
-          </p>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={loadData}
-            className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Refresh Logs</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Metrics summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800">Requires Review</span>
-            <div className="text-2xl font-black text-amber-950 mt-0.5">{pendingReviewCount}</div>
-            <span className="text-[10px] text-amber-700">Held from payroll until approved</span>
-          </div>
-          <div className="p-2.5 rounded-xl bg-amber-100 text-amber-800">
-            <AlertTriangle className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200 flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">Verified &amp; Credited</span>
-            <div className="text-2xl font-black text-emerald-950 mt-0.5">
-              {reviews.filter((r) => r.verificationStatus === 'VERIFIED').length}
-            </div>
-            <span className="text-[10px] text-emerald-700">Included in verified duty calculation</span>
-          </div>
-          <div className="p-2.5 rounded-xl bg-emerald-100 text-emerald-800">
-            <CheckCircle2 className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="p-4 rounded-xl bg-rose-50/70 border border-rose-200 flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-rose-800">Rejected / Disallowed</span>
-            <div className="text-2xl font-black text-rose-950 mt-0.5">
-              {reviews.filter((r) => r.verificationStatus === 'REJECTED').length}
-            </div>
-            <span className="text-[10px] text-rose-700">Excluded (0 duty minutes)</span>
-          </div>
-          <div className="p-2.5 rounded-xl bg-rose-100 text-rose-800">
-            <XCircle className="w-5 h-5" />
-          </div>
-        </div>
-      </div>
-
-      {/* Table Container */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
-        {/* Filter and Search Bar */}
-        <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-slate-50/50">
-          <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            <button
-              onClick={() => setReviewStatusFilter('REQUIRES_REVIEW')}
-              className={`px-3 py-1.5 rounded-xl font-medium transition-colors cursor-pointer ${
-                reviewStatusFilter === 'REQUIRES_REVIEW'
-                  ? 'bg-amber-500 text-amber-950 shadow-2xs font-bold'
-                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              Needs Review ({pendingReviewCount})
-            </button>
-            <button
-              onClick={() => setReviewStatusFilter('ALL')}
-              className={`px-3 py-1.5 rounded-xl font-medium transition-colors cursor-pointer ${
-                reviewStatusFilter === 'ALL'
-                  ? 'bg-blue-600 text-white shadow-2xs font-bold'
-                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              All Logs ({reviews.length})
-            </button>
-            <button
-              onClick={() => setReviewStatusFilter('VERIFIED')}
-              className={`px-3 py-1.5 rounded-xl font-medium transition-colors cursor-pointer ${
-                reviewStatusFilter === 'VERIFIED'
-                  ? 'bg-emerald-600 text-white shadow-2xs font-bold'
-                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              Verified ({reviews.filter((r) => r.verificationStatus === 'VERIFIED').length})
-            </button>
-            <button
-              onClick={() => setReviewStatusFilter('REJECTED')}
-              className={`px-3 py-1.5 rounded-xl font-medium transition-colors cursor-pointer ${
-                reviewStatusFilter === 'REJECTED'
-                  ? 'bg-rose-600 text-white shadow-2xs font-bold'
-                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              Rejected ({reviews.filter((r) => r.verificationStatus === 'REJECTED').length})
-            </button>
-          </div>
-
-          <div className="relative w-full md:w-64">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-            <input
-              type="text"
-              placeholder="Search faculty, Zoom name, class..."
-              value={reviewSearch}
-              onChange={(e) => setReviewSearch(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-white border border-slate-200 focus:outline-none focus:border-blue-500"
-            />
-          </div>
-        </div>
-
-        {/* Reviews Table */}
-        {filteredReviews.length === 0 ? (
-          <div className="p-12 text-center text-slate-500">
-            <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-2" />
-            <p className="text-sm font-semibold text-slate-800">
-              {reviewStatusFilter === 'REQUIRES_REVIEW'
-                ? 'No Attendance Reviews Pending'
-                : 'No Matching Attendance Records'}
-            </p>
-            <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-              {reviewStatusFilter === 'REQUIRES_REVIEW'
-                ? 'All faculty Zoom sessions have been verified or resolved. Teaching duty is cleanly synced for payroll.'
-                : 'Try adjusting your search query or status filter.'}
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200/80 bg-slate-50/70 text-slate-600 font-semibold text-[11px] uppercase tracking-wider">
-                  <th className="py-3 px-4">Classroom &amp; Subject</th>
-                  <th className="py-3 px-4">Scheduled Window</th>
-                  <th className="py-3 px-4">Assigned Faculty vs Zoom Identity</th>
-                  <th className="py-3 px-4">Recorded Presence</th>
-                  <th className="py-3 px-4">Verification Reason</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredReviews.map((r) => {
-                  const isNeedsReview = r.verificationStatus === 'REQUIRES_REVIEW' || r.verificationStatus === 'FLAGGED';
-                  const durMins = r.durationSeconds ? Math.round(r.durationSeconds / 60) : 0;
-                  return (
-                    <tr
-                      key={r.id}
-                      className={`hover:bg-slate-50/80 transition-colors ${
-                        isNeedsReview ? 'bg-amber-50/25' : ''
-                      }`}
-                    >
-                      {/* Classroom & Subject */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <div className="font-semibold text-slate-900">
-                          {r.className || `Class ${r.classNumber || 'Room'}`}
-                        </div>
-                        <div className="text-[11px] text-slate-500">
-                          {r.subjectName || 'Core Curriculum'}
-                        </div>
-                        <div className="font-mono text-[10px] text-slate-400">
-                          Meeting ID: {r.zoomMeetingId}
-                        </div>
-                      </td>
-
-                      {/* Scheduled Window */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5 text-slate-800 font-medium">
-                          <Calendar className="w-3 h-3 text-slate-400" />
-                          <span>
-                            {r.scheduledStart
-                              ? new Date(r.scheduledStart).toLocaleDateString([], {
-                                  month: 'short',
-                                  day: 'numeric'
-                                })
-                              : 'Scheduled'}
-                          </span>
-                        </div>
-                        <div className="font-mono text-[11px] text-slate-500 mt-0.5">
-                          {r.scheduledStart ? String(r.scheduledStart).substring(11, 16) : ''} -{' '}
-                          {r.scheduledEnd ? String(r.scheduledEnd).substring(11, 16) : ''}
-                        </div>
-                      </td>
-
-                      {/* Faculty vs Zoom Identity */}
-                      <td className="py-3.5 px-4 max-w-xs">
-                        <div className="font-semibold text-slate-900">
-                          {r.matchedTeacherName ? (
-                            <span className="flex items-center gap-1">
-                              <UserCheck className="w-3.5 h-3.5 text-blue-600" />
-                              <span>{r.matchedTeacherName}</span>
-                            </span>
-                          ) : (
-                            <span className="text-slate-500 italic">No faculty timetable match</span>
-                          )}
-                        </div>
-                        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                          <span
-                            className="px-1.5 py-0.5 rounded bg-slate-100 font-mono text-[10px] font-semibold text-slate-700"
-                            title="Zoom Display Name"
-                          >
-                            Display: "{r.participantName}"
-                          </span>
-                          {r.participantEmail && (
-                            <span className="text-[10px] text-slate-500 font-mono">
-                              ({r.participantEmail})
-                            </span>
-                          )}
-                          <span className="text-[10px] px-1 py-0.2 rounded bg-purple-50 text-purple-700 font-semibold uppercase">
-                            {r.role || 'Participant'}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Recorded Presence */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <div className="font-bold text-slate-900 flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{durMins} mins tracked</span>
-                        </div>
-                        <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                          {r.joinedAt ? String(r.joinedAt).substring(11, 16) : ''}
-                          {r.leftAt ? ` → ${String(r.leftAt).substring(11, 16)}` : ' (In session)'}
-                        </div>
-                        {r.identityMethod && (
-                          <div className="text-[10px] text-slate-400 mt-0.5">
-                            Method: {r.identityMethod}
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Reason */}
-                      <td className="py-3.5 px-4 max-w-xs">
-                        <div className="text-[11px] text-slate-700 leading-snug">
-                          {r.verificationReason}
-                        </div>
-                        {r.reviewNote && (
-                          <div className="mt-1 p-1.5 rounded bg-slate-100 text-[10px] text-slate-600 border border-slate-200">
-                            <strong>Admin Note:</strong> {r.reviewNote} ({r.reviewerName || 'Principal'})
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Status Badge */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        {r.verificationStatus === 'REQUIRES_REVIEW' ? (
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 inline-flex items-center gap-1 animate-pulse">
-                            <AlertTriangle className="w-3 h-3 text-amber-600" />
-                            Requires Review
-                          </span>
-                        ) : r.verificationStatus === 'FLAGGED' ? (
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3 text-amber-600" />
-                            Flagged
-                          </span>
-                        ) : r.verificationStatus === 'VERIFIED' ? (
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 inline-flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                            Approved &amp; Credited
-                          </span>
-                        ) : r.verificationStatus === 'REJECTED' ? (
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300 inline-flex items-center gap-1">
-                            <XCircle className="w-3 h-3 text-rose-600" />
-                            Duty Rejected
-                          </span>
-                        ) : (
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
-                            {r.verificationStatus}
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-3.5 px-4 whitespace-nowrap text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {isNeedsReview ? (
-                            <>
-                              <button
-                                onClick={() => handleOpenResolveModal(r, 'APPROVE')}
-                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] shadow-2xs transition-colors flex items-center gap-1 cursor-pointer"
-                                title="Approve faculty duty and credit teaching hours"
-                              >
-                                <Check className="w-3 h-3" />
-                                <span>Approve</span>
-                              </button>
-                              <button
-                                onClick={() => handleOpenResolveModal(r, 'REJECT')}
-                                className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold text-[11px] shadow-2xs transition-colors flex items-center gap-1 cursor-pointer"
-                                title="Reject duty and exclude from payroll"
-                              >
-                                <X className="w-3 h-3" />
-                                <span>Reject</span>
-                              </button>
-                            </>
-                          ) : (
-                            <button
-                              onClick={() => handleOpenResolveModal(r, r.verificationStatus === 'VERIFIED' ? 'REJECT' : 'APPROVE')}
-                              className="px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 text-[10px] font-medium transition-colors cursor-pointer"
-                              title="Re-evaluate or adjust this attendance decision"
-                            >
-                              Re-evaluate
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
-  )}
+      {/* =========================================================================
+          MODALS: Config, Renewal, Resolve
+          ========================================================================= */}
       {isConfigModalOpen && (
         <Modal
           isOpen={isConfigModalOpen}
           onClose={() => setIsConfigModalOpen(false)}
-          title={isAddMode ? 'Add Classroom Zoom Link' : `Configure Permanent Classroom · Class ${selectedMeeting?.classNumber}`}
-          description={
-            isAddMode
-              ? 'Select a class and configure its persistent Zoom room. This link will be permanently stored and used for all scheduled periods.'
-              : 'Update the permanent Zoom meeting ID and join link. Saved once and automatically reused for every school day.'
-          }
+          title={isAddMode ? 'Add Classroom Zoom Link' : `Configure Classroom · Class ${selectedMeeting?.classNumber}`}
+          description="Enter permanent meeting ID, passcode and link for this class."
           maxWidth="md"
         >
-          <form onSubmit={handleConfigSubmit} className="space-y-3.5 text-xs">
-            {/* Class Selection Dropdown in Add Mode */}
+          <form onSubmit={handleConfigSubmit} className="space-y-4 text-xs">
             {isAddMode && (
               <div>
-                <label className="block text-slate-700 font-medium mb-1">
+                <label className="block text-slate-700 font-bold mb-1">
                   Select Target Class <span className="text-rose-500">*</span>
                 </label>
                 <select
                   value={targetClassNumber}
                   onChange={(e) => handleClassNumberChange(Number(e.target.value))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 font-bold text-slate-900 focus:bg-white cursor-pointer"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-bold text-slate-900 focus:bg-white cursor-pointer"
                 >
                   {[1, 2, 3, 4, 5, 6, 7, 8].map((cls) => {
                     const isConfigured = configuredClasses.has(cls);
                     return (
                       <option key={cls} value={cls}>
-                        Class {cls} {isConfigured ? '(Already configured - will overwrite)' : '(Available)'}
+                        Class {cls} {isConfigured ? '(Already configured)' : '(Available)'}
                       </option>
                     );
                   })}
@@ -1196,109 +1109,80 @@ export const ZoomLinksModule: React.FC = () => {
               </div>
             )}
 
-            {apiStatus?.connected ? (
-              <div className="p-3 rounded-xl bg-blue-50/80 border border-blue-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
-                <div>
-                  <span className="font-semibold text-blue-900 block text-xs">Zoom API Mode Available</span>
-                  <span className="text-[11px] text-blue-700">
-                    Auto-create room for Class {isAddMode ? targetClassNumber : selectedMeeting?.classNumber} on Zoom directly with JBH
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleGenerateSingleViaApi}
-                  disabled={generatingApiClass === (isAddMode ? targetClassNumber : selectedMeeting?.classNumber)}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shrink-0 flex items-center gap-1 shadow-xs transition-all cursor-pointer"
-                >
-                  <Video className="w-3.5 h-3.5" />
-                  <span>
-                    {generatingApiClass === (isAddMode ? targetClassNumber : selectedMeeting?.classNumber)
-                      ? 'Creating on Zoom...'
-                      : 'Auto-Generate via Zoom API'}
-                  </span>
-                </button>
-              </div>
-            ) : (
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 flex items-center justify-between">
-                <span>Manual mode active. Enter your permanent Zoom meeting details below.</span>
-              </div>
-            )}
-
             <div>
-              <label className="block text-slate-700 font-medium mb-1">
-                Classroom Room Title
+              <label className="block text-slate-700 font-bold mb-1">
+                Room Title
               </label>
               <input
                 type="text"
                 value={configTopic}
                 onChange={(e) => setConfigTopic(e.target.value)}
                 required
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 focus:bg-white"
-                placeholder="e.g. Class 1 Official Live Classroom"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:bg-white font-medium"
+                placeholder="e.g. Class 1 Live Classroom"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-700 font-medium mb-1">
-                  Zoom Meeting ID <span className="text-rose-500">*</span>
+                <label className="block text-slate-700 font-bold mb-1">
+                  Meeting ID <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={configMeetingId}
                   onChange={(e) => setConfigMeetingId(e.target.value)}
                   required
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 font-mono text-slate-800 focus:bg-white text-xs"
-                  placeholder="e.g. 892 4810 9921"
+                  placeholder="e.g. 624 305 9177"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-mono text-slate-900 focus:bg-white font-bold"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-700 font-medium mb-1">
-                  Classroom Passcode
+                <label className="block text-slate-700 font-bold mb-1">
+                  Passcode <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={configPasscode}
                   onChange={(e) => setConfigPasscode(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 font-mono text-slate-800 focus:bg-white text-xs"
+                  required
                   placeholder="e.g. CLASS1#"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-mono text-slate-900 focus:bg-white font-bold"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-700 font-medium mb-1">
-                  Zoom Pro Account (Email / Label)
-                </label>
-                <input
-                  type="text"
-                  value={configAccountEmail}
-                  onChange={(e) => setConfigAccountEmail(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 focus:bg-white text-xs"
-                  placeholder="e.g. class1@school.com or Account #1"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-700 font-medium mb-1">
-                  Host Key (6-digit PIN) <span className="text-rose-500">*</span>
+                <label className="block text-slate-700 font-bold mb-1">
+                  Host Key PIN
                 </label>
                 <input
                   type="text"
                   value={configHostKey}
                   onChange={(e) => setConfigHostKey(e.target.value)}
-                  required
-                  maxLength={6}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 font-mono text-slate-800 focus:bg-white text-xs"
-                  placeholder="e.g. 884422"
+                  placeholder="884422"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-mono text-slate-900 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">
+                  Account Email
+                </label>
+                <input
+                  type="email"
+                  value={configAccountEmail}
+                  onChange={(e) => setConfigAccountEmail(e.target.value)}
+                  placeholder="zoom.class1@school.pk"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-mono text-slate-900 focus:bg-white"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-slate-700 font-medium mb-1">
+              <label className="block text-slate-700 font-bold mb-1">
                 Permanent Join URL <span className="text-rose-500">*</span>
               </label>
               <input
@@ -1306,252 +1190,100 @@ export const ZoomLinksModule: React.FC = () => {
                 value={configJoinUrl}
                 onChange={(e) => setConfigJoinUrl(e.target.value)}
                 required
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 font-mono text-[11px] text-slate-800 focus:bg-white"
-                placeholder="https://zoom.us/j/89248109921?pwd=..."
+                placeholder="https://us05web.zoom.us/j/..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-mono text-slate-900 focus:bg-white"
               />
             </div>
 
-            <div>
-              <label className="block text-slate-700 font-medium mb-1">
-                Configuration Notes
-              </label>
-              <textarea
-                value={configNotes}
-                onChange={(e) => setConfigNotes(e.target.value)}
-                rows={2}
-                placeholder="Join-Before-Host (JBH) enabled, Waiting Room disabled for smooth teacher handover..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 focus:bg-white resize-none"
-              />
-            </div>
-
-            <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-[11px] text-blue-900 leading-relaxed">
-              <strong>One-Time Setup:</strong> Once saved, this link is permanent. The school timetable automatically provisions student join windows and notifies incoming teachers 5 minutes prior to each period.
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => setIsConfigModalOpen(false)}
-                className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50 cursor-pointer"
+                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={savingConfig}
-                className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium shadow-xs cursor-pointer"
+                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
               >
-                {savingConfig ? 'Saving...' : isAddMode ? 'Add Classroom Link' : 'Save Configuration'}
+                {savingConfig ? 'Saving...' : 'Save Classroom'}
               </button>
             </div>
           </form>
         </Modal>
       )}
 
-      {/* Renew / Rotate Zoom Meeting Modal */}
-      {selectedMeeting && isRenewModalOpen && (
-        <Modal
-          isOpen={isRenewModalOpen}
-          onClose={() => setIsRenewModalOpen(false)}
-          title={`Rotate Classroom Link · Class ${selectedMeeting.classNumber}`}
-          description="Rotate or replace the persistent class Zoom room with a fresh authorized meeting identifier."
-          maxWidth="md"
-        >
-          <form onSubmit={handleRenewSubmit} className="space-y-4 text-xs">
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-              <span className="text-slate-500 block text-[10px]">Current Meeting ID</span>
-              <span className="font-mono text-sm font-bold text-slate-900">
-                {selectedMeeting.zoomMeetingId}
-              </span>
-              <span className="text-[11px] text-slate-500 block">
-                Last updated: {new Date(selectedMeeting.lastRenewalDate).toLocaleDateString()}
-              </span>
-            </div>
-
-            <div>
-              <label className="block text-slate-700 font-medium mb-1">
-                Replacement Justification <span className="text-rose-500">*</span>
-              </label>
-              <textarea
-                value={renewalReason}
-                onChange={(e) => setRenewalReason(e.target.value)}
-                required
-                rows={3}
-                placeholder="State the technical or administrative reason (e.g. Scheduled annual token rotation, link compromised, meeting ID revoked)..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 focus:bg-white resize-none"
-              />
-            </div>
-
-            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-800 leading-tight">
-              Backend Integration: The rotated Zoom room credentials will be updated in the system and previous links will be retired in audit history.
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setIsRenewModalOpen(false)}
-                className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={renewing}
-                className="px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium shadow-xs cursor-pointer"
-              >
-                {renewing ? 'Rotating Meeting...' : 'Confirm Rotation'}
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
-
-      {/* Renewal History Modal */}
-      {selectedMeeting && isHistoryModalOpen && (
-        <Modal
-          isOpen={isHistoryModalOpen}
-          onClose={() => setIsHistoryModalOpen(false)}
-          title={`Zoom Link Audit Trail · Class ${selectedMeeting.classNumber}`}
-          description="Historical record of previous meeting identifiers and rotation reasons."
-          maxWidth="md"
-        >
-          <div className="space-y-3 text-xs">
-            {selectedMeeting.renewalHistory.length === 0 ? (
-              <p className="p-4 text-center text-slate-500 italic bg-slate-50 rounded-xl border border-slate-200">
-                No previous renewals on record. Initial meeting remains active.
-              </p>
-            ) : (
-              selectedMeeting.renewalHistory.map((rh) => (
-                <div
-                  key={rh.id}
-                  className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1"
-                >
-                  <div className="flex items-center justify-between text-slate-500 text-[11px]">
-                    <span className="font-mono font-semibold text-amber-800">
-                      Old ID: {rh.previousMeetingId} → New: {rh.newMeetingId}
-                    </span>
-                    <span className="font-mono text-[10px]">
-                      {new Date(rh.renewedAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <p className="text-slate-700">{rh.reason}</p>
-                  <span className="text-[10px] text-slate-400">Authorized by: {rh.renewedBy}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </Modal>
-      )}
-
-      {/* Attendance Duty Review Decision Modal */}
-      {selectedReview && isResolveModalOpen && (
+      {/* Attendance Resolve Modal */}
+      {isResolveModalOpen && selectedReview && (
         <Modal
           isOpen={isResolveModalOpen}
           onClose={() => setIsResolveModalOpen(false)}
-          title={
-            resolveDecision === 'APPROVE'
-              ? 'Approve Faculty Duty & Teaching Hours'
-              : 'Reject Attendance Duty Session'
-          }
-          description={`Session ID #${selectedReview.id} · Class: ${
-            selectedReview.className || `Class ${selectedReview.classNumber || 'Room'}`
-          } · Subject: ${selectedReview.subjectName || 'Lesson'}`}
-          maxWidth="md"
+          title={`Resolve Attendance Review #${selectedReview.id}`}
+          description={`Participant: "${selectedReview.participantName}" · Class ${selectedReview.classNumber || 'Room'}`}
+          maxWidth="sm"
         >
-          <form onSubmit={handleResolveSubmit} className="space-y-4 text-xs">
-            {/* Session Detail Summary Card */}
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-              <div className="flex items-center justify-between text-slate-500 text-[11px]">
-                <span className="font-semibold text-slate-800">Assigned Timetable Faculty:</span>
-                <span className="font-bold text-blue-700">
-                  {selectedReview.matchedTeacherName || 'No Timetable Match'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-slate-500 text-[11px]">
-                <span className="font-semibold text-slate-800">Joined Zoom Display Name:</span>
-                <span className="font-mono font-bold text-slate-900 bg-white px-1.5 py-0.5 rounded border border-slate-200">
-                  "{selectedReview.participantName}"
-                </span>
-              </div>
-              {selectedReview.participantEmail && (
-                <div className="flex items-center justify-between text-slate-500 text-[11px]">
-                  <span className="font-semibold text-slate-800">Zoom Account Email:</span>
-                  <span className="font-mono text-slate-700">{selectedReview.participantEmail}</span>
-                </div>
-              )}
-              <div className="flex items-center justify-between text-slate-500 text-[11px]">
-                <span className="font-semibold text-slate-800">Recorded Live Presence:</span>
-                <span className="font-bold text-emerald-700">
-                  {selectedReview.durationSeconds ? Math.round(selectedReview.durationSeconds / 60) : 0} minutes
-                </span>
-              </div>
-              <div className="pt-2 border-t border-slate-200/80 text-[11px] text-amber-800 flex items-start gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                <span>
-                  <strong>Escrow Hold Reason:</strong> {selectedReview.verificationReason}
-                </span>
+          <div className="space-y-4 text-xs">
+            <div>
+              <label className="block text-slate-700 font-bold mb-1">Decision</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setResolveDecision('APPROVE')}
+                  className={`p-2.5 rounded-xl border font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                    resolveDecision === 'APPROVE'
+                      ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <Check className="w-4 h-4 text-emerald-600" />
+                  <span>Approve Duty</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setResolveDecision('REJECT')}
+                  className={`p-2.5 rounded-xl border font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                    resolveDecision === 'REJECT'
+                      ? 'bg-rose-50 border-rose-300 text-rose-800'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <X className="w-4 h-4 text-rose-600" />
+                  <span>Reject Duty</span>
+                </button>
               </div>
             </div>
 
-            {/* Decision Memo */}
             <div>
-              <label className="block text-slate-700 font-medium mb-1">
-                {resolveDecision === 'APPROVE'
-                  ? 'Verification Memo / Note (Recorded in Payroll Audit)'
-                  : 'Rejection Justification Note *'}
-              </label>
+              <label className="block text-slate-700 font-bold mb-1">Administrative Note</label>
               <textarea
                 value={resolveNote}
                 onChange={(e) => setResolveNote(e.target.value)}
-                required={resolveDecision === 'REJECT'}
                 rows={3}
-                placeholder={
-                  resolveDecision === 'APPROVE'
-                    ? 'e.g. Identity verified by Principal. Approved for payroll crediting.'
-                    : 'State why this session attendance is rejected (e.g. unverified guest, faculty confirmed absent)...'
-                }
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 focus:bg-white resize-none"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:bg-white"
+                placeholder="Reason or reference..."
               />
-            </div>
-
-            {/* Impact notice */}
-            <div
-              className={`p-3 rounded-xl border text-[11px] leading-tight ${
-                resolveDecision === 'APPROVE'
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                  : 'bg-rose-50 border-rose-200 text-rose-800'
-              }`}
-            >
-              {resolveDecision === 'APPROVE'
-                ? 'Payroll Integration: Approving this session immediately updates the duty hours ledger, marks the session as VERIFIED, and includes recorded minutes in the monthly teacher salary draft calculation.'
-                : 'Payroll Integration: Rejecting this session sets verified duty minutes to 0 and excludes it from the teacher monthly compensation draft.'}
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => setIsResolveModalOpen(false)}
-                className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50 cursor-pointer"
+                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 cursor-pointer"
               >
                 Cancel
               </button>
               <button
-                type="submit"
+                type="button"
+                onClick={handleResolveReview}
                 disabled={resolving}
-                className={`px-4 py-1.5 rounded-lg text-white font-medium shadow-xs cursor-pointer ${
-                  resolveDecision === 'APPROVE'
-                    ? 'bg-emerald-600 hover:bg-emerald-500'
-                    : 'bg-rose-600 hover:bg-rose-500'
-                }`}
+                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
               >
-                {resolving
-                  ? 'Processing...'
-                  : resolveDecision === 'APPROVE'
-                  ? 'Approve & Credit Duty'
-                  : 'Reject Attendance Duty'}
+                {resolving ? 'Saving...' : 'Confirm'}
               </button>
             </div>
-          </form>
+          </div>
         </Modal>
       )}
     </div>

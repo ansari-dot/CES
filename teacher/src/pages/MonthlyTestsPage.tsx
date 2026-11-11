@@ -4,6 +4,7 @@ import { assessmentsApi } from '../services/assessmentsApi';
 import { MonthlyTest, TestStatus, ExamType } from '../types/assessments';
 import { CreateTestModal } from '../components/assessments/CreateTestModal';
 import { TestGradingModal } from '../components/assessments/TestGradingModal';
+import { Pagination } from '../components/common/Pagination';
 import {
   FileText,
   Plus,
@@ -91,21 +92,38 @@ export const MonthlyTestsPage: React.FC = () => {
     }
   };
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [totalRecords, setTotalRecords] = useState<number>(0);
+  const [totalPages, setTotalPages] = useState<number>(1);
+
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedClassId, selectedStatus, selectedExamType]);
+
   useEffect(() => {
     loadTests();
-  }, [selectedClassId, selectedStatus, selectedExamType]);
+  }, [selectedClassId, selectedStatus, selectedExamType, currentPage, pageSize]);
 
   const loadTests = async () => {
     try {
       setLoading(true);
       setErrorMsg(null);
-      const params: any = {};
+      const params: any = {
+        page: currentPage,
+        limit: pageSize,
+      };
       if (selectedExamType !== 'all') params.examType = selectedExamType as ExamType;
       if (selectedClassId !== 'all') params.classId = Number(selectedClassId);
       if (selectedStatus !== 'all') params.status = selectedStatus as TestStatus;
 
-      const res = await assessmentsApi.getTests(params);
+      const res: any = await assessmentsApi.getTests(params);
       setTests(res.tests || []);
+      const total = Number(res.total ?? (res.tests ? res.tests.length : 0));
+      setTotalRecords(total);
+      setTotalPages(res.totalPages ? Number(res.totalPages) : Math.max(1, Math.ceil(total / pageSize)));
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to load monthly tests.');
     } finally {
@@ -141,7 +159,7 @@ export const MonthlyTestsPage: React.FC = () => {
   const publishedResultsCount = tests.filter((t) => t.status === 'RESULTS_PUBLISHED').length;
 
   return (
-    <div className="flex flex-col w-full pb-16 space-y-5 bg-[#f6f7fb] min-h-screen p-3 sm:p-5 lg:p-6 rounded-2xl">
+    <div className="flex flex-col w-full pb-12 space-y-5 animate-in fade-in duration-150">
       {/* ------------------------------------------------------------- */}
       {/* 1. HERO HEADER BANNER                                         */}
       {/* ------------------------------------------------------------- */}
@@ -549,6 +567,22 @@ export const MonthlyTestsPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Pagination Bar */}
+      {totalRecords > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalRecords}
+          itemsPerPage={pageSize}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={(newSize) => {
+            setPageSize(newSize);
+            setCurrentPage(1);
+          }}
+          loading={loading}
+        />
+      )}
 
       {/* Create Test Modal */}
       <CreateTestModal

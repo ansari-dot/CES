@@ -108,8 +108,6 @@ export default function DateSheet() {
       <div className="flex items-center gap-2 border-b border-border pb-2 overflow-x-auto print:hidden">
         {[
           { id: 'ALL', label: 'All Schedules' },
-          { id: 'MONTHLY_TEST', label: 'Monthly Tests' },
-          { id: 'CLASS_QUIZ', label: 'Class Quizzes' },
           { id: 'MID_TERM', label: 'Mid-Term Examinations' },
           { id: 'FINAL_TERM', label: 'Final-Term Examinations' }
         ].map((tab) => (
@@ -144,7 +142,7 @@ export default function DateSheet() {
           <CalendarDays className="w-10 h-10 text-muted mx-auto stroke-1" />
           <div className="font-bold text-foreground">No examination date sheets published yet</div>
           <p className="text-xs">
-            When the school announces upcoming Monthly Tests, Mid-Term, or Final-Term schedules for your class, they will appear here.
+            When the school announces upcoming Mid-Term or Final / Terminal examination schedules for your class, they will appear here.
           </p>
         </div>
       ) : (

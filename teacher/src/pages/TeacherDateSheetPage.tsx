@@ -105,7 +105,7 @@ export const TeacherDateSheetPage: React.FC = () => {
   const invigilationDuties = allEntries.filter((e) => Boolean(e.teacher_id)).length;
 
   return (
-    <div className="flex flex-col w-full pb-16 space-y-5 bg-[#f6f7fb] min-h-screen p-3 sm:p-5 lg:p-6 rounded-2xl">
+    <div className="flex flex-col w-full pb-12 space-y-5 animate-in fade-in duration-150">
       {/* ------------------------------------------------------------- */}
       {/* 1. HERO HEADER BANNER                                         */}
       {/* ------------------------------------------------------------- */}
@@ -127,7 +127,7 @@ export const TeacherDateSheetPage: React.FC = () => {
                 Examination Date Sheets &amp; Timetables
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                Official institutional schedules for term exams, monthly tests, and invigilation duties.
+                Official institutional schedules for Mid-Term and Final / Terminal examinations and invigilation duties.
               </p>
             </div>
           </div>
@@ -272,10 +272,8 @@ export const TeacherDateSheetPage: React.FC = () => {
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
           {[
             { id: 'ALL', label: 'All Examinations' },
-            { id: 'MONTHLY_TEST', label: 'Monthly Tests' },
-            { id: 'CLASS_QUIZ', label: 'Class Quizzes' },
             { id: 'MID_TERM', label: 'Mid-Term Exams' },
-            { id: 'FINAL_TERM', label: 'Final-Term Exams' }
+            { id: 'FINAL_TERM', label: 'Final / Terminal Exams' }
           ].map((cat) => (
             <button
               key={cat.id}

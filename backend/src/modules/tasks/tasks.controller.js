@@ -24,14 +24,16 @@ export const tasksController = {
 
   async getTasks(req, res, next) {
     try {
-      const { classId, subjectId, teacherId, status, sessionId, taskType } = req.query;
+      const { classId, subjectId, teacherId, status, sessionId, taskType, page, limit } = req.query;
       const tasks = await tasksService.getTasks(req.user, {
         classId: optionalNumber(classId),
         subjectId: optionalNumber(subjectId),
         teacherId: optionalNumber(teacherId),
         status: status || null,
         sessionId: optionalNumber(sessionId),
-        taskType: taskType ? String(taskType).toUpperCase() : null
+        taskType: taskType ? String(taskType).toUpperCase() : null,
+        page: optionalNumber(page),
+        limit: optionalNumber(limit)
       });
       return sendSuccess(res, tasks);
     } catch (error) {
@@ -213,6 +215,53 @@ export const tasksController = {
         classId: optionalNumber(classId)
       });
       return sendSuccess(res, achievements);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // Student Mistakes & Weak Areas Tracking (Academic Workspace Section 8)
+  async recordMistake(req, res, next) {
+    try {
+      const mistake = await tasksService.recordMistake(req.user, req.body);
+      return sendSuccess(res, mistake, 'Student learning mistake recorded successfully.', 201);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async updateMistake(req, res, next) {
+    try {
+      const mistake = await tasksService.updateMistake(req.user, Number(req.params.id), req.body);
+      return sendSuccess(res, mistake, 'Student mistake status updated.');
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async deleteMistake(req, res, next) {
+    try {
+      await tasksService.deleteMistake(req.user, Number(req.params.id));
+      return sendSuccess(res, { deleted: true }, 'Student mistake record deleted.');
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getMistakes(req, res, next) {
+    try {
+      const { studentId, classId, subjectId, status, severity, search, page, limit } = req.query;
+      const mistakes = await tasksService.getMistakes(req.user, {
+        studentId: optionalNumber(studentId),
+        classId: optionalNumber(classId),
+        subjectId: optionalNumber(subjectId),
+        status: status || null,
+        severity: severity || null,
+        search: search || null,
+        page: optionalNumber(page),
+        limit: optionalNumber(limit)
+      });
+      return sendSuccess(res, mistakes);
     } catch (error) {
       next(error);
     }

@@ -159,7 +159,7 @@ export const AchievementsFeedbackPage: React.FC = () => {
   const totalStarsGiven = achievements.reduce((acc, a) => acc + (a.starsCount || 0), 0);
 
   return (
-    <div className="flex flex-col w-full pb-16 space-y-5 bg-[#f6f7fb] min-h-screen p-3 sm:p-5 lg:p-6 rounded-2xl">
+    <div className="flex flex-col w-full pb-12 space-y-5 animate-in fade-in duration-150">
       {/* ------------------------------------------------------------- */}
       {/* 1. HERO HEADER BANNER */}
       {/* ------------------------------------------------------------- */}

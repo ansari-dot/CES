@@ -190,26 +190,63 @@ export const tasksService = {
   },
 
   async getTasks(user, filters = {}) {
+    const isPaginated = filters.page !== undefined || filters.limit !== undefined;
+    const page = Math.max(1, Number(filters.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(filters.limit) || 10));
+    const offset = (page - 1) * limit;
+
+    const baseFilters = { ...filters };
+    delete baseFilters.page;
+    delete baseFilters.limit;
+
     if (user.role === 'STUDENT') {
       const student = await getStudentByUserId(user.id);
-      if (!student) return [];
-      return await tasksRepository.getTasks({
+      if (!student) return isPaginated ? { tasks: [], total: 0, page, limit, totalPages: 0 } : [];
+      const queryParams = {
         classId: student.current_class_id,
-        subjectId: filters.subjectId,
-        taskType: filters.taskType,
+        subjectId: baseFilters.subjectId,
+        taskType: baseFilters.taskType,
         statuses: ['ACTIVE', 'ARCHIVED'],
-        studentId: student.id
-      });
+        studentId: student.id,
+        limit: isPaginated ? limit : null,
+        offset: isPaginated ? offset : null
+      };
+      const [tasks, total] = await Promise.all([
+        tasksRepository.getTasks(queryParams),
+        isPaginated ? tasksRepository.countTasks(queryParams) : null
+      ]);
+      return isPaginated ? { tasks, total, page, limit, totalPages: Math.ceil(total / limit) } : tasks;
     }
 
     if (user.role === 'TEACHER') {
       const teacher = await db('teachers').where({ user_id: user.id }).first();
-      if (!teacher) return [];
-      return await tasksRepository.getTasks({ ...filters, teacherId: teacher.id, studentId: null });
+      if (!teacher) return isPaginated ? { tasks: [], total: 0, page, limit, totalPages: 0 } : [];
+      const queryParams = {
+        ...baseFilters,
+        teacherId: teacher.id,
+        studentId: null,
+        limit: isPaginated ? limit : null,
+        offset: isPaginated ? offset : null
+      };
+      const [tasks, total] = await Promise.all([
+        tasksRepository.getTasks(queryParams),
+        isPaginated ? tasksRepository.countTasks(queryParams) : null
+      ]);
+      return isPaginated ? { tasks, total, page, limit, totalPages: Math.ceil(total / limit) } : tasks;
     }
 
     if (isStaff(user)) {
-      return await tasksRepository.getTasks({ ...filters, studentId: null });
+      const queryParams = {
+        ...baseFilters,
+        studentId: null,
+        limit: isPaginated ? limit : null,
+        offset: isPaginated ? offset : null
+      };
+      const [tasks, total] = await Promise.all([
+        tasksRepository.getTasks(queryParams),
+        isPaginated ? tasksRepository.countTasks(queryParams) : null
+      ]);
+      return isPaginated ? { tasks, total, page, limit, totalPages: Math.ceil(total / limit) } : tasks;
     }
 
     throw forbidden('Use the parent portal endpoints to view your child\'s assignments.');
@@ -710,5 +747,154 @@ export const tasksService = {
     if (isStaff(user)) return await tasksRepository.getAchievements(filters);
 
     throw forbidden('Use the parent portal endpoints to view your child\'s achievements.');
+  },
+
+  // Student Mistakes & Weak Areas Tracking (Academic Workspace Section 8)
+  async recordMistake(user, payload) {
+    if (user.role !== 'TEACHER' && !isStaff(user)) {
+      throw forbidden('Only teachers can log student learning mistakes and diagnostic weak areas.');
+    }
+
+    const {
+      studentId,
+      classId,
+      subjectId,
+      topic,
+      mistakeType = 'CONCEPTUAL',
+      severity = 'MEDIUM',
+      description,
+      remediationPlan = null,
+      teacherPrivateNotes = null
+    } = payload;
+
+    if (!studentId || !classId || !subjectId || !topic || !description) {
+      throw validationError('studentId, classId, subjectId, topic, and description are required.');
+    }
+
+    let teacherId = null;
+    if (user.role === 'TEACHER') {
+      const scope = await getTeacherScope(user.id);
+      if (!scope.teacher) throw forbidden('Teacher profile not found for this account.');
+      teacherId = scope.teacher.id;
+    } else {
+      const assignment = await db('teacher_assignments').where({ class_id: classId, subject_id: subjectId }).first();
+      teacherId = assignment ? assignment.teacher_id : 1;
+    }
+
+    const activeSession = await db('academic_sessions').where({ is_current: 1 }).first();
+
+    const id = await tasksRepository.recordMistake({
+      student_id: Number(studentId),
+      class_id: Number(classId),
+      subject_id: Number(subjectId),
+      teacher_id: Number(teacherId),
+      session_id: activeSession ? activeSession.id : null,
+      topic: topic.trim(),
+      mistake_type: mistakeType,
+      severity,
+      description: description.trim(),
+      remediation_plan: remediationPlan ? remediationPlan.trim() : null,
+      teacher_private_notes: teacherPrivateNotes ? teacherPrivateNotes.trim() : null,
+      status: 'IDENTIFIED'
+    });
+
+    return await tasksRepository.findMistakeById(id);
+  },
+
+  async updateMistake(user, id, updates) {
+    const existing = await tasksRepository.findMistakeById(id);
+    if (!existing) throw notFound('Student mistake record not found.');
+
+    if (user.role === 'TEACHER') {
+      const scope = await getTeacherScope(user.id);
+      if (!scope.teacher || Number(scope.teacher.id) !== Number(existing.teacherId)) {
+        throw forbidden('You can only update learning gaps and mistakes recorded by your account.');
+      }
+    } else if (!isStaff(user)) {
+      throw forbidden('You do not have permission to modify mistake evaluations.');
+    }
+
+    const fields = {};
+    if (updates.topic) fields.topic = updates.topic.trim();
+    if (updates.mistakeType) fields.mistake_type = updates.mistakeType;
+    if (updates.severity) fields.severity = updates.severity;
+    if (updates.description) fields.description = updates.description.trim();
+    if (updates.remediationPlan !== undefined) fields.remediation_plan = updates.remediationPlan ? updates.remediationPlan.trim() : null;
+    if (updates.teacherPrivateNotes !== undefined) fields.teacher_private_notes = updates.teacherPrivateNotes ? updates.teacherPrivateNotes.trim() : null;
+    if (updates.status) {
+      fields.status = updates.status;
+      if (updates.status === 'RESOLVED') {
+        fields.resolved_at = new Date();
+      } else {
+        fields.resolved_at = null;
+      }
+    }
+
+    return await tasksRepository.updateMistake(id, fields);
+  },
+
+  async deleteMistake(user, id) {
+    const existing = await tasksRepository.findMistakeById(id);
+    if (!existing) throw notFound('Student mistake record not found.');
+
+    if (user.role === 'TEACHER') {
+      const scope = await getTeacherScope(user.id);
+      if (!scope.teacher || Number(scope.teacher.id) !== Number(existing.teacherId)) {
+        throw forbidden('You can only delete mistake records logged by your account.');
+      }
+    } else if (!isStaff(user)) {
+      throw forbidden('You do not have permission to delete this record.');
+    }
+
+    return await tasksRepository.deleteMistake(id);
+  },
+
+  async getMistakes(user, filters = {}) {
+    const isPaginated = filters.page !== undefined || filters.limit !== undefined;
+    const page = Math.max(1, Number(filters.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(filters.limit) || 10));
+    const offset = (page - 1) * limit;
+
+    const baseFilters = { ...filters };
+    delete baseFilters.page;
+    delete baseFilters.limit;
+
+    if (user.role === 'STUDENT') {
+      const student = await getStudentByUserId(user.id);
+      if (!student) return isPaginated ? { mistakes: [], total: 0, page, limit, totalPages: 0 } : [];
+      const queryParams = { ...baseFilters, studentId: student.id, limit: isPaginated ? limit : null, offset: isPaginated ? offset : null };
+      const [list, total] = await Promise.all([
+        tasksRepository.getMistakes(queryParams),
+        isPaginated ? tasksRepository.countMistakes(queryParams) : null
+      ]);
+      const sanitized = list.map((m) => {
+        const copy = { ...m };
+        delete copy.teacherPrivateNotes;
+        return copy;
+      });
+      return isPaginated ? { mistakes: sanitized, total, page, limit, totalPages: Math.ceil(total / limit) } : sanitized;
+    }
+
+    if (user.role === 'TEACHER') {
+      const teacher = await db('teachers').where({ user_id: user.id }).first();
+      if (!teacher) return isPaginated ? { mistakes: [], total: 0, page, limit, totalPages: 0 } : [];
+      const queryParams = { ...baseFilters, teacherId: teacher.id, limit: isPaginated ? limit : null, offset: isPaginated ? offset : null };
+      const [mistakes, total] = await Promise.all([
+        tasksRepository.getMistakes(queryParams),
+        isPaginated ? tasksRepository.countMistakes(queryParams) : null
+      ]);
+      return isPaginated ? { mistakes, total, page, limit, totalPages: Math.ceil(total / limit) } : mistakes;
+    }
+
+    if (isStaff(user)) {
+      const queryParams = { ...baseFilters, limit: isPaginated ? limit : null, offset: isPaginated ? offset : null };
+      const [mistakes, total] = await Promise.all([
+        tasksRepository.getMistakes(queryParams),
+        isPaginated ? tasksRepository.countMistakes(queryParams) : null
+      ]);
+      return isPaginated ? { mistakes, total, page, limit, totalPages: Math.ceil(total / limit) } : mistakes;
+    }
+
+    return isPaginated ? { mistakes: [], total: 0, page, limit, totalPages: 0 } : [];
   }
 };

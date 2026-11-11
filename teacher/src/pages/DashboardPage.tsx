@@ -26,8 +26,11 @@ import {
   X,
   ChevronDown,
   ChevronUp,
-  Table as TableIcon
+  Table as TableIcon,
+  Umbrella
 } from 'lucide-react';
+import { HolidayAnnouncementModal } from '../components/dialogs/HolidayAnnouncementModal';
+import { teacherCalendarApi, ActiveHolidayAnnouncement } from '../services/calendarApi';
 
 // New Reference UI Components
 import { HeroGreetingBanner } from '../components/dashboard/HeroGreetingBanner';
@@ -114,6 +117,34 @@ export const DashboardPage: React.FC = () => {
   const [imminentLesson, setImminentLesson] = useState<TimetableLesson | UpcomingClassItem | null>(null);
   const [imminentSeconds, setImminentSeconds] = useState<number>(285);
 
+  // Official Holiday Announcement state
+  const [holidayAnnouncement, setHolidayAnnouncement] = useState<ActiveHolidayAnnouncement | null>(null);
+  const [showHolidayModal, setShowHolidayModal] = useState<boolean>(false);
+  const [isCurrentlyOnHoliday, setIsCurrentlyOnHoliday] = useState<boolean>(false);
+
+  const loadHolidayAnnouncement = useCallback(() => {
+    teacherCalendarApi.getActiveAnnouncement().then((res) => {
+      if (res?.popupAnnouncement) {
+        setHolidayAnnouncement(res.popupAnnouncement);
+        setIsCurrentlyOnHoliday(Boolean(res.isCurrentlyOnHoliday));
+        const dismissedKey = `dismissed_holiday_${res.popupAnnouncement.id}`;
+        if (!sessionStorage.getItem(dismissedKey)) {
+          setShowHolidayModal(true);
+        }
+      } else {
+        setHolidayAnnouncement(null);
+        setIsCurrentlyOnHoliday(false);
+      }
+    }).catch(() => {});
+  }, []);
+
+  const handleCloseHolidayModal = () => {
+    if (holidayAnnouncement) {
+      sessionStorage.setItem(`dismissed_holiday_${holidayAnnouncement.id}`, 'true');
+    }
+    setShowHolidayModal(false);
+  };
+
   // 1. Fetch REST API Dashboard Summary
   const loadDashboardData = useCallback(async (period: 'month' | 'term' | 'week') => {
     try {
@@ -133,10 +164,20 @@ export const DashboardPage: React.FC = () => {
     loadDashboardData(performancePeriod);
   }, [loadDashboardData, performancePeriod]);
 
-  // Initial duty summary fetch
+  // Initial duty summary & holiday announcement fetch
   useEffect(() => {
     dispatch(fetchDutySummaryThunk(teacher?.id));
-  }, [dispatch, teacher?.id]);
+    loadHolidayAnnouncement();
+  }, [dispatch, teacher?.id, loadHolidayAnnouncement]);
+
+  useSocketEvent('HOLIDAY_ANNOUNCEMENT', () => {
+    loadHolidayAnnouncement();
+  });
+
+  useSocketEvent(RealtimeEvents.TIMETABLE_CHANGE, () => {
+    dispatch(fetchTeacherLessonsThunk());
+    loadHolidayAnnouncement();
+  });
 
   // Real-time socket event listeners
   useSocketEvent(RealtimeEvents.CLASS_STATUS_UPDATED, (data: any) => {
@@ -487,6 +528,34 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <div className="flex flex-col w-full pb-10 space-y-5 animate-in fade-in duration-200">
+      {/* Active Holiday Announcement Banner */}
+      {holidayAnnouncement && (holidayAnnouncement.isCurrent || isCurrentlyOnHoliday) && (
+        <div className="bg-rose-50 border border-rose-200/90 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 shadow-xs">
+              <Umbrella className="w-5 h-5 stroke-[2.2]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-rose-800 bg-rose-100 px-2 py-0.5 rounded border border-rose-200">
+                  School Holiday Break
+                </span>
+                <span className="text-sm font-black text-rose-950">{holidayAnnouncement.title}</span>
+              </div>
+              <p className="text-xs text-rose-800 font-medium mt-1">
+                Official holiday break in effect. Scheduled teaching periods, attendance, and Zoom live classes are suspended.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowHolidayModal(true)}
+            className="self-start sm:self-auto px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-xl transition-colors shrink-0 shadow-xs"
+          >
+            View Official Notice
+          </button>
+        </div>
+      )}
+
       {/* 1. Hero Welcome Greeting Banner (Identical to Reference Image) */}
       <HeroGreetingBanner
         teacherName={teacher.name}
@@ -661,7 +730,7 @@ export const DashboardPage: React.FC = () => {
           />
         </div>
 
-        {/* Right-Middle: Quick Actions (~3 cols) */}
+        {/* Right-Middle: Academic Quick Actions (~3 cols) */}
         <div className="xl:col-span-3 min-w-0 flex flex-col">
           <QuickActionsCard
             onStartZoom={() => {
@@ -672,8 +741,10 @@ export const DashboardPage: React.FC = () => {
               }
             }}
             onCreateAssignment={() => dispatch(setCurrentTab('tasks-assignments'))}
-            onTakeExam={() => dispatch(setCurrentTab('monthly-tests'))}
-            onSendNotice={() => dispatch(setCurrentTab('notices'))}
+            onCheckSubmissions={() => dispatch(setCurrentTab('submissions-grading'))}
+            onEnterMarks={() => dispatch(setCurrentTab('exam-results'))}
+            onRecordMistake={() => dispatch(setCurrentTab('student-mistakes'))}
+            onUploadLecture={() => dispatch(setCurrentTab('learning-resources'))}
           />
         </div>
 
@@ -895,6 +966,12 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Official Holiday Announcement Popup Modal */}
+      <HolidayAnnouncementModal
+        isOpen={showHolidayModal}
+        onClose={handleCloseHolidayModal}
+        announcement={holidayAnnouncement}
+      />
     </div>
   );
 };

@@ -14,7 +14,9 @@ export type NavTab =
   | 'achievements-feedback'
   | 'notices'
   | 'duty-salary'
-  | 'profile-settings';
+  | 'profile-settings'
+  | 'student-mistakes'
+  | 'student-chat';
 
 export interface AssignedClass {
   id: string;

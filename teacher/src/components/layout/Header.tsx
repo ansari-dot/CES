@@ -62,7 +62,7 @@ export const Header: React.FC = () => {
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
-    <header className="fixed top-0 left-0 lg:left-56 right-0 h-16 bg-white/95 backdrop-blur-md shadow-xs z-30 px-3 sm:px-6 flex items-center justify-between border-b border-slate-200">
+    <header className="fixed top-0 left-0 lg:left-60 right-0 h-16 bg-white/95 backdrop-blur-md shadow-xs z-30 px-3 sm:px-6 flex items-center justify-between border-b border-slate-200">
       {/* Left controls: Hamburger on mobile + Class Selector */}
       <div className="flex items-center gap-2 sm:gap-4">
         {/* Mobile Hamburger Menu Toggle */}

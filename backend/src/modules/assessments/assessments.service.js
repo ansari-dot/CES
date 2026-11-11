@@ -303,12 +303,13 @@ export const assessmentsService = {
     await assessmentsRepository.autoCloseExpiredTests(new Date()).catch(() => {});
 
     const sessionId = query.sessionId || (await getCurrentSessionId());
-    const limit = Math.min(Number(query.limit) || 50, 100);
-    const offset = Number(query.offset) || 0;
+    const limit = Math.min(Number(query.limit) || 10, 100);
+    const page = Math.max(1, Number(query.page) || (query.offset !== undefined ? Math.floor(Number(query.offset) / limit) + 1 : 1));
+    const offset = query.offset !== undefined ? Number(query.offset) : (page - 1) * limit;
 
     if (user.role === 'TEACHER') {
       const scope = await getTeacherScope(user.id);
-      if (!scope.teacher) return { tests: [], total: 0 };
+      if (!scope.teacher) return { tests: [], total: 0, page: 1, limit, totalPages: 0 };
       const teacherId = scope.teacher.id;
 
       const [tests, total] = await Promise.all([
@@ -331,7 +332,7 @@ export const assessmentsService = {
           sessionId
         })
       ]);
-      return { tests, total };
+      return { tests, total, page, limit, totalPages: Math.ceil(total / limit) };
     }
 
     if (isStaff(user)) {
@@ -355,7 +356,7 @@ export const assessmentsService = {
           sessionId
         })
       ]);
-      return { tests, total };
+      return { tests, total, page, limit, totalPages: Math.ceil(total / limit) };
     }
 
     throw forbidden();

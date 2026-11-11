@@ -105,7 +105,7 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const isDedicatedExam = examType === 'MID_TERM' || examType === 'FINAL_TERM';
+  const isDedicatedExam = true;
 
   useEffect(() => {
     // Load teachers
@@ -415,45 +415,36 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
             </div>
           )}
 
-          {/* Mode Callout Box */}
-          {isDedicatedExam ? (
-            <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl space-y-1.5">
-              <div className="flex items-center gap-2 text-xs font-bold text-indigo-900">
-                <ShieldAlert className="w-4 h-4 text-indigo-600" />
-                <span>MODE A: DEDICATED EXAMINATION (School-Wide Exam Period)</span>
-              </div>
-              <p className="text-xs text-indigo-800 leading-relaxed">
-                • <strong>School-Wide Rule:</strong> All regular timetable lectures, 5-minute pre-alerts, and teacher absence warnings are completely suppressed for Classes 1–8 during this window.<br />
-                • <strong>1 Exam Per Class Per Day:</strong> Each class may only have ONE subject examination scheduled per calendar date.<br />
-                • <strong>Invigilation Tracking:</strong> Invigilators start assigned classroom Zoom sessions; student join links are sanitized without host key exposure.
-              </p>
+          {/* Institutional Examination Protocol Banner */}
+          <div className="p-4 bg-indigo-50/90 border border-indigo-200 rounded-xl space-y-1.5">
+            <div className="flex items-center gap-2 text-xs font-bold text-indigo-950">
+              <ShieldAlert className="w-4 h-4 text-indigo-600" />
+              <span>OFFICIAL INSTITUTIONAL EXAMINATION PROTOCOL (Dedicated Mid-Term &amp; Final-Term Only)</span>
             </div>
-          ) : (
-            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1.5">
-              <div className="flex items-center gap-2 text-xs font-bold text-emerald-900">
-                <Info className="w-4 h-4 text-emerald-600" />
-                <span>MODE B: TIMETABLE ASSESSMENT (Monthly Tests &amp; Class Quizzes)</span>
-              </div>
-              <p className="text-xs text-emerald-800 leading-relaxed">
-                • <strong>Timetable Intact:</strong> Regular daily lectures, permanent Zoom classrooms, teacher attendance, and handovers continue normally.<br />
-                • <strong>Assessment Timing:</strong> Assessments run at the start, end, or for the entire lecture duration without creating duplicate duty records.
-              </p>
-            </div>
-          )}
+            <p className="text-xs text-indigo-900 leading-relaxed">
+              • <strong>Regular Timetable Suspension:</strong> Standard daily timetable periods and teacher attendance alerts are completely suspended for Classes 1–8 during this scheduled window.<br />
+              • <strong>1 Exam Per Class Per Day:</strong> Each class may only have ONE subject examination scheduled per calendar date.<br />
+              • <strong>Invigilation Tracking:</strong> Invigilators start assigned classroom Zoom sessions; student join links are sanitized without host key exposure.
+            </p>
+          </div>
 
           {/* 1. Category, Title & Session */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Assessment Category *</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Examination Category *</label>
               <select
                 value={examType}
-                onChange={(e) => setExamType(e.target.value as ExamType)}
+                onChange={(e) => {
+                  const nextType = e.target.value as ExamType;
+                  setExamType(nextType);
+                  if (title.startsWith('Timetable for')) {
+                    setTitle(nextType === 'FINAL_TERM' ? 'Timetable for FINAL / TERMINAL EXAMINATION' : 'Timetable for MID TERM EXAMINATION');
+                  }
+                }}
                 className="w-full text-xs font-bold border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
               >
-                <option value="MONTHLY_TEST">1. Monthly Tests (Mode B: Timetable)</option>
-                <option value="CLASS_QUIZ">2. Class Quizzes (Mode B: Timetable)</option>
-                <option value="MID_TERM">3. Mid-Term Examinations (Mode A: Dedicated)</option>
-                <option value="FINAL_TERM">4. Final-Term Examinations (Mode A: Dedicated)</option>
+                <option value="MID_TERM">1. Mid-Term Examination (Dedicated Schedule)</option>
+                <option value="FINAL_TERM">2. Final / Terminal Examination (Dedicated Schedule)</option>
               </select>
             </div>
 
@@ -461,7 +452,7 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
               <label className="block text-xs font-semibold text-slate-700 mb-1">Date Sheet Title *</label>
               <input
                 type="text"
-                placeholder="e.g. Mid-Term Examination 2026 or Grade 4 Monthly Math Test"
+                placeholder="e.g. Timetable for MID TERM EXAMINATION"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="w-full text-xs font-bold border border-slate-200 rounded-lg px-3.5 py-2 bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
@@ -744,61 +735,37 @@ export const CreateEditDateSheetModal: React.FC<Props> = ({
                       </select>
                     </div>
 
-                    {!isDedicatedExam ? (
-                      <>
-                        <div>
-                          <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">
-                            Assessment Lecture Timing
-                          </label>
-                          <select
-                            value={p.assessmentTiming || 'ENTIRE_LECTURE'}
-                            onChange={(e) =>
-                              handlePaperChange(idx, {
-                                assessmentTiming: e.target.value as AssessmentTiming
-                              })
-                            }
-                            className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-xs focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
-                          >
-                            <option value="ENTIRE_LECTURE">Entire Lecture Period</option>
-                            <option value="START_OF_LECTURE">Start of Lecture (e.g. 15m Quiz)</option>
-                            <option value="END_OF_LECTURE">End of Lecture (e.g. 15m Quiz)</option>
-                            <option value="STANDALONE">Standalone Session</option>
-                          </select>
-                        </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">
+                        Duration (Minutes)
+                      </label>
+                      <input
+                        type="number"
+                        min={15}
+                        max={240}
+                        placeholder="90"
+                        value={p.durationMinutes || 90}
+                        onChange={(e) =>
+                          handlePaperChange(idx, {
+                            durationMinutes: e.target.value ? Number(e.target.value) : 90
+                          })
+                        }
+                        className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-xs focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
 
-                        <div>
-                          <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">
-                            Duration (Minutes)
-                          </label>
-                          <input
-                            type="number"
-                            min={5}
-                            max={180}
-                            placeholder="e.g. 20"
-                            value={p.durationMinutes || ''}
-                            onChange={(e) =>
-                              handlePaperChange(idx, {
-                                durationMinutes: e.target.value ? Number(e.target.value) : null
-                              })
-                            }
-                            className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-xs focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
-                          />
-                        </div>
-                      </>
-                    ) : (
-                      <div className="sm:col-span-2">
-                        <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">
-                          Paper Specific Instructions
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Bring scientific calculator & geometry box"
-                          value={p.instructions}
-                          onChange={(e) => handlePaperChange(idx, { instructions: e.target.value })}
-                          className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-xs focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
-                        />
-                      </div>
-                    )}
+                    <div className="sm:col-span-1">
+                      <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">
+                        Paper Specific Instructions
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Bring scientific calculator & geometry box"
+                        value={p.instructions}
+                        onChange={(e) => handlePaperChange(idx, { instructions: e.target.value })}
+                        className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-xs focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
                   </div>
                 </div>
               ))}

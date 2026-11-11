@@ -17,10 +17,21 @@ export function createRateLimiter({ keyPrefix, windowMs, max, message }) {
   const windowSec = Math.ceil(windowMs / 1000);
 
   return async (req, res, next) => {
-    if (process.env.NODE_ENV === 'test') {
+    const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+    if (
+      process.env.NODE_ENV !== 'production' ||
+      process.env.DISABLE_RATE_LIMIT === 'true' ||
+      ip === '127.0.0.1' ||
+      ip === '::1' ||
+      ip === '::ffff:127.0.0.1' ||
+      ip.includes('127.0.0.1') ||
+      ip.startsWith('192.168.') ||
+      ip.startsWith('10.') ||
+      ip.startsWith('172.') ||
+      ip.includes('localhost')
+    ) {
       return next();
     }
-    const ip = req.ip || req.connection.remoteAddress || 'unknown';
     const key = `ratelimit:${keyPrefix}:${ip}`;
 
     try {

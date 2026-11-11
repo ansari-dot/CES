@@ -23,6 +23,12 @@ router.post('/achievements', authenticate, authorize('tasks.grade'), tasksContro
 router.put('/achievements/:id', authenticate, authorize('tasks.grade'), tasksController.updateAchievement);
 router.delete('/achievements/:id', authenticate, authorize('tasks.grade'), tasksController.deleteAchievement);
 
+// Student Mistakes & Weak Areas Tracking (Academic Workspace Section 8)
+router.get('/mistakes', authenticate, tasksController.getMistakes);
+router.post('/mistakes', authenticate, authorize('tasks.grade'), tasksController.recordMistake);
+router.patch('/mistakes/:id', authenticate, authorize('tasks.grade'), tasksController.updateMistake);
+router.delete('/mistakes/:id', authenticate, authorize('tasks.grade'), tasksController.deleteMistake);
+
 // Tasks
 router.get('/', authenticate, tasksController.getTasks);
 router.post('/', authenticate, authorize('tasks.manage'), upload.single('handout'), tasksController.createTask);

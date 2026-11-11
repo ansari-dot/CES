@@ -1,0 +1,19 @@
+import { Router } from 'express';
+import { calendarController } from './calendar.controller.js';
+import { authenticate } from '../../shared/middleware/authenticate.js';
+import { authorize } from '../../shared/middleware/authorize.js';
+
+const router = Router();
+
+// Everyone authenticated can view calendar overview, holidays, and active popup announcements
+router.get('/active-announcement', authenticate, calendarController.getActiveAnnouncement);
+router.get('/overview', authenticate, calendarController.getCalendarOverview);
+router.get('/holidays', authenticate, calendarController.getHolidays);
+
+// Principal and Admin can declare, update and remove holiday breaks
+router.post('/holidays', authenticate, authorize('academic.setup.manage'), calendarController.createHoliday);
+router.put('/holidays/:id', authenticate, authorize('academic.setup.manage'), calendarController.updateHoliday);
+router.delete('/holidays/:id', authenticate, authorize('academic.setup.manage'), calendarController.deleteHoliday);
+
+export default router;
+

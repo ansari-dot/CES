@@ -13,6 +13,8 @@ import { ErrorCodes } from '../errors/errorCodes.js';
 
 let cachedToken = null;
 let tokenExpiresAt = 0;
+let cachedConnectionTest = null;
+let cachedConnectionTestExpiresAt = 0;
 
 const ZOOM_API_BASE = 'https://api.zoom.us/v2';
 const MAX_RETRIES = 3;
@@ -62,6 +64,8 @@ export const zoomApiClient = {
   _resetTokenCache() {
     cachedToken = null;
     tokenExpiresAt = 0;
+    cachedConnectionTest = null;
+    cachedConnectionTestExpiresAt = 0;
   },
 
   async getAccessToken({ force = false } = {}) {
@@ -181,7 +185,7 @@ export const zoomApiClient = {
     };
   },
 
-  async testConnection() {
+  async testConnection({ force = false } = {}) {
     if (!this.isConfigured()) {
       return {
         configured: false,
@@ -191,6 +195,10 @@ export const zoomApiClient = {
         hasEightLicenses: false,
         message: 'Zoom API credentials are not configured on the server.'
       };
+    }
+
+    if (!force && cachedConnectionTest && Date.now() < cachedConnectionTestExpiresAt) {
+      return cachedConnectionTest;
     }
 
     try {
@@ -203,7 +211,7 @@ export const zoomApiClient = {
         usersError = err.message;
       }
       const licensed = users.filter((u) => u.isLicensed);
-      return {
+      const result = {
         configured: true,
         connected: true,
         configuredAccountId: config.ZOOM_ACCOUNT_ID,
@@ -221,8 +229,11 @@ export const zoomApiClient = {
           ? `Connected, but the user list could not be read (${usersError}). Grant the user:read:admin scope.`
           : `Connected. ${licensed.length} licensed user(s) found.`
       };
+      cachedConnectionTest = result;
+      cachedConnectionTestExpiresAt = Date.now() + 5 * 60 * 1000; // Cache for 5 minutes
+      return result;
     } catch (err) {
-      return {
+      const failedResult = {
         configured: true,
         connected: false,
         licensedHosts: 0,
@@ -230,6 +241,9 @@ export const zoomApiClient = {
         hasEightLicenses: false,
         message: err.message || 'Failed to authenticate with Zoom'
       };
+      cachedConnectionTest = failedResult;
+      cachedConnectionTestExpiresAt = Date.now() + 60 * 1000; // Cache failures for 1 minute
+      return failedResult;
     }
   },
 

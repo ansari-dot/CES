@@ -6,6 +6,13 @@ import { fetchSchoolTimetable } from '../store/slices/schoolTimetableSlice';
 import { fetchDutySummaryThunk } from '../store/slices/dutySlice';
 import { fetchTeacherNotificationsThunk, addToast, addNotification } from '../store/slices/uiSlice';
 import { fetchNoticesThunk } from '../store/slices/noticesSlice';
+import {
+  receiveSocketMessage,
+  setTypingStatus,
+  receiveReadReceipt,
+  fetchThreadsThunk,
+  updateUserPresence
+} from '../store/slices/chatSlice';
 
 /**
  * Global Real-Time WebSocket Synchronization Hook for Teacher Portal.
@@ -152,6 +159,42 @@ export function useTeacherRealtime() {
       if (teacher?.id) dispatch(fetchDutySummaryThunk(teacher.id));
     };
 
+    // 7. Academic Chat Real-Time Synchronization
+    const onChatMessage = (data: any) => {
+      if (data?.threadId && data?.message) {
+        dispatch(
+          receiveSocketMessage({
+            threadId: data.threadId,
+            message: data.message,
+            senderRole: data.senderRole,
+            senderUserId: data.senderUserId
+          })
+        );
+      }
+    };
+
+    const onChatTyping = (data: any) => {
+      if (data?.threadId) {
+        dispatch(setTypingStatus({ threadId: data.threadId, isTyping: Boolean(data.isTyping) }));
+      }
+    };
+
+    const onChatRead = (data: any) => {
+      if (data?.threadId && data?.readByRole) {
+        dispatch(receiveReadReceipt({ threadId: data.threadId, readByRole: data.readByRole }));
+      }
+    };
+
+    const onChatUnreadUpdate = () => {
+      dispatch(fetchThreadsThunk());
+    };
+
+    const onChatPresence = (data: any) => {
+      if (data?.userId !== undefined) {
+        dispatch(updateUserPresence({ userId: Number(data.userId), isOnline: Boolean(data.isOnline) }));
+      }
+    };
+
     socket.on(RealtimeEvents.CLASS_STATUS_UPDATED, onClassStatusUpdated);
     socket.on(RealtimeEvents.CLASS_PERIOD_ACTIVATED, onClassPeriodActivated);
     socket.on(RealtimeEvents.TIMETABLE_CHANGE, onTimetableChanged);
@@ -159,6 +202,12 @@ export function useTeacherRealtime() {
     socket.on(RealtimeEvents.TEACHER_DUTY_UPDATED, onTeacherDutyUpdated);
     socket.on(RealtimeEvents.TEACHER_ATTENDANCE_UPDATED, onTeacherAttendanceUpdated);
     socket.on(RealtimeEvents.PAYROLL_SUMMARY_UPDATED, onPayrollUpdated);
+    socket.on('chat:message', onChatMessage);
+    socket.on('chat:typing', onChatTyping);
+    socket.on('chat:user_typing', onChatTyping);
+    socket.on('chat:read', onChatRead);
+    socket.on('chat:unread_update', onChatUnreadUpdate);
+    socket.on('chat:presence', onChatPresence);
 
     return () => {
       socket.off(RealtimeEvents.CLASS_STATUS_UPDATED, onClassStatusUpdated);
@@ -168,6 +217,12 @@ export function useTeacherRealtime() {
       socket.off(RealtimeEvents.TEACHER_DUTY_UPDATED, onTeacherDutyUpdated);
       socket.off(RealtimeEvents.TEACHER_ATTENDANCE_UPDATED, onTeacherAttendanceUpdated);
       socket.off(RealtimeEvents.PAYROLL_SUMMARY_UPDATED, onPayrollUpdated);
+      socket.off('chat:message', onChatMessage);
+      socket.off('chat:typing', onChatTyping);
+      socket.off('chat:user_typing', onChatTyping);
+      socket.off('chat:read', onChatRead);
+      socket.off('chat:unread_update', onChatUnreadUpdate);
+      socket.off('chat:presence', onChatPresence);
     };
   }, [isAuthenticated, teacher?.id, assignedClasses, dispatch]);
 }

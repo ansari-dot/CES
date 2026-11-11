@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
 import { setSelectedTaskId, setCurrentSubTab, updateTaskStatusThunk } from '../store/slices/tasksSlice';
 import { setCurrentTab, addToast } from '../store/slices/uiSlice';
 import { CreateTaskForm } from '../components/grading/CreateTaskForm';
+import { Pagination } from '../components/common/Pagination';
 import { openProtectedFile } from '../services/api';
 import {
   FileText,
@@ -34,6 +35,12 @@ export const TasksAssignmentsPage: React.FC = () => {
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [filterQuery, setFilterQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedClassId, filterQuery]);
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
@@ -49,6 +56,12 @@ export const TasksAssignmentsPage: React.FC = () => {
       return true;
     });
   }, [tasks, selectedClassId, filterQuery]);
+
+  const totalPages = Math.ceil(filteredTasks.length / pageSize) || 1;
+  const paginatedTasks = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredTasks.slice(start, start + pageSize);
+  }, [filteredTasks, currentPage, pageSize]);
 
   const handleOpenGrading = (taskId: string) => {
     dispatch(setSelectedTaskId(taskId));
@@ -81,7 +94,7 @@ export const TasksAssignmentsPage: React.FC = () => {
   const draftTasksCount = tasks.filter((t) => t.status === 'draft').length;
 
   return (
-    <div className="flex flex-col w-full pb-16 space-y-5 bg-[#f6f7fb] min-h-screen p-3 sm:p-5 lg:p-6 rounded-2xl">
+    <div className="flex flex-col w-full pb-12 space-y-5 animate-in fade-in duration-150">
       {/* ------------------------------------------------------------- */}
       {/* 1. HERO HEADER BANNER */}
       {/* ------------------------------------------------------------- */}
@@ -94,17 +107,17 @@ export const TasksAssignmentsPage: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-extrabold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
-                  Coursework &amp; Evaluations
+                  Coursework
                 </span>
                 <span className="text-[11px] font-extrabold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                  Deadlines &amp; Grading
+                  Deadlines &amp; Handouts
                 </span>
               </div>
               <h1 className="text-xl sm:text-2xl font-black text-[#1e1b4b] tracking-tight mt-1">
-                Tasks &amp; Homework Assignments
+                Assignments Management
               </h1>
               <p className="text-xs text-slate-500 font-medium">
-                Create new homework tasks, manage deadlines, attach worksheet handouts, and review turnout rates.
+                Create new homework assignments, schedule deadlines, attach worksheets, and track student completion.
               </p>
             </div>
           </div>
@@ -282,7 +295,7 @@ export const TasksAssignmentsPage: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredTasks.map((task) => (
+                paginatedTasks.map((task) => (
                   <tr key={task.id} className="hover:bg-slate-50/80 h-14 transition-colors">
                     <td className="px-5 py-2">
                       <div className="flex items-center gap-1.5">
@@ -360,8 +373,9 @@ export const TasksAssignmentsPage: React.FC = () => {
                             type="button"
                             onClick={() => handleOpenGrading(task.id)}
                             className="px-3 py-1.5 rounded-xl bg-[#36348e] hover:bg-[#2c2a75] text-white font-bold text-xs shadow-2xs transition-all flex items-center gap-1 cursor-pointer active:scale-[0.98]"
+                            title="Open Paper Checking for this assignment"
                           >
-                            <span>Grade</span>
+                            <span>Check Papers</span>
                             <ArrowRight className="w-3 h-3" />
                           </button>
                         )}
@@ -374,6 +388,22 @@ export const TasksAssignmentsPage: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Pagination Controls */}
+      {filteredTasks.length > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredTasks.length}
+          itemsPerPage={pageSize}
+          onPageChange={(page) => setCurrentPage(page)}
+          onItemsPerPageChange={(limit) => {
+            setPageSize(limit);
+            setCurrentPage(1);
+          }}
+          pageSizeOptions={[10, 25, 50]}
+        />
+      )}
     </div>
   );
 };
