@@ -6,6 +6,20 @@
  */
 
 export async function up(knex) {
+  // If a previous migration attempt failed midway, safely drop partial tables in reverse dependency order
+  try {
+    await knex.raw('DROP TRIGGER IF EXISTS trg_supp_prevent_delete');
+    await knex.raw('DROP TRIGGER IF EXISTS trg_supp_prevent_update');
+    await knex.raw('DROP TRIGGER IF EXISTS trg_supp_before_insert');
+    await knex.schema.dropTableIfExists('academic_alert_outbox');
+    await knex.schema.dropTableIfExists('academic_alert_recipients');
+    await knex.schema.dropTableIfExists('academic_parent_alerts');
+    await knex.schema.dropTableIfExists('academic_alert_cooldowns');
+    await knex.schema.dropTableIfExists('supplementary_exam_results');
+    await knex.schema.dropTableIfExists('academic_grading_policies');
+    await knex.schema.dropTableIfExists('migration_25_schema_ownership');
+  } catch (_) {}
+
   // =========================================================================
   // 0. OWNERSHIP TRACKING & PRE-REQUISITE COMPOSITE KEYS
   // =========================================================================
