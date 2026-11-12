@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
-import { getSocket, RealtimeEvents, subscribeToClass } from '../services/socketService';
+import { getSocket, RealtimeEvents, subscribeToClass, identifyTeacher } from '../services/socketService';
 import { fetchTeacherLessonsThunk, updateLessonRealtimeStatus } from '../store/slices/timetableSlice';
 import { fetchSchoolTimetable } from '../store/slices/schoolTimetableSlice';
 import { fetchDutySummaryThunk } from '../store/slices/dutySlice';
@@ -8,6 +8,7 @@ import { fetchTeacherNotificationsThunk, addToast, addNotification } from '../st
 import { fetchNoticesThunk } from '../store/slices/noticesSlice';
 import {
   receiveSocketMessage,
+  receiveThreadCreated,
   setTypingStatus,
   receiveReadReceipt,
   fetchThreadsThunk,
@@ -22,11 +23,18 @@ import {
 export function useTeacherRealtime() {
   const dispatch = useAppDispatch();
   const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
+  const authUser = useAppSelector((state) => state.auth.user);
   const teacher = useAppSelector((state) => state.auth.teacher);
   const assignedClasses = teacher?.assignedClasses || [];
 
   useEffect(() => {
     if (!isAuthenticated) return;
+
+    const teacherId = teacher?.rawId || teacher?.id;
+    const userId = authUser?.id || (teacher as any)?.userId;
+    if (teacherId || userId) {
+      identifyTeacher(teacherId || '', userId || undefined);
+    }
 
     const socket = getSocket();
 
@@ -167,9 +175,19 @@ export function useTeacherRealtime() {
             threadId: data.threadId,
             message: data.message,
             senderRole: data.senderRole,
-            senderUserId: data.senderUserId
+            senderUserId: data.senderUserId,
+            thread: data.thread
           })
         );
+        // Refresh full thread list so newly created thread appears with full metadata
+        dispatch(fetchThreadsThunk());
+      }
+    };
+
+    const onChatThreadCreated = (data: any) => {
+      if (data?.thread) {
+        dispatch(receiveThreadCreated({ thread: data.thread }));
+        dispatch(fetchThreadsThunk());
       }
     };
 
@@ -185,7 +203,10 @@ export function useTeacherRealtime() {
       }
     };
 
-    const onChatUnreadUpdate = () => {
+    const onChatUnreadUpdate = (data: any) => {
+      if (data?.thread) {
+        dispatch(receiveThreadCreated({ thread: data.thread }));
+      }
       dispatch(fetchThreadsThunk());
     };
 
@@ -203,6 +224,7 @@ export function useTeacherRealtime() {
     socket.on(RealtimeEvents.TEACHER_ATTENDANCE_UPDATED, onTeacherAttendanceUpdated);
     socket.on(RealtimeEvents.PAYROLL_SUMMARY_UPDATED, onPayrollUpdated);
     socket.on('chat:message', onChatMessage);
+    socket.on('chat:thread_created', onChatThreadCreated);
     socket.on('chat:typing', onChatTyping);
     socket.on('chat:user_typing', onChatTyping);
     socket.on('chat:read', onChatRead);
@@ -218,6 +240,7 @@ export function useTeacherRealtime() {
       socket.off(RealtimeEvents.TEACHER_ATTENDANCE_UPDATED, onTeacherAttendanceUpdated);
       socket.off(RealtimeEvents.PAYROLL_SUMMARY_UPDATED, onPayrollUpdated);
       socket.off('chat:message', onChatMessage);
+      socket.off('chat:thread_created', onChatThreadCreated);
       socket.off('chat:typing', onChatTyping);
       socket.off('chat:user_typing', onChatTyping);
       socket.off('chat:read', onChatRead);

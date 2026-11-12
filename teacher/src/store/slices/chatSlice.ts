@@ -117,9 +117,15 @@ const chatSlice = createSlice({
     },
     receiveSocketMessage(
       state,
-      action: PayloadAction<{ threadId: number; message: ChatMessageItem; senderRole: string; senderUserId: number }>
+      action: PayloadAction<{
+        threadId: number;
+        message: ChatMessageItem;
+        senderRole: string;
+        senderUserId: number;
+        thread?: any;
+      }>
     ) {
-      const { threadId, message, senderRole } = action.payload;
+      const { threadId, message, senderRole, thread: newThreadData } = action.payload;
       if (!state.messagesByThread[threadId]) {
         state.messagesByThread[threadId] = [];
       }
@@ -138,6 +144,20 @@ const chatSlice = createSlice({
           thread.teacher_unread_count = (thread.teacher_unread_count || 0) + 1;
           state.totalUnreadCount += 1;
         }
+      } else if (newThreadData) {
+        state.threads.unshift({
+          ...newThreadData,
+          teacher_unread_count: senderRole === 'STUDENT' ? 1 : 0
+        });
+        if (senderRole === 'STUDENT') {
+          state.totalUnreadCount += 1;
+        }
+      }
+    },
+    receiveThreadCreated(state, action: PayloadAction<{ thread: any }>) {
+      const { thread } = action.payload;
+      if (thread && !state.threads.some((t) => t.id === thread.id)) {
+        state.threads.unshift(thread);
       }
     },
     setTypingStatus(state, action: PayloadAction<{ threadId: number; isTyping: boolean }>) {
@@ -251,6 +271,7 @@ export const {
   setActiveThread,
   clearPolicyWarning,
   receiveSocketMessage,
+  receiveThreadCreated,
   setTypingStatus,
   receiveReadReceipt,
   updateUserPresence,

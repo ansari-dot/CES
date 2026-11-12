@@ -201,8 +201,11 @@ export function initSocketServer(httpServer) {
     // Dynamic Class Room Subscription with Role Authorization
     socket.on('identify', (data) => {
       if (data?.userId) {
-        socket.join(`user:${data.userId}`);
-        trackOnline(data.userId);
+        const uid = Number(data.userId);
+        if (uid) {
+          socket.join(`user:${uid}`);
+          trackOnline(uid);
+        }
       }
       if (data?.teacherId) {
         const tid = Number(String(data.teacherId).replace(/\D/g, ''));
@@ -210,6 +213,13 @@ export function initSocketServer(httpServer) {
           socket.join(`teacher:${tid}`);
         }
         socket.join('role:TEACHER');
+      }
+      if (data?.studentId) {
+        const sid = Number(String(data.studentId).replace(/\D/g, ''));
+        if (sid) {
+          socket.join(`student:${sid}`);
+        }
+        socket.join('role:STUDENT');
       }
       if (data?.classId) {
         socket.join(`class:${data.classId}`);
@@ -269,13 +279,13 @@ export function initSocketServer(httpServer) {
     // -------------------------------------------------------------
     // Academic Chat Real-Time Handlers with Strict Server-Side Auth
     // -------------------------------------------------------------
-    socket.on('chat:join', async ({ threadId }) => {
+    socket.on('chat:join', async ({ threadId, userId }) => {
       try {
         const tid = Number(threadId);
         if (!tid || isNaN(tid)) return;
 
-        const user = socket.user || { id: currentSocketUserId };
-        if (!user || !user.id) {
+        const uid = socket.user?.id || currentSocketUserId || (userId ? Number(userId) : null);
+        if (!uid) {
           socket.emit('chat:error', { message: 'Unauthenticated socket session' });
           return;
         }
@@ -287,26 +297,36 @@ export function initSocketServer(httpServer) {
         }
 
         // Strict authorization check - resolve teacherId/studentId dynamically
-        let teacherId = user.teacherId;
+        let teacherId = socket.user?.teacherId;
         if (!teacherId) {
-          const t = await db('teachers').where('user_id', user.id).first();
+          const t = await db('teachers').where('user_id', uid).first();
           if (t) {
             teacherId = t.id;
-            user.teacherId = t.id;
+            if (socket.user) socket.user.teacherId = t.id;
           }
         }
 
-        let studentId = user.studentId;
+        let studentId = socket.user?.studentId;
         if (!studentId) {
-          const s = await db('students').where('user_id', user.id).first();
+          const s = await db('students').where('user_id', uid).first();
           if (s) {
             studentId = s.id;
-            user.studentId = s.id;
+            if (socket.user) socket.user.studentId = s.id;
           }
+        }
+
+        let userRole = socket.user?.role;
+        if (!userRole) {
+          const u = await db('users')
+            .join('roles', 'users.role_id', 'roles.id')
+            .where('users.id', uid)
+            .select('roles.name as roleName')
+            .first();
+          if (u) userRole = u.roleName?.toUpperCase();
         }
 
         let authorized = false;
-        if (['PRINCIPAL', 'ADMIN'].includes(user.role)) {
+        if (['PRINCIPAL', 'ADMIN'].includes(userRole)) {
           authorized = true;
         } else if (teacherId && Number(teacherId) === Number(thread.teacher_id)) {
           authorized = true;
@@ -320,12 +340,17 @@ export function initSocketServer(httpServer) {
         }
 
         socket.join(`chat:thread:${tid}`);
+        socket.join(`user:${uid}`);
+        if (studentId) socket.join(`student:${studentId}`);
+        if (teacherId) socket.join(`teacher:${teacherId}`);
+        trackOnline(uid);
+
         socket.emit('chat:joined', { threadId: tid, authorized: true });
 
         // Notify room of current presence
         io.to(`chat:thread:${tid}`).emit('chat:presence', {
           threadId: tid,
-          userId: user.id,
+          userId: uid,
           isOnline: true
         });
       } catch (err) {

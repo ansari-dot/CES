@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useSelector } from 'react-redux';
+import { RootState } from '../store';
 import {
   studentChatApi,
   StudentThreadItem,
@@ -7,6 +9,7 @@ import {
 } from '../services/chatApi';
 import {
   getSocket,
+  identifyStudent,
   joinChatThread,
   leaveChatThread,
   sendChatTyping
@@ -15,23 +18,24 @@ import {
   MessageSquare,
   Search,
   Send,
-  Shield,
-  AlertTriangle,
   Check,
   CheckCheck,
   BookOpen,
-  User,
-  Sparkles,
   GraduationCap,
   X,
-  HelpCircle
+  HelpCircle,
+  Clock,
+  Sparkles
 } from 'lucide-react';
 
 export default function TeacherChat() {
+  const profile = useSelector((state: RootState) => state.student.profile);
+
   const [threads, setThreads] = useState<StudentThreadItem[]>([]);
   const [availableTeachers, setAvailableTeachers] = useState<AvailableTeacher[]>([]);
   const [enrollment, setEnrollment] = useState<{ classId: number; className: string; gradeLevel: number } | null>(null);
   const [activeThreadId, setActiveThreadId] = useState<number | null>(null);
+  const [selectedTeacher, setSelectedTeacher] = useState<AvailableTeacher | null>(null);
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -44,18 +48,43 @@ export default function TeacherChat() {
   const typingTimerRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Authenticate student socket session
+  useEffect(() => {
+    if (profile?.studentId || profile?.userId) {
+      identifyStudent(
+        profile.studentId,
+        profile.userId,
+        profile.currentClassId || enrollment?.classId
+      );
+    }
+  }, [profile, enrollment]);
+
   // Load threads and available teachers
   const loadData = async () => {
     setIsLoading(true);
     try {
       const data = await studentChatApi.getThreads();
-      setThreads(data.threads || []);
-      setAvailableTeachers(data.availableTeachers || []);
+      const loadedThreads = data.threads || [];
+      const loadedTeachers = data.availableTeachers || [];
+      setThreads(loadedThreads);
+      setAvailableTeachers(loadedTeachers);
       setEnrollment(data.enrollment || null);
 
-      // Select first active thread if available
-      if (!activeThreadId && data.threads && data.threads.length > 0) {
-        setActiveThreadId(data.threads[0].id);
+      // Auto-select first thread or first teacher so right-side chat is immediately interactive
+      if (!activeThreadId && loadedThreads.length > 0) {
+        const first = loadedThreads[0];
+        setActiveThreadId(first.id);
+        setSelectedTeacher({
+          classId: first.class_id,
+          teacherId: first.teacher_id,
+          teacherName: first.teacherName,
+          teacherDesignation: first.teacherDesignation,
+          subjectId: first.subject_id,
+          subjectName: first.subjectName,
+          subjectCode: first.subjectCode || ''
+        });
+      } else if (!activeThreadId && loadedTeachers.length > 0) {
+        setSelectedTeacher(loadedTeachers[0]);
       }
     } catch (err) {
       console.error('Failed to load chat data', err);
@@ -99,37 +128,75 @@ export default function TeacherChat() {
     return () => {
       leaveChatThread(activeThreadId);
     };
-  }, [activeThreadId, threads]);
+  }, [activeThreadId]);
 
-  // Socket listeners for real-time messages & typing & presence
+  // Real-time socket event listeners
   useEffect(() => {
     const socket = getSocket();
 
     const onMessage = (data: any) => {
+      // If message belongs to active thread, append it
       if (data?.threadId === activeThreadId && data?.message) {
         setMessages((prev) => {
           if (prev.some((m) => m.id === data.message.id)) return prev;
           return [...prev, data.message];
         });
+        // Auto mark as read in real-time
+        studentChatApi.markRead(activeThreadId).catch(() => {});
       }
 
-      // Update thread preview in sidebar
-      setThreads((prev) =>
-        prev.map((t) => {
-          if (t.id === data.threadId) {
-            return {
-              ...t,
-              last_message_preview: data.message.content,
-              last_message_at: data.message.created_at,
-              student_unread_count:
-                data.senderRole === 'TEACHER' && activeThreadId !== data.threadId
-                  ? (t.student_unread_count || 0) + 1
-                  : t.student_unread_count
-            };
-          }
-          return t;
-        })
-      );
+      // Update sidebar preview and unread counts
+      setThreads((prev) => {
+        const exists = prev.some((t) => t.id === data.threadId);
+        if (exists) {
+          return prev.map((t) => {
+            if (t.id === data.threadId) {
+              return {
+                ...t,
+                last_message_preview: data.message.content,
+                last_message_at: data.message.created_at,
+                student_unread_count:
+                  data.senderRole === 'TEACHER' && activeThreadId !== data.threadId
+                    ? (t.student_unread_count || 0) + 1
+                    : t.student_unread_count
+              };
+            }
+            return t;
+          });
+        } else if (data.thread) {
+          return [data.thread, ...prev];
+        }
+        return prev;
+      });
+    };
+
+    const onUnreadUpdate = (data: any) => {
+      setThreads((prev) => {
+        const exists = prev.some((t) => t.id === data.threadId);
+        if (exists) {
+          return prev.map((t) =>
+            t.id === data.threadId
+              ? {
+                  ...t,
+                  last_message_preview: data.lastMessagePreview,
+                  last_message_at: data.lastMessageAt
+                }
+              : t
+          );
+        } else if (data.thread) {
+          return [data.thread, ...prev];
+        }
+        return prev;
+      });
+    };
+
+    const onThreadCreated = (data: any) => {
+      if (data?.thread) {
+        setThreads((prev) => {
+          if (prev.some((t) => t.id === data.thread.id)) return prev;
+          return [data.thread, ...prev];
+        });
+      }
     };
 
     const onTyping = (data: any) => {
@@ -156,6 +223,8 @@ export default function TeacherChat() {
     };
 
     socket.on('chat:message', onMessage);
+    socket.on('chat:unread_update', onUnreadUpdate);
+    socket.on('chat:thread_created', onThreadCreated);
     socket.on('chat:typing', onTyping);
     socket.on('chat:user_typing', onTyping);
     socket.on('chat:read', onRead);
@@ -163,6 +232,8 @@ export default function TeacherChat() {
 
     return () => {
       socket.off('chat:message', onMessage);
+      socket.off('chat:unread_update', onUnreadUpdate);
+      socket.off('chat:thread_created', onThreadCreated);
       socket.off('chat:typing', onTyping);
       socket.off('chat:user_typing', onTyping);
       socket.off('chat:read', onRead);
@@ -170,12 +241,36 @@ export default function TeacherChat() {
     };
   }, [activeThreadId]);
 
-  // Scroll to bottom on messages update
+  // Auto-scroll on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length, isTeacherTyping]);
 
+  // Unified active conversation faculty
   const activeThread = threads.find((t) => t.id === activeThreadId);
+  const currentFaculty = activeThread
+    ? {
+        teacherName: activeThread.teacherName,
+        teacherDesignation: activeThread.teacherDesignation,
+        subjectName: activeThread.subjectName,
+        className: activeThread.className,
+        teacherUserId: activeThread.teacherUserId,
+        teacherId: activeThread.teacher_id,
+        subjectId: activeThread.subject_id,
+        classId: activeThread.class_id
+      }
+    : selectedTeacher
+    ? {
+        teacherName: selectedTeacher.teacherName,
+        teacherDesignation: selectedTeacher.teacherDesignation,
+        subjectName: selectedTeacher.subjectName,
+        className: enrollment?.className || 'Assigned Class',
+        teacherUserId: undefined,
+        teacherId: selectedTeacher.teacherId,
+        subjectId: selectedTeacher.subjectId,
+        classId: selectedTeacher.classId || enrollment?.classId || 0
+      }
+    : null;
 
   // Handle typing input
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -193,30 +288,59 @@ export default function TeacherChat() {
     }
   };
 
+  // Send message with automatic first-message thread initialization
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!activeThreadId || !inputText.trim() || isSending) return;
+    if (!currentFaculty || !inputText.trim() || isSending) return;
 
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
-    sendChatTyping(activeThreadId, false);
 
     const text = inputText.trim();
     setInputText('');
     setIsSending(true);
 
     try {
-      const res = await studentChatApi.sendMessage(activeThreadId, text);
+      let targetThreadId = activeThreadId;
+
+      // If conversation thread doesn't exist yet in DB, create it seamlessly now
+      if (!targetThreadId) {
+        const newThread = await studentChatApi.createThread({
+          classId: currentFaculty.classId || enrollment?.classId || 0,
+          subjectId: currentFaculty.subjectId,
+          targetTeacherId: currentFaculty.teacherId
+        });
+        setThreads((prev) => [newThread, ...prev]);
+        setActiveThreadId(newThread.id);
+        targetThreadId = newThread.id;
+        joinChatThread(newThread.id);
+      }
+
+      sendChatTyping(targetThreadId, false);
+
+      const res = await studentChatApi.sendMessage(targetThreadId, text);
       if (res?.message) {
         setMessages((prev) => {
           if (prev.some((m) => m.id === res.message.id)) return prev;
           return [...prev, res.message];
         });
+        setThreads((prev) =>
+          prev.map((t) =>
+            t.id === targetThreadId
+              ? {
+                  ...t,
+                  last_message_preview: res.message.content,
+                  last_message_at: res.message.created_at
+                }
+              : t
+          )
+        );
       }
       if (res?.policyWarning) {
         setPolicyWarning(res.policyWarning);
       }
     } catch (err: any) {
       console.error('Failed to send message', err);
+      setInputText(text); // restore input on failure
     } finally {
       setIsSending(false);
     }
@@ -229,29 +353,19 @@ export default function TeacherChat() {
     }
   };
 
-  // Open or create a conversation with an assigned subject teacher
-  const handleSelectTeacher = async (teacher: AvailableTeacher) => {
-    // Check if thread already exists for this subject + teacher
+  // Select teacher from sidebar
+  const handleSelectTeacher = (teacher: AvailableTeacher) => {
+    setSelectedTeacher(teacher);
     const existing = threads.find(
       (t) => t.subject_id === teacher.subjectId && t.teacher_id === teacher.teacherId
     );
 
     if (existing) {
       setActiveThreadId(existing.id);
-      return;
-    }
-
-    try {
-      const newThread = await studentChatApi.createThread({
-        classId: teacher.classId,
-        subjectId: teacher.subjectId,
-        targetTeacherId: teacher.teacherId
-      });
-
-      setThreads((prev) => [newThread, ...prev]);
-      setActiveThreadId(newThread.id);
-    } catch (err) {
-      console.error('Failed to create thread', err);
+    } else {
+      setActiveThreadId(null);
+      setMessages([]);
+      setPolicyWarning(null);
     }
   };
 
@@ -370,7 +484,12 @@ export default function TeacherChat() {
                 const thread = threads.find(
                   (t) => t.subject_id === teacher.subjectId && t.teacher_id === teacher.teacherId
                 );
-                const isActive = thread && thread.id === activeThreadId;
+                const isSelected =
+                  (thread && thread.id === activeThreadId) ||
+                  (!activeThreadId &&
+                    selectedTeacher &&
+                    selectedTeacher.teacherId === teacher.teacherId &&
+                    selectedTeacher.subjectId === teacher.subjectId);
                 const unreadCount = thread?.student_unread_count || 0;
 
                 return (
@@ -378,7 +497,7 @@ export default function TeacherChat() {
                     key={`${teacher.teacherId}-${teacher.subjectId}`}
                     onClick={() => handleSelectTeacher(teacher)}
                     className={`p-3.5 transition cursor-pointer flex items-start gap-3 hover:bg-slate-50 ${
-                      isActive ? 'bg-[#36348e]/5 border-l-4 border-l-[#36348e]' : ''
+                      isSelected ? 'bg-[#36348e]/5 border-l-4 border-l-[#36348e]' : ''
                     }`}
                   >
                     {/* Teacher Initial Avatar */}
@@ -451,14 +570,14 @@ export default function TeacherChat() {
 
         {/* Right Side: Conversation Area */}
         <div className="flex-1 flex flex-col bg-[#fbfbfe] h-full overflow-hidden">
-          {activeThread ? (
+          {currentFaculty ? (
             <>
               {/* Active Conversation Header */}
               <div className="bg-white px-6 py-3.5 border-b border-slate-200 flex items-center justify-between gap-4 shrink-0 shadow-xs">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#191847] to-[#36348e] text-white font-bold text-xs flex items-center justify-center shrink-0">
-                    {activeThread.teacherName
-                      ? activeThread.teacherName
+                    {currentFaculty.teacherName
+                      ? currentFaculty.teacherName
                           .split(' ')
                           .map((n) => n[0])
                           .slice(0, 2)
@@ -469,12 +588,12 @@ export default function TeacherChat() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <h2 className="text-sm font-bold text-slate-900 truncate">
-                        {activeThread.teacherName}
+                        {currentFaculty.teacherName}
                       </h2>
                       <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700">
-                        {activeThread.subjectName}
+                        {currentFaculty.subjectName}
                       </span>
-                      {activeThread.teacherUserId && onlineUserIds[activeThread.teacherUserId] ? (
+                      {currentFaculty.teacherUserId && onlineUserIds[currentFaculty.teacherUserId] ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                           <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                           Active Now
@@ -487,9 +606,9 @@ export default function TeacherChat() {
                       )}
                     </div>
                     <div className="text-xs text-slate-500 mt-0.5">
-                      <span>{activeThread.teacherDesignation || 'Subject Faculty'}</span>
+                      <span>{currentFaculty.teacherDesignation || 'Subject Faculty'}</span>
                       <span className="mx-1.5">·</span>
-                      <span className="text-[#36348e] font-medium">{activeThread.className}</span>
+                      <span className="text-[#36348e] font-medium">{currentFaculty.className}</span>
                     </div>
                   </div>
                 </div>
@@ -499,14 +618,14 @@ export default function TeacherChat() {
               <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
                 {messages.length === 0 ? (
                   <div className="py-16 text-center text-slate-400 space-y-3">
-                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-[#36348e] flex items-center justify-center mx-auto">
+                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-[#36348e] flex items-center justify-center mx-auto shadow-xs">
                       <HelpCircle className="w-6 h-6" />
                     </div>
                     <p className="text-sm font-semibold text-slate-700">
-                      Need help with {activeThread.subjectName}?
+                      Need help with {currentFaculty.subjectName}?
                     </p>
                     <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                      Ask your teacher about homework questions, upcoming tests, or specific chapter topics.
+                      Ask your teacher questions regarding homework, upcoming tests, or specific chapter concepts.
                     </p>
                   </div>
                 ) : (
@@ -554,7 +673,7 @@ export default function TeacherChat() {
                 {/* Teacher Typing Indicator */}
                 {isTeacherTyping && (
                   <div className="flex items-center gap-2 text-xs text-slate-500 bg-white/80 border border-slate-200/60 rounded-xl px-3 py-1.5 w-fit shadow-xs animate-pulse">
-                    <span className="font-semibold text-[#191847]">{activeThread.teacherName}</span>
+                    <span className="font-semibold text-[#191847]">{currentFaculty.teacherName}</span>
                     <span>is typing</span>
                     <div className="flex gap-1">
                       <span className="w-1.5 h-1.5 bg-[#36348e] rounded-full animate-bounce [animation-delay:-0.3s]" />
@@ -576,7 +695,7 @@ export default function TeacherChat() {
                       onChange={handleInputChange}
                       onKeyDown={handleKeyDown}
                       rows={2}
-                      placeholder={`Ask ${activeThread.teacherName} a question regarding ${activeThread.subjectName} (Enter to send)...`}
+                      placeholder={`Ask ${currentFaculty.teacherName} a question regarding ${currentFaculty.subjectName} (Enter to send)...`}
                       className="w-full text-xs p-3 pr-24 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#36348e]/20 focus:border-[#36348e] resize-none text-slate-800 placeholder-slate-400"
                     />
 
@@ -590,7 +709,7 @@ export default function TeacherChat() {
                         className="px-3.5 py-1.5 bg-gradient-to-r from-[#191847] to-[#36348e] hover:from-[#211f5d] hover:to-[#4338ca] text-white rounded-lg text-xs font-semibold shadow-xs disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-1.5 cursor-pointer"
                       >
                         <Send className="w-3.5 h-3.5" />
-                        <span>Send</span>
+                        <span>{isSending ? 'Sending...' : 'Send'}</span>
                       </button>
                     </div>
                   </div>
@@ -608,7 +727,7 @@ export default function TeacherChat() {
               </div>
               <h2 className="text-base font-bold text-slate-700">Select a Subject Teacher</h2>
               <p className="text-xs text-slate-400 max-w-sm mt-1">
-                Choose one of your enrolled subjects from the list on the left to start asking your teacher questions.
+                Choose one of your assigned teachers from the list on the left to start asking questions.
               </p>
             </div>
           )}
@@ -617,4 +736,3 @@ export default function TeacherChat() {
     </div>
   );
 }
-

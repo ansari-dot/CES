@@ -114,6 +114,7 @@ export const chatService = {
       studentId
     });
 
+    let isNewThread = false;
     if (!thread) {
       thread = await chatRepository.createThread({
         sessionId,
@@ -122,8 +123,21 @@ export const chatService = {
         teacherId,
         studentId
       });
+      isNewThread = true;
     } else {
       thread = await chatRepository.findThreadById(thread.id);
+    }
+
+    if (isNewThread && thread) {
+      const io = getSocketServer();
+      if (io) {
+        const fullThread = await chatRepository.findThreadById(thread.id);
+        const threadPayload = { thread: fullThread || thread };
+        if (thread.teacherUserId) io.to(`user:${thread.teacherUserId}`).emit('chat:thread_created', threadPayload);
+        if (thread.studentUserId) io.to(`user:${thread.studentUserId}`).emit('chat:thread_created', threadPayload);
+        if (teacherId) io.to(`teacher:${teacherId}`).emit('chat:thread_created', threadPayload);
+        if (studentId) io.to(`student:${studentId}`).emit('chat:thread_created', threadPayload);
+      }
     }
 
     return thread;
@@ -383,20 +397,48 @@ export const chatService = {
         threadId: thread.id,
         message,
         senderRole,
-        senderUserId: userId
+        senderUserId: userId,
+        thread: {
+          id: thread.id,
+          class_id: thread.class_id,
+          subject_id: thread.subject_id,
+          teacher_id: thread.teacher_id,
+          student_id: thread.student_id,
+          teacherUserId: thread.teacherUserId,
+          studentUserId: thread.studentUserId,
+          teacherName: thread.teacherName,
+          studentName: thread.studentName,
+          studentRollNumber: thread.studentRollNo || thread.studentAdmissionNo,
+          subjectName: thread.subjectName,
+          className: thread.className,
+          last_message_at: message.created_at,
+          last_message_preview: message.content.substring(0, 80)
+        }
       };
 
       // 1. Broadcast to thread room
       io.to(`chat:thread:${thread.id}`).emit('chat:message', payload);
 
-      // 2. Broadcast unread update to recipient's personal user room
+      // 2. Broadcast to recipient's personal user room
       if (recipientUserId) {
+        io.to(`user:${recipientUserId}`).emit('chat:message', payload);
         io.to(`user:${recipientUserId}`).emit('chat:unread_update', {
           threadId: thread.id,
           lastMessagePreview: message.content.substring(0, 80),
           lastMessageAt: message.created_at,
-          senderName: message.senderName
+          senderName: message.senderName,
+          thread: payload.thread
         });
+      }
+
+      // 3. Broadcast to teacher room
+      if (thread.teacher_id) {
+        io.to(`teacher:${thread.teacher_id}`).emit('chat:message', payload);
+      }
+
+      // 4. Broadcast to student room
+      if (thread.student_id) {
+        io.to(`student:${thread.student_id}`).emit('chat:message', payload);
       }
     }
 

@@ -3,6 +3,7 @@ import { io, Socket } from 'socket.io-client';
 let socket: Socket | null = null;
 let currentTeacherId: string | number | null = null;
 let currentUserId: string | number | null = null;
+let currentActiveThreadId: string | number | null = null;
 
 export const RealtimeEvents = {
   CLASS_STATUS_UPDATED: 'class.status.updated',
@@ -22,13 +23,16 @@ export function getSocket(): Socket {
       transports: ['websocket', 'polling'],
       autoConnect: true,
       reconnection: true,
-      reconnectionAttempts: 15,
+      reconnectionAttempts: 25,
       reconnectionDelay: 1000
     });
 
     socket.on('connect', () => {
       if (currentTeacherId) {
         identifyTeacher(currentTeacherId, currentUserId || undefined);
+      }
+      if (currentActiveThreadId) {
+        joinChatThread(currentActiveThreadId);
       }
     });
 
@@ -44,7 +48,8 @@ export function identifyTeacher(teacherId: number | string, userId?: number | st
   if (userId) currentUserId = userId;
   const s = getSocket();
   const tid = typeof teacherId === 'string' ? Number(teacherId.replace(/\D/g, '')) : teacherId;
-  s.emit('identify', { teacherId: tid, userId: currentUserId, role: 'TEACHER' });
+  const uid = typeof currentUserId === 'string' ? Number(currentUserId) : currentUserId;
+  s.emit('identify', { teacherId: tid, userId: uid, role: 'TEACHER' });
   if (tid) {
     s.emit('join:teacher', { teacherId: tid });
   }
@@ -61,11 +66,13 @@ export function unsubscribeFromClass(classId: number | string) {
 }
 
 export function joinChatThread(threadId: number | string) {
+  currentActiveThreadId = threadId;
   const s = getSocket();
-  s.emit('chat:join', { threadId: Number(threadId) });
+  s.emit('chat:join', { threadId: Number(threadId), userId: currentUserId });
 }
 
 export function leaveChatThread(threadId: number | string) {
+  if (currentActiveThreadId === threadId) currentActiveThreadId = null;
   const s = getSocket();
   s.emit('chat:leave', { threadId: Number(threadId) });
 }
@@ -74,4 +81,3 @@ export function sendChatTyping(threadId: number | string, isTyping: boolean) {
   const s = getSocket();
   s.emit('chat:typing', { threadId: Number(threadId), isTyping });
 }
-
