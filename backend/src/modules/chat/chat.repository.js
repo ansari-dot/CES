@@ -4,7 +4,7 @@ export const chatRepository = {
   async findThreadById(threadId) {
     return await db('chat_threads as ct')
       .join('classes as c', 'ct.class_id', 'c.id')
-      .join('subjects as s', 'ct.subject_id', 's.id')
+      .leftJoin('subjects as s', 'ct.subject_id', 's.id')
       .join('teachers as t', 'ct.teacher_id', 't.id')
       .join('users as tu', 't.user_id', 'tu.id')
       .join('students as st', 'ct.student_id', 'st.id')
@@ -28,12 +28,11 @@ export const chatRepository = {
       .first();
   },
 
-  async findThreadByScope({ sessionId, classId, subjectId, teacherId, studentId }) {
+  async findThreadByScope({ sessionId, classId, teacherId, studentId }) {
     return await db('chat_threads')
       .where({
         academic_session_id: sessionId,
         class_id: classId,
-        subject_id: subjectId,
         teacher_id: teacherId,
         student_id: studentId
       })
@@ -44,7 +43,7 @@ export const chatRepository = {
     const [id] = await db('chat_threads').insert({
       academic_session_id: data.sessionId,
       class_id: data.classId,
-      subject_id: data.subjectId,
+      subject_id: data.subjectId || null,
       teacher_id: data.teacherId,
       student_id: data.studentId,
       created_at: db.fn.now(3),
@@ -56,7 +55,7 @@ export const chatRepository = {
   async getTeacherThreads(teacherId, { sessionId, classId, isArchived = false }) {
     let query = db('chat_threads as ct')
       .join('classes as c', 'ct.class_id', 'c.id')
-      .join('subjects as s', 'ct.subject_id', 's.id')
+      .leftJoin('subjects as s', 'ct.subject_id', 's.id')
       .join('students as st', 'ct.student_id', 'st.id')
       .join('users as su', 'st.user_id', 'su.id')
       .where('ct.teacher_id', teacherId)
@@ -83,7 +82,7 @@ export const chatRepository = {
   async getStudentThreads(studentId, { sessionId, isArchived = false }) {
     let query = db('chat_threads as ct')
       .join('classes as c', 'ct.class_id', 'c.id')
-      .join('subjects as s', 'ct.subject_id', 's.id')
+      .leftJoin('subjects as s', 'ct.subject_id', 's.id')
       .join('teachers as t', 'ct.teacher_id', 't.id')
       .join('users as tu', 't.user_id', 'tu.id')
       .where('ct.student_id', studentId)
@@ -109,7 +108,7 @@ export const chatRepository = {
   async getPrincipalThreads({ sessionId, classId, subjectId, teacherId, studentId, hasViolationsOnly = false, page = 1, limit = 50 }) {
     let query = db('chat_threads as ct')
       .join('classes as c', 'ct.class_id', 'c.id')
-      .join('subjects as s', 'ct.subject_id', 's.id')
+      .leftJoin('subjects as s', 'ct.subject_id', 's.id')
       .join('teachers as t', 'ct.teacher_id', 't.id')
       .join('users as tu', 't.user_id', 'tu.id')
       .join('students as st', 'ct.student_id', 'st.id')

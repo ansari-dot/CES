@@ -7,6 +7,7 @@
 
 export async function up(knex) {
   // If a previous migration attempt failed midway, safely drop partial tables in reverse dependency order
+  await knex.raw('SET FOREIGN_KEY_CHECKS = 0');
   try {
     await knex.raw('DROP TRIGGER IF EXISTS trg_supp_prevent_delete');
     await knex.raw('DROP TRIGGER IF EXISTS trg_supp_prevent_update');
@@ -18,16 +19,21 @@ export async function up(knex) {
     await knex.schema.dropTableIfExists('supplementary_exam_results');
     await knex.schema.dropTableIfExists('academic_grading_policies');
     await knex.schema.dropTableIfExists('migration_25_schema_ownership');
-  } catch (_) {}
+  } finally {
+    await knex.raw('SET FOREIGN_KEY_CHECKS = 1');
+  }
 
   // =========================================================================
   // 0. OWNERSHIP TRACKING & PRE-REQUISITE COMPOSITE KEYS
   // =========================================================================
-  await knex.schema.createTable('migration_25_schema_ownership', (table) => {
-    table.string('target_table', 64).notNullable();
-    table.string('index_name', 64).notNullable();
-    table.primary(['target_table', 'index_name']);
-  });
+  const hasOwnershipTable = await knex.schema.hasTable('migration_25_schema_ownership');
+  if (!hasOwnershipTable) {
+    await knex.schema.createTable('migration_25_schema_ownership', (table) => {
+      table.string('target_table', 64).notNullable();
+      table.string('index_name', 64).notNullable();
+      table.primary(['target_table', 'index_name']);
+    });
+  }
 
   // Check and add uq_fr_ident on final_results (id, student_id, session_id, class_id)
   const [frIndexes] = await knex.raw(`

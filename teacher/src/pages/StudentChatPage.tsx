@@ -188,12 +188,13 @@ export const StudentChatPage: React.FC = () => {
     }
   };
 
-  // Filter and deduplicate threads
+  // Filter and deduplicate threads per student
   const filteredThreads = React.useMemo(() => {
-    const uniqueMap = new Map<number, (typeof threads)[0]>();
+    const uniqueMap = new Map<string, (typeof threads)[0]>();
     for (const t of threads) {
-      if (!uniqueMap.has(t.id)) {
-        uniqueMap.set(t.id, t);
+      const key = `${t.class_id}-${t.student_id}`;
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, t);
       }
     }
     return Array.from(uniqueMap.values()).filter((t) => {

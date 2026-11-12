@@ -4,7 +4,7 @@ export interface StudentThreadItem {
   id: number;
   academic_session_id: number;
   class_id: number;
-  subject_id: number;
+  subject_id: number | null;
   teacher_id: number;
   student_id: number;
   teacher_unread_count: number;
@@ -15,6 +15,7 @@ export interface StudentThreadItem {
   className: string;
   gradeLevel: number;
   subjectName: string;
+  subjectNames?: string;
   subjectCode: string;
   teacherName: string;
   teacherDesignation: string;
@@ -28,9 +29,11 @@ export interface AvailableTeacher {
   teacherId: number;
   teacherName: string;
   teacherDesignation: string;
-  subjectId: number;
+  subjectId?: number;
   subjectName: string;
-  subjectCode: string;
+  subjectNames?: string;
+  subjectCode?: string;
+  subjects?: Array<{ id: number; name: string; code?: string }>;
 }
 
 export interface ChatMessageItem {

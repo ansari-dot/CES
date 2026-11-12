@@ -16,30 +16,28 @@ export const chatService = {
 
   /**
    * Strict Academic Relationship Validation:
-   * 1. Teacher must teach this class and subject.
+   * 1. Teacher must teach this class (direct or via timetable).
    * 2. Student must be actively enrolled in this class.
    */
-  async validateAssignmentScope({ teacherId, studentId, classId, subjectId, sessionId }) {
-    // 1. Verify Teacher assignment (direct or via timetable)
+  async validateAssignmentScope({ teacherId, studentId, classId, sessionId }) {
+    // 1. Verify Teacher assignment to this class (direct or via timetable)
     const isTeacherAssigned = await db('teacher_assignments')
       .where({
         teacher_id: teacherId,
-        class_id: classId,
-        subject_id: subjectId
+        class_id: classId
       })
       .first();
 
     const isSlotAssigned = isTeacherAssigned ? true : await db('timetable_slots')
       .where({
         teacher_id: teacherId,
-        class_id: classId,
-        subject_id: subjectId
+        class_id: classId
       })
       .first();
 
     if (!isTeacherAssigned && !isSlotAssigned) {
       throw new AppError(
-        'Teacher is not officially assigned to teach this class and subject.',
+        'Teacher is not officially assigned to teach this class.',
         403,
         ErrorCodes.FORBIDDEN
       );
@@ -75,6 +73,7 @@ export const chatService = {
 
   /**
    * Start or retrieve a conversation thread between an authorized teacher and student
+   * (Unified 1-to-1 conversation per teacher and student in this class/session)
    */
   async getOrCreateThread({ userId, userRole, classId, subjectId, targetStudentId, targetTeacherId }) {
     const sessionId = await this.getCurrentSessionId();
@@ -102,14 +101,12 @@ export const chatService = {
       teacherId,
       studentId,
       classId: Number(classId),
-      subjectId: Number(subjectId),
       sessionId
     });
 
     let thread = await chatRepository.findThreadByScope({
       sessionId,
       classId: Number(classId),
-      subjectId: Number(subjectId),
       teacherId,
       studentId
     });
@@ -119,7 +116,7 @@ export const chatService = {
       thread = await chatRepository.createThread({
         sessionId,
         classId: Number(classId),
-        subjectId: Number(subjectId),
+        subjectId: subjectId ? Number(subjectId) : null,
         teacherId,
         studentId
       });
@@ -151,11 +148,21 @@ export const chatService = {
     if (!teacher) throw new AppError('Teacher record not found', 404, ErrorCodes.NOT_FOUND);
 
     const sessionId = await this.getCurrentSessionId();
-    const threads = await chatRepository.getTeacherThreads(teacher.id, {
+    const rawThreads = await chatRepository.getTeacherThreads(teacher.id, {
       sessionId,
       classId: classId ? Number(classId) : undefined,
       isArchived: Boolean(isArchived)
     });
+
+    // Deduplicate threads per student so each student appears once in teacher sidebar
+    const studentThreadMap = new Map();
+    for (const th of rawThreads) {
+      const key = `${th.class_id}-${th.student_id}`;
+      if (!studentThreadMap.has(key)) {
+        studentThreadMap.set(key, th);
+      }
+    }
+    const threads = Array.from(studentThreadMap.values());
 
     // 1. Direct assignments from teacher_assignments
     const directAssignments = await db('teacher_assignments as ta')
@@ -191,7 +198,7 @@ export const chatService = {
     if (!student) throw new AppError('Student record not found', 404, ErrorCodes.NOT_FOUND);
 
     const sessionId = await this.getCurrentSessionId();
-    const threads = await chatRepository.getStudentThreads(student.id, {
+    const rawThreads = await chatRepository.getStudentThreads(student.id, {
       sessionId,
       isArchived: Boolean(isArchived)
     });
@@ -236,15 +243,54 @@ export const chatService = {
           's.code as subjectCode'
         );
 
+      // Group subjects per teacher so each teacher appears once in available teachers
       const teacherMap = new Map();
       for (const t of [...directTeachers, ...slotTeachers]) {
-        const key = `${t.teacherId}-${t.subjectId}`;
-        if (!teacherMap.has(key)) {
-          teacherMap.set(key, t);
+        if (!teacherMap.has(t.teacherId)) {
+          teacherMap.set(t.teacherId, {
+            classId: t.classId,
+            teacherId: t.teacherId,
+            teacherName: t.teacherName,
+            teacherDesignation: t.teacherDesignation,
+            subjects: [],
+            subjectNames: '',
+            subjectName: '',
+            subjectId: t.subjectId
+          });
         }
+        const teacherEntry = teacherMap.get(t.teacherId);
+        if (!teacherEntry.subjects.some((s) => s.id === t.subjectId)) {
+          teacherEntry.subjects.push({
+            id: t.subjectId,
+            name: t.subjectName,
+            code: t.subjectCode
+          });
+        }
+      }
+
+      for (const entry of teacherMap.values()) {
+        entry.subjectNames = entry.subjects.map((s) => s.name).join(', ');
+        entry.subjectName = entry.subjectNames;
       }
       availableTeachers = Array.from(teacherMap.values());
     }
+
+    // Map each teacher to their combined taught subjects
+    const teacherSubjectMap = new Map(availableTeachers.map((t) => [t.teacherId, t.subjectNames]));
+
+    // Deduplicate threads per teacher (ensures exactly 1 thread per teacher in student's sidebar)
+    const studentThreadMap = new Map();
+    for (const th of rawThreads) {
+      if (!studentThreadMap.has(th.teacher_id)) {
+        const subjectsLabel = teacherSubjectMap.get(th.teacher_id) || th.subjectName || '';
+        studentThreadMap.set(th.teacher_id, {
+          ...th,
+          subjectNames: subjectsLabel,
+          subjectName: subjectsLabel
+        });
+      }
+    }
+    const threads = Array.from(studentThreadMap.values());
 
     return { threads, enrollment, availableTeachers };
   },

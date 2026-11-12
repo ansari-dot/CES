@@ -79,8 +79,9 @@ export default function TeacherChat() {
           teacherId: first.teacher_id,
           teacherName: first.teacherName,
           teacherDesignation: first.teacherDesignation,
-          subjectId: first.subject_id,
-          subjectName: first.subjectName,
+          subjectId: first.subject_id || undefined,
+          subjectName: first.subjectNames || first.subjectName,
+          subjectNames: first.subjectNames || first.subjectName,
           subjectCode: first.subjectCode || ''
         });
       } else if (!activeThreadId && loadedTeachers.length > 0) {
@@ -164,7 +165,14 @@ export default function TeacherChat() {
             return t;
           });
         } else if (data.thread) {
-          return [data.thread, ...prev];
+          const newTh = data.thread;
+          const exists = prev.some((t) => t.id === newTh.id || t.teacher_id === newTh.teacher_id);
+          if (exists) {
+            return prev.map((t) =>
+              t.id === newTh.id || t.teacher_id === newTh.teacher_id ? { ...t, ...newTh } : t
+            );
+          }
+          return [newTh, ...prev];
         }
         return prev;
       });
@@ -184,7 +192,14 @@ export default function TeacherChat() {
               : t
           );
         } else if (data.thread) {
-          return [data.thread, ...prev];
+          const newTh = data.thread;
+          const existsByTeacher = prev.some((t) => t.id === newTh.id || t.teacher_id === newTh.teacher_id);
+          if (existsByTeacher) {
+            return prev.map((t) =>
+              t.id === newTh.id || t.teacher_id === newTh.teacher_id ? { ...t, ...newTh } : t
+            );
+          }
+          return [newTh, ...prev];
         }
         return prev;
       });
@@ -192,9 +207,15 @@ export default function TeacherChat() {
 
     const onThreadCreated = (data: any) => {
       if (data?.thread) {
+        const newTh = data.thread;
         setThreads((prev) => {
-          if (prev.some((t) => t.id === data.thread.id)) return prev;
-          return [data.thread, ...prev];
+          const exists = prev.some((t) => t.id === newTh.id || t.teacher_id === newTh.teacher_id);
+          if (exists) {
+            return prev.map((t) =>
+              t.id === newTh.id || t.teacher_id === newTh.teacher_id ? { ...t, ...newTh } : t
+            );
+          }
+          return [newTh, ...prev];
         });
       }
     };
@@ -252,18 +273,18 @@ export default function TeacherChat() {
     ? {
         teacherName: activeThread.teacherName,
         teacherDesignation: activeThread.teacherDesignation,
-        subjectName: activeThread.subjectName,
+        subjectName: activeThread.subjectNames || activeThread.subjectName,
         className: activeThread.className,
         teacherUserId: activeThread.teacherUserId,
         teacherId: activeThread.teacher_id,
-        subjectId: activeThread.subject_id,
+        subjectId: activeThread.subject_id || undefined,
         classId: activeThread.class_id
       }
     : selectedTeacher
     ? {
         teacherName: selectedTeacher.teacherName,
         teacherDesignation: selectedTeacher.teacherDesignation,
-        subjectName: selectedTeacher.subjectName,
+        subjectName: selectedTeacher.subjectNames || selectedTeacher.subjectName,
         className: enrollment?.className || 'Assigned Class',
         teacherUserId: undefined,
         teacherId: selectedTeacher.teacherId,
@@ -309,7 +330,15 @@ export default function TeacherChat() {
           subjectId: currentFaculty.subjectId,
           targetTeacherId: currentFaculty.teacherId
         });
-        setThreads((prev) => [newThread, ...prev]);
+        setThreads((prev) => {
+          const exists = prev.some((t) => t.id === newThread.id || t.teacher_id === newThread.teacher_id);
+          if (exists) {
+            return prev.map((t) =>
+              t.id === newThread.id || t.teacher_id === newThread.teacher_id ? { ...t, ...newThread } : t
+            );
+          }
+          return [newThread, ...prev];
+        });
         setActiveThreadId(newThread.id);
         targetThreadId = newThread.id;
         joinChatThread(newThread.id);
@@ -356,9 +385,7 @@ export default function TeacherChat() {
   // Select teacher from sidebar
   const handleSelectTeacher = (teacher: AvailableTeacher) => {
     setSelectedTeacher(teacher);
-    const existing = threads.find(
-      (t) => t.subject_id === teacher.subjectId && t.teacher_id === teacher.teacherId
-    );
+    const existing = threads.find((t) => t.teacher_id === teacher.teacherId);
 
     if (existing) {
       setActiveThreadId(existing.id);
@@ -378,30 +405,29 @@ export default function TeacherChat() {
   // Unified and deduplicated faculty list for conversation sidebar
   const filteredTeachers = useMemo(() => {
     const list: AvailableTeacher[] = [];
-    const seen = new Set<string>();
+    const seenTeacherIds = new Set<number>();
 
     // 1. Existing threads first (with conversation history)
     for (const th of threads) {
-      const key = `${th.teacher_id}-${th.subject_id}`;
-      if (!seen.has(key)) {
-        seen.add(key);
+      if (!seenTeacherIds.has(th.teacher_id)) {
+        seenTeacherIds.add(th.teacher_id);
         list.push({
           classId: th.class_id,
           teacherId: th.teacher_id,
           teacherName: th.teacherName,
           teacherDesignation: th.teacherDesignation,
-          subjectId: th.subject_id,
-          subjectName: th.subjectName,
-          subjectCode: ''
+          subjectId: th.subject_id || undefined,
+          subjectName: th.subjectNames || th.subjectName,
+          subjectNames: th.subjectNames || th.subjectName,
+          subjectCode: th.subjectCode || ''
         });
       }
     }
 
     // 2. Assigned subject teachers not yet in a conversation thread
     for (const t of availableTeachers) {
-      const key = `${t.teacherId}-${t.subjectId}`;
-      if (!seen.has(key)) {
-        seen.add(key);
+      if (!seenTeacherIds.has(t.teacherId)) {
+        seenTeacherIds.add(t.teacherId);
         list.push(t);
       }
     }
@@ -410,7 +436,7 @@ export default function TeacherChat() {
     return list.filter(
       (t) =>
         t.teacherName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.subjectName.toLowerCase().includes(searchQuery.toLowerCase())
+        (t.subjectNames || t.subjectName || '').toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [threads, availableTeachers, searchQuery]);
 
@@ -481,20 +507,18 @@ export default function TeacherChat() {
               </div>
             ) : (
               filteredTeachers.map((teacher) => {
-                const thread = threads.find(
-                  (t) => t.subject_id === teacher.subjectId && t.teacher_id === teacher.teacherId
-                );
+                const thread = threads.find((t) => t.teacher_id === teacher.teacherId);
                 const isSelected =
                   (thread && thread.id === activeThreadId) ||
                   (!activeThreadId &&
                     selectedTeacher &&
-                    selectedTeacher.teacherId === teacher.teacherId &&
-                    selectedTeacher.subjectId === teacher.subjectId);
+                    selectedTeacher.teacherId === teacher.teacherId);
                 const unreadCount = thread?.student_unread_count || 0;
+                const subjectsDisplay = teacher.subjectNames || teacher.subjectName;
 
                 return (
                   <div
-                    key={`${teacher.teacherId}-${teacher.subjectId}`}
+                    key={teacher.teacherId}
                     onClick={() => handleSelectTeacher(teacher)}
                     className={`p-3.5 transition cursor-pointer flex items-start gap-3 hover:bg-slate-50 ${
                       isSelected ? 'bg-[#36348e]/5 border-l-4 border-l-[#36348e]' : ''
@@ -537,8 +561,8 @@ export default function TeacherChat() {
                       </div>
 
                       <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mb-1">
-                        <span className="px-1.5 py-0.2 bg-indigo-50 text-indigo-700 font-semibold rounded text-[10px]">
-                          {teacher.subjectName}
+                        <span className="px-1.5 py-0.2 bg-indigo-50 text-indigo-700 font-semibold rounded text-[10px] truncate max-w-[200px]" title={subjectsDisplay}>
+                          {subjectsDisplay}
                         </span>
                         {teacher.teacherDesignation && (
                           <>
