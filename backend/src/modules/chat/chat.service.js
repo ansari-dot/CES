@@ -189,10 +189,10 @@ export const chatService = {
       .select('c.id as classId', 'c.name as className', 'c.grade_level as gradeLevel')
       .first();
 
-    // Find all faculty assigned to teach subjects in the student's class
+    // Find all faculty assigned to teach subjects in the student's class (direct or via timetable)
     let availableTeachers = [];
     if (enrollment) {
-      availableTeachers = await db('teacher_assignments as ta')
+      const directTeachers = await db('teacher_assignments as ta')
         .join('subjects as s', 'ta.subject_id', 's.id')
         .join('teachers as t', 'ta.teacher_id', 't.id')
         .join('users as u', 't.user_id', 'u.id')
@@ -206,6 +206,30 @@ export const chatService = {
           's.name as subjectName',
           's.code as subjectCode'
         );
+
+      const slotTeachers = await db('timetable_slots as ts')
+        .join('subjects as s', 'ts.subject_id', 's.id')
+        .join('teachers as t', 'ts.teacher_id', 't.id')
+        .join('users as u', 't.user_id', 'u.id')
+        .where({ 'ts.class_id': enrollment.classId })
+        .select(
+          'ts.class_id as classId',
+          't.id as teacherId',
+          'u.full_name as teacherName',
+          't.designation as teacherDesignation',
+          's.id as subjectId',
+          's.name as subjectName',
+          's.code as subjectCode'
+        );
+
+      const teacherMap = new Map();
+      for (const t of [...directTeachers, ...slotTeachers]) {
+        const key = `${t.teacherId}-${t.subjectId}`;
+        if (!teacherMap.has(key)) {
+          teacherMap.set(key, t);
+        }
+      }
+      availableTeachers = Array.from(teacherMap.values());
     }
 
     return { threads, enrollment, availableTeachers };

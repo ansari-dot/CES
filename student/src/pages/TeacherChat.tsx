@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   studentChatApi,
   StudentThreadItem,
@@ -261,12 +261,44 @@ export default function TeacherChat() {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Filtered available teachers & threads
-  const filteredTeachers = availableTeachers.filter(
-    (t) =>
-      t.teacherName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.subjectName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Unified and deduplicated faculty list for conversation sidebar
+  const filteredTeachers = useMemo(() => {
+    const list: AvailableTeacher[] = [];
+    const seen = new Set<string>();
+
+    // 1. Existing threads first (with conversation history)
+    for (const th of threads) {
+      const key = `${th.teacher_id}-${th.subject_id}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        list.push({
+          classId: th.class_id,
+          teacherId: th.teacher_id,
+          teacherName: th.teacherName,
+          teacherDesignation: th.teacherDesignation,
+          subjectId: th.subject_id,
+          subjectName: th.subjectName,
+          subjectCode: ''
+        });
+      }
+    }
+
+    // 2. Assigned subject teachers not yet in a conversation thread
+    for (const t of availableTeachers) {
+      const key = `${t.teacherId}-${t.subjectId}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        list.push(t);
+      }
+    }
+
+    // Filter by search query
+    return list.filter(
+      (t) =>
+        t.teacherName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.subjectName.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [threads, availableTeachers, searchQuery]);
 
   return (
     <div className="h-[calc(100vh-6rem)] flex flex-col bg-slate-50 overflow-hidden rounded-2xl border border-slate-200/80 shadow-xs">

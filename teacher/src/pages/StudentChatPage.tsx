@@ -188,19 +188,27 @@ export const StudentChatPage: React.FC = () => {
     }
   };
 
-  // Filter threads
-  const filteredThreads = threads.filter((t) => {
-    const matchesQuery =
-      searchQuery.trim() === '' ||
-      t.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.studentRollNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.subjectName.toLowerCase().includes(searchQuery.toLowerCase());
+  // Filter and deduplicate threads
+  const filteredThreads = React.useMemo(() => {
+    const uniqueMap = new Map<number, (typeof threads)[0]>();
+    for (const t of threads) {
+      if (!uniqueMap.has(t.id)) {
+        uniqueMap.set(t.id, t);
+      }
+    }
+    return Array.from(uniqueMap.values()).filter((t) => {
+      const matchesQuery =
+        searchQuery.trim() === '' ||
+        t.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.studentRollNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.subjectName.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesClass =
-      selectedClassFilter === 'ALL' || String(t.class_id) === selectedClassFilter;
+      const matchesClass =
+        selectedClassFilter === 'ALL' || String(t.class_id) === selectedClassFilter;
 
-    return matchesQuery && matchesClass;
-  });
+      return matchesQuery && matchesClass;
+    });
+  }, [threads, searchQuery, selectedClassFilter]);
 
   // Open modal & reset with preloaded class and students
   const handleOpenNewChatModal = () => {
