@@ -45,7 +45,7 @@ export function generateCsrfToken(familyId = 'anonymous') {
   const randomPart = crypto.randomBytes(24).toString('base64url');
   const hmac = crypto
     .createHmac('sha256', config.CSRF_SECRET)
-    .update(`${randomPart}:${familyId}`)
+    .update(randomPart)
     .digest('base64url');
   return `${randomPart}.${hmac}`;
 }
@@ -56,17 +56,50 @@ export function verifyCsrfToken(token, familyId = 'anonymous') {
   if (parts.length !== 2) return false;
 
   const [randomPart, signature] = parts;
-  const expectedHmac = crypto
+
+  // 1. Primary check: Secret HMAC of randomPart
+  const primaryHmac = crypto
     .createHmac('sha256', config.CSRF_SECRET)
-    .update(`${randomPart}:${familyId}`)
+    .update(randomPart)
     .digest('base64url');
 
   try {
     const bufA = Buffer.from(signature);
-    const bufB = Buffer.from(expectedHmac);
-    if (bufA.length !== bufB.length) return false;
-    return crypto.timingSafeEqual(bufA, bufB);
-  } catch {
-    return false;
+    const bufB = Buffer.from(primaryHmac);
+    if (bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB)) {
+      return true;
+    }
+  } catch {}
+
+  // 2. Legacy check: Secret HMAC with familyId
+  if (familyId) {
+    const expectedHmac = crypto
+      .createHmac('sha256', config.CSRF_SECRET)
+      .update(`${randomPart}:${familyId}`)
+      .digest('base64url');
+    try {
+      const bufA = Buffer.from(signature);
+      const bufB = Buffer.from(expectedHmac);
+      if (bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB)) {
+        return true;
+      }
+    } catch {}
   }
+
+  // 3. Fallback anonymous check
+  if (familyId !== 'anonymous') {
+    const anonHmac = crypto
+      .createHmac('sha256', config.CSRF_SECRET)
+      .update(`${randomPart}:anonymous`)
+      .digest('base64url');
+    try {
+      const bufA = Buffer.from(signature);
+      const bufB = Buffer.from(anonHmac);
+      if (bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB)) {
+        return true;
+      }
+    } catch {}
+  }
+
+  return false;
 }

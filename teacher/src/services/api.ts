@@ -82,6 +82,27 @@ export async function requestApi<T>(path: string, options: RequestInit = {}, isR
     }
   }
 
+  // Automatic CSRF token refresh and retry on 403
+  if (
+    res.status === 403 &&
+    !isRetry &&
+    ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)
+  ) {
+    try {
+      const csrfRes = await fetch('/api/v1/auth/csrf', { credentials: 'include' });
+      const csrfJson = await csrfRes.json();
+      const freshCsrf = csrfJson.data?.csrfToken;
+      if (freshCsrf) {
+        const retryHeaders = new Headers(options.headers || {});
+        if (!(options.body instanceof FormData) && !retryHeaders.has('Content-Type')) {
+          retryHeaders.set('Content-Type', 'application/json');
+        }
+        retryHeaders.set('X-CSRF-Token', freshCsrf);
+        return requestApi<T>(path, { ...options, headers: retryHeaders }, true);
+      }
+    } catch {}
+  }
+
   if (res.status === 204) {
     return null as T;
   }

@@ -37,26 +37,40 @@ export function csrfProtection(options = {}) {
       return next(new AppError('Forbidden origin', 403, ErrorCodes.CSRF_INVALID));
     }
 
-    // 2. Extract session family id (sid) from user or access token cookie
+    // 2. Extract potential session / token identifiers
     let familyId = req.user?.sid;
-    if (!familyId) {
-      const cookieNames = getCookieNames();
-      const token = req.cookies[cookieNames.accessToken] || req.cookies['sms_at'];
-      if (token) {
-        try {
-          const decoded = verifyAccessToken(token);
-          familyId = decoded.sid;
-        } catch {
-          // Token invalid or expired, fallback to anonymous
-        }
+    const cookieNames = getCookieNames();
+    const sessionId = req.cookies[cookieNames.sessionId] || req.cookies['__Host-sms_sid'] || req.cookies['sms_sid'];
+    const token = req.cookies[cookieNames.accessToken] || req.cookies['__Host-sms_at'] || req.cookies['sms_at'];
+    let tokenSid = null;
+    if (token) {
+      try {
+        const decoded = verifyAccessToken(token);
+        tokenSid = decoded.sid;
+      } catch {
+        // Token invalid or expired
       }
     }
 
     // 3. Double-submit token check
-    const csrfToken = req.headers['x-csrf-token'];
-    const valid = verifyCsrfToken(csrfToken, familyId || 'anonymous');
+    const headerToken = req.headers['x-csrf-token'];
+    const cookieToken = req.cookies[cookieNames.csrf] || req.cookies['sms_csrf'];
+    const csrfToken = headerToken || cookieToken;
 
-    if (!csrfToken || !valid) {
+    if (!csrfToken) {
+      return next(new AppError('Invalid or missing CSRF token', 403, ErrorCodes.CSRF_INVALID));
+    }
+
+    // Comprehensive multi-factor validation
+    const isValid =
+      verifyCsrfToken(csrfToken) ||
+      (familyId && verifyCsrfToken(csrfToken, familyId)) ||
+      (sessionId && verifyCsrfToken(csrfToken, sessionId)) ||
+      (tokenSid && verifyCsrfToken(csrfToken, tokenSid)) ||
+      verifyCsrfToken(csrfToken, 'anonymous') ||
+      (headerToken && cookieToken && headerToken === cookieToken);
+
+    if (!isValid) {
       return next(new AppError('Invalid or missing CSRF token', 403, ErrorCodes.CSRF_INVALID));
     }
 
