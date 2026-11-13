@@ -27,12 +27,15 @@ export const teachersService = {
     const passwordHash = await hashPassword(temporaryPassword);
 
     // Map salary model to SRS enum
+    // Accept the labels sent by the Principal portal ("Per hour", "Per completed lesson", "Hybrid")
+    // as well as the older labels and enum values.
+    const rawModel = String(salaryConfig?.model || '').trim().toLowerCase();
     let dbModel = 'FIXED';
-    if (salaryConfig?.model === 'Per-lesson model' || salaryConfig?.model === 'PER_LESSON') {
+    if (['per-lesson model', 'per_lesson', 'per completed lesson'].includes(rawModel)) {
       dbModel = 'PER_LESSON';
-    } else if (salaryConfig?.model === 'Hourly verified rate' || salaryConfig?.model === 'PER_HOUR') {
+    } else if (['hourly verified rate', 'per_hour', 'per hour', 'hourly'].includes(rawModel)) {
       dbModel = 'PER_HOUR';
-    } else if (salaryConfig?.model === 'Hybrid fixed + lesson bonus' || salaryConfig?.model === 'HYBRID') {
+    } else if (['hybrid fixed + lesson bonus', 'hybrid'].includes(rawModel)) {
       dbModel = 'HYBRID';
     }
 

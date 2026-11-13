@@ -8,6 +8,8 @@ import { LetterheadHeader, LetterheadFooter } from '../../components/common/Lett
 import { useToast } from '../../context/ToastContext';
 import { useSocketEvent } from '../../hooks/useSocket';
 import { RealtimeEvents } from '../../services/socketService';
+import { TeacherDutyMonitoring } from './TeacherDutyMonitoring';
+import { SalaryProfilesPanel } from './SalaryProfilesPanel';
 import {
   Banknote,
   CheckCircle2,
@@ -22,25 +24,24 @@ import {
   Lock,
   AlertTriangle
 } from 'lucide-react';
+import { formatTime } from '../../lib/timezone';
 
-const AVAILABLE_MONTHS = [
-  'October 2026',
-  'September 2026',
-  'August 2026',
-  'July 2026',
-  'June 2026',
-  'May 2026',
-  'April 2026',
-  'March 2026',
-  'February 2026',
-  'January 2026'
-];
+const MONTH_LABELS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/** Current month and the previous 11 (payroll month labels such as "November 2026"). */
+const AVAILABLE_MONTHS = Array.from({ length: 12 }, (_, i) => {
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() - i);
+  return `${MONTH_LABELS[d.getMonth()]} ${d.getFullYear()}`;
+});
 
 export const TeacherPayrollModule: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'drafts' | 'duty' | 'config'>('drafts');
   const [drafts, setDrafts] = useState<TeacherSalaryDraft[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedMonth, setSelectedMonth] = useState<string>('October 2026');
+  const [selectedMonth, setSelectedMonth] = useState<string>(AVAILABLE_MONTHS[0]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [pendingReviewsCount, setPendingReviewsCount] = useState<number>(0);
 
@@ -271,6 +272,28 @@ export const TeacherPayrollModule: React.FC = () => {
         </div>
       </div>
 
+      {/* Section tabs */}
+      <div className="flex gap-1 bg-white border border-slate-200/90 rounded-xl p-1 w-fit text-xs font-medium shadow-2xs">
+        {([
+          ['drafts', 'Salary Drafts'],
+          ['duty', 'Teacher Duty Monitoring'],
+          ['config', 'Salary Configuration']
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${activeTab === key ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'duty' && <TeacherDutyMonitoring />}
+      {activeTab === 'config' && <SalaryProfilesPanel />}
+
+      {activeTab === 'drafts' && (
+      <>
       {/* Attendance Review Warning Alert Banner */}
       {pendingReviewsCount > 0 && (
         <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200/90 shadow-2xs flex items-start sm:items-center justify-between gap-3 text-xs">
@@ -384,6 +407,8 @@ export const TeacherPayrollModule: React.FC = () => {
           </table>
         </div>
       </div>
+      </>
+      )}
 
       {/* Salary Draft Calculation Details & Approval Modal */}
       {selectedDraft && (
@@ -431,6 +456,34 @@ export const TeacherPayrollModule: React.FC = () => {
                 <span className="text-sm font-semibold text-rose-700">-Rs. {selectedDraft.standardDeductions.toLocaleString()}</span>
               </div>
             </div>
+
+            {/* Verified daily attendance (check-in / check-out) used for fixed-salary policy */}
+            {(selectedDraft.dutyDays || selectedDraft.absentDays || selectedDraft.approvedLeaveDays || selectedDraft.attendanceDeduction) ? (
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 p-3.5 rounded-xl bg-white border border-slate-200 font-mono">
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Duty Days</span>
+                  <span className="text-sm font-semibold text-slate-900">{selectedDraft.dutyDays || 0}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Absences</span>
+                  <span className="text-sm font-semibold text-rose-700">{selectedDraft.absentDays || 0}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Late / Early</span>
+                  <span className="text-sm font-semibold text-slate-900">
+                    {selectedDraft.lateDays || 0} / {selectedDraft.earlyDepartureDays || 0}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Approved Leave</span>
+                  <span className="text-sm font-semibold text-slate-900">{selectedDraft.approvedLeaveDays || 0}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Attendance Deduction</span>
+                  <span className="text-sm font-semibold text-rose-700">-Rs. {(selectedDraft.attendanceDeduction || 0).toLocaleString()}</span>
+                </div>
+              </div>
+            ) : null}
 
             {/* Daily Duty Hours Tracking Section */}
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
@@ -502,7 +555,7 @@ export const TeacherPayrollModule: React.FC = () => {
                             <div>
                               <span className="font-bold text-slate-900">{les.className} - {les.subjectName}</span>
                               <div className="text-[10px] text-slate-500 font-mono">
-                                {les.lessonDate} · {les.scheduledMinutes}m sched · Join: {les.actualJoinTime ? String(les.actualJoinTime).substring(11, 16) : 'N/A'} · Leave: {les.actualLeaveTime ? String(les.actualLeaveTime).substring(11, 16) : 'N/A'}
+                                {les.lessonDate} · {les.scheduledMinutes}m sched · Join: {les.actualJoinTime ? formatTime(les.actualJoinTime) : 'N/A'} · Leave: {les.actualLeaveTime ? formatTime(les.actualLeaveTime) : 'N/A'}
                               </div>
                             </div>
                             <div className="text-right">

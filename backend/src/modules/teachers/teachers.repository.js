@@ -3,9 +3,18 @@ import { getTeacherDutyForPeriod } from '../../shared/utils/teacherDutyQuery.js'
 
 export const teachersRepository = {
   async getAllTeachers() {
+    // Only the salary profile in force today (profile history is kept, one row per teacher here)
+    const today = new Date().toISOString().slice(0, 10);
+    const currentProfiles = db('teacher_salary_profiles as p')
+      .select('p.teacher_id', db.raw('MAX(p.id) as current_profile_id'))
+      .where('p.effective_from', '<=', today)
+      .where((q) => q.whereNull('p.effective_to').orWhere('p.effective_to', '>=', today))
+      .groupBy('p.teacher_id')
+      .as('cur_profile');
     const rows = await db('teachers')
       .join('users', 'teachers.user_id', 'users.id')
-      .leftJoin('teacher_salary_profiles', 'teachers.id', 'teacher_salary_profiles.teacher_id')
+      .leftJoin(currentProfiles, 'cur_profile.teacher_id', 'teachers.id')
+      .leftJoin('teacher_salary_profiles', 'teacher_salary_profiles.id', 'cur_profile.current_profile_id')
       .select(
         'teachers.id',
         'teachers.user_id',

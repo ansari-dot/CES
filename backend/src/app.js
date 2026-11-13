@@ -36,6 +36,7 @@ import supplementaryRoutes from './modules/supplementary/supplementary.routes.js
 import examRoutes from './modules/exam/exam.routes.js';
 import chatRoutes from './modules/chat/chat.routes.js';
 import calendarRoutes from './modules/calendar/calendar.routes.js';
+import dutyRoutes from './modules/teachers/duty.routes.js';
 
 export function createApp() {
   const app = express();
@@ -158,6 +159,7 @@ export function createApp() {
   app.use('/api/v1/exams', examRoutes);
   app.use('/api/v1/chat', chatRoutes);
   app.use('/api/v1/calendar', calendarRoutes);
+  app.use('/api/v1/duty', dutyRoutes);
 
   // 9. 404 Handler
   app.use(notFound);

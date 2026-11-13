@@ -3,6 +3,14 @@ import { useAppDispatch, useAppSelector } from '../store';
 import { openAdjustmentModal, fetchDutySummaryThunk, setSelectedDateFilter } from '../store/slices/dutySlice';
 import { DutyCorrectionModal } from '../components/duty/DutyCorrectionModal';
 import { DutyTrackingClock } from '../components/duty/DutyTrackingClock';
+import { DailyCheckInCard } from '../components/duty/DailyCheckInCard';
+import { parseUtcInstant, formatTimeInZone, getBrowserTimeZone, DEFAULT_SCHOOL_TIMEZONE } from '../lib/timezone';
+
+/** HH:MM of a UTC instant in the teacher's selected timezone. */
+const toLocalTime = (value: any, timeZone: string) => {
+  const d = parseUtcInstant(value);
+  return d ? formatTimeInZone(d, timeZone) : '—';
+};
 import { DutyLogItem, DailyDutyItem } from '../types';
 import { useSocketEvent } from '../hooks/useSocket';
 import { RealtimeEvents } from '../services/socketService';
@@ -23,6 +31,8 @@ import {
 
 export const DutySalaryPage: React.FC = () => {
   const dispatch = useAppDispatch();
+  const userTimeZone = useAppSelector((s: any) => s.timetable?.timezone) || getBrowserTimeZone() || DEFAULT_SCHOOL_TIMEZONE;
+  const localTime = (value: any) => toLocalTime(value, userTimeZone);
   const summary = useAppSelector((state) => state.duty.summary);
   const logs = useAppSelector((state) => state.duty.logs);
   const dailyBreakdown = useAppSelector((state) => state.duty.dailyBreakdown);
@@ -97,6 +107,9 @@ export const DutySalaryPage: React.FC = () => {
       {/* 2. REAL-TIME CIRCULAR CLOCK TRACKER */}
       {/* ------------------------------------------------------------- */}
       <DutyTrackingClock />
+
+      {/* Daily duty check-in / check-out and own monthly duty record */}
+      <DailyCheckInCard />
 
       {/* ------------------------------------------------------------- */}
       {/* 3. TOP 4 WAVE KPI CARDS */}
@@ -372,8 +385,8 @@ export const DutySalaryPage: React.FC = () => {
                       <span className="font-mono text-xs font-bold text-slate-700 block">{log.scheduledTime}</span>
                       {log.actualJoinTime && (
                         <span className="text-[10px] text-slate-500 block font-mono mt-0.5">
-                          Joined: {String(log.actualJoinTime).substring(11, 16)}
-                          {log.actualLeaveTime ? ` · Left: ${String(log.actualLeaveTime).substring(11, 16)}` : ' (Active)'}
+                          Joined: {localTime(log.actualJoinTime)}
+                          {log.actualLeaveTime ? ` · Left: ${localTime(log.actualLeaveTime)}` : ' (Active)'}
                         </span>
                       )}
                     </td>

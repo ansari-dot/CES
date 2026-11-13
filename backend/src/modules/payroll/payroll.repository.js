@@ -3,6 +3,19 @@ import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
 import { parsePayrollMonthRange, currentPayrollMonthLabel } from '../../shared/utils/dutyCalculation.js';
 import { getTeacherDutyForPeriod } from '../../shared/utils/teacherDutyQuery.js';
+import { computeTeacherAttendance, getProfileForPeriod } from '../../shared/utils/teacherAttendance.js';
+
+const PAYROLL_MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/** Both spellings of a payroll month ("November 2026" and "2026-11") for duplicate checks. */
+function payrollMonthAliases(payrollMonth, range) {
+  const aliases = new Set([String(payrollMonth).trim()]);
+  if (range) {
+    aliases.add(`${range.year}-${String(range.month).padStart(2, '0')}`);
+    aliases.add(`${PAYROLL_MONTH_NAMES[range.month - 1]} ${range.year}`);
+  }
+  return Array.from(aliases);
+}
 
 function mapSalaryModelToFrontend(model) {
   switch (model) {
@@ -129,10 +142,14 @@ export const payrollRepository = {
         );
       }
 
+      const hasAttendanceTable = await trx.schema.hasTable('teacher_checkin_checkout');
+      const hasAttendanceColumns = await trx.schema.hasColumn('teacher_payroll_drafts', 'attendance_deduction');
+
       for (const t of teachers) {
         // 1. Atomically check if draft already exists (approved / paid drafts are never regenerated)
         const existing = await trx('teacher_payroll_drafts')
-          .where({ teacher_id: t.teacherId, payroll_month: payrollMonth })
+          .where({ teacher_id: t.teacherId })
+          .whereIn('payroll_month', payrollMonthAliases(payrollMonth, monthRange))
           .first();
 
         if (existing) {
@@ -141,10 +158,8 @@ export const payrollRepository = {
         }
 
         // 2. Salary profile: rates come ONLY from the approved profile. No profile -> no draft.
-        const profile = await trx('teacher_salary_profiles')
-          .where('teacher_id', t.teacherId)
-          .orderBy('effective_from', 'desc')
-          .first();
+        // The profile in force during this payroll month (never a future-dated one)
+        const profile = await getProfileForPeriod(trx, t.teacherId, monthRange.startDate, monthRange.endDate);
 
         if (!profile) {
           skippedNoSalaryProfile.push({ teacherId: t.teacherId, teacherName: t.teacherName });
@@ -187,7 +202,16 @@ export const payrollRepository = {
         const completedLessons = periodDuty.completedLessons;
         const cancelledLessons = periodDuty.cancelledLessons;
         const missedLessons = periodDuty.missedLessons;
-        const approvedLeaveDays = 0;
+        // Verified daily attendance (check-in/out) for fixed-salary policy and reporting
+        const attendance = hasAttendanceTable
+          ? await computeTeacherAttendance(trx, {
+              teacherId: t.teacherId,
+              startDate: monthRange.startDate,
+              endDate: monthRange.endDate,
+              profile
+            })
+          : null;
+        const approvedLeaveDays = attendance ? attendance.leaveDays : 0;
         const verifiedHours = periodDuty.verifiedTeachingHours;
 
         // 4. Calculate Earnings per Salary Model
@@ -196,11 +220,19 @@ export const payrollRepository = {
         let lessonOrHourlyEarning = 0;
         let calculationFormula = '';
 
+        let attendanceDeduction = 0;
         if (model === 'FIXED') {
           basePay = baseMonthlySalary;
           ratePerUnit = 0;
           lessonOrHourlyEarning = 0;
+          // Fixed salary is the configured monthly amount; attendance deductions only per configured policy
+          attendanceDeduction = attendance ? attendance.deduction : 0;
           calculationFormula = `Fixed: Base (Rs. ${basePay.toLocaleString()}) + Allowances (Rs. ${allowances.toLocaleString()}) - Deductions (Rs. ${standardDeductions.toLocaleString()})`;
+          if (attendanceDeduction > 0) {
+            calculationFormula += ` - Attendance (Rs. ${attendanceDeduction.toLocaleString()}: ${attendance.deductionFormula})`;
+          } else if (attendance && attendance.absentDays > 0 && !attendance.deductionRuleConfigured) {
+            calculationFormula += ` [${attendance.absentDays} absence(s) recorded; no deduction rule configured]`;
+          }
         } else if (model === 'PER_LESSON') {
           basePay = 0;
           ratePerUnit = perLessonRate;
@@ -219,7 +251,7 @@ export const payrollRepository = {
         }
 
         const grossAmount = basePay + lessonOrHourlyEarning + allowances;
-        const netPayable = Math.max(0, grossAmount - standardDeductions);
+        const netPayable = Math.max(0, grossAmount - standardDeductions - attendanceDeduction);
 
         await trx('teacher_payroll_drafts').insert({
           teacher_id: t.teacherId,
@@ -242,7 +274,17 @@ export const payrollRepository = {
           gross_amount: grossAmount,
           net_payable: netPayable,
           status: 'SUBMITTED_FOR_APPROVAL',
-          generated_by: userId
+          generated_by: userId,
+          ...(hasAttendanceColumns && attendance
+            ? {
+                duty_days: attendance.presentDays,
+                absent_days: attendance.absentDays,
+                late_days: attendance.lateDays,
+                early_departure_days: attendance.earlyDays,
+                duty_minutes: Math.round(attendance.dutyMinutes),
+                attendance_deduction: attendanceDeduction
+              }
+            : {})
         });
 
         generatedCount++;
@@ -276,6 +318,8 @@ export const payrollRepository = {
       .join('users as generator_users', 'teacher_payroll_drafts.generated_by', 'generator_users.id')
       .leftJoin('users as reviewer_users', 'teacher_payroll_drafts.reviewed_by', 'reviewer_users.id')
       .select(
+        // raw row first (includes the attendance columns added by migration 35 when present)
+        'teacher_payroll_drafts.*',
         'teacher_payroll_drafts.id',
         'teacher_payroll_drafts.teacher_id as teacherId',
         'teacher_users.full_name as teacherName',
@@ -347,6 +391,12 @@ export const payrollRepository = {
           cancelledLessons: Number(r.cancelledLessons),
           missedLessons: Number(r.missedLessons),
           approvedLeaveDays: Number(r.approvedLeaveDays),
+          dutyDays: Number(r.duty_days || 0),
+          absentDays: Number(r.absent_days || 0),
+          lateDays: Number(r.late_days || 0),
+          earlyDepartureDays: Number(r.early_departure_days || 0),
+          dutyHours: Math.round((Number(r.duty_minutes || 0) / 60) * 100) / 100,
+          attendanceDeduction: Number(r.attendance_deduction || 0),
           verifiedHours: Number(r.verifiedHours),
           basePay: Number(r.basePay),
           ratePerUnit: Number(r.ratePerUnit),
@@ -476,7 +526,8 @@ export const payrollRepository = {
       });
 
       let additions = Number(draft.allowances);
-      let deductions = Number(draft.standard_deductions);
+      // Attendance deduction computed at generation (fixed-salary policy) is preserved
+      let deductions = Number(draft.standard_deductions) + Number(draft.attendance_deduction || 0);
 
       for (const a of allAdjustments) {
         if (a.type === 'ADDITION') additions += Number(a.amount);

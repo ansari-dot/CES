@@ -27,6 +27,14 @@ export interface TeacherSalaryDraft {
   approvedLeaveDays: number;
   verifiedHours: number;
 
+  // Verified daily attendance (fixed-salary teachers)
+  dutyDays?: number;
+  absentDays?: number;
+  lateDays?: number;
+  earlyDepartureDays?: number;
+  dutyHours?: number;
+  attendanceDeduction?: number;
+
   // Calculation components
   basePay: number;
   ratePerUnit: number; // rate per lesson or per hour if applicable
