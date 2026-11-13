@@ -22,6 +22,7 @@ import { TimetableLesson, TimetableDay } from '../store/slices/classesSlice';
 import { dateKeyInZone, dayLabelFromKey, longDateFromKey } from '../lib/timezone';
 import StatusChip from '../components/common/StatusChip';
 import ZoomMeetingModal from '../components/dialogs/ZoomMeetingModal';
+import WeeklyTimetableMatrix from '../components/common/WeeklyTimetableMatrix';
 import { LoadingBlock } from '../components/common/LoadingBlock';
 
 export default function Timetable() {
@@ -216,6 +217,9 @@ export default function Timetable() {
           </div>
         </div>
       )}
+
+      {/* Weekly recurring timetable of the class (below the daily cards) */}
+      <WeeklyTimetableMatrix />
 
       <ZoomMeetingModal
         isOpen={Boolean(activeModalLesson)}

@@ -22,6 +22,31 @@ const parseWeekday = (val) => {
 export const timetableController = {
   async getMySlots(req, res, next) {
     try {
+      // Student: the recurring weekly timetable of their own class only, without any Zoom
+      // credentials (students join through their dated lessons).
+      if (req.user?.role === 'STUDENT') {
+        const student = await db('students').where({ user_id: req.user.id }).first();
+        if (!student?.current_class_id) return sendSuccess(res, []);
+        const slots = await timetableService.getSlots({ classId: student.current_class_id, status: 'PUBLISHED' });
+        return sendSuccess(
+          res,
+          slots.map((s) => ({
+            id: s.id,
+            classId: s.classId,
+            className: s.className,
+            classNumber: s.classNumber,
+            subjectId: s.subjectId,
+            subjectCode: s.subjectCode,
+            subjectName: s.subjectName,
+            teacherName: s.teacherName,
+            weekday: s.weekday,
+            dayOfWeek: s.dayOfWeek,
+            startTime: s.startTime,
+            endTime: s.endTime
+          }))
+        );
+      }
+
       const teacher = await db('teachers').where({ user_id: req.user.id }).first();
       if (!teacher) return sendSuccess(res, []);
       const slots = await timetableService.getSlots({ teacherId: teacher.id });
