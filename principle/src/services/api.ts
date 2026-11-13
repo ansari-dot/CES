@@ -18,6 +18,7 @@ import {
   AttendanceCorrectionRequest,
   ClassFeeStructure,
   StudentConcession,
+  ConcessionInput,
   MonthlyChallan,
   PaymentProofSubmission,
   RestrictedStudent,
@@ -145,6 +146,77 @@ async function getCsrfHeader(): Promise<string | undefined> {
   }
 }
 
+const CONCESSION_TYPE_LABELS: Record<string, StudentConcession['concessionType']> = {
+  PERCENTAGE: 'Percentage',
+  FIXED_AMOUNT: 'Fixed Amount',
+  SIBLING_DISCOUNT: 'Sibling Discount',
+  MERIT_SCHOLARSHIP: 'Merit Scholarship',
+  NEED_BASED: 'Need Based'
+};
+
+function mapConcession(c: any): StudentConcession {
+  const raw = String(c?.concessionTypeCode || c?.concessionType || '').toUpperCase().replace(/\s+/g, '_');
+  const dateOnly = (v: any) => (v ? String(v).slice(0, 10) : null);
+  return {
+    id: String(c?.id),
+    studentId: String(c?.studentId),
+    studentName: c?.studentName || 'Student',
+    classNumber: Number(c?.classNumber || 0),
+    concessionType: CONCESSION_TYPE_LABELS[raw] || 'Fixed Amount',
+    value: Number(c?.value || 0),
+    reason: c?.reason || '',
+    approvedBy: c?.approvedBy || 'School Administration',
+    effectiveSession: c?.effectiveSession || '',
+    status: c?.status === 'REVOKED' ? 'Revoked' : 'Active',
+    sessionId: c?.sessionId ? Number(c.sessionId) : undefined,
+    termId: c?.termId ? Number(c.termId) : null,
+    termName: c?.termName || null,
+    effectiveStartDate: dateOnly(c?.effectiveStartDate),
+    effectiveEndDate: dateOnly(c?.effectiveEndDate),
+    feeComponent: c?.feeComponent || null,
+    adminNotes: c?.adminNotes || null,
+    createdAt: c?.createdAt,
+    revokedAt: c?.revokedAt || null,
+    revokedBy: c?.revokedBy || null,
+    revokeReason: c?.revokeReason || null
+  };
+}
+
+function concessionPayload(d: ConcessionInput) {
+  return {
+    concessionType: String(d.concessionType).toUpperCase().replace(/\s+/g, '_'),
+    value: Number(d.value),
+    reason: d.reason,
+    sessionId: d.sessionId || undefined,
+    termId: d.termId || null,
+    effectiveStartDate: d.effectiveStartDate || null,
+    effectiveEndDate: d.effectiveEndDate || null,
+    feeComponent: d.feeComponent || null,
+    adminNotes: d.adminNotes || null
+  };
+}
+
+/**
+ * Timezone safety: MySQL DATETIME values arrive as naive UTC strings ("2026-11-13 09:00:00").
+ * Browsers parse those as LOCAL time, shifting every timestamp by the viewer's offset.
+ * Convert exactly that pattern to an explicit UTC ISO string so every Date / Intl formatter
+ * shows the correct instant in the viewer's timezone. Date-only ("2026-11-16") and
+ * time-only ("09:00:00") values are deliberately left untouched.
+ */
+const NAIVE_UTC_DATETIME = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d{1,6})?$/;
+export function normalizeApiDates<T>(value: T): T {
+  if (typeof value === 'string') {
+    return (NAIVE_UTC_DATETIME.test(value) ? `${value.replace(' ', 'T')}Z` : value) as unknown as T;
+  }
+  if (Array.isArray(value)) return value.map((v) => normalizeApiDates(v)) as unknown as T;
+  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = normalizeApiDates(v);
+    return out as T;
+  }
+  return value;
+}
+
 export async function requestApi<T>(path: string, options: RequestInit = {}, isRetry = false): Promise<T> {
   const headers = new Headers(options.headers || {});
   if (!(options.body instanceof FormData) && !headers.has('Content-Type')) {
@@ -203,9 +275,16 @@ export async function requestApi<T>(path: string, options: RequestInit = {}, isR
       json = null;
     }
   }
+  json = normalizeApiDates(json);
 
   if (!res.ok || (json && json.success === false)) {
-    throw new Error(json?.error?.message || `API request failed (${res.status})`);
+    const apiError: Error & { status?: number; code?: string; details?: any } = new Error(
+      json?.error?.message || `API request failed (${res.status})`
+    );
+    apiError.status = res.status;
+    apiError.code = json?.error?.code;
+    apiError.details = json?.error?.details;
+    throw apiError;
   }
 
   return (json ? json.data : null) as T;
@@ -1337,28 +1416,7 @@ export const api = {
     try {
       const data = await requestApi<any[]>('/api/v1/fees/concessions');
       if (Array.isArray(data)) {
-        return data.map((c) => {
-          let cType: StudentConcession['concessionType'] = 'Fixed Amount';
-          const raw = String(c.concessionType || '').toUpperCase();
-          if (raw === 'PERCENTAGE') cType = 'Percentage';
-          else if (raw === 'SIBLING_DISCOUNT') cType = 'Sibling Discount';
-          else if (raw === 'MERIT_SCHOLARSHIP') cType = 'Merit Scholarship' as any;
-          else if (raw === 'NEED_BASED') cType = 'Need Based' as any;
-          else cType = 'Fixed Amount';
-
-          return {
-            id: String(c.id),
-            studentId: String(c.studentId),
-            studentName: c.studentName || 'Student',
-            classNumber: Number(c.classNumber || 1),
-            concessionType: cType,
-            value: Number(c.value),
-            reason: c.reason || '',
-            approvedBy: c.approvedBy || 'Principal',
-            effectiveSession: c.effectiveSession || '2026-27',
-            status: (c.status === 'REVOKED' ? 'Revoked' : 'Active') as any
-          };
-        });
+        return data.map((c) => mapConcession(c));
       }
     } catch {
       // Fallback
@@ -1399,29 +1457,43 @@ export const api = {
     };
   },
 
-  async addConcession(concessionData: Omit<StudentConcession, 'id' | 'approvedBy'>): Promise<StudentConcession> {
+  async addConcession(concessionData: ConcessionInput): Promise<StudentConcession> {
     const rawId = String(concessionData.studentId);
     const numericStudentId = parseInt(rawId.replace(/\D/g, ''), 10) || Number(rawId);
     const res = await requestApi<any>('/api/v1/fees/concessions', {
       method: 'POST',
-      body: JSON.stringify({
-        studentId: numericStudentId,
-        concessionType: concessionData.concessionType.toUpperCase().replace(/\s+/g, '_'),
-        value: Number(concessionData.value),
-        reason: concessionData.reason
-      })
+      body: JSON.stringify({ ...concessionPayload(concessionData), studentId: numericStudentId })
     });
-
-    return {
-      ...concessionData,
-      id: String(res?.id || Date.now()),
-      approvedBy: 'Prof. Tariq Mahmood'
-    };
+    return mapConcession(res);
   },
 
-  async revokeConcession(id: string | number): Promise<void> {
+  async updateConcession(id: string | number, concessionData: ConcessionInput & { changeReason?: string }): Promise<StudentConcession> {
+    const res = await requestApi<any>(`/api/v1/fees/concessions/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ ...concessionPayload(concessionData), changeReason: concessionData.changeReason || undefined })
+    });
+    return mapConcession(res);
+  },
+
+  /** Terms of an academic session (for scoping a concession to a term). */
+  async getSessionTerms(sessionId: number): Promise<{ id: number; name: string; startDate: string; endDate: string }[]> {
+    try {
+      const rows = await requestApi<any[]>(`/api/v1/sessions/${sessionId}/terms`);
+      return (Array.isArray(rows) ? rows : []).map((t) => ({
+        id: Number(t.id),
+        name: String(t.name),
+        startDate: String(t.start_date || t.startDate || '').slice(0, 10),
+        endDate: String(t.end_date || t.endDate || '').slice(0, 10)
+      }));
+    } catch {
+      return [];
+    }
+  },
+
+  async revokeConcession(id: string | number, reason?: string): Promise<void> {
     await requestApi(`/api/v1/fees/concessions/${id}/revoke`, {
-      method: 'POST'
+      method: 'POST',
+      body: JSON.stringify({ reason: reason || null })
     });
   },
 

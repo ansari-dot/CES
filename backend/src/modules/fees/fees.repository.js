@@ -1,4 +1,6 @@
 import { db } from '../../shared/db/knex.js';
+import { auditRepository } from '../audit/audit.repository.js';
+import { getApplicableConcessions, computeConcession, periodBounds } from './fees.concessions.js';
 import {
   normalizeBillingMonth,
   isSameBillingMonth,
@@ -177,19 +179,34 @@ export const feesRepository = {
         .select('id', 'head_type as head', 'amount', 'is_recurring as isRecurring', 'description');
     }
 
-    const concessions = await db('student_concessions')
-      .where({ student_id: student.id, status: 'ACTIVE' })
-      .select('id', 'concession_type as concessionType', 'value', 'reason', 'created_at as createdAt');
+    // Same calculation as challan generation, for the current month of the structure's session
+    const monthKey = new Date().toISOString().slice(0, 7);
+    const bounds = periodBounds(monthKey);
+    const applicableRows = await getApplicableConcessions(db, {
+      studentId: student.id,
+      sessionId: structure?.sessionId || null,
+      periodStart: bounds.start,
+      periodEnd: bounds.end
+    });
+    const concessions = applicableRows.map((c) => ({
+      id: c.id,
+      concessionType: c.concession_type,
+      value: Number(c.value),
+      reason: c.reason,
+      feeComponent: c.fee_component || null,
+      effectiveStartDate: c.effective_start_date || null,
+      effectiveEndDate: c.effective_end_date || null,
+      createdAt: c.created_at
+    }));
 
     let totalRecurring = structure ? Number(structure.totalMonthlyRecurring) : 0;
-    let concessionDiscount = 0;
-    for (const c of concessions) {
-      if (c.concessionType === 'PERCENTAGE') {
-        concessionDiscount += (totalRecurring * Number(c.value)) / 100;
-      } else {
-        concessionDiscount += Number(c.value);
+    const recurringHeads = {};
+    for (const h of heads) {
+      if (h.isRecurring === undefined || Number(h.isRecurring)) {
+        recurringHeads[h.head] = (recurringHeads[h.head] || 0) + Number(h.amount || 0);
       }
     }
+    const concessionDiscount = computeConcession(applicableRows, recurringHeads).total;
     const netMonthlyRecurring = Math.max(0, totalRecurring - concessionDiscount);
 
     return {
@@ -215,27 +232,79 @@ export const feesRepository = {
   },
 
   // 2. Student Concessions
-  async createConcession({ studentId, sessionId, concessionType, value, reason, approvedBy }) {
-    const [id] = await db('student_concessions').insert({
-      student_id: studentId,
-      session_id: sessionId,
-      concession_type: concessionType.toUpperCase(),
-      value: Number(value),
-      reason,
-      approved_by: approvedBy,
-      status: 'ACTIVE'
+  async createConcession({ studentId, sessionId, termId = null, concessionType, value, reason, approvedBy, effectiveStartDate, effectiveEndDate, feeComponent, adminNotes }) {
+    const hasTerm = await db.schema.hasColumn('student_concessions', 'term_id');
+    return await db.transaction(async (trx) => {
+      const row = {
+        student_id: studentId,
+        session_id: sessionId,
+        concession_type: concessionType.toUpperCase(),
+        value: Number(value),
+        reason,
+        approved_by: approvedBy,
+        status: 'ACTIVE',
+        effective_start_date: effectiveStartDate || null,
+        effective_end_date: effectiveEndDate || null,
+        fee_component: feeComponent || null,
+        admin_notes: adminNotes || null
+      };
+      if (hasTerm) row.term_id = termId || null;
+      const [id] = await trx('student_concessions').insert(row);
+      await auditRepository.logAction(trx, {
+        actorId: approvedBy,
+        action: 'CONCESSION_APPROVED',
+        recordType: 'student_concessions',
+        recordIdentifier: `Concession #${id} (student #${studentId})`,
+        reason,
+        newValue: row
+      });
+      return id;
     });
-    return id;
   },
 
-  async getConcessions({ studentId = null, sessionId = null, status = null } = {}) {
+  async getConcessionById(id) {
+    return await db('student_concessions').where({ id }).first();
+  },
+
+  /** Active concessions of the student/session that would overlap the given window and head. */
+  async findOverlappingConcessions({ studentId, sessionId, feeComponent, startDate, endDate, excludeId = null }) {
+    let query = db('student_concessions')
+      .where({ student_id: studentId, session_id: sessionId, status: 'ACTIVE' });
+    query = feeComponent ? query.where('fee_component', feeComponent) : query.whereNull('fee_component');
+    if (endDate) query = query.where((q) => q.whereNull('effective_start_date').orWhere('effective_start_date', '<=', endDate));
+    if (startDate) query = query.where((q) => q.whereNull('effective_end_date').orWhere('effective_end_date', '>=', startDate));
+    if (excludeId) query = query.whereNot('id', excludeId);
+    return await query.select('id', 'concession_type', 'value', 'effective_start_date', 'effective_end_date');
+  },
+
+  async updateConcession(id, updates, actorId, changeReason) {
+    return await db.transaction(async (trx) => {
+      const before = await trx('student_concessions').where({ id }).forUpdate().first();
+      await trx('student_concessions').where({ id }).update({ ...updates, updated_at: trx.fn.now() });
+      const after = await trx('student_concessions').where({ id }).first();
+      await auditRepository.logAction(trx, {
+        actorId,
+        action: 'CONCESSION_UPDATED',
+        recordType: 'student_concessions',
+        recordIdentifier: `Concession #${id} (student #${before.student_id})`,
+        reason: changeReason || 'Concession terms updated (applies to challans generated from now on)',
+        previousValue: before,
+        newValue: after
+      });
+      return after;
+    });
+  },
+
+  async getConcessions({ studentId = null, studentIds = null, sessionId = null, status = null } = {}) {
     let query = db('student_concessions')
       .join('students', 'student_concessions.student_id', 'students.id')
       .join('users as student_users', 'students.user_id', 'student_users.id')
       .join('classes', 'students.current_class_id', 'classes.id')
       .join('academic_sessions', 'student_concessions.session_id', 'academic_sessions.id')
-      .join('users as approver_users', 'student_concessions.approved_by', 'approver_users.id')
+      .leftJoin('users as approver_users', 'student_concessions.approved_by', 'approver_users.id')
       .select(
+        'student_concessions.session_id as sessionId',
+        'student_concessions.concession_type as concessionTypeCode',
         'student_concessions.id',
         'student_concessions.student_id as studentId',
         'student_users.full_name as studentName',
@@ -248,20 +317,59 @@ export const feesRepository = {
         'student_concessions.reason',
         'approver_users.full_name as approvedBy',
         'student_concessions.status',
+        'student_concessions.effective_start_date as effectiveStartDate',
+        'student_concessions.effective_end_date as effectiveEndDate',
+        'student_concessions.fee_component as feeComponent',
+        'student_concessions.admin_notes as adminNotes',
         'student_concessions.created_at as createdAt'
       )
       .orderBy('student_concessions.created_at', 'desc');
 
+    if (await db.schema.hasColumn('student_concessions', 'term_id')) {
+      query = query
+        .leftJoin('academic_terms', 'student_concessions.term_id', 'academic_terms.id')
+        .leftJoin('users as revoker_users', 'student_concessions.revoked_by', 'revoker_users.id')
+        .select(
+          'student_concessions.term_id as termId',
+          'academic_terms.name as termName',
+          'student_concessions.revoked_at as revokedAt',
+          'student_concessions.revoke_reason as revokeReason',
+          'revoker_users.full_name as revokedBy'
+        );
+    }
+
     if (studentId) query = query.where('student_concessions.student_id', studentId);
+    if (Array.isArray(studentIds)) query = query.whereIn('student_concessions.student_id', studentIds.length ? studentIds : [0]);
     if (sessionId) query = query.where('student_concessions.session_id', sessionId);
     if (status) query = query.where('student_concessions.status', status);
 
     const rows = await query;
-    return rows.map((r) => ({ ...r, value: Number(r.value) }));
+    return rows.map((r) => ({ ...r, value: Number(r.value), approvedBy: r.approvedBy || 'School Administration' }));
   },
 
-  async revokeConcession(id) {
-    return await db('student_concessions').where({ id }).update({ status: 'REVOKED' });
+  async revokeConcession(id, { actorId = null, reason = null } = {}) {
+    const hasRevokeCols = await db.schema.hasColumn('student_concessions', 'revoked_by');
+    return await db.transaction(async (trx) => {
+      const before = await trx('student_concessions').where({ id }).forUpdate().first();
+      const update = { status: 'REVOKED', updated_at: trx.fn.now() };
+      if (hasRevokeCols) {
+        update.revoked_by = actorId || null;
+        update.revoked_at = trx.fn.now(3);
+        update.revoke_reason = reason ? String(reason).slice(0, 255) : null;
+      }
+      const changed = await trx('student_concessions').where({ id, status: 'ACTIVE' }).update(update);
+      if (changed > 0) {
+        await auditRepository.logAction(trx, {
+          actorId,
+          action: 'CONCESSION_REVOKED',
+          recordType: 'student_concessions',
+          recordIdentifier: `Concession #${id} (student #${before.student_id})`,
+          reason: reason || 'Concession revoked (already generated challans are not changed)',
+          previousValue: before
+        });
+      }
+      return changed;
+    });
   },
 
   // 3. Monthly Fee Challans
@@ -290,6 +398,7 @@ export const feesRepository = {
     const cleanMonth = billingMonth;
     const periodKey = normalizeBillingMonth(cleanMonth);
     const policyPeriod = periodKey ? getBillingPeriod(Number(periodKey.slice(0, 4)), Number(periodKey.slice(5, 7))) : null;
+    const hasConcessionDetails = await db.schema.hasColumn('fee_challans', 'concession_details');
     const effectiveDueDate = dueDate || policyPeriod?.dueDate || null;
     const effectiveValidUntil =
       validUntil || (effectiveDueDate ? addDays(effectiveDueDate, gracePeriodDays ?? GRACE_PERIOD_DAYS) : null);
@@ -333,20 +442,25 @@ export const feesRepository = {
       const grossAmount =
         tuitionAmount + technologyAmount + examinationAmount + booksAmount + admissionAmount + otherAmount;
 
-      // Check active concessions
-      const activeConcession = await db('student_concessions')
-        .where({ student_id: student.id, session_id: sessionId, status: 'ACTIVE' })
-        .first();
-
-      let concessionAmount = 0;
-      if (activeConcession) {
-        const val = Number(activeConcession.value);
-        if (activeConcession.concession_type === 'PERCENTAGE' || activeConcession.concession_type === 'SIBLING_DISCOUNT') {
-          concessionAmount = Number(((grossAmount * val) / 100).toFixed(2));
-        } else {
-          concessionAmount = Math.min(val, grossAmount);
-        }
-      }
+      // Student-specific concessions valid for this billing month (all of them, each
+      // applied once, capped per fee head so the payable amount can never go negative).
+      const fallbackDay = issueDate || new Date().toISOString().split('T')[0];
+      const bounds = periodBounds(periodKey) || { start: fallbackDay, end: fallbackDay };
+      const applicable = await getApplicableConcessions(db, {
+        studentId: student.id,
+        sessionId,
+        periodStart: bounds.start,
+        periodEnd: bounds.end
+      });
+      const concessionResult = computeConcession(applicable, {
+        TUITION: tuitionAmount,
+        TECHNOLOGY: technologyAmount,
+        EXAMINATION: examinationAmount,
+        BOOKS: booksAmount,
+        ADMISSION: admissionAmount,
+        OTHER: otherAmount
+      });
+      const concessionAmount = concessionResult.total;
 
       // Check past unpaid arrears
       const pastUnpaid = (
@@ -394,6 +508,10 @@ export const feesRepository = {
         paid_amount: 0.00,
         status: 'UNPAID'
       };
+      // Immutable snapshot of exactly which concession(s) were applied to this challan
+      if (hasConcessionDetails && concessionResult.details.length > 0) {
+        row.concession_details = JSON.stringify(concessionResult.details);
+      }
 
       try {
         const [cId] = await db('fee_challans').insert(row);

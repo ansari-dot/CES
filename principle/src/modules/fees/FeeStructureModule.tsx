@@ -1,6 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api';
 import { ClassFeeStructure, StudentConcession, Student, FeeHeadType } from '../../types';
+import { requestApi } from '../../services/api';
+
+/** Concession types whose value is a percentage (matches the backend calculation). */
+const isPercentType = (t: StudentConcession['concessionType']) => t === 'Percentage' || t === 'Sibling Discount';
+
+const FEE_COMPONENT_LABELS: Record<string, string> = {
+  TUITION: 'Tuition fee',
+  TECHNOLOGY: 'Technology fee',
+  EXAMINATION: 'Examination fee',
+  BOOKS: 'Books',
+  ADMISSION: 'Admission fee',
+  OTHER: 'Other charges'
+};
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { Modal } from '../../components/common/Modal';
 import { LoadingState, ErrorState } from '../../components/common/StateViews';
@@ -44,17 +57,22 @@ export const FeeStructureModule: React.FC = () => {
 
   // Concession Modal
   const [isConcessionModalOpen, setIsConcessionModalOpen] = useState(false);
-  const [concessionForm, setConcessionForm] = useState<{
-    studentId: string;
-    concessionType: StudentConcession['concessionType'];
-    value: number | '';
-    reason: string;
-  }>({
+  const emptyConcessionForm = {
     studentId: '',
-    concessionType: 'Sibling Discount',
-    value: '',
-    reason: ''
-  });
+    concessionType: 'Sibling Discount' as StudentConcession['concessionType'],
+    value: '' as number | '',
+    reason: '',
+    sessionId: '' as number | '',
+    termId: '' as number | '',
+    effectiveStartDate: '',
+    effectiveEndDate: '',
+    feeComponent: '',
+    adminNotes: ''
+  };
+  const [concessionForm, setConcessionForm] = useState(emptyConcessionForm);
+  const [editingConcessionId, setEditingConcessionId] = useState<string | null>(null);
+  const [sessionOptions, setSessionOptions] = useState<{ id: number; name: string; isCurrent: boolean }[]>([]);
+  const [termOptions, setTermOptions] = useState<{ id: number; name: string; startDate: string; endDate: string }[]>([]);
   const [concessionSubmitting, setConcessionSubmitting] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
@@ -79,6 +97,29 @@ export const FeeStructureModule: React.FC = () => {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    requestApi<any[]>('/api/v1/sessions')
+      .then((rows) =>
+        setSessionOptions(
+          (Array.isArray(rows) ? rows : []).map((r) => ({
+            id: Number(r.id),
+            name: String(r.name),
+            isCurrent: Boolean(Number(r.is_current ?? r.isCurrent ?? 0))
+          }))
+        )
+      )
+      .catch(() => setSessionOptions([]));
+  }, []);
+
+  useEffect(() => {
+    const sid = Number(concessionForm.sessionId) || sessionOptions.find((x) => x.isCurrent)?.id;
+    if (!sid) {
+      setTermOptions([]);
+      return;
+    }
+    api.getSessionTerms(sid).then(setTermOptions);
+  }, [concessionForm.sessionId, sessionOptions]);
 
   useEffect(() => {
     loadData();
@@ -217,26 +258,40 @@ export const FeeStructureModule: React.FC = () => {
       return;
     }
 
+    if (isPercentType(concessionForm.concessionType) && Number(concessionForm.value) > 100) {
+      toast.warning('A percentage concession cannot exceed 100%.');
+      return;
+    }
+    if (concessionForm.effectiveStartDate && concessionForm.effectiveEndDate && concessionForm.effectiveStartDate > concessionForm.effectiveEndDate) {
+      toast.warning('The effective start date cannot be after the end date.');
+      return;
+    }
+
+    const payload = {
+      studentId: student.id,
+      concessionType: concessionForm.concessionType,
+      value: Number(concessionForm.value),
+      reason: concessionForm.reason.trim(),
+      sessionId: concessionForm.sessionId ? Number(concessionForm.sessionId) : null,
+      termId: concessionForm.termId ? Number(concessionForm.termId) : null,
+      effectiveStartDate: concessionForm.effectiveStartDate || null,
+      effectiveEndDate: concessionForm.effectiveEndDate || null,
+      feeComponent: concessionForm.feeComponent || null,
+      adminNotes: concessionForm.adminNotes.trim() || null
+    };
+
     try {
       setConcessionSubmitting(true);
-      await api.addConcession({
-        studentId: student.id,
-        studentName: student.name,
-        classNumber: student.classNumber,
-        concessionType: concessionForm.concessionType,
-        value: Number(concessionForm.value),
-        reason: concessionForm.reason.trim(),
-        effectiveSession: activeSession || '2026-27',
-        status: 'Active'
-      });
-      toast.success(`Concession authorized for ${student.name}.`);
+      if (editingConcessionId) {
+        await api.updateConcession(editingConcessionId, payload);
+        toast.success(`Concession updated for ${student.name}. New challans will use the updated terms.`);
+      } else {
+        await api.addConcession(payload);
+        toast.success(`Concession authorized for ${student.name}. It will apply automatically to every eligible monthly challan.`);
+      }
       setIsConcessionModalOpen(false);
-      setConcessionForm({
-        studentId: '',
-        concessionType: 'Sibling Discount',
-        value: '',
-        reason: ''
-      });
+      setEditingConcessionId(null);
+      setConcessionForm(emptyConcessionForm);
       await loadData();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to add concession');
@@ -246,12 +301,17 @@ export const FeeStructureModule: React.FC = () => {
   };
 
   const handleRevokeConcession = async (id: string, studentName: string) => {
-    if (!window.confirm(`Are you sure you want to revoke the fee concession for ${studentName}?`)) {
+    const reason = window.prompt(
+      `Revoke the fee concession for ${studentName}?\n\nChallans already generated are not changed. Enter a reason to confirm:`
+    );
+    if (reason === null) return;
+    if (!reason.trim()) {
+      toast.warning('A reason is required to revoke a concession.');
       return;
     }
     try {
       setRevokingId(id);
-      await api.revokeConcession(id);
+      await api.revokeConcession(id, reason.trim());
       toast.success(`Concession for ${studentName} has been revoked.`);
       await loadData();
     } catch (err: unknown) {
@@ -259,6 +319,23 @@ export const FeeStructureModule: React.FC = () => {
     } finally {
       setRevokingId(null);
     }
+  };
+
+  const openEditConcession = (c: StudentConcession) => {
+    setEditingConcessionId(c.id);
+    setConcessionForm({
+      studentId: c.studentId,
+      concessionType: c.concessionType,
+      value: c.value,
+      reason: c.reason,
+      sessionId: c.sessionId || '',
+      termId: c.termId || '',
+      effectiveStartDate: c.effectiveStartDate || '',
+      effectiveEndDate: c.effectiveEndDate || '',
+      feeComponent: c.feeComponent || '',
+      adminNotes: c.adminNotes || ''
+    });
+    setIsConcessionModalOpen(true);
   };
 
   if (loading) return <LoadingState message="Loading fee structures & concessions..." rows={6} />;
@@ -286,12 +363,8 @@ export const FeeStructureModule: React.FC = () => {
 
           <button
             onClick={() => {
-              setConcessionForm({
-                studentId: '',
-                concessionType: 'Sibling Discount',
-                value: '',
-                reason: ''
-              });
+              setEditingConcessionId(null);
+              setConcessionForm(emptyConcessionForm);
               setIsConcessionModalOpen(true);
             }}
             className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
@@ -447,6 +520,7 @@ export const FeeStructureModule: React.FC = () => {
                 <th className="px-3.5 py-2.5">Class</th>
                 <th className="px-3.5 py-2.5">Concession Type</th>
                 <th className="px-3.5 py-2.5 font-mono text-right">Discount Value</th>
+                <th className="px-3.5 py-2.5">Scope & Validity</th>
                 <th className="px-3.5 py-2.5">Authorization Reason</th>
                 <th className="px-3.5 py-2.5">Approved By</th>
                 <th className="px-3.5 py-2.5 text-center">Status</th>
@@ -456,7 +530,7 @@ export const FeeStructureModule: React.FC = () => {
             <tbody className="divide-y divide-slate-100 bg-white">
               {concessions.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-3.5 py-8 text-center text-slate-400">
+                  <td colSpan={9} className="px-3.5 py-8 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-1.5">
                       <BadgePercent className="w-6 h-6 text-slate-300" />
                       <span className="font-medium text-slate-600">No Authorized Student Concessions On Record</span>
@@ -473,9 +547,23 @@ export const FeeStructureModule: React.FC = () => {
                     <td className="px-3.5 py-2.5 text-slate-600">Class {c.classNumber}</td>
                     <td className="px-3.5 py-2.5 text-amber-700 font-medium">{c.concessionType}</td>
                     <td className="px-3.5 py-2.5 font-mono text-right text-emerald-700 font-bold">
-                      {c.concessionType === 'Percentage'
+                      {isPercentType(c.concessionType)
                         ? `- ${c.value}%`
                         : `- Rs. ${c.value.toLocaleString()}`}
+                      <div className="text-[10px] font-sans font-normal text-slate-400">
+                        {c.feeComponent ? `${FEE_COMPONENT_LABELS[c.feeComponent] || c.feeComponent} only` : 'Monthly fee'}
+                      </div>
+                    </td>
+                    <td className="px-3.5 py-2.5 text-slate-600">
+                      <div className="font-medium">{c.effectiveSession}{c.termName ? ` · ${c.termName}` : ''}</div>
+                      <div className="text-[10px] text-slate-400">
+                        {c.effectiveStartDate || c.effectiveEndDate
+                          ? `${c.effectiveStartDate || 'Session start'} → ${c.effectiveEndDate || 'Session end'}`
+                          : 'Whole academic session'}
+                      </div>
+                      {c.status === 'Revoked' && c.revokeReason && (
+                        <div className="text-[10px] text-rose-500">Revoked: {c.revokeReason}</div>
+                      )}
                     </td>
                     <td className="px-3.5 py-2.5 text-slate-500 max-w-xs truncate">{c.reason}</td>
                     <td className="px-3.5 py-2.5 text-slate-400">{c.approvedBy}</td>
@@ -484,6 +572,13 @@ export const FeeStructureModule: React.FC = () => {
                     </td>
                     <td className="px-3.5 py-2.5 text-center">
                       {c.status === 'Active' ? (
+                        <span className="inline-flex gap-1">
+                        <button
+                          onClick={() => openEditConcession(c)}
+                          className="px-2 py-0.5 rounded text-[11px] font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-50 border border-slate-200 transition-colors cursor-pointer"
+                        >
+                          Edit
+                        </button>
                         <button
                           onClick={() => handleRevokeConcession(c.id, c.studentName)}
                           disabled={revokingId === c.id}
@@ -491,6 +586,7 @@ export const FeeStructureModule: React.FC = () => {
                         >
                           {revokingId === c.id ? 'Revoking...' : 'Revoke'}
                         </button>
+                        </span>
                       ) : (
                         <span className="text-[11px] text-slate-400">—</span>
                       )}
@@ -694,8 +790,8 @@ export const FeeStructureModule: React.FC = () => {
       <Modal
         isOpen={isConcessionModalOpen}
         onClose={() => setIsConcessionModalOpen(false)}
-        title="Authorize Student Fee Concession"
-        description="Grant a verified fee discount for an enrolled student. You specify the student, discount, and authorization reason."
+        title={editingConcessionId ? 'Edit Student Fee Concession' : 'Authorize Student Fee Concession'}
+        description="Applies only to this student, automatically on every eligible monthly challan within the selected academic year. It is not carried into the next academic year without renewal."
         maxWidth="md"
       >
         <form onSubmit={handleAddConcession} className="space-y-4 text-xs">
@@ -705,6 +801,7 @@ export const FeeStructureModule: React.FC = () => {
               value={concessionForm.studentId}
               onChange={(e) => setConcessionForm({ ...concessionForm, studentId: e.target.value })}
               required
+              disabled={Boolean(editingConcessionId)}
               className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800 focus:bg-white"
             >
               <option value="">-- Choose Enrolled Student --</option>
@@ -738,15 +835,16 @@ export const FeeStructureModule: React.FC = () => {
 
           <div>
             <label className="block text-slate-700 font-medium mb-1">
-              {concessionForm.concessionType === 'Percentage'
+              {isPercentType(concessionForm.concessionType)
                 ? 'Discount Percentage (%) *'
-                : 'Discount Amount (PKR) *'}
+                : 'Monthly Discount Amount (PKR) *'}
             </label>
             <input
               type="number"
               min="1"
               required
-              placeholder={concessionForm.concessionType === 'Percentage' ? 'e.g. 25' : 'e.g. 1500'}
+              max={isPercentType(concessionForm.concessionType) ? 100 : undefined}
+              placeholder={isPercentType(concessionForm.concessionType) ? 'e.g. 25 (100 = full waiver)' : 'e.g. 2000'}
               value={concessionForm.value}
               onChange={(e) =>
                 setConcessionForm({
@@ -756,6 +854,88 @@ export const FeeStructureModule: React.FC = () => {
               }
               className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800 font-mono focus:bg-white"
             />
+          </div>
+
+          <div>
+            <label className="block text-slate-700 font-medium mb-1">Applies To</label>
+            <select
+              value={concessionForm.feeComponent}
+              onChange={(e) => setConcessionForm({ ...concessionForm, feeComponent: e.target.value })}
+              className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800 focus:bg-white"
+            >
+              <option value="">Whole monthly fee</option>
+              {Object.entries(FEE_COMPONENT_LABELS).map(([k, label]) => (
+                <option key={k} value={k}>
+                  {label} only
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-700 font-medium mb-1">Academic Year</label>
+              <select
+                value={concessionForm.sessionId}
+                disabled={Boolean(editingConcessionId)}
+                onChange={(e) =>
+                  setConcessionForm({ ...concessionForm, sessionId: e.target.value ? Number(e.target.value) : '', termId: '' })
+                }
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800 focus:bg-white"
+              >
+                <option value="">Current academic year</option>
+                {sessionOptions.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                    {s.isCurrent ? ' (current)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-slate-700 font-medium mb-1">Term</label>
+              <select
+                value={concessionForm.termId}
+                onChange={(e) => {
+                  const term = termOptions.find((t) => t.id === Number(e.target.value));
+                  setConcessionForm({
+                    ...concessionForm,
+                    termId: e.target.value ? Number(e.target.value) : '',
+                    effectiveStartDate: term ? term.startDate : concessionForm.effectiveStartDate,
+                    effectiveEndDate: term ? term.endDate : concessionForm.effectiveEndDate
+                  });
+                }}
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800 focus:bg-white"
+              >
+                <option value="">All terms</option>
+                {termOptions.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-slate-700 font-medium mb-1">Effective From</label>
+              <input
+                type="date"
+                value={concessionForm.effectiveStartDate}
+                onChange={(e) => setConcessionForm({ ...concessionForm, effectiveStartDate: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800 focus:bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-700 font-medium mb-1">Effective Until (optional)</label>
+              <input
+                type="date"
+                value={concessionForm.effectiveEndDate}
+                onChange={(e) => setConcessionForm({ ...concessionForm, effectiveEndDate: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800 focus:bg-white"
+              />
+            </div>
+            <p className="col-span-2 text-[11px] text-slate-500">
+              Leave dates empty to apply for the whole academic year. Challans already generated are never changed.
+            </p>
           </div>
 
           <div>
@@ -772,6 +952,16 @@ export const FeeStructureModule: React.FC = () => {
             />
           </div>
 
+          <div>
+            <label className="block text-slate-700 font-medium mb-1">Internal Notes (optional)</label>
+            <input
+              type="text"
+              value={concessionForm.adminNotes}
+              onChange={(e) => setConcessionForm({ ...concessionForm, adminNotes: e.target.value })}
+              className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800 focus:bg-white"
+            />
+          </div>
+
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
             <button
               type="button"
@@ -785,7 +975,7 @@ export const FeeStructureModule: React.FC = () => {
               disabled={concessionSubmitting}
               className="px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium shadow-xs"
             >
-              {concessionSubmitting ? 'Authorizing...' : 'Authorize Concession'}
+              {concessionSubmitting ? 'Saving...' : editingConcessionId ? 'Save Changes' : 'Authorize Concession'}
             </button>
           </div>
         </form>

@@ -29,6 +29,31 @@ export interface StudentConcession {
   approvedBy: string;
   effectiveSession: string;
   status: 'Active' | 'Revoked';
+  sessionId?: number;
+  termId?: number | null;
+  termName?: string | null;
+  effectiveStartDate?: string | null;
+  effectiveEndDate?: string | null;
+  feeComponent?: string | null;
+  adminNotes?: string | null;
+  createdAt?: string;
+  revokedAt?: string | null;
+  revokedBy?: string | null;
+  revokeReason?: string | null;
+}
+
+/** Fields accepted when creating or editing a concession. */
+export interface ConcessionInput {
+  studentId: string;
+  concessionType: StudentConcession['concessionType'];
+  value: number;
+  reason: string;
+  sessionId?: number | null;
+  termId?: number | null;
+  effectiveStartDate?: string | null;
+  effectiveEndDate?: string | null;
+  feeComponent?: string | null;
+  adminNotes?: string | null;
 }
 
 export type ChallanStatus = 'Unpaid' | 'Pending Verification' | 'Partially Paid' | 'Paid' | 'Overdue';

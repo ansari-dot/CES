@@ -2,6 +2,9 @@ import { feesService } from './fees.service.js';
 import { db } from '../../shared/db/knex.js';
 import { authRepository } from '../auth/auth.repository.js';
 import { sendSuccess } from '../../shared/http/response.js';
+import { AppError } from '../../shared/errors/AppError.js';
+import { ErrorCodes } from '../../shared/errors/errorCodes.js';
+import { isStaff, getStudentByUserId, getParentChildren } from '../../shared/services/accessScope.js';
 
 export const feesController = {
   // 1. Fee Structures
@@ -60,14 +63,19 @@ export const feesController = {
   // 2. Concessions
   async createConcession(req, res, next) {
     try {
-      const { studentId, sessionId, concessionType, value, reason } = req.body;
+      const { studentId, sessionId, termId, concessionType, value, reason, effectiveStartDate, effectiveEndDate, feeComponent, adminNotes } = req.body;
       const result = await feesService.createConcession({
         studentId,
         sessionId,
+        termId: termId || null,
         concessionType,
         value,
         reason,
-        approvedBy: req.user.id
+        approvedBy: req.user.id,
+        effectiveStartDate: effectiveStartDate || null,
+        effectiveEndDate: effectiveEndDate || null,
+        feeComponent: feeComponent || null,
+        adminNotes: adminNotes || null
       });
       return sendSuccess(res, result, null, 201);
     } catch (error) {
@@ -78,12 +86,35 @@ export const feesController = {
   async getConcessions(req, res, next) {
     try {
       const { studentId, sessionId, status } = req.query;
-      const result = await feesService.getConcessions({
+      const filters = {
         studentId: studentId ? Number(studentId) : null,
         sessionId: sessionId ? Number(sessionId) : null,
         status: status || null
-      });
+      };
+      // Staff see every concession; students and parents only their own / their children's
+      if (!isStaff(req.user)) {
+        if (req.user?.role === 'STUDENT') {
+          const me = await getStudentByUserId(req.user.id);
+          filters.studentIds = me ? [me.id] : [];
+        } else if (req.user?.role === 'PARENT') {
+          const { children } = await getParentChildren(req.user.id);
+          filters.studentIds = children.map((c) => c.id);
+        } else {
+          throw new AppError('You are not allowed to view fee concessions', 403, ErrorCodes.FORBIDDEN);
+        }
+        if (filters.studentId && !filters.studentIds.includes(filters.studentId)) filters.studentIds = [];
+      }
+      const result = await feesService.getConcessions(filters);
       return sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async updateConcession(req, res, next) {
+    try {
+      const result = await feesService.updateConcession(Number(req.params.id), req.body || {}, req.user?.id);
+      return sendSuccess(res, result, 'Concession updated. New challans will use the updated terms.');
     } catch (error) {
       next(error);
     }
@@ -92,7 +123,7 @@ export const feesController = {
   async revokeConcession(req, res, next) {
     try {
       const id = Number(req.params.id);
-      await feesService.revokeConcession(id);
+      await feesService.revokeConcession(id, { actorId: req.user?.id, reason: req.body?.reason || null });
       return sendSuccess(res, { revoked: true, id });
     } catch (error) {
       next(error);

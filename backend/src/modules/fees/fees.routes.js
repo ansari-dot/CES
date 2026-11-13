@@ -22,6 +22,7 @@ router.post('/structures', authenticate, authorize('fees.structure.manage'), fee
 // 2. Concessions
 router.get('/concessions', authenticate, feesController.getConcessions);
 router.post('/concessions', authenticate, authorize('fees.structure.manage'), feesController.createConcession);
+router.put('/concessions/:id', authenticate, authorize('fees.structure.manage'), feesController.updateConcession);
 router.post('/concessions/:id/revoke', authenticate, authorize('fees.structure.manage'), feesController.revokeConcession);
 
 // 3. Challans
