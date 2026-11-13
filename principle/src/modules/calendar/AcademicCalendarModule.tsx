@@ -72,7 +72,8 @@ const MONTH_NAMES = [
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export const AcademicCalendarModule: React.FC = () => {
-  const { addToast } = useToast();
+  // The toast context exposes showToast(message, type); keep the local name used below
+  const { showToast: addToast } = useToast();
 
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [overview, setOverview] = useState<CalendarOverviewResponse | null>(null);
