@@ -114,7 +114,9 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [durationMinutes, setDurationMinutes] = useState<number>(45);
-  const [passingMarks, setPassingMarks] = useState<number>(20);
+  const [passingMarks, setPassingMarks] = useState<number>(1);
+  // Passing marks follow the total (40%) until the teacher sets their own value
+  const [passingMarksEdited, setPassingMarksEdited] = useState(false);
 
   // Default availability: today now to +2 days
   // datetime-local inputs take the viewer's local wall time (submission converts to UTC below)
@@ -210,6 +212,12 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
   // Calculate total marks dynamically
   const calculatedTotalMarks = questions.reduce((acc, q) => acc + (Number(q.marks) || 0), 0);
 
+  React.useEffect(() => {
+    if (!passingMarksEdited) {
+      setPassingMarks(Math.max(1, Math.round(calculatedTotalMarks * 0.4)));
+    }
+  }, [calculatedTotalMarks, passingMarksEdited]);
+
   const handleClassChange = (cId: number) => {
     setSelectedClassId(cId);
     const matching = assignedClasses.filter((c) => Number(c.classId || c.id) === cId);
@@ -281,12 +289,23 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
       setErrorMsg('Please enter a test title.');
       return;
     }
-    if (durationMinutes <= 0) {
-      setErrorMsg('Test duration must be at least 1 minute.');
+    // Same rules as the server, so the teacher gets a clear message instead of a 422
+    if (!Number.isInteger(Number(durationMinutes)) || durationMinutes < 5 || durationMinutes > 300) {
+      setErrorMsg('Test duration must be a whole number between 5 and 300 minutes.');
       return;
     }
     if (calculatedTotalMarks <= 0) {
       setErrorMsg('Total marks must be greater than 0.');
+      return;
+    }
+    if (!passingMarks || passingMarks < 1) {
+      setErrorMsg('Passing marks must be at least 1.');
+      return;
+    }
+    if (passingMarks > calculatedTotalMarks) {
+      setErrorMsg(
+        `Passing marks (${passingMarks}) cannot be more than the total marks of the questions (${calculatedTotalMarks}). Lower the passing marks or add more marks to the questions.`
+      );
       return;
     }
     if (new Date(availableUntil) <= new Date(availableFrom)) {
@@ -500,7 +519,7 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
               <input
                 type="number"
                 min="5"
-                max="180"
+                max="300"
                 value={durationMinutes}
                 onChange={(e) => setDurationMinutes(Number(e.target.value))}
                 className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
@@ -514,9 +533,17 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
                 min="1"
                 max={calculatedTotalMarks || 100}
                 value={passingMarks}
-                onChange={(e) => setPassingMarks(Number(e.target.value))}
-                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                onChange={(e) => {
+                  setPassingMarksEdited(true);
+                  setPassingMarks(Number(e.target.value));
+                }}
+                className={`w-full text-xs border rounded-lg px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 ${
+                  passingMarks > calculatedTotalMarks ? 'border-rose-400' : 'border-slate-200'
+                }`}
               />
+              <p className={`text-[10px] mt-0.5 ${passingMarks > calculatedTotalMarks ? 'text-rose-600' : 'text-slate-500'}`}>
+                Out of {calculatedTotalMarks} total marks
+              </p>
             </div>
           </div>
 
