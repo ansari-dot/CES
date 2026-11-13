@@ -32,6 +32,7 @@ import {
 import { HolidayAnnouncementModal } from '../components/dialogs/HolidayAnnouncementModal';
 import { teacherCalendarApi, ActiveHolidayAnnouncement } from '../services/calendarApi';
 import UpcomingEventsCard from '../components/dashboard/UpcomingEventsCard';
+import { AcademicResponsibilitiesCard } from '../components/dashboard/AcademicResponsibilitiesCard';
 
 // New Reference UI Components
 import { HeroGreetingBanner } from '../components/dashboard/HeroGreetingBanner';
@@ -712,6 +713,9 @@ export const DashboardPage: React.FC = () => {
           />
         </div>
       </div>
+
+      {/* Academic work requirements and grading deadlines set by the Principal */}
+      <AcademicResponsibilitiesCard />
 
       {/* School calendar: upcoming events, next holiday and full-year view */}
       <UpcomingEventsCard />

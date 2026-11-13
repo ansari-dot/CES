@@ -5,6 +5,7 @@ import { testDbConnection, db } from './shared/db/knex.js';
 import { startFeeScheduler } from './modules/fees/fees.scheduler.js';
 import { startZoomScheduler } from './modules/zoom/zoom.scheduler.js';
 import { startAssessmentExpiryScheduler, stopAssessmentExpiryScheduler } from './modules/assessments/assessments.scheduler.js';
+import { startAccountabilityScheduler, stopAccountabilityScheduler } from './modules/accountability/accountability.scheduler.js';
 import { outboxWorker } from './modules/performance/outbox.worker.js';
 import { initSocketServer } from './shared/realtime/socket.js';
 import { testRedisConnection, closeRedisConnections } from './shared/redis/redisClient.js';
@@ -59,6 +60,8 @@ async function bootstrap() {
       console.log(`⏱️ Monthly Assessment Expiry Sweeper running every 30s.`);
       outboxWorker.start(15000);
       console.log(`📨 Academic Parent Alert Outbox Dispatcher running every 15s.`);
+      startAccountabilityScheduler();
+      console.log('📋 Teacher academic accountability sweep running every 30 min.');
     }
   });
 
@@ -68,6 +71,7 @@ async function bootstrap() {
     stopFeeScheduler?.();
     stopZoomScheduler?.();
     stopAssessmentExpiryScheduler?.();
+    stopAccountabilityScheduler();
     outboxWorker.stop();
 
     try {

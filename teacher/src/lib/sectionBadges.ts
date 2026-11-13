@@ -105,5 +105,6 @@ export function teacherSectionFor(type?: string, recordType?: string): string | 
   if (t.includes('resource')) return 'learning-resources';
   if (t.includes('academic alert') || t.includes('performance')) return 'student-performance';
   if (t.includes('notice')) return 'notices';
+  if (t.includes('academic work') || t.includes('grading') || r === 'academicwork') return 'dashboard';
   return null;
 }

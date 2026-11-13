@@ -6,6 +6,8 @@ import { StatusBadge } from '../../components/common/StatusBadge';
 import { Modal } from '../../components/common/Modal';
 import { LoadingState, ErrorState } from '../../components/common/StateViews';
 import { useToast } from '../../context/ToastContext';
+import { AcademicPerformancePanel } from './accountability/AcademicPerformancePanel';
+import { WorkPoliciesPanel } from './accountability/WorkPoliciesPanel';
 import {
   UserPlus,
   ShieldAlert,
@@ -21,7 +23,8 @@ import {
   RefreshCw
 } from 'lucide-react';
 
-export const TeachersView: React.FC = () => {
+/** Existing faculty directory screen (unchanged). */
+const FacultyDirectory: React.FC = () => {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -756,6 +759,36 @@ export const TeachersView: React.FC = () => {
           </div>
         </Modal>
       )}
+    </div>
+  );
+};
+
+/**
+ * Teachers module: the existing Faculty Directory plus the Teacher Academic Accountability
+ * sections (performance monitoring with evidence, and work policies).
+ */
+export const TeachersView: React.FC = () => {
+  const [tab, setTab] = useState<'directory' | 'performance' | 'policies'>('directory');
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-1 bg-white border border-slate-200/90 rounded-xl p-1 w-fit text-xs font-medium shadow-2xs">
+        {([
+          ['directory', 'Faculty Directory'],
+          ['performance', 'Academic Performance'],
+          ['policies', 'Work Policies']
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${tab === key ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === 'directory' && <FacultyDirectory />}
+      {tab === 'performance' && <AcademicPerformancePanel />}
+      {tab === 'policies' && <WorkPoliciesPanel />}
     </div>
   );
 };

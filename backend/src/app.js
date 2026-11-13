@@ -37,6 +37,7 @@ import examRoutes from './modules/exam/exam.routes.js';
 import chatRoutes from './modules/chat/chat.routes.js';
 import calendarRoutes from './modules/calendar/calendar.routes.js';
 import dutyRoutes from './modules/teachers/duty.routes.js';
+import accountabilityRoutes from './modules/accountability/accountability.routes.js';
 
 export function createApp() {
   const app = express();
@@ -160,6 +161,7 @@ export function createApp() {
   app.use('/api/v1/chat', chatRoutes);
   app.use('/api/v1/calendar', calendarRoutes);
   app.use('/api/v1/duty', dutyRoutes);
+  app.use('/api/v1/accountability', accountabilityRoutes);
 
   // 9. 404 Handler
   app.use(notFound);
