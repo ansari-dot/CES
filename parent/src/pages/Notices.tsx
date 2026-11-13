@@ -29,6 +29,25 @@ interface AlertRow {
   isRead: boolean;
 }
 
+/**
+ * Only alerts that carry a grade or result get the "View Test Results" shortcut:
+ * a graded assignment or test ("Result Published"), published exam results
+ * ("Results Published") and supplementary results ("Academic Result").
+ * Uploads, submissions, returns, attendance and other alerts do not.
+ */
+function isGradedAlert(alert: AlertRow): boolean {
+  const type = (alert.type || '').toLowerCase();
+  const title = (alert.title || '').toLowerCase();
+  if (type.includes('submitted') || title.includes('submitted')) return false;
+  return (
+    type === 'result published' ||
+    type === 'results published' ||
+    type === 'academic result' ||
+    type.includes('graded') ||
+    title.includes('graded')
+  );
+}
+
 export default function Notices() {
   const { refreshUnread, showToast } = useParent();
   const [tab, setTab] = useState<'notices' | 'alerts'>('notices');
@@ -235,9 +254,9 @@ export default function Notices() {
               <p className="text-[11px] text-muted-foreground">{formatDateTime(activePopup.createdAt)}</p>
             )}
             <div className="flex items-center justify-between pt-2 border-t border-border gap-2">
-              {'message' in activePopup ? (
+              {'message' in activePopup && isGradedAlert(activePopup) ? (
                 <Link
-                  to="/results"
+                  to="/parent/results"
                   onClick={() => setActivePopup(null)}
                   className="px-3.5 py-1.5 rounded-xl bg-primary hover:bg-primary/90 text-white text-xs font-bold inline-flex items-center gap-1.5 transition"
                 >

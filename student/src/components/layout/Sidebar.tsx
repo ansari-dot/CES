@@ -82,9 +82,9 @@ export default function Sidebar({ mobileClose, onLogout }: SidebarProps) {
     const p = location.pathname;
     if (['/student/timetable', '/student/classes', '/student/learning', '/student/projects'].includes(p)) {
       setExpandedDropdowns((prev) => ({ ...prev, classes: true }));
-    } else if (['/student/tests', '/student/datesheet', '/student/results', '/student/progress'].includes(p)) {
+    } else if (['/student/tests', '/student/datesheet'].includes(p)) {
       setExpandedDropdowns((prev) => ({ ...prev, examinations: true }));
-    } else if (['/student/progress', '/student/results'].includes(p)) {
+    } else if (p === '/student/progress') {
       setExpandedDropdowns((prev) => ({ ...prev, reports: true }));
     }
   }, [location.pathname]);
@@ -121,12 +121,6 @@ export default function Sidebar({ mobileClose, onLogout }: SidebarProps) {
       ],
     },
     {
-      id: 'timetable-direct',
-      label: 'Timetable',
-      icon: CalendarDays,
-      path: '/student/timetable',
-    },
-    {
       id: 'attendance',
       label: 'Attendance',
       icon: CheckCircle2,
@@ -139,8 +133,6 @@ export default function Sidebar({ mobileClose, onLogout }: SidebarProps) {
       subItems: [
         { id: 'tests', label: 'Tests & Quizzes', path: '/student/tests', icon: ClipboardCheck },
         { id: 'datesheet', label: 'Exam Date Sheets', path: '/student/datesheet', icon: CalendarDays },
-        { id: 'results', label: 'Official Results', path: '/student/results', icon: Award },
-        { id: 'progress', label: 'Academic Progress', path: '/student/progress', icon: TrendingUp },
       ],
     },
     {
