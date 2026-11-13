@@ -423,8 +423,12 @@ export const chatService = {
       throw new AppError('Administrative users have read-only oversight and cannot send messages.', 403, ErrorCodes.FORBIDDEN);
     }
 
-    // Apply DLP phone number masking engine (original is NEVER stored or broadcast)
+    // Apply DLP phone number filter BEFORE storing / broadcasting (original is NEVER stored or sent)
     const dlpResult = sanitizeChatMessage(trimmed);
+    if (dlpResult.hasViolation && dlpResult.action === 'BLOCK') {
+      // Strict mode: nothing is saved or broadcast
+      throw new AppError(dlpResult.policyMessage, 422, ErrorCodes.VALIDATION_ERROR, { policyViolation: dlpResult.violationType });
+    }
 
     const message = await chatRepository.createMessage({
       threadId: thread.id,
@@ -490,7 +494,7 @@ export const chatService = {
 
     let policyWarning = null;
     if (dlpResult.hasViolation) {
-      policyWarning = 'Personal contact details and phone numbers are restricted by Cambridge School safety policy. The phone number was masked with *** before sending.';
+      policyWarning = `${dlpResult.policyMessage} The number was removed before your message was delivered.`;
     }
 
     return { message, policyWarning };
