@@ -33,6 +33,7 @@ import {
   Clock,
   Sparkles
 } from 'lucide-react';
+import { parseUtcInstant, formatTimeInZone, getBrowserTimeZone, DEFAULT_SCHOOL_TIMEZONE } from '../lib/timezone';
 
 export const StudentChatPage: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -49,6 +50,7 @@ export const StudentChatPage: React.FC = () => {
     isSending
   } = useAppSelector((state) => state.chat);
   const teacher = useAppSelector((state) => state.auth.teacher);
+  const chatTimezone = useAppSelector((state) => (state as any).timetable?.timezone) as string | undefined;
   const assignedClassesFromAuth = teacher?.assignedClasses || [];
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -278,8 +280,9 @@ export const StudentChatPage: React.FC = () => {
 
   const formatMessageTime = (isoString?: string) => {
     if (!isoString) return '';
-    const date = new Date(isoString);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    // Each user sees the same message instant in their own timezone
+    const date = parseUtcInstant(isoString);
+    return date ? formatTimeInZone(date, chatTimezone || getBrowserTimeZone() || DEFAULT_SCHOOL_TIMEZONE) : '';
   };
 
   return (

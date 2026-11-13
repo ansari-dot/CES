@@ -34,7 +34,8 @@ export const CreateTaskForm: React.FC = () => {
   const [deadline, setDeadline] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 3);
-    return d.toISOString().slice(0, 16);
+    // local wall time for the datetime-local input
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   });
   const [totalMarks, setTotalMarks] = useState<number>(20);
   const [gradingScale, setGradingScale] = useState<'numeric' | 'letter' | 'rubric' | 'passfail'>('numeric');

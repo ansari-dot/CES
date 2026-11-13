@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useParent } from '../context/ParentContext';
 import { requestApi } from '../services/api';
 import { StatusChip } from '../components/common';
+import TimezoneSetting from '../components/TimezoneSetting';
 
 /** Changes the password. The server ends the session afterwards, so the user signs in again. */
 export function ChangePasswordForm({ requireRelogin = false }: { requireRelogin?: boolean }) {
@@ -123,6 +124,8 @@ export default function Profile() {
         <p className="text-[11px] text-muted-foreground mt-3">
           To update your contact details or linked children, please contact the school office.
         </p>
+
+        <TimezoneSetting />
       </div>
 
       <div className="bg-card border border-border rounded-md p-5 shadow-sm">

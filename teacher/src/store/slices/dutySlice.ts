@@ -1,6 +1,13 @@
 import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
 import { DutyLogItem, DutySummary, DailyDutyItem } from '../../types';
 import { requestApi } from '../../services/api';
+import { parseUtcInstant, formatTimeInZone, getBrowserTimeZone, DEFAULT_SCHOOL_TIMEZONE } from '../../lib/timezone';
+
+/** HH:MM of a UTC instant in the given timezone (never the raw UTC clock). */
+const zonedTime = (value: any, timeZone: string) => {
+  const d = parseUtcInstant(value);
+  return d ? formatTimeInZone(d, timeZone) : '';
+};
 
 interface DutyAdjustmentRequest {
   id: string;
@@ -46,6 +53,7 @@ export const fetchDutySummaryThunk = createAsyncThunk(
   async (teacherId: number | string | void, { getState, rejectWithValue }) => {
     try {
       const state: any = getState();
+      const userTz: string = state.timetable?.timezone || getBrowserTimeZone() || DEFAULT_SCHOOL_TIMEZONE;
       const currentTeacherId =
         teacherId ||
         state?.auth?.teacher?.id ||
@@ -66,7 +74,8 @@ export const fetchDutySummaryThunk = createAsyncThunk(
         return {
           duty: null,
           drafts: [],
-          dailyDuty: null
+          dailyDuty: null,
+          userTz
         };
       }
 
@@ -79,7 +88,8 @@ export const fetchDutySummaryThunk = createAsyncThunk(
       return {
         duty: dutyRes,
         drafts: Array.isArray(draftsRes) ? draftsRes : [],
-        dailyDuty: dailyDutyRes
+        dailyDuty: dailyDutyRes,
+        userTz
       };
     } catch (err: any) {
       return rejectWithValue(err.message || 'Failed to fetch duty summary');
@@ -148,6 +158,7 @@ export const dutySlice = createSlice({
       .addCase(fetchDutySummaryThunk.fulfilled, (state, action) => {
         state.loading = false;
         const { duty, drafts, dailyDuty } = action.payload;
+        const userTz: string = (action.payload as any).userTz || getBrowserTimeZone() || DEFAULT_SCHOOL_TIMEZONE;
 
         const liveMinutes = Number(dailyDuty?.totalLiveMinutes) || 0;
         const liveHours = Number(dailyDuty?.totalLiveHours) || 0;
@@ -238,7 +249,7 @@ export const dutySlice = createSlice({
               lessonId: `LES-${l.id}`,
               className: l.className || `Class ${l.classNumber || l.classId}`,
               subject: l.subjectName || 'Subject',
-              scheduledTime: `${String(l.scheduledStart || '').substring(11, 16)} - ${String(l.scheduledEnd || '').substring(11, 16)}`,
+              scheduledTime: `${zonedTime(l.scheduledStart, userTz)} - ${zonedTime(l.scheduledEnd, userTz)}`,
               durationMinutes: Number(l.dutyMinutes || l.trackedMinutes) || 0,
               scheduledMinutes: scheduledMins,
               status,

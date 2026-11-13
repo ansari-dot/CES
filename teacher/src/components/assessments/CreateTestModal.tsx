@@ -117,8 +117,10 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
   const [passingMarks, setPassingMarks] = useState<number>(20);
 
   // Default availability: today now to +2 days
-  const nowStr = new Date().toISOString().slice(0, 16);
-  const nextWeekStr = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
+  // datetime-local inputs take the viewer's local wall time (submission converts to UTC below)
+  const toLocalInput = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  const nowStr = toLocalInput(new Date());
+  const nextWeekStr = toLocalInput(new Date(Date.now() + 2 * 24 * 60 * 60 * 1000));
   const [availableFrom, setAvailableFrom] = useState(nowStr);
   const [availableUntil, setAvailableUntil] = useState(nextWeekStr);
 

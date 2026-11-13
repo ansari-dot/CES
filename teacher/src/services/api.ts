@@ -37,6 +37,27 @@ async function getCsrfHeader(): Promise<string | undefined> {
   }
 }
 
+/**
+ * Timezone safety: MySQL DATETIME values arrive as naive UTC strings ("2026-11-13 09:00:00").
+ * Browsers parse those as LOCAL time, shifting every timestamp by the viewer's offset.
+ * Convert exactly that pattern to an explicit UTC ISO string so every Date / Intl formatter
+ * shows the correct instant in the viewer's timezone. Date-only ("2026-11-16") and
+ * time-only ("09:00:00") values are deliberately left untouched.
+ */
+const NAIVE_UTC_DATETIME = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d{1,6})?$/;
+export function normalizeApiDates<T>(value: T): T {
+  if (typeof value === 'string') {
+    return (NAIVE_UTC_DATETIME.test(value) ? `${value.replace(' ', 'T')}Z` : value) as unknown as T;
+  }
+  if (Array.isArray(value)) return value.map((v) => normalizeApiDates(v)) as unknown as T;
+  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = normalizeApiDates(v);
+    return out as T;
+  }
+  return value;
+}
+
 export async function requestApi<T>(path: string, options: RequestInit = {}, isRetry = false): Promise<T> {
   const headers = new Headers(options.headers || {});
   if (!(options.body instanceof FormData) && !headers.has('Content-Type')) {
@@ -116,6 +137,7 @@ export async function requestApi<T>(path: string, options: RequestInit = {}, isR
       json = null;
     }
   }
+  json = normalizeApiDates(json);
 
   if (!res.ok || (json && json.success === false)) {
     throw new Error(json?.error?.message || `API request failed (${res.status})`);

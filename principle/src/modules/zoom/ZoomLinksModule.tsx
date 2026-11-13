@@ -33,6 +33,7 @@ import {
   ShieldCheck,
   GraduationCap
 } from 'lucide-react';
+import { formatTime } from '../../lib/timezone';
 
 export const ZoomLinksModule: React.FC = () => {
   // Tab Navigation: 'classrooms' | 'reviews'
@@ -997,8 +998,8 @@ export const ZoomLinksModule: React.FC = () => {
                               </span>
                             </div>
                             <div className="font-mono text-[11px] text-slate-400">
-                              {r.scheduledStart ? String(r.scheduledStart).substring(11, 16) : ''} -{' '}
-                              {r.scheduledEnd ? String(r.scheduledEnd).substring(11, 16) : ''}
+                              {r.scheduledStart ? formatTime(r.scheduledStart) : ''} -{' '}
+                              {r.scheduledEnd ? formatTime(r.scheduledEnd) : ''}
                             </div>
                           </td>
 

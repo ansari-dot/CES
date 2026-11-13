@@ -179,6 +179,15 @@ async function enrichUserData(user, permissions) {
     }
   }
 
+  // User-specific display timezone (saved preference); null => portal uses the browser zone
+  let timezonePreference = null;
+  try {
+    const pref = await db('user_timezone_preferences').where({ user_id: user.id }).first();
+    if (pref) timezonePreference = { timezone: pref.timezone, source: pref.source };
+  } catch {
+    // table not migrated yet
+  }
+
   return {
     id: user.id,
     username: user.username,
@@ -192,7 +201,10 @@ async function enrichUserData(user, permissions) {
     teacherProfile,
     studentProfile,
     gender,
-    assignedClasses
+    assignedClasses,
+    timezone: timezonePreference?.timezone || null,
+    timezoneSource: timezonePreference?.source || null,
+    schoolTimezone: config.SCHOOL_TIMEZONE || 'Asia/Karachi'
   };
 }
 

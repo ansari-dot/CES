@@ -21,6 +21,7 @@ import {
   RefreshCw,
   Lock
 } from 'lucide-react';
+import { formatDateTime } from '../../lib/timezone';
 
 export const ChatOversightModule: React.FC = () => {
   const [data, setData] = useState<PrincipalOversightData | null>(null);
@@ -79,13 +80,8 @@ export const ChatOversightModule: React.FC = () => {
 
   const formatMessageTime = (isoString?: string) => {
     if (!isoString) return 'Never';
-    const date = new Date(isoString);
-    return date.toLocaleString([], {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    // Shown in the signed-in user's timezone
+    return formatDateTime(isoString, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
   // Filter items by client-side search

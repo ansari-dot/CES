@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { UserProfile, AuthContextType } from '../types/auth';
-import { api } from '../services/api';
+import { api, requestApi } from '../services/api';
+import { getBrowserTimeZone, isValidTimeZone, setUserTimeZone } from '../lib/timezone';
 import { useToast } from './ToastContext';
 import { BrandLoader } from '../components/common/BrandLoader';
 
@@ -47,6 +48,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     verifyExistingSession();
   }, [verifyExistingSession]);
+
+  // User-specific display timezone: a saved manual choice wins; otherwise the browser zone,
+  // which is stored as the default on first sign-in (the server never overwrites a manual choice).
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    requestApi<{ timezone: string | null; source: string }>('/api/v1/geo/my-timezone')
+      .then((pref) => {
+        if (pref && String(pref.source).toUpperCase() === 'MANUAL' && isValidTimeZone(pref.timezone)) {
+          setUserTimeZone(pref.timezone);
+          return;
+        }
+        const browserTz = getBrowserTimeZone();
+        setUserTimeZone(browserTz);
+        if (!pref || pref.source === 'fallback') {
+          return requestApi('/api/v1/geo/my-timezone', {
+            method: 'PUT',
+            body: JSON.stringify({ timezone: browserTz, source: 'browser' })
+          });
+        }
+        return undefined;
+      })
+      .catch(() => undefined);
+  }, [isAuthenticated]);
 
   const login = async (email: string, password: string, rememberMe = true): Promise<UserProfile> => {
     try {

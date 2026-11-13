@@ -30,9 +30,14 @@ const browserTz = getBrowserTimeZone();
 
 export const detectTeacherTimezoneThunk = createAsyncThunk(
   'timetable/detectTimezone',
-  async (_, { dispatch, getState }) => {
+  async (arg: { reset?: boolean } | void, { dispatch, getState }) => {
     const state = getState() as any;
-    if (state.timetable?.timezoneSource === 'manual') {
+    const reset = Boolean(arg && (arg as { reset?: boolean }).reset);
+    if (reset) {
+      // Back to automatic detection: forget the saved manual choice first
+      await requestApi('/api/v1/geo/my-timezone', { method: 'DELETE' }).catch(() => undefined);
+    }
+    if (!reset && state.timetable?.timezoneSource === 'manual') {
       return {
         timezone: state.timetable.timezone,
         source: 'manual' as const,
@@ -47,11 +52,25 @@ export const detectTeacherTimezoneThunk = createAsyncThunk(
     };
 
     try {
-      const data = await requestApi<{ timezone: string; source: 'ip' | 'browser' | 'fallback'; schoolTimezone: string }>(
-        `/api/v1/geo/timezone${browserTz ? `?browserTz=${encodeURIComponent(browserTz)}` : ''}`
-      );
-      if (isValidTimeZone(data?.timezone)) {
-        detected = data;
+      const data = await requestApi<{
+        timezone: string;
+        source: 'ip' | 'browser' | 'fallback';
+        schoolTimezone: string;
+        savedPreference?: { timezone: string; source: string } | null;
+      }>(`/api/v1/geo/timezone${browserTz ? `?browserTz=${encodeURIComponent(browserTz)}` : ''}`);
+      const saved = data?.savedPreference;
+      if (saved && String(saved.source).toUpperCase() === 'MANUAL' && isValidTimeZone(saved.timezone)) {
+        // A timezone the teacher chose in their profile always wins over detection
+        detected = { timezone: saved.timezone, source: 'manual', schoolTimezone: data.schoolTimezone || DEFAULT_SCHOOL_TIMEZONE };
+      } else if (isValidTimeZone(data?.timezone)) {
+        detected = { timezone: data.timezone, source: data.source, schoolTimezone: data.schoolTimezone };
+        // First login: remember the browser timezone as the default (server never overwrites a manual choice)
+        if (!saved && browserTz) {
+          requestApi('/api/v1/geo/my-timezone', {
+            method: 'PUT',
+            body: JSON.stringify({ timezone: browserTz, source: 'browser' })
+          }).catch(() => undefined);
+        }
       }
     } catch {
       // keep fallback
@@ -79,6 +98,13 @@ export const changeTeacherTimezoneThunk = createAsyncThunk(
         schoolTimezone: payload.schoolTimezone,
       })
     );
+    // Persist a manual choice to the teacher's profile so it follows them across devices
+    if ((payload.source || 'manual') === 'manual' && isValidTimeZone(payload.timezone)) {
+      requestApi('/api/v1/geo/my-timezone', {
+        method: 'PUT',
+        body: JSON.stringify({ timezone: payload.timezone, source: 'manual' })
+      }).catch(() => undefined);
+    }
     await Promise.all([
       dispatch(fetchTeacherLessonsThunk()),
       dispatch(fetchSchoolTimetable())

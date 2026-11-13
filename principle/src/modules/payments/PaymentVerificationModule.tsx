@@ -19,6 +19,7 @@ import {
   Eye,
   ShieldCheck
 } from 'lucide-react';
+import { formatDateTime, formatTime } from '../../lib/timezone';
 
 export const PaymentVerificationModule: React.FC = () => {
   const [proofs, setProofs] = useState<PaymentProofSubmission[]>([]);
@@ -99,10 +100,10 @@ export const PaymentVerificationModule: React.FC = () => {
       render: (p) => (
         <div className="flex flex-col font-mono text-[11px]">
           <span className="text-slate-900 font-semibold">
-            {new Date(p.submissionTimestamp).toLocaleDateString()}
+            {formatDateTime(p.submissionTimestamp, { day: '2-digit', month: 'short', year: 'numeric' })}
           </span>
           <span className="text-slate-500">
-            {new Date(p.submissionTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {formatTime(p.submissionTimestamp)}
           </span>
         </div>
       )
@@ -368,7 +369,7 @@ export const PaymentVerificationModule: React.FC = () => {
                   {selectedProof.reviewDecisionNote || 'No review remarks recorded.'}
                 </p>
                 <span className="text-[10px] text-slate-500 block">
-                  Reviewed by: {selectedProof.reviewedBy} on {new Date(selectedProof.reviewTimestamp || '').toLocaleString()}
+                  Reviewed by: {selectedProof.reviewedBy} on {formatDateTime(selectedProof.reviewTimestamp)}
                   {selectedProof.receiptNumber && ` · Receipt: ${selectedProof.receiptNumber}`}
                 </span>
               </div>

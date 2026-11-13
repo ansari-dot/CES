@@ -4,6 +4,7 @@ import { AuditLogEntry } from '../../types';
 import { DataTable, Column } from '../../components/common/DataTable';
 import { LoadingState, ErrorState } from '../../components/common/StateViews';
 import { ShieldCheck, History, Search } from 'lucide-react';
+import { formatDateTime } from '../../lib/timezone';
 
 export const AuditLogModule: React.FC = () => {
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
@@ -41,10 +42,10 @@ export const AuditLogModule: React.FC = () => {
       render: (l) => (
         <div className="flex flex-col font-mono text-[11px]">
           <span className="text-slate-900 font-semibold">
-            {new Date(l.timestamp).toLocaleDateString()}
+            {formatDateTime(l.timestamp, { day: '2-digit', month: 'short', year: 'numeric' })}
           </span>
           <span className="text-slate-400">
-            {new Date(l.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            {formatDateTime(l.timestamp, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </span>
         </div>
       )

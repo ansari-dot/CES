@@ -6,6 +6,7 @@ import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { LoadingState, ErrorState } from '../../components/common/StateViews';
 import { useToast } from '../../context/ToastContext';
 import { Lock, Unlock, RefreshCw, MessageCircle } from 'lucide-react';
+import { formatDateTime } from '../../lib/timezone';
 
 export const RestrictedStudentsModule: React.FC = () => {
   const [students, setStudents] = useState<RestrictedStudent[]>([]);
@@ -101,7 +102,7 @@ export const RestrictedStudentsModule: React.FC = () => {
       header: 'Restricted Since',
       render: (s) => (
         <span className="font-mono text-[11px] text-slate-700">
-          {s.restrictedAt ? new Date(`${s.restrictedAt.replace(' ', 'T')}Z`).toLocaleString() : '—'}
+          {s.restrictedAt ? formatDateTime(s.restrictedAt) : '—'}
         </span>
       )
     },

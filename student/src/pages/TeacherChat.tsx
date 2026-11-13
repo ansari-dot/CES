@@ -27,9 +27,11 @@ import {
   Clock,
   Sparkles
 } from 'lucide-react';
+import { parseUtcInstant, formatTimeInZone } from '../lib/timezone';
 
 export default function TeacherChat() {
   const profile = useSelector((state: RootState) => state.student.profile);
+  const chatTimezone = useSelector((state: RootState) => state.classes.timezone);
 
   const [threads, setThreads] = useState<StudentThreadItem[]>([]);
   const [availableTeachers, setAvailableTeachers] = useState<AvailableTeacher[]>([]);
@@ -398,8 +400,9 @@ export default function TeacherChat() {
 
   const formatMessageTime = (isoString?: string) => {
     if (!isoString) return '';
-    const date = new Date(isoString);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    // Each user sees the same message instant in their own timezone
+    const date = parseUtcInstant(isoString);
+    return date ? formatTimeInZone(date, chatTimezone) : '';
   };
 
   // Unified and deduplicated faculty list for conversation sidebar

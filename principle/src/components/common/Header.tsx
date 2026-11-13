@@ -5,6 +5,7 @@ import { Bell, RefreshCw, ChevronDown, Check, LogOut, User } from 'lucide-react'
 import { OperationalNotification } from '../../types';
 import { api } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { formatTime } from '../../lib/timezone';
 
 interface HeaderProps {
   activeModule: ActiveModule;
@@ -234,7 +235,7 @@ export const Header: React.FC<HeaderProps> = ({
                       <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
                         <span className="font-semibold text-amber-700">{notif.type}</span>
                         <span className="font-mono text-[10px]">
-                          {new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {formatTime(notif.timestamp)}
                         </span>
                       </div>
                       <p className="text-slate-700 leading-snug">{notif.message}</p>

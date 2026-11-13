@@ -4,6 +4,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { RootState, AppDispatch } from '../../store';
 import { setTimezone } from '../../store/slices/classesSlice';
+import { requestApi } from '../../services/api';
 import { COMMON_TIMEZONES, getBrowserTimeZone } from '../../lib/timezone';
 import CommandPaletteModal from '../dialogs/CommandPaletteModal';
 
@@ -109,6 +110,8 @@ export default function TopHeader({ pageTitle, pageSubtitle, onToggleMobileNav }
                       onClick={() => {
                         const bTz = getBrowserTimeZone();
                         dispatch(setTimezone({ timezone: bTz || 'Asia/Karachi', source: 'browser' }));
+                        // Back to automatic: drop the saved manual preference
+                        requestApi('/api/v1/geo/my-timezone', { method: 'DELETE' }).catch(() => undefined);
                         setShowTzMenu(false);
                       }}
                       className="text-[10px] font-bold text-primary hover:underline bg-card px-2 py-1 rounded border border-border shrink-0 cursor-pointer"
@@ -127,6 +130,11 @@ export default function TopHeader({ pageTitle, pageSubtitle, onToggleMobileNav }
                         key={tz.value}
                         onClick={() => {
                           dispatch(setTimezone({ timezone: tz.value, source: 'manual' }));
+                          // Save the manual choice to the student's profile
+                          requestApi('/api/v1/geo/my-timezone', {
+                            method: 'PUT',
+                            body: JSON.stringify({ timezone: tz.value, source: 'manual' })
+                          }).catch(() => undefined);
                           setShowTzMenu(false);
                         }}
                         className={`w-full text-left px-3 py-2 rounded text-xs flex items-center justify-between transition-colors cursor-pointer ${

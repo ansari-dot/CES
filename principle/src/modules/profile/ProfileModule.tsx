@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { StatusBadge } from '../../components/common/StatusBadge';
+import { TimezonePreferenceCard } from '../../components/common/TimezonePreferenceCard';
 import {
   ShieldAlert,
   User,
@@ -159,6 +160,9 @@ export const ProfileModule: React.FC = () => {
               Any changes to system-level infrastructure require delegation from Central IT Administration.
             </div>
           </div>
+
+          {/* Display timezone preference */}
+          <TimezonePreferenceCard />
 
           {/* Active Security Session Card */}
           <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3 text-xs">

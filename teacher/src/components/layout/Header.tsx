@@ -150,7 +150,7 @@ export const Header: React.FC = () => {
                 {timezoneSource === 'manual' && (
                   <button
                     onClick={() => {
-                      dispatch(detectTeacherTimezoneThunk());
+                      dispatch(detectTeacherTimezoneThunk({ reset: true }));
                       setIsTzOpen(false);
                       dispatch(
                         addToast({

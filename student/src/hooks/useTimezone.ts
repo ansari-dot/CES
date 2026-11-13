@@ -43,11 +43,28 @@ export function useTimezone() {
       const browserTz = getBrowserTimeZone();
       let next: { timezone: string; source: TimezoneSource; schoolTimezone?: string } | null = null;
       try {
-        const data = await requestApi<{ timezone: string; source: TimezoneSource; schoolTimezone: string }>(
-          `/api/v1/geo/timezone${browserTz ? `?browserTz=${encodeURIComponent(browserTz)}` : ''}`
-        );
+        const data = await requestApi<{
+          timezone: string;
+          source: TimezoneSource;
+          schoolTimezone: string;
+          savedPreference?: { timezone: string; source: string } | null;
+        }>(`/api/v1/geo/timezone${browserTz ? `?browserTz=${encodeURIComponent(browserTz)}` : ''}`);
+        const saved = data?.savedPreference;
+        if (saved && String(saved.source).toUpperCase() === 'MANUAL' && isValidTimeZone(saved.timezone)) {
+          // The student's saved manual choice wins over detection, on every device
+          next = { timezone: saved.timezone, source: 'manual', schoolTimezone: data.schoolTimezone };
+          if (!cancelled) dispatch(setTimezone(next));
+          return;
+        }
         if (isValidTimeZone(data?.timezone)) {
           next = { timezone: data.timezone, source: data.source, schoolTimezone: data.schoolTimezone };
+          // First login: remember the browser timezone as the default (never overwrites a manual choice)
+          if (!saved && browserTz) {
+            requestApi('/api/v1/geo/my-timezone', {
+              method: 'PUT',
+              body: JSON.stringify({ timezone: browserTz, source: 'browser' })
+            }).catch(() => undefined);
+          }
         }
       } catch {
         // Geolocation unavailable – fall through to the browser timezone
