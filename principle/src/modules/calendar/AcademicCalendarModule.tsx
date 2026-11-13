@@ -17,10 +17,52 @@ import {
   Info,
   CalendarCheck,
   Building2,
-  X
+  X,
+  Pencil,
+  GraduationCap,
+  Users,
+  Megaphone
 } from 'lucide-react';
-import { calendarApi, AcademicHoliday, CalendarOverviewResponse, DeclareHolidayPayload } from '../../services/calendarApi';
+import {
+  calendarApi,
+  CalendarOverviewResponse,
+  CalendarEvent,
+  CalendarEventType,
+  CalendarAudience,
+  CalendarConflict,
+  CalendarEventPayload
+} from '../../services/calendarApi';
+import { requestApi } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { useSocketEvent } from '../../hooks/useSocket';
+
+const EVENT_TYPE_OPTIONS: { value: CalendarEventType; label: string; holiday: boolean }[] = [
+  { value: 'VACATION', label: 'School Vacation (Winter / Summer Break)', holiday: true },
+  { value: 'PUBLIC_HOLIDAY', label: 'Public Holiday (Eid, Independence Day)', holiday: true },
+  { value: 'EMERGENCY_CLOSURE', label: 'Emergency Holiday (Weather / Administrative)', holiday: true },
+  { value: 'SPECIAL_HOLIDAY', label: 'Special Holiday', holiday: true },
+  { value: 'EXAMINATION', label: 'Examination', holiday: false },
+  { value: 'SCHOOL_EVENT', label: 'School Event (Sports Day, Function)', holiday: false },
+  { value: 'PARENT_MEETING', label: 'Parent Meeting', holiday: false },
+  { value: 'ANNOUNCEMENT', label: 'Other Announcement', holiday: false },
+  { value: 'INSTITUTIONAL_BREAK', label: 'Institutional Break (Faculty Training)', holiday: true },
+  { value: 'EXAM_PREP', label: 'Examination Preparation Break', holiday: true }
+];
+
+const AUDIENCE_OPTIONS: { value: CalendarAudience; label: string }[] = [
+  { value: 'ALL', label: 'Everyone (Students, Parents, Teachers)' },
+  { value: 'STUDENTS_PARENTS', label: 'Students & Parents' },
+  { value: 'STUDENTS', label: 'Students only' },
+  { value: 'PARENTS', label: 'Parents only' },
+  { value: 'TEACHERS', label: 'Teachers only' },
+  { value: 'STAFF', label: 'Staff (Teachers & Administration)' }
+];
+
+const isHolidayType = (t: string) => EVENT_TYPE_OPTIONS.find((o) => o.value === t)?.holiday ?? false;
+
+/** Local "YYYY-MM-DD" of the browser (the date pickers work in local calendar days). */
+const localDateKey = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -40,14 +82,30 @@ export const AcademicCalendarModule: React.FC = () => {
   const [selectedDayInfo, setSelectedDayInfo] = useState<any | null>(null);
 
   // Form State
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [formTitle, setFormTitle] = useState('');
-  const [formType, setFormType] = useState<DeclareHolidayPayload['holidayType']>('VACATION');
+  const [formType, setFormType] = useState<CalendarEventType>('VACATION');
   const [formStartDate, setFormStartDate] = useState('');
   const [formEndDate, setFormEndDate] = useState('');
   const [formDescription, setFormDescription] = useState('');
+  const [formStartTime, setFormStartTime] = useState('');
+  const [formEndTime, setFormEndTime] = useState('');
+  const [formAudience, setFormAudience] = useState<CalendarAudience>('ALL');
+  const [formAllClasses, setFormAllClasses] = useState(true);
+  const [formClassIds, setFormClassIds] = useState<number[]>([]);
+  const [formFullDay, setFormFullDay] = useState(true);
+  const [formSuspend, setFormSuspend] = useState(true);
+  const [formNotify, setFormNotify] = useState(true);
+  const [conflicts, setConflicts] = useState<CalendarConflict[] | null>(null);
+  const [classOptions, setClassOptions] = useState<{ id: number; name: string }[]>([]);
+
+  // Events (formatted) for the visible month and the whole year
+  const [monthEvents, setMonthEvents] = useState<CalendarEvent[]>([]);
+  const [yearEvents, setYearEvents] = useState<CalendarEvent[]>([]);
+  const [viewMode, setViewMode] = useState<'month' | 'year'>('month');
 
   // Delete State
-  const [holidayToDelete, setHolidayToDelete] = useState<AcademicHoliday | null>(null);
+  const [holidayToDelete, setHolidayToDelete] = useState<CalendarEvent | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const year = currentDate.getFullYear();
@@ -56,8 +114,14 @@ export const AcademicCalendarModule: React.FC = () => {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await calendarApi.getOverview({ year, month });
+      const [data, events, yearly] = await Promise.all([
+        calendarApi.getOverview({ year, month }),
+        calendarApi.getEvents({ year, month }),
+        calendarApi.getEvents({ year })
+      ]);
       setOverview(data);
+      setMonthEvents(Array.isArray(events) ? events : []);
+      setYearEvents(Array.isArray(yearly) ? yearly : []);
     } catch (err: any) {
       addToast(err?.message || 'Failed to load academic calendar data', 'error');
     } finally {
@@ -68,6 +132,23 @@ export const AcademicCalendarModule: React.FC = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    requestApi<any[]>('/api/v1/classes')
+      .then((rows) =>
+        setClassOptions(
+          (Array.isArray(rows) ? rows : [])
+            .map((c) => ({ id: Number(c.id), name: String(c.name || c.className || `Class ${c.grade_level || c.id}`) }))
+            .filter((c) => c.id)
+        )
+      )
+      .catch(() => setClassOptions([]));
+  }, []);
+
+  // Live refresh when any staff member changes the calendar
+  useSocketEvent('calendar.updated', () => {
+    loadData();
+  });
 
   // Handle Month Navigation
   const handlePrevMonth = () => {
@@ -84,20 +165,59 @@ export const AcademicCalendarModule: React.FC = () => {
 
   // Open Modal with prefilled date
   const handleOpenDeclareModal = (presetDate?: string) => {
-    const todayStr = presetDate || new Date().toISOString().split('T')[0];
+    const todayStr = presetDate || localDateKey();
+    setEditingId(null);
     setFormTitle('');
     setFormType('VACATION');
     setFormStartDate(todayStr);
     setFormEndDate(todayStr);
     setFormDescription('');
+    setFormStartTime('');
+    setFormEndTime('');
+    setFormAudience('ALL');
+    setFormAllClasses(true);
+    setFormClassIds([]);
+    setFormFullDay(true);
+    setFormSuspend(true);
+    setFormNotify(true);
+    setConflicts(null);
     setIsDeclareModalOpen(true);
   };
 
-  // Submit Declaration
-  const handleSubmitHoliday = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleOpenEditModal = (ev: CalendarEvent) => {
+    setEditingId(ev.id);
+    setFormTitle(ev.title);
+    setFormType(ev.eventType);
+    setFormStartDate(ev.startDate);
+    setFormEndDate(ev.endDate);
+    setFormDescription(ev.description || '');
+    setFormStartTime(ev.startTime || '');
+    setFormEndTime(ev.endTime || '');
+    setFormAudience(ev.targetAudience || 'ALL');
+    setFormAllClasses(ev.affectsAllClasses);
+    setFormClassIds(ev.classIds || []);
+    setFormFullDay(ev.isFullDayHoliday);
+    setFormSuspend(ev.classesSuspended);
+    setFormNotify(ev.sendNotification);
+    setConflicts(null);
+    setIsDeclareModalOpen(true);
+  };
+
+  // Changing the type resets the sensible defaults for holidays vs. events
+  const handleTypeChange = (value: CalendarEventType) => {
+    setFormType(value);
+    if (!editingId) {
+      const holiday = isHolidayType(value);
+      setFormFullDay(holiday);
+      setFormSuspend(holiday);
+    }
+  };
+
+  // Submit (create or update). Conflicts are returned by the server as a warning that
+  // must be explicitly confirmed before publishing.
+  const submitEvent = async (confirmConflicts: boolean) => {
     if (!formTitle.trim()) {
-      addToast('Please enter a holiday title', 'warning');
+      addToast('Please enter an event title', 'warning');
       return;
     }
     if (!formStartDate || !formEndDate) {
@@ -108,30 +228,68 @@ export const AcademicCalendarModule: React.FC = () => {
       addToast('Start date cannot be after end date', 'warning');
       return;
     }
+    if (!formFullDay && (!formStartTime || !formEndTime)) {
+      addToast('Please provide a start and end time, or mark the event as full day', 'warning');
+      return;
+    }
+    if (!formAllClasses && formClassIds.length === 0) {
+      addToast('Select at least one class, or apply the event school-wide', 'warning');
+      return;
+    }
+
+    const payload: CalendarEventPayload = {
+      sessionId: overview?.session?.id,
+      title: formTitle.trim(),
+      eventType: formType,
+      startDate: formStartDate,
+      endDate: formEndDate,
+      startTime: formFullDay ? null : formStartTime,
+      endTime: formFullDay ? null : formEndTime,
+      description: formDescription.trim() || null,
+      targetAudience: formAudience,
+      affectsAllClasses: formAllClasses,
+      classIds: formAllClasses ? [] : formClassIds,
+      isFullDayHoliday: formFullDay,
+      classesSuspended: formSuspend,
+      sendNotification: formNotify,
+      isPublished: true,
+      confirmConflicts
+    };
 
     try {
       setSubmitting(true);
-      const res = await calendarApi.declareHoliday({
-        sessionId: overview?.session?.id,
-        title: formTitle.trim(),
-        holidayType: formType,
-        startDate: formStartDate,
-        endDate: formEndDate,
-        description: formDescription.trim() || undefined,
-        affectsAllClasses: true
-      });
-
-      addToast(
-        `Holiday break "${res.title}" declared successfully. ${res.auto_cancelled_lessons_count || 0} scheduled classes were cancelled.`,
-        'success'
-      );
+      if (editingId) {
+        const res = await calendarApi.updateEvent(editingId, payload);
+        addToast(
+          res.changedFields?.length
+            ? `"${res.title}" updated. ${formNotify ? 'Affected users have been notified.' : ''}`
+            : `"${res.title}" saved.`,
+          'success'
+        );
+      } else {
+        const res = await calendarApi.createEvent(payload);
+        addToast(
+          `"${res.title}" published.${res.classesSuspended ? ` ${res.autoCancelledLessonsCount || 0} scheduled lessons suspended.` : ''}`,
+          'success'
+        );
+      }
+      setConflicts(null);
       setIsDeclareModalOpen(false);
       loadData();
     } catch (err: any) {
-      addToast(err?.message || 'Failed to declare holiday break', 'error');
+      if (err?.code === 'SCHEDULE_CONFLICT' && Array.isArray(err?.details?.conflicts)) {
+        setConflicts(err.details.conflicts);
+      } else {
+        addToast(err?.message || 'Failed to save calendar event', 'error');
+      }
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSubmitHoliday = (e: React.FormEvent) => {
+    e.preventDefault();
+    submitEvent(false);
   };
 
   // Confirm Delete
@@ -139,8 +297,11 @@ export const AcademicCalendarModule: React.FC = () => {
     if (!holidayToDelete) return;
     try {
       setDeleting(true);
-      await calendarApi.deleteHoliday(holidayToDelete.id);
-      addToast(`Holiday break "${holidayToDelete.title}" revoked. Timetable classes restored.`, 'info');
+      const res = await calendarApi.deleteEvent(holidayToDelete.id);
+      addToast(
+        `"${holidayToDelete.title}" cancelled.${res.restoredLessons ? ` ${res.restoredLessons} lessons restored.` : ''} Affected users have been notified.`,
+        'info'
+      );
       setHolidayToDelete(null);
       loadData();
     } catch (err: any) {
@@ -200,12 +361,42 @@ export const AcademicCalendarModule: React.FC = () => {
         return { label: 'School Break', color: 'bg-amber-50 text-amber-800 border-amber-200', icon: Building2 };
       case 'EXAM_PREP':
         return { label: 'Exam Prep Break', color: 'bg-purple-50 text-purple-700 border-purple-200', icon: BookOpen };
+      case 'EMERGENCY_CLOSURE':
+        return { label: 'Emergency Holiday', color: 'bg-rose-50 text-rose-700 border-rose-200', icon: ShieldAlert };
+      case 'SPECIAL_HOLIDAY':
+        return { label: 'Special Holiday', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: Sparkles };
+      case 'EXAMINATION':
+        return { label: 'Examination', color: 'bg-purple-50 text-purple-700 border-purple-200', icon: GraduationCap };
+      case 'SCHOOL_EVENT':
+        return { label: 'School Event', color: 'bg-sky-50 text-sky-700 border-sky-200', icon: CalendarCheck };
+      case 'PARENT_MEETING':
+        return { label: 'Parent Meeting', color: 'bg-amber-50 text-amber-800 border-amber-200', icon: Users };
+      case 'ANNOUNCEMENT':
+        return { label: 'Announcement', color: 'bg-slate-50 text-slate-700 border-slate-200', icon: Megaphone };
       default:
         return { label: 'Holiday', color: 'bg-indigo-50 text-indigo-700 border-indigo-200', icon: CalendarDays };
     }
   };
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = localDateKey();
+
+  const classNameById = (id: number) => classOptions.find((c) => c.id === id)?.name || `Class #${id}`;
+
+  // 12 mini-month grids for the year view
+  const yearGrid = useMemo(() => {
+    return MONTH_NAMES.map((name, idx) => {
+      const firstDay = new Date(year, idx, 1).getDay();
+      const offset = (firstDay + 6) % 7;
+      const daysInMonth = new Date(year, idx + 1, 0).getDate();
+      const cells: ({ day: number; key: string; events: CalendarEvent[] } | null)[] = [];
+      for (let i = 0; i < offset; i++) cells.push(null);
+      for (let d = 1; d <= daysInMonth; d++) {
+        const key = `${year}-${String(idx + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        cells.push({ day: d, key, events: yearEvents.filter((e) => key >= e.startDate && key <= e.endDate) });
+      }
+      return { name, idx, cells };
+    });
+  }, [year, yearEvents]);
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-y-auto bg-slate-50">
@@ -299,16 +490,28 @@ export const AcademicCalendarModule: React.FC = () => {
           <div className="px-6 py-4 border-b border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
             <div className="flex items-center gap-3">
               <h2 className="text-lg font-black text-[#191847]">
-                {MONTH_NAMES[month - 1]} {year}
+                {viewMode === 'year' ? `Year ${year}` : `${MONTH_NAMES[month - 1]} ${year}`}
               </h2>
               <span className="text-xs font-bold text-slate-500 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
-                {overview?.days.length || 0} Days
+                {viewMode === 'year' ? `${yearEvents.length} Events` : `${overview?.days.length || 0} Days`}
               </span>
+              <div className="flex bg-white p-0.5 rounded-lg border border-slate-200 text-[11px] font-bold">
+                {(['month', 'year'] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setViewMode(v)}
+                    className={`px-2.5 py-1 rounded-md transition-colors ${viewMode === v ? 'bg-[#36348e] text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                  >
+                    {v === 'month' ? 'Month' : 'Year'}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="flex items-center gap-1.5 self-end sm:self-auto">
               <button
-                onClick={handlePrevMonth}
+                onClick={() => (viewMode === 'year' ? setCurrentDate(new Date(year - 1, month - 1, 1)) : handlePrevMonth())}
                 className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 rounded-lg transition-colors"
                 title="Previous Month"
               >
@@ -321,7 +524,7 @@ export const AcademicCalendarModule: React.FC = () => {
                 Today
               </button>
               <button
-                onClick={handleNextMonth}
+                onClick={() => (viewMode === 'year' ? setCurrentDate(new Date(year + 1, month - 1, 1)) : handleNextMonth())}
                 className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 rounded-lg transition-colors"
                 title="Next Month"
               >
@@ -330,6 +533,57 @@ export const AcademicCalendarModule: React.FC = () => {
             </div>
           </div>
 
+          {viewMode === 'year' ? (
+            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 bg-slate-50/40">
+              {yearGrid.map((m) => (
+                <div key={m.name} className="bg-white border border-slate-200/80 rounded-xl p-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentDate(new Date(year, m.idx, 1));
+                      setViewMode('month');
+                    }}
+                    className="text-xs font-black text-[#191847] hover:text-[#36348e] mb-2"
+                  >
+                    {m.name}
+                  </button>
+                  <div className="grid grid-cols-7 gap-0.5 text-center text-[9px] font-bold text-slate-400 mb-1">
+                    {WEEKDAYS.map((w) => (
+                      <div key={w}>{w.charAt(0)}</div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7 gap-0.5">
+                    {m.cells.map((c, i) =>
+                      c ? (
+                        <div
+                          key={c.key}
+                          title={c.events.map((e) => e.title).join(', ')}
+                          className={`h-6 rounded text-[10px] font-bold flex items-center justify-center ${
+                            c.events.some((e) => e.classesSuspended)
+                              ? 'bg-rose-100 text-rose-800'
+                              : c.events.length > 0
+                              ? 'bg-indigo-100 text-[#36348e]'
+                              : c.key === todayStr
+                              ? 'ring-1 ring-[#36348e] text-slate-800'
+                              : 'text-slate-600'
+                          }`}
+                        >
+                          {c.day}
+                        </div>
+                      ) : (
+                        <div key={`e-${i}`} />
+                      )
+                    )}
+                  </div>
+                </div>
+              ))}
+              <div className="sm:col-span-2 xl:col-span-3 flex items-center gap-4 text-[11px] font-semibold text-slate-500">
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-rose-100" /> Holiday / classes suspended</span>
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-indigo-100" /> Event / examination</span>
+              </div>
+            </div>
+          ) : (
+          <>
           {/* Weekday Header */}
           <div className="grid grid-cols-7 border-b border-slate-200 text-center bg-slate-100/70 py-2 text-[11px] font-black text-slate-500 uppercase tracking-wider">
             {WEEKDAYS.map((w) => (
@@ -410,7 +664,11 @@ export const AcademicCalendarModule: React.FC = () => {
                         </div>
                       ) : (
                         <div className="text-[10px] text-slate-400 font-medium">
-                          {scheduledLessons > 0 ? (
+                          {dayItem.events?.length > 0 ? (
+                            <span className="text-[#36348e] font-bold line-clamp-2">
+                              {dayItem.events.map((e: any) => e.title).join(', ')}
+                            </span>
+                          ) : scheduledLessons > 0 ? (
                             <span className="text-emerald-700 font-semibold flex items-center gap-1">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                               Classes Scheduled
@@ -440,6 +698,8 @@ export const AcademicCalendarModule: React.FC = () => {
               })}
             </div>
           )}
+          </>
+          )}
         </div>
 
         {/* 4. Active Declared Holidays & Breaks List */}
@@ -450,8 +710,10 @@ export const AcademicCalendarModule: React.FC = () => {
                 <Umbrella className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-sm font-black text-slate-900">Declared Holiday Breaks for Session</h3>
-                <p className="text-xs text-slate-500">Official break circulars enforced across timetable and live classes</p>
+                <h3 className="text-sm font-black text-slate-900">
+                  Holidays & Calendar Events · {MONTH_NAMES[month - 1]} {year}
+                </h3>
+                <p className="text-xs text-slate-500">Holidays, examinations, school events and announcements published to the portals</p>
               </div>
             </div>
 
@@ -460,11 +722,11 @@ export const AcademicCalendarModule: React.FC = () => {
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-[#36348e] text-xs font-bold rounded-lg border border-indigo-100 transition-colors"
             >
               <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-              Add Break
+              Add Event
             </button>
           </div>
 
-          {overview?.holidays && overview.holidays.length > 0 ? (
+          {monthEvents.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
@@ -477,10 +739,10 @@ export const AcademicCalendarModule: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {overview.holidays.map((h) => {
-                    const badge = getHolidayBadge(h.holiday_type);
-                    const startDateStr = String(h.start_date).split('T')[0];
-                    const endDateStr = String(h.end_date).split('T')[0];
+                  {monthEvents.map((h) => {
+                    const badge = getHolidayBadge(h.eventType);
+                    const startDateStr = h.startDate;
+                    const endDateStr = h.endDate;
                     const isSingleDay = startDateStr === endDateStr;
 
                     return (
@@ -494,6 +756,11 @@ export const AcademicCalendarModule: React.FC = () => {
                             </span>
                             <div>
                               <div className="font-black text-slate-900 text-xs sm:text-sm">{h.title}</div>
+                              <div className="text-[10px] font-bold text-slate-500 mt-0.5">
+                                {badge.label} · {AUDIENCE_OPTIONS.find((a) => a.value === h.targetAudience)?.label || 'Everyone'}
+                                {' · '}
+                                {h.affectsAllClasses ? 'School-wide' : h.classIds.map(classNameById).join(', ')}
+                              </div>
                               {h.description && (
                                 <div className="text-[11px] text-slate-500 max-w-sm truncate mt-0.5">
                                   {h.description}
@@ -513,13 +780,28 @@ export const AcademicCalendarModule: React.FC = () => {
                               {endDateStr}
                             </span>
                           )}
+                          {h.startTime && h.endTime && (
+                            <div className="text-[10px] font-semibold text-slate-500 mt-0.5">
+                              {h.startTime} – {h.endTime}
+                            </div>
+                          )}
                         </td>
 
                         <td className="py-3.5 px-4">
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-50 text-rose-700 border border-rose-200 font-extrabold text-[11px]">
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                            <span>{h.auto_cancelled_lessons_count || 0} Lessons Auto-Cancelled</span>
-                          </div>
+                          {h.classesSuspended ? (
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-50 text-rose-700 border border-rose-200 font-extrabold text-[11px]">
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                              <span>
+                                {h.autoCancelledLessonsCount || 0} Lessons Suspended
+                                {!h.isFullDayHoliday && ' (partial day)'}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 font-extrabold text-[11px]">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Classes run normally</span>
+                            </div>
+                          )}
                         </td>
 
                         <td className="py-3.5 px-4 text-slate-600">
@@ -527,7 +809,15 @@ export const AcademicCalendarModule: React.FC = () => {
                           <div className="text-[10px] text-slate-400">Official Directive</div>
                         </td>
 
-                        <td className="py-3.5 px-4 text-right">
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          <button
+                            onClick={() => handleOpenEditModal(h)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-[#36348e] hover:bg-indigo-50 rounded-lg border border-transparent hover:border-indigo-100 transition-colors mr-1"
+                            title="Edit event"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            Edit
+                          </button>
                           <button
                             onClick={() => setHolidayToDelete(h)}
                             className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg border border-transparent hover:border-rose-200 transition-colors"
@@ -566,8 +856,8 @@ export const AcademicCalendarModule: React.FC = () => {
                   <CalendarDays className="w-4 h-4 text-indigo-200" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black tracking-tight">Declare Holiday Break</h3>
-                  <p className="text-[11px] text-indigo-200">Enforces mandatory class cancellation across all portals</p>
+                  <h3 className="text-sm font-black tracking-tight">{editingId ? 'Edit Calendar Event' : 'Add Calendar Event'}</h3>
+                  <p className="text-[11px] text-indigo-200">Published to the relevant portals with live notifications</p>
                 </div>
               </div>
               <button
@@ -579,10 +869,10 @@ export const AcademicCalendarModule: React.FC = () => {
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleSubmitHoliday} className="p-6 space-y-4">
+            <form onSubmit={handleSubmitHoliday} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
               <div>
                 <label className="block text-xs font-extrabold text-slate-700 mb-1">
-                  Holiday / Break Title <span className="text-rose-500">*</span>
+                  Event Title <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -595,18 +885,72 @@ export const AcademicCalendarModule: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-extrabold text-slate-700 mb-1">Break Category</label>
+                <label className="block text-xs font-extrabold text-slate-700 mb-1">Event Type</label>
                 <select
                   value={formType}
-                  onChange={(e) => setFormType(e.target.value as any)}
+                  onChange={(e) => handleTypeChange(e.target.value as CalendarEventType)}
                   className="w-full px-3.5 py-2 text-xs font-semibold border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#36348e]/20 focus:border-[#36348e]"
                 >
-                  <option value="VACATION">Vacation (Winter / Summer Break)</option>
-                  <option value="PUBLIC_HOLIDAY">Public / National Holiday (Eid, Independence Day)</option>
-                  <option value="INSTITUTIONAL_BREAK">Institutional Break (Faculty Training, Sports Day)</option>
-                  <option value="EXAM_PREP">Examination Preparation Break</option>
-                  <option value="EMERGENCY_CLOSURE">Emergency Weather / Administrative Closure</option>
+                  {EVENT_TYPE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-extrabold text-slate-700 mb-1">Target Audience</label>
+                <select
+                  value={formAudience}
+                  onChange={(e) => setFormAudience(e.target.value as CalendarAudience)}
+                  className="w-full px-3.5 py-2 text-xs font-semibold border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#36348e]/20 focus:border-[#36348e]"
+                >
+                  {AUDIENCE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-500 mt-1">Principal and Admin users always see every event.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-extrabold text-slate-700 mb-1">Scope</label>
+                <div className="flex gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setFormAllClasses(true)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-colors ${formAllClasses ? 'bg-[#36348e] text-white border-[#36348e]' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                  >
+                    Entire school
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormAllClasses(false)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-colors ${!formAllClasses ? 'bg-[#36348e] text-white border-[#36348e]' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                  >
+                    Selected classes / sections
+                  </button>
+                </div>
+                {!formAllClasses && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-2.5 border border-slate-200 rounded-xl max-h-36 overflow-y-auto">
+                    {classOptions.length === 0 && <span className="text-[11px] text-slate-400 col-span-full">No classes found.</span>}
+                    {classOptions.map((c) => (
+                      <label key={c.id} className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formClassIds.includes(c.id)}
+                          onChange={(e) =>
+                            setFormClassIds((prev) => (e.target.checked ? [...prev, c.id] : prev.filter((x) => x !== c.id)))
+                          }
+                          className="accent-[#36348e]"
+                        />
+                        {c.name}
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -636,8 +980,46 @@ export const AcademicCalendarModule: React.FC = () => {
                 </div>
               </div>
 
+              <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                  <input type="checkbox" checked={formFullDay} onChange={(e) => setFormFullDay(e.target.checked)} className="accent-[#36348e]" />
+                  Full-day event / holiday
+                </label>
+                {!formFullDay && (
+                  <div className="grid grid-cols-2 gap-3 pl-6">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Start Time</label>
+                      <input
+                        type="time"
+                        value={formStartTime}
+                        onChange={(e) => setFormStartTime(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#36348e]/20 focus:border-[#36348e]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">End Time</label>
+                      <input
+                        type="time"
+                        value={formEndTime}
+                        onChange={(e) => setFormEndTime(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#36348e]/20 focus:border-[#36348e]"
+                      />
+                    </div>
+                    <p className="col-span-2 text-[10px] text-slate-500">Times are in the school's timezone.</p>
+                  </div>
+                )}
+                <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                  <input type="checkbox" checked={formSuspend} onChange={(e) => setFormSuspend(e.target.checked)} className="accent-[#36348e]" />
+                  Suspend regular classes {formFullDay ? 'for these dates' : 'during this time window'}
+                </label>
+                <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                  <input type="checkbox" checked={formNotify} onChange={(e) => setFormNotify(e.target.checked)} className="accent-[#36348e]" />
+                  Send live notification to the selected audience
+                </label>
+              </div>
+
               <div>
-                <label className="block text-xs font-extrabold text-slate-700 mb-1">Circular Notes (Optional)</label>
+                <label className="block text-xs font-extrabold text-slate-700 mb-1">Description (Optional)</label>
                 <textarea
                   rows={2}
                   placeholder="Official notice text or instructions for staff and students..."
@@ -647,15 +1029,59 @@ export const AcademicCalendarModule: React.FC = () => {
                 />
               </div>
 
-              {/* Strict Enforcement Notice */}
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2.5">
-                <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                <div className="text-[11px] text-amber-900 leading-relaxed font-medium">
-                  <span className="font-extrabold text-amber-950">Strict School Policy:</span> All scheduled timetable
-                  lessons, teacher duties, and Zoom classroom joins will be suppressed and marked as cancelled for this
-                  break range immediately.
+              {/* Enforcement Notice */}
+              {formSuspend && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2.5">
+                  <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                  <div className="text-[11px] text-amber-900 leading-relaxed font-medium">
+                    <span className="font-extrabold text-amber-950">Timetable:</span> Scheduled lessons for the{' '}
+                    {formAllClasses ? 'whole school' : 'selected classes'} {formFullDay ? 'on these dates' : 'in this time window'} will
+                    show as Holiday. The recurring timetable is not changed and lessons return automatically if this event is cancelled.
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* Conflict review */}
+              {conflicts && conflicts.length > 0 && (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-black text-rose-800">
+                    <AlertTriangle className="w-4 h-4" />
+                    {conflicts.length} schedule conflict{conflicts.length === 1 ? '' : 's'} found
+                  </div>
+                  <ul className="space-y-1 max-h-32 overflow-y-auto">
+                    {conflicts.map((c, i) => (
+                      <li key={`${c.kind}-${c.id}-${i}`} className="text-[11px] text-rose-900">
+                        <span className="font-bold">{c.title}</span>
+                        {' — '}
+                        {c.reason}
+                        {(c.date || c.startDate) && (
+                          <span className="text-rose-700">
+                            {' '}
+                            ({c.date || (c.startDate === c.endDate ? c.startDate : `${c.startDate} → ${c.endDate}`)})
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setConflicts(null)}
+                      className="px-3 py-1.5 text-[11px] font-bold text-rose-700 hover:bg-rose-100 rounded-lg"
+                    >
+                      Go back and adjust
+                    </button>
+                    <button
+                      type="button"
+                      disabled={submitting}
+                      onClick={() => submitEvent(true)}
+                      className="px-3 py-1.5 text-[11px] font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg disabled:opacity-50"
+                    >
+                      Publish anyway
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Actions */}
               <div className="flex items-center justify-end gap-2.5 pt-2">
@@ -671,7 +1097,7 @@ export const AcademicCalendarModule: React.FC = () => {
                   disabled={submitting}
                   className="inline-flex items-center gap-2 px-5 py-2 bg-[#36348e] hover:bg-[#28266e] text-white text-xs font-bold rounded-xl shadow-xs transition-colors disabled:opacity-50"
                 >
-                  {submitting ? 'Enforcing...' : 'Enforce Holiday Break'}
+                  {submitting ? 'Saving...' : editingId ? 'Save Changes' : 'Publish Event'}
                 </button>
               </div>
             </form>
@@ -751,18 +1177,49 @@ export const AcademicCalendarModule: React.FC = () => {
               </div>
             )}
 
+            {Array.isArray(selectedDayInfo.events) && selectedDayInfo.events.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Events on this day</div>
+                {selectedDayInfo.events.map((ev: { id: number; title: string; eventType: string }) => {
+                  const b = getHolidayBadge(ev.eventType);
+                  const full = monthEvents.find((m) => m.id === ev.id);
+                  return (
+                    <div key={ev.id} className="flex items-center justify-between gap-2 p-2 rounded-lg border border-slate-200">
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-900 truncate">{ev.title}</div>
+                        <div className="text-[10px] text-slate-500">
+                          {b.label}
+                          {full?.startTime && full?.endTime ? ` · ${full.startTime}–${full.endTime}` : ''}
+                        </div>
+                      </div>
+                      {full && (
+                        <button
+                          onClick={() => {
+                            setSelectedDayInfo(null);
+                            handleOpenEditModal(full);
+                          }}
+                          className="p-1 rounded-md text-[#36348e] hover:bg-indigo-50"
+                          title="Edit event"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             <div className="flex items-center justify-end gap-2 pt-1">
-              {!selectedDayInfo.isHoliday && (
-                <button
-                  onClick={() => {
-                    handleOpenDeclareModal(selectedDayInfo.date);
-                    setSelectedDayInfo(null);
-                  }}
-                  className="px-3 py-1.5 bg-[#36348e] text-white text-xs font-bold rounded-lg hover:bg-[#28266e]"
-                >
-                  Declare Holiday on this Day
-                </button>
-              )}
+              <button
+                onClick={() => {
+                  handleOpenDeclareModal(selectedDayInfo.date);
+                  setSelectedDayInfo(null);
+                }}
+                className="px-3 py-1.5 bg-[#36348e] text-white text-xs font-bold rounded-lg hover:bg-[#28266e]"
+              >
+                Add Event on this Day
+              </button>
             </div>
           </div>
         </div>

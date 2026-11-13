@@ -1,5 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { requestApi } from '../services/api';
+import { getSocket, disconnectSocket, RealtimeEvents } from '../services/socketService';
+import { setUserTimeZone, getBrowserTimeZone } from '../lib/format';
 
 export interface ParentUser {
   id: number;
@@ -113,6 +115,21 @@ export function ParentProvider({ children: content }: { children: React.ReactNod
       role: data.role,
       mustChangePassword: Boolean(data.mustChangePassword),
     };
+
+    // Display timezone: a saved manual choice wins; otherwise this device's zone, which is
+    // remembered as the default on first sign-in (the server never overwrites a manual choice).
+    if (String(data.timezoneSource || '').toUpperCase() === 'MANUAL' && data.timezone) {
+      setUserTimeZone(data.timezone);
+    } else {
+      setUserTimeZone(getBrowserTimeZone());
+      if (!data.timezone) {
+        requestApi('/api/v1/geo/my-timezone', {
+          method: 'PUT',
+          body: JSON.stringify({ timezone: getBrowserTimeZone(), source: 'browser' })
+        }).catch(() => undefined);
+      }
+    }
+
     setUser(parentUser);
     return parentUser;
   }, []);
@@ -212,8 +229,24 @@ export function ParentProvider({ children: content }: { children: React.ReactNod
       }
     };
     const id = setInterval(check, 30000);
-    return () => clearInterval(id);
+
+    // Live delivery: re-check immediately when the server pushes a notification
+    const socket = getSocket();
+    const onNotification = () => {
+      check();
+    };
+    socket.on(RealtimeEvents.NOTIFICATION_CREATED, onNotification);
+
+    return () => {
+      clearInterval(id);
+      socket.off(RealtimeEvents.NOTIFICATION_CREATED, onNotification);
+    };
   }, [user, showToast]);
+
+  // Close the realtime connection when the parent signs out
+  useEffect(() => {
+    if (!user) disconnectSocket();
+  }, [user]);
 
   const childList = dashboard?.children || [];
   const selectedChild = useMemo(

@@ -19,6 +19,7 @@ import { setToast, fetchDashboard } from '../store/slices/studentSlice';
 import { fetchMyGrades, SubjectGradeItem } from '../store/slices/gradesSlice';
 import { useSocketEvent, useClassRoomSubscription } from '../hooks/useSocket';
 import { RealtimeEvents } from '../services/socketService';
+import UpcomingEventsCard from '../components/common/UpcomingEventsCard';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -513,6 +514,9 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* School calendar: upcoming events, next holiday and full-year view */}
+      <UpcomingEventsCard />
 
       {/* =========================================================================
           ACADEMIC PERFORMANCE & GRAPHS SECTION (Directly solves "no graphs shown")

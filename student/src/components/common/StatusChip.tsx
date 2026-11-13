@@ -30,6 +30,8 @@ export default function StatusChip({ status, className = "" }: StatusChipProps) 
         return 'bg-blue-100 text-blue-700 font-semibold';
       case 'cancelled':
         return 'bg-muted text-muted-foreground font-semibold';
+      case 'holiday':
+        return 'bg-rose-100 text-rose-700 font-semibold';
       default:
         return 'bg-muted text-muted-foreground';
     }

@@ -42,7 +42,8 @@ export const calendarController = {
       const overview = await calendarService.getCalendarOverview({
         sessionId,
         year,
-        month
+        month,
+        user: req.user
       });
 
       return sendSuccess(res, overview);
@@ -71,6 +72,8 @@ export const calendarController = {
         endDate,
         description,
         affectsAllClasses,
+        classIds: req.body.classIds,
+        confirmConflicts: req.body.confirmConflicts,
         createdBy: req.user?.id
       });
 
@@ -98,6 +101,83 @@ export const calendarController = {
     } catch (error) {
       next(error);
     }
+  },
+
+  // ─── Extended Calendar Event Endpoints ────────────────────────────────────
+
+  async getEvents(req, res, next) {
+    try {
+      const { sessionId, year, month, startDate, endDate, classId } = req.query;
+      const events = await calendarService.getEvents({
+        sessionId: sessionId ? Number(sessionId) : null,
+        year: year ? Number(year) : null,
+        month: month ? Number(month) : null,
+        startDate: startDate || null,
+        endDate: endDate || null,
+        user: req.user,
+        classId: classId ? Number(classId) : null
+      });
+      return sendSuccess(res, events);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getUpcomingEvents(req, res, next) {
+    try {
+      const { sessionId, classId, limitDays } = req.query;
+      const data = await calendarService.getUpcomingEvents({
+        sessionId: sessionId ? Number(sessionId) : null,
+        user: req.user,
+        classId: classId ? Number(classId) : null,
+        limitDays: limitDays ? Number(limitDays) : 30
+      });
+      return sendSuccess(res, data);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async checkConflicts(req, res, next) {
+    try {
+      const excludeId = req.body.id ? Number(req.body.id) : null;
+      const result = await calendarService.checkConflicts(req.body, excludeId);
+      return sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async createEvent(req, res, next) {
+    try {
+      const event = await calendarService.createEvent({
+        ...req.body,
+        sessionId: req.body.sessionId ? Number(req.body.sessionId) : null,
+        createdBy: req.user?.id
+      });
+      return sendSuccess(res, event, 'Calendar event published successfully.', 201);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async updateEvent(req, res, next) {
+    try {
+      const id = Number(req.params.id);
+      const event = await calendarService.updateEvent(id, req.body, req.user?.id);
+      return sendSuccess(res, event, 'Calendar event updated successfully.');
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async deleteEvent(req, res, next) {
+    try {
+      const id = Number(req.params.id);
+      const result = await calendarService.deleteEvent(id, req.user?.id);
+      return sendSuccess(res, result, 'Calendar event cancelled. Affected users have been notified.');
+    } catch (error) {
+      next(error);
+    }
   }
 };
-

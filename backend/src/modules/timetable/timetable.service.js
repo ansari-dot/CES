@@ -6,6 +6,7 @@ import { emitRealtimeEvent, RealtimeEvents } from '../../shared/realtime/eventEm
 import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
 import { config } from '../../config/index.js';
+import { calendarRepository } from '../calendar/calendar.repository.js';
 
 /**
  * Convert a school wall-clock time string "HH:MM" or "HH:MM:SS" on a given
@@ -334,25 +335,9 @@ export const timetableService = {
     for (let dayOffset = 0; dayOffset < days; dayOffset++) {
       const targetDate = new Date(Date.UTC(startYear, startMonth - 1, startDay + dayOffset, 12, 0, 0));
       const dateString = formatter.format(targetDate);
-
-      // Check if this date falls within a declared holiday break
-      const holiday = await db('academic_holidays')
-        .where('session_id', sessionId)
-        .whereRaw('DATE(?) BETWEEN DATE(start_date) AND DATE(end_date)', [dateString])
-        .first();
-
-      if (holiday) {
-        // Holiday break in effect: No classes occur during declared holidays
-        await db('timetable_lessons')
-          .where('status', 'SCHEDULED')
-          .whereRaw('DATE(lesson_date) = ?', [dateString])
-          .update({
-            status: 'CANCELLED',
-            cancel_reason: `Holiday Break: ${holiday.title}`,
-            updated_at: db.fn.now()
-          });
-        continue;
-      }
+      // Holidays are applied after generation as date-specific exceptions
+      // (see calendarRepository.syncHolidayExceptions below), so selected-class and
+      // partial-day holidays only suspend the affected lessons.
 
       const dayParts = new Intl.DateTimeFormat('en-US', {
         timeZone: schoolTz,
@@ -401,6 +386,15 @@ export const timetableService = {
           } catch (_) {}
         }
       }
+    }
+
+    // Apply calendar holidays as date-specific exceptions over the generated window and
+    // restore lessons whose holiday was cancelled. Original recurring slots stay untouched.
+    try {
+      const windowEnd = formatter.format(new Date(Date.UTC(startYear, startMonth - 1, startDay + Math.max(days - 1, 0), 12, 0, 0)));
+      await calendarRepository.syncHolidayExceptions({ startDate: todaySchoolStr, endDate: windowEnd });
+    } catch (syncErr) {
+      console.warn('[TimetableService] Holiday exception sync warning:', syncErr.message);
     }
 
     await timetableRepository.logChange({

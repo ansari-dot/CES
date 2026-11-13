@@ -1,7 +1,23 @@
-import React, { useState, useMemo } from 'react';
-import { useSelector } from 'react-redux';
-import { ChevronLeft, ChevronRight, BookOpen, Calendar } from 'lucide-react';
-import { RootState } from '../store';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import { ChevronLeft, ChevronRight, BookOpen, Calendar, PartyPopper } from 'lucide-react';
+import { RootState, AppDispatch } from '../store';
+import { fetchTimetable } from '../store/slices/classesSlice';
+import { requestApi } from '../services/api';
+import { useSocketEvent } from '../hooks/useSocket';
+import { RealtimeEvents } from '../services/socketService';
+
+interface TimetableHolidayEvent {
+  id: number;
+  title: string;
+  startDate: string;
+  endDate: string;
+  startTime: string | null;
+  endTime: string | null;
+  classesSuspended: boolean;
+  isFullDayHoliday: boolean;
+  description: string | null;
+}
 import { TimetableLesson, TimetableDay } from '../store/slices/classesSlice';
 import { dateKeyInZone, dayLabelFromKey, longDateFromKey } from '../lib/timezone';
 import StatusChip from '../components/common/StatusChip';
@@ -16,6 +32,8 @@ export default function Timetable() {
   const [selectedKey, setSelectedKey] = useState<string>('');
   const [activeView, setActiveView] = useState<"Week" | "Day">("Week");
   const [activeModalLesson, setActiveModalLesson] = useState<TimetableLesson | null>(null);
+  const dispatch = useDispatch<AppDispatch>();
+  const [holidayEvents, setHolidayEvents] = useState<TimetableHolidayEvent[]>([]);
 
   // Days are local calendar dates in the student's detected timezone
   const todayKey = dateKeyInZone(new Date(), timezone);
@@ -28,6 +46,29 @@ export default function Timetable() {
   const selectedIdx = days.findIndex((d) => d.key === selectedDay);
   const selectedLabel = dayLabelFromKey(selectedDay);
   const currentLessons = weeklyTimetable[selectedDay] || [];
+
+  // Calendar holidays (date-only, school calendar dates) that suspend this student's classes
+  const rangeStart = days[0]?.key || todayKey;
+  const rangeEnd = days[days.length - 1]?.key || todayKey;
+  const loadHolidays = useCallback(() => {
+    requestApi<TimetableHolidayEvent[]>(`/api/v1/calendar/events?startDate=${rangeStart}&endDate=${rangeEnd}`)
+      .then((list) => setHolidayEvents((Array.isArray(list) ? list : []).filter((e) => e.classesSuspended)))
+      .catch(() => setHolidayEvents([]));
+  }, [rangeStart, rangeEnd]);
+
+  useEffect(() => {
+    loadHolidays();
+  }, [loadHolidays]);
+
+  const refreshAll = () => {
+    dispatch(fetchTimetable());
+    loadHolidays();
+  };
+  useSocketEvent('calendar.updated', refreshAll);
+  useSocketEvent(RealtimeEvents.TIMETABLE_CHANGE, refreshAll);
+
+  const holidayForDay = (key: string) => holidayEvents.find((e) => key >= e.startDate && key <= e.endDate) || null;
+  const selectedHoliday = holidayForDay(selectedDay);
 
   if (loading && Object.keys(weeklyTimetable).length === 0) {
     return <LoadingBlock message="Loading your class timetable..." />;
@@ -100,6 +141,22 @@ export default function Timetable() {
         ))}
       </div>
 
+      {/* Holiday exception for the selected day (the recurring timetable is unchanged) */}
+      {selectedHoliday && (
+        <div className="bg-rose-50 border border-rose-200 rounded-md p-4 flex items-start gap-3 text-rose-900 shadow-sm">
+          <PartyPopper className="w-5 h-5 shrink-0 mt-0.5" />
+          <div>
+            <div className="font-headings font-bold text-sm">School Holiday — {selectedHoliday.title}</div>
+            <div className="text-xs mt-0.5">
+              {selectedHoliday.isFullDayHoliday
+                ? 'Regular classes are suspended for this day.'
+                : `Classes between ${selectedHoliday.startTime} and ${selectedHoliday.endTime} (school time) are suspended.`}
+              {selectedHoliday.description ? ` ${selectedHoliday.description}` : ''}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Cards list for the selected day */}
       {currentLessons.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -111,7 +168,7 @@ export default function Timetable() {
               <div>
                 <div className="flex items-center justify-between text-xs text-muted-foreground font-medium mb-3">
                   <span>{lesson.time}</span>
-                  <StatusChip status={lesson.status} />
+                  <StatusChip status={selectedHoliday && lesson.status === 'CANCELLED' ? 'Holiday' : lesson.status} />
                 </div>
                 <div className="font-headings font-bold text-lg text-foreground mb-0.5">
                   {lesson.subject}
@@ -151,7 +208,7 @@ export default function Timetable() {
           </div>
           <div>
             <div className="font-headings font-bold text-base text-foreground">
-              {selectedLabel.split(" ")[0]} — No classes scheduled
+              {selectedLabel.split(" ")[0]} — {selectedHoliday ? `School Holiday: ${selectedHoliday.title}` : 'No classes scheduled'}
             </div>
             <div className="text-xs text-muted-foreground mt-0.5">
               Use this day for revision, homework, and family time.

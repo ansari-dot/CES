@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { HolidayAnnouncementModal } from '../components/dialogs/HolidayAnnouncementModal';
 import { teacherCalendarApi, ActiveHolidayAnnouncement } from '../services/calendarApi';
+import UpcomingEventsCard from '../components/dashboard/UpcomingEventsCard';
 
 // New Reference UI Components
 import { HeroGreetingBanner } from '../components/dashboard/HeroGreetingBanner';
@@ -711,6 +712,9 @@ export const DashboardPage: React.FC = () => {
           />
         </div>
       </div>
+
+      {/* School calendar: upcoming events, next holiday and full-year view */}
+      <UpcomingEventsCard />
 
       {/* 6. Bottom Row: 4 Balanced Cards Aligned Horizontally as in Reference Mockup */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-4 items-stretch">

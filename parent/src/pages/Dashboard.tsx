@@ -4,7 +4,8 @@ import { CalendarCheck, ClipboardList, Receipt, Award, ChevronRight, Bell } from
 import { useParent } from '../context/ParentContext';
 import { requestApi } from '../services/api';
 import { MetricCard, StatusChip, RequireChild } from '../components/common';
-import { rupees, pct, formatDate, CHALLAN_STATUS_LABELS } from '../lib/format';
+import { rupees, pct, formatDate, formatTime, CHALLAN_STATUS_LABELS } from '../lib/format';
+import UpcomingEventsCard from '../components/UpcomingEventsCard';
 
 interface NoticeItem {
   id: string;
@@ -106,7 +107,7 @@ export default function Dashboard() {
                           <div className="text-xs text-muted-foreground">{l.teacherName}</div>
                         </div>
                         <div className="text-xs text-muted-foreground text-right">
-                          {new Date(l.startAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {formatTime(l.startAt)}
                           <div><StatusChip status={l.status.charAt(0) + l.status.slice(1).toLowerCase()} /></div>
                         </div>
                       </li>
@@ -145,6 +146,8 @@ export default function Dashboard() {
           </>
         )}
       </RequireChild>
+
+      <UpcomingEventsCard classId={child?.classId ?? null} />
 
       <div className="bg-card border border-border rounded-md p-5 shadow-sm">
         <div className="flex items-center justify-between mb-3">

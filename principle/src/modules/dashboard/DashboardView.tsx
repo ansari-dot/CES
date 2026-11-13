@@ -6,6 +6,7 @@ import { StatusBadge } from '../../components/common/StatusBadge';
 import { LoadingState, ErrorState } from '../../components/common/StateViews';
 import { ActiveModule } from '../../components/common/Sidebar';
 import { QuickActionsFloating } from '../../components/dashboard/QuickActionsFloating';
+import UpcomingEventsCard from '../../components/dashboard/UpcomingEventsCard';
 import {
   Users,
   GraduationCap,
@@ -780,6 +781,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
               </button>
             </div>
           </div>
+
+          {/* School calendar: upcoming events, next holiday and full-year view */}
+          <UpcomingEventsCard />
 
           {/* School Notices & Broadcasts */}
           <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs space-y-3.5">

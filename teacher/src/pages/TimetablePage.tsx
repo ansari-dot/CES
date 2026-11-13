@@ -4,6 +4,7 @@ import { VisualTimetableHub } from '../components/timetable/VisualTimetableHub';
 import { WeeklyGrid } from '../components/timetable/WeeklyGrid';
 import { LessonDeliveryModal } from '../components/timetable/LessonDeliveryModal';
 import { ZoomProblemModal } from '../components/timetable/ZoomProblemModal';
+import { HolidayExceptionsBanner } from '../components/timetable/HolidayExceptionsBanner';
 import {
   Calendar,
   CheckCircle2,
@@ -178,6 +179,7 @@ export const TimetablePage: React.FC = () => {
       {/* ------------------------------------------------------------- */}
       {/* 3. MAIN VISUAL TIMETABLE HUB (DAY SELECTOR & SESSIONS/DUTY)    */}
       {/* ------------------------------------------------------------- */}
+      <HolidayExceptionsBanner />
       <VisualTimetableHub />
 
       {/* ------------------------------------------------------------- */}
