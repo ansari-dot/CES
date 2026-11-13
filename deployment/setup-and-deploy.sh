@@ -204,7 +204,7 @@ server {
         access_log off;
     }
 
-    location /api/ {
+    location ^~ /api/ {
         proxy_pass http://ces_backend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -215,7 +215,7 @@ server {
         proxy_read_timeout 120s;
     }
 
-    location /socket.io/ {
+    location ^~ /socket.io/ {
         proxy_pass http://ces_backend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -255,7 +255,7 @@ server {
         access_log off;
     }
 
-    location /api/ {
+    location ^~ /api/ {
         proxy_pass http://ces_backend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -266,7 +266,7 @@ server {
         proxy_read_timeout 120s;
     }
 
-    location /socket.io/ {
+    location ^~ /socket.io/ {
         proxy_pass http://ces_backend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -306,7 +306,7 @@ server {
         access_log off;
     }
 
-    location /api/ {
+    location ^~ /api/ {
         proxy_pass http://ces_backend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -317,7 +317,7 @@ server {
         proxy_read_timeout 120s;
     }
 
-    location /socket.io/ {
+    location ^~ /socket.io/ {
         proxy_pass http://ces_backend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -357,7 +357,7 @@ server {
         access_log off;
     }
 
-    location /api/ {
+    location ^~ /api/ {
         proxy_pass http://ces_backend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -368,7 +368,7 @@ server {
         proxy_read_timeout 120s;
     }
 
-    location /socket.io/ {
+    location ^~ /socket.io/ {
         proxy_pass http://ces_backend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -400,7 +400,7 @@ server {
         proxy_read_timeout 120s;
     }
 
-    location /socket.io/ {
+    location ^~ /socket.io/ {
         proxy_pass http://ces_backend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
