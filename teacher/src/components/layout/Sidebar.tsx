@@ -170,12 +170,6 @@ export const Sidebar: React.FC = () => {
         { id: 'duty-salary', label: 'Duty & Payroll', icon: Clock },
       ],
     },
-    {
-      id: 'settings',
-      label: 'Settings',
-      icon: Settings,
-      tabId: 'profile-settings',
-    },
   ];
 
   // Attach amber activity counters (existing LIVE / pending-grading badges are kept)
@@ -373,14 +367,14 @@ export const Sidebar: React.FC = () => {
                       src={
                         teacher.avatar ||
                         `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                          teacher.name || 'Zun'
+                          teacher.name || 'Faculty Member'
                         )}&background=36348e&color=fff`
                       }
                       alt={teacher.name}
                       className="w-7 h-7 rounded-full object-cover border border-white/30"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                          teacher.name || 'Zun'
+                          teacher.name || 'Faculty Member'
                         )}&background=36348e&color=fff`;
                       }}
                     />
@@ -389,13 +383,27 @@ export const Sidebar: React.FC = () => {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold text-white group-hover:text-blue-300 truncate leading-tight">
-                      {teacher.name || 'Zun'}
+                      {teacher.name || 'Faculty Member'}
                     </p>
                     <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
-                      ID: {teacher.employeeId || 'TCH-1235'}
+                      Faculty{teacher.employeeId ? ` · ID: ${teacher.employeeId}` : ''}
                     </p>
                   </div>
                 </div>
+
+                {/* Settings: opens the profile & settings page */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    dispatch(setCurrentTab('profile-settings'));
+                    dispatch(closeMobileSidebar());
+                  }}
+                  title="Profile & settings"
+                  aria-label="Profile and settings"
+                  className="p-1 rounded-md text-slate-300 hover:text-white hover:bg-white/15 transition cursor-pointer shrink-0"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                </button>
 
                 {/* Logout button */}
                 <button

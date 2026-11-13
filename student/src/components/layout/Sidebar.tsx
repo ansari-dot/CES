@@ -184,12 +184,6 @@ export default function Sidebar({ mobileClose, onLogout }: SidebarProps) {
         { id: 'report-transcripts', label: 'Grade Transcripts', path: '/student/results', icon: ScrollText },
       ],
     },
-    {
-      id: 'settings',
-      label: 'Settings',
-      icon: Settings,
-      path: '/student/profile',
-    },
   ];
 
   // Attach amber activity counters (existing LIVE / Notifications badges are kept)
@@ -382,14 +376,28 @@ export default function Sidebar({ mobileClose, onLogout }: SidebarProps) {
                   {profile.name || 'Student'}
                 </p>
                 <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
+                  Student
                   {profile.rollNumber
-                    ? `Roll: ${profile.rollNumber}`
+                    ? ` · Roll: ${profile.rollNumber}`
                     : profile.admissionNo
-                    ? `ID: ${profile.admissionNo}`
-                    : profile.grade || 'Cambridge Student'}
+                    ? ` · ID: ${profile.admissionNo}`
+                    : profile.grade
+                    ? ` · ${profile.grade}`
+                    : ''}
                 </p>
               </div>
             </div>
+
+            {/* Settings: opens the profile & settings page */}
+            <button
+              type="button"
+              onClick={() => handleNavClick('/student/profile')}
+              title="Profile & settings"
+              aria-label="Profile and settings"
+              className="p-1 rounded-md text-slate-300 hover:text-white hover:bg-white/15 transition cursor-pointer shrink-0"
+            >
+              <Settings className="w-3.5 h-3.5" />
+            </button>
 
             {/* Logout button */}
             {onLogout && (

@@ -8,9 +8,9 @@ import {
   ClipboardList,
   Award,
   Bell,
-  User,
   LogOut,
   Menu,
+  Settings,
   Users,
 } from 'lucide-react';
 import { useParent } from '../context/ParentContext';
@@ -26,7 +26,6 @@ const NAV_ITEMS = [
   { name: 'Assignments', path: '/parent/assignments', icon: ClipboardList },
   { name: 'Achievements & Feedback', path: '/parent/achievements', icon: Award },
   { name: 'Notices & Circulars', path: '/parent/notices', icon: Bell },
-  { name: 'My Profile', path: '/parent/profile', icon: User },
 ];
 
 const PAGE_INFO: Record<string, { title: string; subtitle: string }> = {
@@ -42,88 +41,126 @@ const PAGE_INFO: Record<string, { title: string; subtitle: string }> = {
 
 function Sidebar({ onNavigate, onLogout }: { onNavigate?: () => void; onLogout: () => void }) {
   const { user, dashboard } = useParent();
+  const navigate = useNavigate();
+  const location = useLocation();
   const name = user?.fullName || 'Parent';
   // New activity about the children per sidebar section (amber mini counters)
   const activityCounts = useSectionBadges();
+  const childCount = dashboard?.children.length ?? null;
+  const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=36348e&color=fff`;
+
+  const openSettings = () => {
+    navigate('/parent/profile');
+    onNavigate?.();
+  };
 
   return (
-    <div className="w-64 shrink-0 bg-primary flex flex-col h-full select-none">
-      <div className="flex flex-col items-center gap-2.5 px-4 pt-6 pb-5 border-b border-white/15">
-        <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-md overflow-hidden shrink-0">
-          <img
-            src="/logowb.png"
-            alt="Cambridge Education System logo"
-            className="w-full h-full object-contain drop-shadow-sm"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = '/logo.jpeg';
-            }}
-          />
+    <aside className="h-full w-56 shrink-0 bg-gradient-to-b from-[#191847] via-[#211f5d] to-[#131236] shadow-2xl lg:shadow-none border-r border-white/10 select-none flex flex-col relative">
+      <div className="h-full overflow-y-auto flex flex-col sidebar-scroll">
+        {/* Brand header (same scale as the student and teacher portals) */}
+        <div className="flex flex-col items-center text-center px-3 pt-4 pb-2.5 border-b border-white/10 select-none shrink-0">
+          <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-xs p-1 overflow-hidden mb-1.5 border border-white/20 shrink-0">
+            <img
+              src="/logowb.png"
+              alt="Cambridge Education System logo"
+              className="w-full h-full object-contain drop-shadow-2xs"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = '/logo.jpeg';
+              }}
+            />
+          </div>
+          <h2 className="text-xs font-bold tracking-tight text-white font-headings">Cambridge Education System</h2>
+          <p className="text-[9px] font-semibold tracking-wider text-white/70 uppercase font-headings mt-0.5">Parent Portal</p>
         </div>
-        <div className="flex flex-col min-w-0 text-center">
-          <span className="font-headings text-sm font-semibold tracking-tight text-white truncate leading-tight">Cambridge Education System</span>
-          <span className="font-headings text-[10px] text-white/70 font-medium tracking-wide uppercase truncate">Parent Portal</span>
-        </div>
-      </div>
 
-      <div className="sidebar-scroll flex-1 overflow-y-auto p-3 flex flex-col gap-0.5 text-xs">
-        {NAV_ITEMS.map((item) => {
-          const Icon = item.icon;
-          const count = activityCounts[item.path] || 0;
-          const badge = count > 0 ? badgeLabel(count) : null;
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              onClick={onNavigate}
-              className={({ isActive }) =>
-                `flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
-                  isActive ? 'bg-secondary text-secondary-foreground font-semibold shadow-xs' : 'text-white/85 hover:bg-secondary hover:text-secondary-foreground'
-                }`
-              }
+        {/* Navigation */}
+        <nav className="px-2.5 py-1.5 space-y-0.5 text-xs flex-1">
+          {NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const count = activityCounts[item.path] || 0;
+            const badge = count > 0 ? badgeLabel(count) : null;
+            const isActive = location.pathname === item.path;
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                onClick={onNavigate}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg font-semibold text-xs transition-all duration-150 cursor-pointer text-left group ${
+                  isActive
+                    ? 'bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white shadow-md shadow-blue-500/30 border border-blue-400/30'
+                    : 'text-slate-200/90 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <Icon
+                  className={`w-4 h-4 shrink-0 transition-transform duration-150 ${
+                    isActive ? 'text-white scale-105' : 'text-slate-300 group-hover:text-white'
+                  }`}
+                />
+                <span className="truncate flex-1 tracking-tight font-medium">{item.name}</span>
+                {badge && (
+                  <span className="px-1.5 min-w-[18px] h-4 rounded-full flex items-center justify-center text-[10px] font-bold tracking-tight shrink-0 shadow-2xs bg-amber-500 text-slate-950">
+                    {badge}
+                  </span>
+                )}
+              </NavLink>
+            );
+          })}
+        </nav>
+
+        {/* Profile bar + campus banner (same as the student and teacher portals) */}
+        <div className="px-2.5 pt-3 pb-3 space-y-2 select-none border-t border-white/10 mt-2">
+          <div className="rounded-lg bg-white/5 border border-white/10 p-2 flex items-center justify-between gap-2 hover:bg-white/10 transition">
+            <div onClick={openSettings} className="flex items-center gap-2 min-w-0 cursor-pointer flex-1 group">
+              <div className="relative shrink-0">
+                <img src={avatarUrl} alt={name} className="w-7 h-7 rounded-full object-cover border border-white/30" />
+                <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 border border-[#191847]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-white group-hover:text-blue-300 truncate leading-tight">{name}</p>
+                <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
+                  Parent
+                  {childCount !== null ? ` · ${childCount} ${childCount === 1 ? 'child' : 'children'}` : ''}
+                </p>
+              </div>
+            </div>
+
+            {/* Settings: opens the profile & settings page */}
+            <button
+              type="button"
+              onClick={openSettings}
+              title="Profile & settings"
+              aria-label="Profile and settings"
+              className="p-1 rounded-md text-slate-300 hover:text-white hover:bg-white/15 transition cursor-pointer shrink-0"
             >
-              {({ isActive }) => (
-                <>
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span className="truncate">{item.name}</span>
-                  {badge && (
-                    <span className="ml-auto min-w-[18px] h-4 px-1.5 rounded-full bg-amber-500 text-slate-950 text-[10px] flex items-center justify-center font-bold shadow-2xs">
-                      {badge}
-                    </span>
-                  )}
-                </>
-              )}
-            </NavLink>
-          );
-        })}
-      </div>
+              <Settings className="w-3.5 h-3.5" />
+            </button>
 
-      <div className="p-3 border-t border-white/15 bg-white/5 mt-auto">
-        <NavLink
-          to="/parent/profile"
-          onClick={onNavigate}
-          className="group flex items-center gap-2 bg-white/10 rounded-md p-2 hover:bg-[#ffc53a] transition"
-        >
-          <img
-            src={`https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=36348e&color=fff`}
-            alt={name}
-            className="w-8 h-8 rounded-full object-cover border border-white/30 shrink-0"
-          />
-          <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold text-white group-hover:text-[#1b1a47] truncate">{name}</div>
-            <div className="text-[11px] text-white/70 group-hover:text-[#1b1a47]/80">
-              {dashboard ? `${dashboard.children.length} linked ${dashboard.children.length === 1 ? 'child' : 'children'}` : 'Parent / Guardian'}
+            {/* Logout button */}
+            <button
+              type="button"
+              onClick={onLogout}
+              title="Sign out"
+              aria-label="Sign out"
+              className="p-1 rounded-md text-slate-300 hover:text-white hover:bg-white/15 transition cursor-pointer shrink-0"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="relative h-22 sm:h-24 w-full overflow-hidden rounded-lg border border-white/10 group">
+            <img
+              src="/loginbc.webp"
+              alt="Cambridge Education System Campus"
+              className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent pointer-events-none" />
+            <div className="absolute bottom-1 inset-x-0 text-center pointer-events-none">
+              <span className="text-[9px] font-bold text-white/95 tracking-widest uppercase drop-shadow-sm">Cambridge Campus</span>
             </div>
           </div>
-        </NavLink>
-        <button
-          onClick={onLogout}
-          className="mt-1.5 w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-semibold text-white/80 hover:bg-[#ffc53a] hover:text-[#1b1a47] transition cursor-pointer"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-          <span>Sign out</span>
-        </button>
+        </div>
       </div>
-    </div>
+    </aside>
   );
 }
 
