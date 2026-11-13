@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { useParent } from '../context/ParentContext';
 import { Toast } from './common';
+import { useSectionBadges } from '../hooks/useSectionBadges';
+import { badgeLabel } from '../lib/sectionBadges';
 
 const NAV_ITEMS = [
   { name: 'Dashboard', path: '/parent/dashboard', icon: LayoutDashboard },
@@ -39,8 +41,10 @@ const PAGE_INFO: Record<string, { title: string; subtitle: string }> = {
 };
 
 function Sidebar({ onNavigate, onLogout }: { onNavigate?: () => void; onLogout: () => void }) {
-  const { user, unreadCount, dashboard } = useParent();
+  const { user, dashboard } = useParent();
   const name = user?.fullName || 'Parent';
+  // New activity about the children per sidebar section (amber mini counters)
+  const activityCounts = useSectionBadges();
 
   return (
     <div className="w-64 shrink-0 bg-primary flex flex-col h-full select-none">
@@ -64,7 +68,8 @@ function Sidebar({ onNavigate, onLogout }: { onNavigate?: () => void; onLogout: 
       <div className="sidebar-scroll flex-1 overflow-y-auto p-3 flex flex-col gap-0.5 text-xs">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
-          const badge = item.path === '/parent/notices' && unreadCount > 0 ? unreadCount : null;
+          const count = activityCounts[item.path] || 0;
+          const badge = count > 0 ? badgeLabel(count) : null;
           return (
             <NavLink
               key={item.path}
@@ -81,7 +86,7 @@ function Sidebar({ onNavigate, onLogout }: { onNavigate?: () => void; onLogout: 
                   <Icon className="w-4 h-4 shrink-0" />
                   <span className="truncate">{item.name}</span>
                   {badge && (
-                    <span className="ml-auto min-w-4 h-4 px-1 rounded-full bg-error text-white text-[10px] flex items-center justify-center font-bold">
+                    <span className="ml-auto min-w-[18px] h-4 px-1.5 rounded-full bg-amber-500 text-slate-950 text-[10px] flex items-center justify-center font-bold shadow-2xs">
                       {badge}
                     </span>
                   )}

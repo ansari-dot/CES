@@ -10,6 +10,10 @@ export interface NotificationItem {
   read: boolean;
   iconType: 'video' | 'clipboard' | 'receipt' | 'check' | 'calendar' | 'star';
   link: string;
+  // raw values used for sidebar activity counters
+  rawType?: string;
+  recordType?: string;
+  createdAt?: string;
 }
 
 interface NotificationsState {
@@ -128,6 +132,9 @@ const notificationsSlice = createSlice({
             read: Boolean(n.isRead || n.is_read),
             iconType: mapIconType(n.type || ''),
             link: linkFor(n.relatedRecordType, n.type),
+            rawType: n.type || '',
+            recordType: n.relatedRecordType || '',
+            createdAt: when || undefined,
           };
         });
         state.unreadCount = state.items.filter((i) => !i.read).length;

@@ -28,12 +28,15 @@ import {
   User,
   MessageSquare
 } from 'lucide-react';
+import { useSectionBadges } from '../../hooks/useSectionBadges';
+import { badgeLabel } from '../../lib/sectionBadges';
 
 interface SubNavItem {
   id: string;
   label: string;
   path: string;
   icon?: React.ComponentType<{ className?: string }>;
+  badge?: number | string;
 }
 
 interface NavItemConfig {
@@ -57,9 +60,8 @@ export default function Sidebar({ mobileClose, onLogout }: SidebarProps) {
 
   // Redux Selectors
   const unreadCount = useSelector((state: RootState) => state.notifications.unreadCount);
-  const pendingAssignmentsCount = useSelector((state: RootState) =>
-    state.assignments.items.filter((a) => a.status === 'Pending').length
-  );
+  // New activity from teachers/school per sidebar section (amber mini counters)
+  const activityCounts = useSectionBadges();
   const profile = useSelector((state: RootState) => state.student.profile);
   const nextClass = useSelector((state: RootState) => state.classes.nextClass);
   const todayClasses = useSelector((state: RootState) => state.classes.todayClasses);
@@ -146,8 +148,6 @@ export default function Sidebar({ mobileClose, onLogout }: SidebarProps) {
       label: 'Assignments',
       icon: FileText,
       path: '/student/homework',
-      badge: pendingAssignmentsCount > 0 ? pendingAssignmentsCount : undefined,
-      badgeColor: 'amber',
     },
     {
       id: 'faculty-chat',
@@ -199,6 +199,29 @@ export default function Sidebar({ mobileClose, onLogout }: SidebarProps) {
       path: '/student/profile',
     },
   ];
+
+  // Attach amber activity counters (existing LIVE / Notifications badges are kept)
+  for (const item of navigationItems) {
+    if (item.subItems) {
+      const subPaths = new Set<string>();
+      for (const sub of item.subItems) {
+        const c = activityCounts[sub.path] || 0;
+        sub.badge = c > 0 ? badgeLabel(c) : undefined;
+        subPaths.add(sub.path);
+      }
+      const total = Array.from(subPaths).reduce((sum, path) => sum + (activityCounts[path] || 0), 0);
+      if (item.badge === undefined && total > 0) {
+        item.badge = badgeLabel(total);
+        item.badgeColor = 'amber';
+      }
+    } else if (item.path && item.badge === undefined) {
+      const c = activityCounts[item.path] || 0;
+      if (c > 0) {
+        item.badge = badgeLabel(c);
+        item.badgeColor = 'amber';
+      }
+    }
+  }
 
   return (
     <aside className="h-full w-56 shrink-0 bg-gradient-to-b from-[#191847] via-[#211f5d] to-[#131236] shadow-2xl lg:shadow-none border-r border-white/10 select-none flex flex-col relative">
@@ -319,7 +342,12 @@ export default function Sidebar({ mobileClose, onLogout }: SidebarProps) {
                           }`}
                         >
                           <SubIcon className="w-3 h-3 shrink-0 opacity-80" />
-                          <span className="truncate">{sub.label}</span>
+                          <span className="truncate flex-1">{sub.label}</span>
+                          {sub.badge !== undefined && (
+                            <span className="px-1.5 min-w-[18px] h-4 rounded-full flex items-center justify-center text-[10px] font-bold tracking-tight shrink-0 shadow-2xs bg-amber-500 text-slate-950">
+                              {sub.badge}
+                            </span>
+                          )}
                         </button>
                       );
                     })}

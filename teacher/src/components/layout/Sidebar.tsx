@@ -28,6 +28,8 @@ import {
   FileCheck,
   AlertCircle
 } from 'lucide-react';
+import { useSectionBadges } from '../../hooks/useSectionBadges';
+import { badgeLabel } from '../../lib/sectionBadges';
 
 interface SubNavItem {
   id: NavTab;
@@ -54,8 +56,8 @@ export const Sidebar: React.FC = () => {
   const teacher = useAppSelector((state) => state.auth.teacher);
   const submissions = useAppSelector((state) => state.tasks.submissions);
   const lessons = useAppSelector((state) => state.timetable.lessons);
-  const notices = useAppSelector((state) => state.notices.notices);
-  const totalUnreadChat = useAppSelector((state) => state.chat?.totalUnreadCount || 0);
+  // New activity from students / school per sidebar tab (amber mini counters)
+  const activityCounts = useSectionBadges();
 
   const pendingGradingCount = submissions.filter(
     (s) => s.status === 'pending' || s.status === 'late'
@@ -132,8 +134,6 @@ export const Sidebar: React.FC = () => {
       label: 'Student Chat',
       icon: MessageSquare,
       tabId: 'student-chat',
-      badge: totalUnreadChat > 0 ? totalUnreadChat : undefined,
-      badgeColor: 'red',
     },
     {
       id: 'classes',
@@ -163,12 +163,10 @@ export const Sidebar: React.FC = () => {
       id: 'resources',
       label: 'Resources',
       icon: BookOpen,
-      badge: notices.length > 0 ? notices.length : undefined,
-      badgeColor: 'amber',
       subItems: [
         { id: 'learning-resources', label: 'Lectures & Notes', icon: BookOpen },
         { id: 'student-projects', label: 'Projects', icon: Sparkles },
-        { id: 'notices', label: 'Notices', icon: Bell, badge: notices.length > 0 ? notices.length : undefined, badgeColor: 'amber' },
+        { id: 'notices', label: 'Notices', icon: Bell },
         { id: 'duty-salary', label: 'Duty & Payroll', icon: Clock },
       ],
     },
@@ -179,6 +177,31 @@ export const Sidebar: React.FC = () => {
       tabId: 'profile-settings',
     },
   ];
+
+  // Attach amber activity counters (existing LIVE / pending-grading badges are kept)
+  for (const item of navigationItems) {
+    if (item.subItems) {
+      let total = 0;
+      for (const sub of item.subItems) {
+        const c = activityCounts[sub.id] || 0;
+        total += c;
+        if (sub.badge === undefined && c > 0) {
+          sub.badge = badgeLabel(c);
+          sub.badgeColor = 'amber';
+        }
+      }
+      if (item.badge === undefined && total > 0) {
+        item.badge = badgeLabel(total);
+        item.badgeColor = 'amber';
+      }
+    } else if (item.tabId && item.badge === undefined) {
+      const c = activityCounts[item.tabId] || 0;
+      if (c > 0) {
+        item.badge = badgeLabel(c);
+        item.badgeColor = 'amber';
+      }
+    }
+  }
 
   return (
     <>

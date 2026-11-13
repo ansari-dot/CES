@@ -311,6 +311,8 @@ export interface AcademicNotice {
   canManage?: boolean;
   recipients?: string;
   status?: string;
+  isRead?: boolean;
+  publishedAt?: string;
 }
 
 export interface AchievementItem {
@@ -387,6 +389,10 @@ export interface NotificationItem {
   targetTab?: NavTab;
   category?: string;
   timeAgo?: string;
+  // raw values used for sidebar activity counters
+  rawType?: string;
+  recordType?: string;
+  createdAt?: string;
 }
 
 export interface ToastState {

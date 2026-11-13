@@ -51,7 +51,10 @@ export const fetchTeacherNotificationsThunk = createAsyncThunk(
           type,
           timestamp: n.timestamp ? new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Now',
           read: Boolean(n.isRead),
-          targetTab
+          targetTab,
+          rawType: n.type || '',
+          recordType: n.relatedRecordType || '',
+          createdAt: n.createdAt || n.timestamp || undefined
         };
       });
 

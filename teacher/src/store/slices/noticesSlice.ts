@@ -29,6 +29,8 @@ function mapNotice(n: any): AcademicNotice {
     category: n.category || 'General',
     canManage: Boolean(n.canManage),
     recipients: roles.length === 3 ? 'Everyone' : roles.map((r) => `${r}s`).join(' & '),
+    isRead: n.isRead === undefined ? undefined : Boolean(n.isRead),
+    publishedAt: n.createdAt || n.publishDate || undefined,
   };
 }
 
