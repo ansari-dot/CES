@@ -10,9 +10,9 @@ interface StudentPerformanceMetric {
   avatar: string;
   classId: string;
   className: string;
-  attendanceRate: number;
-  taskCompletionRate: number;
-  averageQuizScore: number;
+  attendanceRate: number | null;
+  taskCompletionRate: number | null;
+  averageQuizScore: number | null;
   streakStatus: string;
   improvementArea: string;
   starsCount: number;
@@ -59,9 +59,25 @@ export const fetchPerformanceDataThunk = createAsyncThunk(
         requestApi<any[]>('/api/v1/students'),
       ]);
 
+      const students = Array.isArray(studentsRes) ? studentsRes : [];
+
+      // Real per-student figures (attendance, tasks submitted, tests) from the same endpoint the
+      // grades view uses; a few at a time so large classes do not flood the server.
+      const grades: Record<string, any> = {};
+      for (let i = 0; i < students.length; i += 6) {
+        const chunk = students.slice(i, i + 6);
+        const results = await Promise.all(
+          chunk.map((s: any) => requestApi<any>(`/api/v1/students/${s.id}/grades`).catch(() => null))
+        );
+        chunk.forEach((s: any, idx: number) => {
+          grades[String(s.id)] = results[idx];
+        });
+      }
+
       return {
         achievements: Array.isArray(achievementsRes) ? achievementsRes : [],
-        students: Array.isArray(studentsRes) ? studentsRes : [],
+        students,
+        grades,
       };
     } catch (err: any) {
       return rejectWithValue(err.message || 'Failed to fetch performance data');
@@ -153,7 +169,7 @@ export const performanceSlice = createSlice({
       })
       .addCase(fetchPerformanceDataThunk.fulfilled, (state, action) => {
         state.loading = false;
-        const { achievements, students } = action.payload;
+        const { achievements, students, grades } = action.payload as any;
 
         if (Array.isArray(achievements)) {
           state.achievements = achievements.map(mapAchievement);
@@ -163,20 +179,24 @@ export const performanceSlice = createSlice({
           state.metrics = students.map((s: any) => {
             const studentAchievements = state.achievements.filter((a) => a.studentId === String(s.id));
             const totalStars = studentAchievements.reduce((sum, a) => sum + a.starsCount, 0);
+            const g = grades?.[String(s.id)];
+            const summary = g?.summary;
+            const tests = g?.academicProgress?.testsSummary;
+            const num = (v: any) => (v === null || v === undefined || Number.isNaN(Number(v)) ? null : Math.round(Number(v)));
 
             return {
               studentId: String(s.id),
               name: s.name,
               rollNumber: s.rollNo || `#${s.id}`,
               admissionId: s.admissionNo || `ADM-${s.id}`,
-              avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120',
+              avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name || 'Student')}&background=36348e&color=fff`,
               classId: String(s.currentClassId),
               className: s.className || `Class ${s.classNumber}`,
-              attendanceRate: 96,
-              taskCompletionRate: 95,
-              averageQuizScore: 90,
-              streakStatus: 'Consistent',
-              improvementArea: 'Consistent practice',
+              attendanceRate: num(summary?.attendanceRate),
+              taskCompletionRate: summary && summary.totalTasks > 0 ? Math.round((summary.submittedTasks / summary.totalTasks) * 100) : null,
+              averageQuizScore: tests && tests.count > 0 ? num(tests.avgPercentage) : null,
+              streakStatus: summary?.overdueTasks > 0 ? `${summary.overdueTasks} overdue task(s)` : summary ? 'Up to date' : 'No records yet',
+              improvementArea: summary?.latestRemark?.comment || (summary?.overdueTasks > 0 ? 'Complete overdue tasks' : 'Keep up the steady work'),
               starsCount: totalStars,
             };
           });

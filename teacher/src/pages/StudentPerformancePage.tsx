@@ -20,6 +20,7 @@ import {
   X,
   FileSpreadsheet
 } from 'lucide-react';
+import { StudentGradesModal } from '../components/performance/StudentGradesModal';
 
 export const StudentPerformancePage: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -53,9 +54,9 @@ export const StudentPerformancePage: React.FC = () => {
 
       if (!matchesSearch) return false;
 
-      if (filterStanding === 'top') return m.averageQuizScore >= 90;
-      if (filterStanding === 'average') return m.averageQuizScore >= 75 && m.averageQuizScore < 90;
-      if (filterStanding === 'support') return m.averageQuizScore < 75;
+      if (filterStanding === 'top') return m.averageQuizScore !== null && m.averageQuizScore >= 90;
+      if (filterStanding === 'average') return m.averageQuizScore !== null && m.averageQuizScore >= 75 && m.averageQuizScore < 90;
+      if (filterStanding === 'support') return m.averageQuizScore !== null && m.averageQuizScore < 75;
 
       return true;
     });
@@ -63,23 +64,20 @@ export const StudentPerformancePage: React.FC = () => {
 
   // Aggregated Key Metrics
   const totalStudents = classFilteredMetrics.length;
-  const classAvg =
-    totalStudents > 0
-      ? (classFilteredMetrics.reduce((acc, m) => acc + m.averageQuizScore, 0) / totalStudents).toFixed(1)
-      : '0.0';
-  const avgAttendance =
-    totalStudents > 0
-      ? (classFilteredMetrics.reduce((acc, m) => acc + m.attendanceRate, 0) / totalStudents).toFixed(1)
-      : '0.0';
-  const avgTasks =
-    totalStudents > 0
-      ? (classFilteredMetrics.reduce((acc, m) => acc + m.taskCompletionRate, 0) / totalStudents).toFixed(1)
-      : '0.0';
-  const streakCount = classFilteredMetrics.filter((m) => m.attendanceRate >= 90).length;
+  // Averages only over students that actually have records (no invented values)
+  const average = (values: (number | null)[]) => {
+    const known = values.filter((v): v is number => v !== null);
+    return known.length ? (known.reduce((a, v) => a + v, 0) / known.length).toFixed(1) : '—';
+  };
+  const classAvg = average(classFilteredMetrics.map((m) => m.averageQuizScore));
+  const avgAttendance = average(classFilteredMetrics.map((m) => m.attendanceRate));
+  const avgTasks = average(classFilteredMetrics.map((m) => m.taskCompletionRate));
+  const streakCount = classFilteredMetrics.filter((m) => m.attendanceRate !== null && m.attendanceRate >= 90).length;
 
-  const topCount = classFilteredMetrics.filter((m) => m.averageQuizScore >= 90).length;
-  const avgCount = classFilteredMetrics.filter((m) => m.averageQuizScore >= 75 && m.averageQuizScore < 90).length;
-  const supportCount = classFilteredMetrics.filter((m) => m.averageQuizScore < 75).length;
+  const topCount = classFilteredMetrics.filter((m) => m.averageQuizScore !== null && m.averageQuizScore >= 90).length;
+  const avgCount = classFilteredMetrics.filter((m) => m.averageQuizScore !== null && m.averageQuizScore >= 75 && m.averageQuizScore < 90).length;
+  const supportCount = classFilteredMetrics.filter((m) => m.averageQuizScore !== null && m.averageQuizScore < 75).length;
+  const [gradesFor, setGradesFor] = useState<{ id: string; name: string } | null>(null);
 
   const selectedStudent = useMemo(() => {
     return (
@@ -385,34 +383,38 @@ export const StudentPerformancePage: React.FC = () => {
                         <td className="px-4 py-3 text-center">
                           <span
                             className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                              stu.attendanceRate >= 90
+                              stu.attendanceRate === null
+                                ? 'bg-slate-50 text-slate-400 border border-slate-200/60'
+                                : stu.attendanceRate >= 90
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
                                 : stu.attendanceRate >= 75
                                 ? 'bg-blue-50 text-blue-700 border border-blue-200/60'
                                 : 'bg-rose-50 text-rose-700 border border-rose-200/60'
                             }`}
                           >
-                            {stu.attendanceRate}%
+                            {stu.attendanceRate === null ? '—' : `${stu.attendanceRate}%`}
                           </span>
                         </td>
 
                         {/* Task Completion */}
                         <td className="px-4 py-3 text-center font-bold text-slate-800">
-                          {stu.taskCompletionRate}%
+                          {stu.taskCompletionRate === null ? <span className="text-slate-300">—</span> : `${stu.taskCompletionRate}%`}
                         </td>
 
                         {/* Quiz Score Average */}
                         <td className="px-4 py-3 text-center">
                           <span
                             className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                              stu.averageQuizScore >= 90
+                              stu.averageQuizScore === null
+                                ? 'bg-slate-50 text-slate-400 border border-slate-200/60'
+                                : stu.averageQuizScore >= 90
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
                                 : stu.averageQuizScore >= 75
                                 ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/60'
                                 : 'bg-amber-50 text-amber-800 border border-amber-200/60'
                             }`}
                           >
-                            {stu.averageQuizScore}%
+                            {stu.averageQuizScore === null ? '—' : `${stu.averageQuizScore}%`}
                           </span>
                         </td>
 
@@ -426,9 +428,19 @@ export const StudentPerformancePage: React.FC = () => {
 
                         {/* Action View Arrow */}
                         <td className="px-4 py-3 text-right">
-                          <div className="w-7 h-7 rounded-lg bg-slate-100 group-hover:bg-indigo-600 text-slate-400 group-hover:text-white flex items-center justify-center transition-colors ml-auto">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              dispatch(setSelectedStudentId(stu.studentId));
+                              setGradesFor({ id: stu.studentId, name: stu.name });
+                            }}
+                            title={`View ${stu.name}'s grades`}
+                            aria-label={`View ${stu.name}'s grades`}
+                            className="w-7 h-7 rounded-lg bg-slate-100 group-hover:bg-indigo-600 text-slate-400 group-hover:text-white flex items-center justify-center transition-colors ml-auto cursor-pointer"
+                          >
                             <ChevronRight className="w-4 h-4" />
-                          </div>
+                          </button>
                         </td>
                       </tr>
                     );
@@ -474,7 +486,7 @@ export const StudentPerformancePage: React.FC = () => {
                   Term Attendance
                 </span>
                 <span className="text-xl font-black text-emerald-700 mt-1 block">
-                  {selectedStudent.attendanceRate}%
+                  {selectedStudent.attendanceRate === null ? '—' : `${selectedStudent.attendanceRate}%`}
                 </span>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
@@ -482,7 +494,7 @@ export const StudentPerformancePage: React.FC = () => {
                   Quiz Average
                 </span>
                 <span className="text-xl font-black text-indigo-700 mt-1 block">
-                  {selectedStudent.averageQuizScore}%
+                  {selectedStudent.averageQuizScore === null ? '—' : `${selectedStudent.averageQuizScore}%`}
                 </span>
               </div>
             </div>
@@ -554,6 +566,9 @@ export const StudentPerformancePage: React.FC = () => {
           </div>
         )}
       </div>
+      {gradesFor && (
+        <StudentGradesModal studentId={gradesFor.id} studentName={gradesFor.name} onClose={() => setGradesFor(null)} />
+      )}
     </div>
   );
 };
