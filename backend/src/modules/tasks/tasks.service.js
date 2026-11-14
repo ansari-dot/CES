@@ -190,7 +190,10 @@ export const tasksService = {
   },
 
   async getTasks(user, filters = {}) {
-    const isPaginated = filters.page !== undefined || filters.limit !== undefined;
+    // Paginate only when the caller actually asked for it. Controllers pass null for absent
+    // query params, and the portals expect a plain list in that case.
+    const isPaginated =
+      (filters.page !== undefined && filters.page !== null) || (filters.limit !== undefined && filters.limit !== null);
     const page = Math.max(1, Number(filters.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(filters.limit) || 10));
     const offset = (page - 1) * limit;
@@ -850,7 +853,10 @@ export const tasksService = {
   },
 
   async getMistakes(user, filters = {}) {
-    const isPaginated = filters.page !== undefined || filters.limit !== undefined;
+    // Paginate only when the caller actually asked for it. Controllers pass null for absent
+    // query params, and the portals expect a plain list in that case.
+    const isPaginated =
+      (filters.page !== undefined && filters.page !== null) || (filters.limit !== undefined && filters.limit !== null);
     const page = Math.max(1, Number(filters.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(filters.limit) || 10));
     const offset = (page - 1) * limit;
