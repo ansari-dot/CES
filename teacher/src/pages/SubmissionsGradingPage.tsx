@@ -865,13 +865,13 @@ export const SubmissionsGradingPage: React.FC = () => {
                     <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block">
                       Insert Quick Feedback Snippet
                     </span>
-                    <div className="flex flex-col gap-1 max-h-32 overflow-y-auto pr-1">
+                    <div className="flex flex-col gap-1 max-h-48 overflow-y-auto pr-1">
                       {QUICK_FEEDBACK_PILLS.map((pill, i) => (
                         <button
                           key={i}
                           type="button"
                           onClick={() => addFeedbackSnippet(pill)}
-                          className="text-left px-2.5 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 text-[11px] font-medium border border-slate-200/70 transition-all cursor-pointer truncate"
+                          className="shrink-0 text-left px-2.5 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 text-[11px] font-medium leading-snug whitespace-normal break-words border border-slate-200/70 transition-all cursor-pointer"
                           title={pill}
                         >
                           {pill}
