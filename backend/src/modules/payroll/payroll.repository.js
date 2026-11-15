@@ -248,6 +248,14 @@ export const payrollRepository = {
           ratePerUnit = perLessonRate;
           lessonOrHourlyEarning = completedLessons * perLessonRate;
           calculationFormula = `Hybrid: Base (Rs. ${basePay.toLocaleString()}) + (${completedLessons} lessons × Rs. ${ratePerUnit.toLocaleString()}) + Allowances (Rs. ${allowances.toLocaleString()}) - Deductions (Rs. ${standardDeductions.toLocaleString()})`;
+          // The fixed base part follows the same configured attendance policy as fixed salaries
+          // (capped at the base amount); lesson earnings are already based on lessons taught.
+          attendanceDeduction = attendance ? attendance.deduction : 0;
+          if (attendanceDeduction > 0) {
+            calculationFormula += ` - Attendance on base (Rs. ${attendanceDeduction.toLocaleString()}: ${attendance.deductionFormula})`;
+          } else if (attendance && attendance.absentDays > 0 && !attendance.deductionRuleConfigured) {
+            calculationFormula += ` [${attendance.absentDays} absence(s) recorded; no deduction rule configured]`;
+          }
         }
 
         const grossAmount = basePay + lessonOrHourlyEarning + allowances;
