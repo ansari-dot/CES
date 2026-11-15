@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
-import { Calendar, Video, Clock, CheckCircle2, ChevronDown, ChevronUp, BellRing } from 'lucide-react';
+import { Calendar, Video, Clock, CheckCircle2, ChevronDown, ChevronUp, BellRing, Lock } from 'lucide-react';
 import { TimetableLesson } from '../../types';
+import { isClassTimeActive } from '../../lib/classTimeLock';
 
 export interface HeroGreetingBannerProps {
   teacherName: string;
@@ -161,18 +162,34 @@ export const HeroGreetingBanner: React.FC<HeroGreetingBannerProps> = ({
               </button>
             </div>
           ) : nextLesson ? (
-            <button
-              onClick={() => onStartLesson?.(nextLesson)}
-              disabled={startingLessonId === nextLesson.id}
-              className="px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl text-xs sm:text-sm font-bold shadow-md shadow-indigo-500/20 transition-all flex items-center gap-2.5 disabled:opacity-50 group hover:scale-[1.02]"
-            >
-              <Video className="w-4 h-4 group-hover:scale-110 transition-transform" />
-              <span>
-                {startingLessonId === nextLesson.id
-                  ? 'Launching...'
-                  : `Start ${nextLesson.className} Class`}
-              </span>
-            </button>
+            (() => {
+              const isNextUnlocked = isClassTimeActive(nextLesson, 5, 15);
+              return isNextUnlocked ? (
+                <button
+                  type="button"
+                  onClick={() => onStartLesson?.(nextLesson)}
+                  disabled={startingLessonId === nextLesson.id}
+                  className="px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl text-xs sm:text-sm font-bold shadow-md shadow-indigo-500/20 transition-all flex items-center gap-2.5 disabled:opacity-50 group hover:scale-[1.02] cursor-pointer"
+                >
+                  <Video className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                  <span>
+                    {startingLessonId === nextLesson.id
+                      ? 'Launching...'
+                      : `Start ${nextLesson.className} Class`}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="px-4 py-2.5 bg-slate-100 text-slate-500 border border-slate-200/90 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 cursor-not-allowed select-none shadow-2xs"
+                  title={`Next class (${nextLesson.className}) starts at ${nextLesson.startTime}`}
+                >
+                  <Lock className="w-4 h-4 text-slate-400" />
+                  <span>Starts {nextLesson.startTime}</span>
+                </button>
+              );
+            })()
           ) : null}
 
           {/* 3D Classroom Books & Graduation Cap Art (Matching Image) */}

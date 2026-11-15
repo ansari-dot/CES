@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
 import { addToast, setCurrentTab } from '../store/slices/uiSlice';
 import { requestApi } from '../services/api';
+import { isClassTimeActive } from '../lib/classTimeLock';
 import {
   Video,
   Copy,
@@ -16,7 +17,8 @@ import {
   Radio,
   Clock,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Lock
 } from 'lucide-react';
 
 export const LiveLessonsPage: React.FC = () => {
@@ -25,6 +27,13 @@ export const LiveLessonsPage: React.FC = () => {
   const lessons = useAppSelector((state) => state.timetable.lessons);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [startingClassId, setStartingClassId] = useState<string | null>(null);
+
+  // Auto-refresh lock states every 5 seconds as clock progresses
+  const [, setTick] = useState<number>(0);
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleLaunchRoom = async (
     className: string,
@@ -320,6 +329,18 @@ export const LiveLessonsPage: React.FC = () => {
               (l) => (l.className === cls.name || l.classId?.includes(String(cls.id))) && l.status === 'live'
             );
             const isLive = Boolean(classLive);
+
+            // Find matching lesson today (live or scheduled)
+            const matchingLesson = lessons.find((l) => {
+              const matchClass =
+                l.rawClassId === Number(cls.id) ||
+                l.className?.toLowerCase() === cls.name?.toLowerCase() ||
+                l.classId?.includes(String(cls.id));
+              const matchSub = !cls.subject || !l.subject || l.subject.toLowerCase() === cls.subject.toLowerCase();
+              return matchClass && matchSub;
+            });
+
+            const isUnlocked = isLive || isClassTimeActive(matchingLesson, 5, 15);
             const targetJoinUrl =
               classLive?.joinUrl ||
               cls.joinUrl ||
@@ -344,10 +365,18 @@ export const LiveLessonsPage: React.FC = () => {
                         <span className="w-2 h-2 rounded-full bg-red-600 animate-ping" />
                         Teaching Live
                       </span>
-                    ) : (
+                    ) : isUnlocked ? (
                       <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
                         <span className="w-2 h-2 rounded-full bg-emerald-500" />
                         Ready to Launch
+                      </span>
+                    ) : (
+                      <span
+                        className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200"
+                        title={matchingLesson?.startTime ? `Scheduled for ${matchingLesson.startTime}` : 'Class locked outside scheduled time'}
+                      >
+                        <Lock className="w-3 h-3 text-slate-400" />
+                        <span>{matchingLesson?.startTime ? `Starts ${matchingLesson.startTime}` : 'Class Locked'}</span>
                       </span>
                     )}
                   </div>
@@ -446,33 +475,45 @@ export const LiveLessonsPage: React.FC = () => {
                     </button>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleLaunchRoom(
-                        cls.name,
-                        cls.zoomRoomId,
-                        targetJoinUrl,
-                        cls.zoomPasscode,
-                        cls.hostKey || '884422'
-                      )
-                    }
-                    disabled={startingClassId === cls.zoomRoomId}
-                    className={`px-4.5 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shadow-xs transition-all cursor-pointer active:scale-98 ${
-                      isLive
-                        ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse'
-                        : 'bg-[#36348e] hover:bg-[#2c2a75] text-white shadow-indigo-100'
-                    }`}
-                  >
-                    <Video className="w-4 h-4" />
-                    <span>
-                      {startingClassId === cls.zoomRoomId
-                        ? 'Starting...'
-                        : isLive
-                        ? 'Re-Join Room'
-                        : 'Start Class'}
-                    </span>
-                  </button>
+                  {isUnlocked ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleLaunchRoom(
+                          cls.name,
+                          cls.zoomRoomId,
+                          targetJoinUrl,
+                          cls.zoomPasscode,
+                          cls.hostKey || '884422'
+                        )
+                      }
+                      disabled={startingClassId === cls.zoomRoomId}
+                      className={`px-4.5 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shadow-xs transition-all cursor-pointer active:scale-98 ${
+                        isLive
+                          ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse'
+                          : 'bg-[#36348e] hover:bg-[#2c2a75] text-white shadow-indigo-100'
+                      }`}
+                    >
+                      <Video className="w-4 h-4" />
+                      <span>
+                        {startingClassId === cls.zoomRoomId
+                          ? 'Starting...'
+                          : isLive
+                          ? 'Re-Join Room'
+                          : 'Start Class'}
+                      </span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      className="px-4.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs bg-slate-100 text-slate-400 border border-slate-200/90 cursor-not-allowed select-none"
+                      title={matchingLesson?.startTime ? `Class locked until scheduled time (${matchingLesson.startTime})` : 'Class is locked outside scheduled hours'}
+                    >
+                      <Lock className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Class Locked</span>
+                    </button>
+                  )}
                 </div>
               </div>
             );

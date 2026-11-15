@@ -1,6 +1,7 @@
-import React from 'react';
-import { Calendar, Clock, ArrowRight, Video } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Calendar, Clock, ArrowRight, Video, Lock } from 'lucide-react';
 import { UpcomingClassItem } from '../../services/dashboardApi';
+import { isClassTimeActive } from '../../lib/classTimeLock';
 
 export interface UpcomingClassesCardProps {
   classes: UpcomingClassItem[];
@@ -15,6 +16,12 @@ export const UpcomingClassesCard: React.FC<UpcomingClassesCardProps> = ({
   onViewAll,
   joiningClassId,
 }) => {
+  // Auto-refresh lock states every 5 seconds as clock progresses
+  const [, setTick] = useState<number>(0);
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 5000);
+    return () => clearInterval(timer);
+  }, []);
   const getBadgeStyle = (code: string, color?: string) => {
     if (color === 'emerald' || code.includes('1')) {
       return 'bg-emerald-50 text-emerald-800 border border-emerald-200/60';
@@ -59,6 +66,7 @@ export const UpcomingClassesCard: React.FC<UpcomingClassesCardProps> = ({
           classes.slice(0, 3).map((item) => {
             const isJoining = joiningClassId === item.id;
             const isLive = item.status === 'live';
+            const isUnlocked = isLive || isClassTimeActive(item, 5, 15);
 
             return (
               <div
@@ -91,19 +99,32 @@ export const UpcomingClassesCard: React.FC<UpcomingClassesCardProps> = ({
                   </div>
                 </div>
 
-                {/* Right: Join Button */}
-                <button
-                  onClick={() => onJoinClass(item)}
-                  disabled={isJoining}
-                  className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 flex items-center gap-1.5 ${
-                    isLive
-                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-blue-500/20'
-                  } disabled:opacity-50`}
-                >
-                  <Video className="w-3 h-3" />
-                  <span>{isJoining ? 'Joining...' : isLive ? 'Re-Join' : 'Join'}</span>
-                </button>
+                {/* Right: Join Button (Unlocked only during class time / 5m before, otherwise locked) */}
+                {isUnlocked ? (
+                  <button
+                    type="button"
+                    onClick={() => onJoinClass(item)}
+                    disabled={isJoining}
+                    className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                      isLive
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse'
+                        : 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-blue-500/20'
+                    } disabled:opacity-50`}
+                  >
+                    <Video className="w-3 h-3" />
+                    <span>{isJoining ? 'Joining...' : isLive ? 'Re-Join' : 'Join'}</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-400 border border-slate-200/80 shrink-0 flex items-center gap-1.5 cursor-not-allowed select-none"
+                    title={`Class locked until scheduled time (${item.timeSlot})`}
+                  >
+                    <Lock className="w-3 h-3 text-slate-400" />
+                    <span>Locked</span>
+                  </button>
+                )}
               </div>
             );
           })
