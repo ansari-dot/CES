@@ -425,6 +425,56 @@ export const chatService = {
 
     // Apply DLP phone number filter BEFORE storing / broadcasting (original is NEVER stored or sent)
     const dlpResult = sanitizeChatMessage(trimmed);
+
+    // Fetch recent messages from the same sender in this thread (last 15 minutes) to detect cross-message number evasion
+    let retroactiveMasks = [];
+    try {
+      const recentSenderMessages = await db('chat_messages')
+        .where({ thread_id: thread.id, sender_user_id: userId })
+        .andWhere('created_at', '>=', db.raw('DATE_SUB(NOW(), INTERVAL 15 MINUTE)'))
+        .orderBy('id', 'desc')
+        .limit(5);
+
+      const pastDigitItems = recentSenderMessages.slice().reverse().map((m) => ({
+        id: m.id,
+        content: m.content || '',
+        digits: (m.content || '').replace(/\D/g, '')
+      }));
+
+      const currentDigits = trimmed.replace(/\D/g, '');
+      const allDigitsCombined = pastDigitItems.map((p) => p.digits).join('') + currentDigits;
+
+      // If combined sequence forms 7+ digits or matches mobile pattern, or past messages were pure number chunks:
+      const isMultiChunkPhone =
+        allDigitsCombined.length >= 7 ||
+        /^(0092|92|0)?3\d{5,}$/.test(allDigitsCombined) ||
+        (pastDigitItems.some((p) => /^\d{2,6}$/.test(p.content.trim())) && /^\d{2,6}$/.test(trimmed));
+
+      if (isMultiChunkPhone) {
+        if (!dlpResult.hasViolation) {
+          dlpResult.cleanContent = trimmed.replace(/\d/g, '*');
+          dlpResult.hasViolation = true;
+          dlpResult.violationType = 'PHONE_NUMBER_CHUNK';
+        }
+
+        // Retroactively mask any past chunk messages in database that still contain plain numbers
+        for (const past of pastDigitItems) {
+          if (past.digits.length >= 2 && !past.content.includes('***')) {
+            const maskedPastContent = past.content.replace(/\d/g, '*');
+            await db('chat_messages').where({ id: past.id }).update({
+              content: maskedPastContent,
+              was_masked: 1,
+              has_policy_violation: 1,
+              policy_violation_type: 'PHONE_NUMBER_CHUNK'
+            });
+            retroactiveMasks.push({ id: past.id, content: maskedPastContent });
+          }
+        }
+      }
+    } catch (err) {
+      // Non-blocking safeguard
+    }
+
     if (dlpResult.hasViolation && dlpResult.action === 'BLOCK') {
       // Strict mode: nothing is saved or broadcast
       throw new AppError(dlpResult.policyMessage, 422, ErrorCodes.VALIDATION_ERROR, { policyViolation: dlpResult.violationType });
@@ -468,6 +518,12 @@ export const chatService = {
 
       // 1. Broadcast to thread room
       io.to(`chat:thread:${thread.id}`).emit('chat:message', payload);
+      if (retroactiveMasks.length > 0) {
+        io.to(`chat:thread:${thread.id}`).emit('chat:messages_masked', {
+          threadId: thread.id,
+          maskedMessages: retroactiveMasks
+        });
+      }
 
       // 2. Broadcast to recipient's personal user room
       if (recipientUserId) {

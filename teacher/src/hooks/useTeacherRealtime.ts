@@ -10,6 +10,7 @@ import {
   receiveSocketMessage,
   receiveThreadCreated,
   setTypingStatus,
+  receiveMessagesMasked,
   receiveReadReceipt,
   fetchThreadsThunk,
   updateUserPresence
@@ -213,6 +214,12 @@ export function useTeacherRealtime() {
       }
     };
 
+    const onChatMessagesMasked = (data: any) => {
+      if (data?.threadId && Array.isArray(data.maskedMessages)) {
+        dispatch(receiveMessagesMasked({ threadId: data.threadId, maskedMessages: data.maskedMessages }));
+      }
+    };
+
     socket.on(RealtimeEvents.CLASS_STATUS_UPDATED, onClassStatusUpdated);
     socket.on(RealtimeEvents.CLASS_PERIOD_ACTIVATED, onClassPeriodActivated);
     socket.on(RealtimeEvents.TIMETABLE_CHANGE, onTimetableChanged);
@@ -227,6 +234,7 @@ export function useTeacherRealtime() {
     socket.on('chat:read', onChatRead);
     socket.on('chat:unread_update', onChatUnreadUpdate);
     socket.on('chat:presence', onChatPresence);
+    socket.on('chat:messages_masked', onChatMessagesMasked);
 
     return () => {
       socket.off(RealtimeEvents.CLASS_STATUS_UPDATED, onClassStatusUpdated);
@@ -243,6 +251,7 @@ export function useTeacherRealtime() {
       socket.off('chat:read', onChatRead);
       socket.off('chat:unread_update', onChatUnreadUpdate);
       socket.off('chat:presence', onChatPresence);
+      socket.off('chat:messages_masked', onChatMessagesMasked);
     };
   }, [isAuthenticated, teacher?.id, assignedClasses, dispatch]);
 }

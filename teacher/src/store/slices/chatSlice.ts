@@ -164,6 +164,18 @@ const chatSlice = createSlice({
       const { threadId, isTyping } = action.payload;
       state.isTypingByThread[threadId] = isTyping;
     },
+    receiveMessagesMasked(
+      state,
+      action: PayloadAction<{ threadId: number; maskedMessages: { id: number; content: string }[] }>
+    ) {
+      const { threadId, maskedMessages } = action.payload;
+      if (state.messagesByThread[threadId] && Array.isArray(maskedMessages)) {
+        const map = new Map(maskedMessages.map((m) => [m.id, m.content]));
+        state.messagesByThread[threadId] = state.messagesByThread[threadId].map((msg) =>
+          map.has(msg.id) ? { ...msg, content: map.get(msg.id)!, was_masked: true } : msg
+        );
+      }
+    },
     receiveReadReceipt(state, action: PayloadAction<{ threadId: number; readByRole: string }>) {
       const { threadId, readByRole } = action.payload;
       if (readByRole === 'STUDENT' && state.messagesByThread[threadId]) {
@@ -278,6 +290,7 @@ export const {
   receiveSocketMessage,
   receiveThreadCreated,
   setTypingStatus,
+  receiveMessagesMasked,
   receiveReadReceipt,
   updateUserPresence,
   setBulkPresence

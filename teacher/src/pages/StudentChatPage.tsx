@@ -35,6 +35,24 @@ import {
 } from 'lucide-react';
 import { parseUtcInstant, formatTimeInZone, getBrowserTimeZone, DEFAULT_SCHOOL_TIMEZONE } from '../lib/timezone';
 
+export function maskContactNumbers(text: string | null | undefined): string {
+  if (!text || typeof text !== 'string') return '';
+  let str = text;
+  // 1. Pakistani mobile full numbers and prefixes (03xx..., 923xx..., +92 3xx...)
+  str = str.replace(/(?:\+92|0092|92|0)?3\d{1,9}\b/g, (m) => '*'.repeat(m.length));
+  // 2. Standalone number chunks of 3 or more digits (e.g. 0349, 8880, 182, 12345)
+  str = str.replace(/\b\d{3,}\b/g, (m) => '*'.repeat(m.length));
+  // 3. Digits separated by spaces, dots, hyphens (e.g. 0349 8880 182, 0-3-4-9)
+  str = str.replace(/(?:\d[\s\-.()]{0,3}){3,}\d/g, (m) => m.replace(/\d/g, '*'));
+  // 4. Standalone pure numeric 2-digit messages (e.g. "03", "49")
+  if (/^\s*\d{2}\s*$/.test(str)) {
+    str = str.replace(/\d/g, '*');
+  }
+  // 5. Spelled out digit words
+  str = str.replace(/\b(zero|oh|one|two|three|four|five|six|seven|eight|nine)\b/gi, '*');
+  return str;
+}
+
 export const StudentChatPage: React.FC = () => {
   const dispatch = useAppDispatch();
   const {
@@ -452,7 +470,7 @@ export const StudentChatPage: React.FC = () => {
 
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-xs text-slate-500 truncate font-normal">
-                          {thread.last_message_preview || 'No messages yet'}
+                          {maskContactNumbers(thread.last_message_preview) || 'No messages yet'}
                         </p>
                         {hasUnread && (
                           <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-red-500 text-white shrink-0">
@@ -553,7 +571,7 @@ export const StudentChatPage: React.FC = () => {
                         >
                           {/* Message Content */}
                           <p className="whitespace-pre-wrap break-words leading-relaxed font-sans select-text">
-                            {msg.content}
+                            {maskContactNumbers(msg.content)}
                           </p>
 
                           {/* Timestamp & Status */}

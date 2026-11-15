@@ -87,3 +87,4 @@ export function isClassTimeActive(
 
   return currentMin >= allowedStartMin && currentMin <= allowedEndMin;
 }
+

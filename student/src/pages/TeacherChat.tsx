@@ -29,6 +29,24 @@ import {
 } from 'lucide-react';
 import { parseUtcInstant, formatTimeInZone } from '../lib/timezone';
 
+export function maskContactNumbers(text: string | null | undefined): string {
+  if (!text || typeof text !== 'string') return '';
+  let str = text;
+  // 1. Pakistani mobile full numbers and prefixes (03xx..., 923xx..., +92 3xx...)
+  str = str.replace(/(?:\+92|0092|92|0)?3\d{1,9}\b/g, (m) => '*'.repeat(m.length));
+  // 2. Standalone number chunks of 3 or more digits (e.g. 0349, 8880, 182, 12345)
+  str = str.replace(/\b\d{3,}\b/g, (m) => '*'.repeat(m.length));
+  // 3. Digits separated by spaces, dots, hyphens (e.g. 0349 8880 182, 0-3-4-9)
+  str = str.replace(/(?:\d[\s\-.()]{0,3}){3,}\d/g, (m) => m.replace(/\d/g, '*'));
+  // 4. Standalone pure numeric 2-digit messages (e.g. "03", "49")
+  if (/^\s*\d{2}\s*$/.test(str)) {
+    str = str.replace(/\d/g, '*');
+  }
+  // 5. Spelled out digit words
+  str = str.replace(/\b(zero|oh|one|two|three|four|five|six|seven|eight|nine)\b/gi, '*');
+  return str;
+}
+
 export default function TeacherChat() {
   const profile = useSelector((state: RootState) => state.student.profile);
   const chatTimezone = useSelector((state: RootState) => state.classes.timezone);
@@ -245,6 +263,15 @@ export default function TeacherChat() {
       }
     };
 
+    const onMessagesMasked = (data: any) => {
+      if (data?.threadId === activeThreadId && Array.isArray(data.maskedMessages)) {
+        const maskedMap = new Map<number, string>(data.maskedMessages.map((m: any) => [m.id, m.content]));
+        setMessages((prev) =>
+          prev.map((m) => (maskedMap.has(m.id) ? { ...m, content: maskedMap.get(m.id)!, was_masked: true } : m))
+        );
+      }
+    };
+
     socket.on('chat:message', onMessage);
     socket.on('chat:unread_update', onUnreadUpdate);
     socket.on('chat:thread_created', onThreadCreated);
@@ -252,6 +279,7 @@ export default function TeacherChat() {
     socket.on('chat:user_typing', onTyping);
     socket.on('chat:read', onRead);
     socket.on('chat:presence', onPresence);
+    socket.on('chat:messages_masked', onMessagesMasked);
 
     return () => {
       socket.off('chat:message', onMessage);
@@ -261,6 +289,7 @@ export default function TeacherChat() {
       socket.off('chat:user_typing', onTyping);
       socket.off('chat:read', onRead);
       socket.off('chat:presence', onPresence);
+      socket.off('chat:messages_masked', onMessagesMasked);
     };
   }, [activeThreadId]);
 
@@ -579,7 +608,7 @@ export default function TeacherChat() {
 
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-xs text-slate-500 truncate font-normal">
-                          {thread?.last_message_preview || 'Click to ask a question'}
+                          {maskContactNumbers(thread?.last_message_preview) || 'Click to ask a question'}
                         </p>
                         {unreadCount > 0 && (
                           <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-red-500 text-white shrink-0">
@@ -672,7 +701,7 @@ export default function TeacherChat() {
                           }`}
                         >
                           <p className="whitespace-pre-wrap break-words leading-relaxed font-sans select-text">
-                            {msg.content}
+                            {maskContactNumbers(msg.content)}
                           </p>
 
                           <div

@@ -49,7 +49,8 @@ const WORD_DIGITS = {
 // A unit is a single digit or a whole spelled-out digit word
 const UNIT = '(?:\\d|\\b(?:zero|oh|one|two|three|four|five|six|seven|eight|nine)\\b)';
 const SEP = '[\\s\\-.()\\[\\]_/,]*';
-const CANDIDATE_REGEX = new RegExp(`(?:(?:\\+|\\b00)\\s*)?\\(?${UNIT}(?:${SEP}${UNIT}){5,}\\)?`, 'gi');
+// Match sequences of digits or spelled-out digit words of 2 or more units (e.g. 03, 182, 0349, 8880)
+const CANDIDATE_REGEX = new RegExp(`(?:(?:\\+|\\b00)\\s*)?\\(?${UNIT}(?:${SEP}${UNIT}){1,}\\)?`, 'gi');
 
 const CONTACT_KEYWORDS = /\b(whats\s?app|wa|call|phone|ph|mobile|mob|cell|contact|number|num|no\.?|dial|text\s+me|msg|message\s+me|reach\s+me|ring|sms|telegram|signal|imo|viber)\b/i;
 // Strong signals that a number is a phone number even if an academic word is nearby
@@ -78,7 +79,7 @@ function groupsOf(span) {
 }
 
 /**
- * Decide whether a candidate span is personal contact information.
+ * Decide whether a candidate span is personal contact information or a phone chunk.
  * @returns {string|null} violation kind or null when it is ordinary content
  */
 export function classifyCandidate(span, context = {}) {
@@ -89,7 +90,7 @@ export function classifyCandidate(span, context = {}) {
   const hasPrefix = /^\(?\s*(\+|00)/.test(trimmed);
   const groups = groupsOf(trimmed);
 
-  if (digits.length < 6) return null;
+  if (digits.length < 2) return null;
 
   // Decimal numbers such as 3.14159265358979
   if (!hasWords && /^\d+\.\d+$/.test(trimmed)) return null;
@@ -97,39 +98,62 @@ export function classifyCandidate(span, context = {}) {
   // Spans that are only dates (2026-11-16, 16/11/2026 ...)
   let withoutDates = trimmed;
   for (const re of DATE_PATTERNS) withoutDates = withoutDates.replace(re, ' ');
-  if (toDigits(withoutDates).length < 6) return null;
-
-  // Pakistani mobile numbers
-  if (/^(0092|92|0)?3\d{9}$/.test(digits) && (digits.length >= 11 || /^3\d{9}$/.test(digits))) {
-    return 'PK_MOBILE';
-  }
-  // International numbers with an explicit + / 00 prefix
-  if (hasPrefix && digits.length >= 10 && digits.length <= 15) return 'INTERNATIONAL';
-  // Pakistani landlines: 0 + area code (e.g. 042-35123456, 051 2345678)
-  if (/^0[2-9]\d{8,9}$/.test(digits)) return 'PK_LANDLINE';
-
-  const allSingle = groups.length >= 7 && groups.every((g) => g.length === 1 || WORD_DIGITS[g] !== undefined);
-  const phoneLikeGrouping =
-    allSingle || hasWords || (digits.length <= 9 ? groups.length <= 3 : groups.length <= 5);
+  if (toDigits(withoutDates).length < 2) return null;
 
   const textBefore = context.before ?? '';
   const textAfter = context.after ?? '';
   const fullContext = `${textBefore} ${textAfter}`;
   const strongContact = STRONG_CONTACT_KEYWORDS.test(fullContext);
 
-  if (!hasWords && !strongContact) {
-    // A roll / admission / challan / page number right after its label
-    if (ACADEMIC_IDENTIFIERS.test(textBefore)) return null;
-    // Money: "Rs. 1500000", "1500000 rupees", "1,500,000"
-    if (/^\d{1,3}(,\d{3})+$/.test(trimmed) || MONEY_BEFORE.test(textBefore) || MONEY_AFTER.test(textAfter)) return null;
-    // Years written together: "1947 2026"
-    if (groups.length >= 2 && groups.every((g) => /^(19|20)\d{2}$/.test(g))) return null;
-    // Maths in words: "multiply 123456789 by 9", "sum of ...", "answer is ..."
-    if (MATH_WORDS.test(textBefore) || /^\s*(by|times|plus|minus|into)\b/i.test(textAfter)) return null;
+  // 1. Pakistani mobile numbers (e.g. 03001234567, 923001234567)
+  if (/^(0092|92|0)?3\d{9}$/.test(digits) && (digits.length >= 10 || /^3\d{9}$/.test(digits))) {
+    return 'PK_MOBILE';
+  }
+  // 2. International numbers with an explicit + / 00 prefix
+  if (hasPrefix && digits.length >= 7 && digits.length <= 15) return 'INTERNATIONAL';
+  // 3. Pakistani landlines: 0 + area code (e.g. 042-35123456, 051 2345678)
+  if (/^0[2-9]\d{8,9}$/.test(digits)) return 'PK_LANDLINE';
+
+  // 4. Pakistani mobile prefixes / chunks (e.g. 0349, 0300, 0312, 03xx, 923xx, +923xx)
+  if (/^(0092|92|0)?3\d{1,8}$/.test(digits)) {
+    return 'PK_MOBILE_CHUNK';
   }
 
-  if (digits.length >= cfg.minDigits && digits.length <= 15 && phoneLikeGrouping) {
-    return CONTACT_KEYWORDS.test(fullContext) ? 'PHONE_NUMBER_WITH_CONTEXT' : 'PHONE_NUMBER';
+  // 5. Check if the message is purely or predominantly numeric/chunks (e.g. "0349", "8880", "182")
+  const isPureNumber = context.isEntireMessage || /^\s*[\d\s\-.()\[\]_/,]+\s*$/.test(context.fullMessage || trimmed);
+
+  // 6. Academic identifiers exception (for non-pure-number messages with academic context)
+  if (!isPureNumber && digits.length <= 4 && !strongContact) {
+    // A roll / admission / challan / page number right after its label
+    if (ACADEMIC_IDENTIFIERS.test(textBefore)) return null;
+    // Money: "Rs. 1500", "1500 rupees"
+    if (/^\d{1,3}(,\d{3})+$/.test(trimmed) || MONEY_BEFORE.test(textBefore) || MONEY_AFTER.test(textAfter)) return null;
+    // Years: "in 2026", "year 2024"
+    if (/^(19|20)\d{2}$/.test(digits) && /\b(in|year|session|since|until|class of)\s*$/i.test(textBefore)) return null;
+    // Maths in words: "multiply 123 by 9", "sum of ..."
+    if (MATH_WORDS.test(textBefore) || /^\s*(by|times|plus|minus|into)\b/i.test(textAfter)) return null;
+    // Ordinary 2-digit numbers inside sentences (like "has 25 questions", "grade 10")
+    if (digits.length === 2 && !/^(03|92)/.test(digits)) return null;
+  }
+
+  // 7. Spelled out digit words: e.g. "zero three four nine"
+  if (hasWords && digits.length >= 3) {
+    return 'PHONE_NUMBER_CHUNK';
+  }
+
+  // 8. Any chunk of 3 or more digits: e.g. "8880", "182", "0349", "12345"
+  if (digits.length >= 3) {
+    return 'PHONE_NUMBER_CHUNK';
+  }
+
+  // 9. Pure digit 2-digit message: e.g. "03", "49", "88"
+  if (isPureNumber && digits.length >= 2) {
+    return 'PHONE_NUMBER_CHUNK';
+  }
+
+  // 10. Contact keyword context
+  if (CONTACT_KEYWORDS.test(fullContext) && digits.length >= 2) {
+    return 'PHONE_NUMBER_WITH_CONTEXT';
   }
 
   return null;
@@ -157,6 +181,13 @@ export function sanitizeChatMessage(rawContent) {
     scan = scan.replace(/(?<=\d)[oO]|[oO](?=\d)/g, '0').replace(/(?<=\d)[lI]|[lI](?=\d)/g, '1');
   }
 
+  const isDecimalOrDate = /^\s*\d+\.\d+\s*$/.test(scan) || DATE_PATTERNS.some((re) => {
+    re.lastIndex = 0;
+    return re.test(scan.trim());
+  });
+  const strippedNonDigits = scan.replace(/[\s\-.()\[\]_/,]/g, '');
+  const isPureDigitsMessage = !isDecimalOrDate && (/^\d+$/.test(strippedNonDigits) || /^(?:\d|zero|oh|one|two|three|four|five|six|seven|eight|nine)+$/i.test(strippedNonDigits));
+
   const kinds = new Set();
   const spans = [];
   for (const m of scan.matchAll(CANDIDATE_REGEX)) {
@@ -170,7 +201,9 @@ export function sanitizeChatMessage(rawContent) {
     }
     const kind = classifyCandidate(match, {
       before: scan.slice(Math.max(0, offset - 40), offset),
-      after: scan.slice(offset + match.length, offset + match.length + 20)
+      after: scan.slice(offset + match.length, offset + match.length + 20),
+      fullMessage: rawContent,
+      isEntireMessage: isPureDigitsMessage
     });
     if (!kind) continue;
     kinds.add(kind);
@@ -178,6 +211,12 @@ export function sanitizeChatMessage(rawContent) {
     const lead = match.match(/^\s*/)[0].length;
     const trail = match.match(/\s*$/)[0].length;
     spans.push([offset + lead, offset + match.length - trail]);
+  }
+
+  // If the entire message is pure digits/chunks of 2 or more characters and wasn't caught
+  if (isPureDigitsMessage && strippedNonDigits.length >= 2 && spans.length === 0) {
+    kinds.add('PHONE_NUMBER_CHUNK');
+    spans.push([0, scan.length]);
   }
 
   // Replace digits with "*" (taken from `scan`, so o/l substitutions are hidden too)
