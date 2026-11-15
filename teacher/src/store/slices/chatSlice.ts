@@ -186,7 +186,9 @@ const chatSlice = createSlice({
     builder
       // fetchThreads
       .addCase(fetchThreadsThunk.pending, (state) => {
-        state.isLoadingThreads = true;
+        if (state.threads.length === 0) {
+          state.isLoadingThreads = true;
+        }
         state.error = null;
       })
       .addCase(fetchThreadsThunk.fulfilled, (state, action) => {
@@ -204,8 +206,11 @@ const chatSlice = createSlice({
       })
 
       // fetchMessages
-      .addCase(fetchMessagesThunk.pending, (state) => {
-        state.isLoadingMessages = true;
+      .addCase(fetchMessagesThunk.pending, (state, action) => {
+        const threadId = action.meta.arg;
+        if (!state.messagesByThread[threadId] || state.messagesByThread[threadId].length === 0) {
+          state.isLoadingMessages = true;
+        }
       })
       .addCase(fetchMessagesThunk.fulfilled, (state, action) => {
         state.isLoadingMessages = false;

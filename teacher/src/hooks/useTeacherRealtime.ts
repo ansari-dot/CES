@@ -179,8 +179,6 @@ export function useTeacherRealtime() {
             thread: data.thread
           })
         );
-        // Refresh full thread list so newly created thread appears with full metadata
-        dispatch(fetchThreadsThunk());
       }
     };
 
@@ -207,7 +205,6 @@ export function useTeacherRealtime() {
       if (data?.thread) {
         dispatch(receiveThreadCreated({ thread: data.thread }));
       }
-      dispatch(fetchThreadsThunk());
     };
 
     const onChatPresence = (data: any) => {

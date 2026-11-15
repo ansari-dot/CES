@@ -81,3 +81,4 @@ export async function down(knex) {
     });
   } catch (_) {}
 }
+

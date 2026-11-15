@@ -118,6 +118,11 @@ export const StudentChatPage: React.FC = () => {
     dispatch(fetchThreadsThunk());
   }, [dispatch]);
 
+  const threadsRef = useRef(threads);
+  useEffect(() => {
+    threadsRef.current = threads;
+  }, [threads]);
+
   // Handle active thread change: join socket room, load messages, mark as read, check presence
   useEffect(() => {
     if (activeThreadId) {
@@ -126,7 +131,7 @@ export const StudentChatPage: React.FC = () => {
       dispatch(markReadThunk(activeThreadId));
 
       // Check peer presence
-      const targetThread = threads.find((t) => t.id === activeThreadId);
+      const targetThread = threadsRef.current.find((t) => t.id === activeThreadId);
       if (targetThread?.studentUserId) {
         const s = getSocket();
         s.emit('chat:check_presence', { userIds: [targetThread.studentUserId] }, (res: Record<number, boolean>) => {
@@ -138,7 +143,7 @@ export const StudentChatPage: React.FC = () => {
         leaveChatThread(activeThreadId);
       };
     }
-  }, [activeThreadId, dispatch, threads]);
+  }, [activeThreadId, dispatch]);
 
   const activeThread = threads.find((t) => t.id === activeThreadId);
   const activeMessages = activeThreadId ? messagesByThread[activeThreadId] || [] : [];
@@ -515,7 +520,7 @@ export const StudentChatPage: React.FC = () => {
 
               {/* Messages Scroll Area */}
               <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
-                {isLoadingMessages ? (
+                {isLoadingMessages && activeMessages.length === 0 ? (
                   <div className="py-12 text-center text-xs text-slate-400 space-y-2">
                     <div className="w-6 h-6 border-2 border-[#36348e] border-t-transparent rounded-full animate-spin mx-auto" />
                     <p>Loading conversation transcript...</p>
