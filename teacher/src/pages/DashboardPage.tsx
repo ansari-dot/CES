@@ -51,11 +51,35 @@ import {
   UpcomingClassItem
 } from '../services/dashboardApi';
 
+// Play audio chime when pre-class alert activates
+function playAlertChime() {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15); // A5
+
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.35);
+  } catch (_) {}
+}
+
 // Helper to calculate seconds remaining until a scheduled lesson starts
 function getSecondsUntilLesson(lesson: TimetableLesson | UpcomingClassItem): number | null {
   const now = new Date();
 
-  const startAtVal = (lesson as any).startAt;
+  // 1. If ISO UTC startAt exists, calculate exact second difference
+  const startAtVal = (lesson as any).startAt || (lesson as any).start_at;
   if (startAtVal) {
     const parsed = parseUtcInstant(startAtVal) || new Date(startAtVal);
     if (!isNaN(parsed.getTime())) {
@@ -63,25 +87,38 @@ function getSecondsUntilLesson(lesson: TimetableLesson | UpcomingClassItem): num
     }
   }
 
-  let timeStr = (lesson as any).startTime || (lesson as any).timeSlot || '';
+  // 2. Extract starting time string
+  let timeStr = (lesson as any).startTime || (lesson as any).start_time || (lesson as any).timeSlot || '';
   if (timeStr.includes('-')) {
     timeStr = timeStr.split('-')[0].trim();
   }
   timeStr = timeStr.trim();
   if (!timeStr) return null;
 
-  const match = timeStr.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+  // Supports: "08:30", "08:30:00", "8:30 AM", "08:30:00 AM", "14:30", etc.
+  const match = timeStr.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(AM|PM))?$/i);
   if (!match) return null;
 
   let hours = parseInt(match[1], 10);
   const minutes = parseInt(match[2], 10);
-  const ampm = match[3] ? match[3].toUpperCase() : null;
+  const seconds = match[3] ? parseInt(match[3], 10) : 0;
+  const ampm = match[4] ? match[4].toUpperCase() : null;
 
   if (ampm === 'PM' && hours < 12) hours += 12;
   if (ampm === 'AM' && hours === 12) hours = 0;
 
   const targetDate = new Date();
-  targetDate.setHours(hours, minutes, 0, 0);
+
+  // If lesson has a date string (YYYY-MM-DD), use that date
+  const lessonDate = (lesson as any).date || (lesson as any).lessonDate;
+  if (lessonDate && typeof lessonDate === 'string' && lessonDate.includes('-')) {
+    const parts = lessonDate.split('-').map(Number);
+    if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+      targetDate.setFullYear(parts[0], parts[1] - 1, parts[2]);
+    }
+  }
+
+  targetDate.setHours(hours, minutes, seconds, 0);
 
   return Math.floor((targetDate.getTime() - now.getTime()) / 1000);
 }
@@ -115,7 +152,6 @@ export const DashboardPage: React.FC = () => {
 
   // 5-minute pre-class imminent alert state
   const [dismissedAlertLessonId, setDismissedAlertLessonId] = useState<string | null>(null);
-  const [previewAlert, setPreviewAlert] = useState<boolean>(false);
   const [imminentLesson, setImminentLesson] = useState<TimetableLesson | UpcomingClassItem | null>(null);
   const [imminentSeconds, setImminentSeconds] = useState<number>(285);
 
@@ -491,6 +527,8 @@ export const DashboardPage: React.FC = () => {
 
   // 5-minute pre-class imminent alert detection engine
   useEffect(() => {
+    let lastAlertLessonId: string | null = null;
+
     const checkImminentLesson = () => {
       // If teacher is already teaching live, do not distract with a pre-class prompt
       if (liveLesson) {
@@ -498,35 +536,36 @@ export const DashboardPage: React.FC = () => {
         return;
       }
 
-      // Check today's scheduled lessons
-      const candidate = todayLessons.find((l) => {
+      // Check scheduled lessons from today's timetable, falling back to upcomingClassesList
+      const candidateList: Array<TimetableLesson | UpcomingClassItem> =
+        todayLessons.length > 0 ? todayLessons : upcomingClassesList;
+
+      const candidate = candidateList.find((l) => {
         if (l.status === 'completed' || l.status === 'cancelled' || l.status === 'live') return false;
         if (l.id === dismissedAlertLessonId) return false;
         const sec = getSecondsUntilLesson(l);
-        // Alert activates within 5 minutes (300s) and up to 15 mins overdue (-900s)
-        return sec !== null && sec <= 300 && sec >= -900;
+        // Alert activates automatically within 5 minutes (300s) and stays active up to 30 mins into class time (-1800s)
+        return sec !== null && sec <= 300 && sec >= -1800;
       });
 
       if (candidate) {
         const sec = getSecondsUntilLesson(candidate) || 0;
+        if (lastAlertLessonId !== candidate.id) {
+          lastAlertLessonId = candidate.id;
+          playAlertChime();
+        }
         setImminentLesson(candidate);
         setImminentSeconds(sec);
-      } else if (previewAlert) {
-        // In preview mode, use next scheduled lesson or first upcoming class
-        const target = nextLesson || upcomingClassesList[0];
-        if (target) {
-          setImminentLesson(target);
-          setImminentSeconds((prev) => (prev > 0 ? prev - 1 : 285));
-        }
       } else {
         setImminentLesson(null);
+        lastAlertLessonId = null;
       }
     };
 
     checkImminentLesson();
     const interval = setInterval(checkImminentLesson, 1000);
     return () => clearInterval(interval);
-  }, [todayLessons, liveLesson, dismissedAlertLessonId, previewAlert, nextLesson, upcomingClassesList]);
+  }, [todayLessons, liveLesson, dismissedAlertLessonId, upcomingClassesList]);
 
   return (
     <div className="flex flex-col w-full pb-10 space-y-5 animate-in fade-in duration-200">
@@ -577,15 +616,6 @@ export const DashboardPage: React.FC = () => {
         formatStopwatch={formatStopwatch}
         liveElapsedSeconds={liveElapsedSeconds}
         isAlertActive={Boolean(imminentLesson)}
-        onTogglePreClassAlert={() => {
-          if (previewAlert) {
-            setPreviewAlert(false);
-            setImminentLesson(null);
-          } else {
-            setPreviewAlert(true);
-            setImminentSeconds(285);
-          }
-        }}
       />
 
       {/* 2. Imminent Class Alert Banner (Pops up automatically <= 5 minutes before class) */}
@@ -596,11 +626,10 @@ export const DashboardPage: React.FC = () => {
           onLaunchClass={() => handleLaunchZoomLesson(imminentLesson)}
           onDismiss={() => {
             setDismissedAlertLessonId(imminentLesson.id);
-            setPreviewAlert(false);
             setImminentLesson(null);
           }}
           isStarting={startingLessonId === imminentLesson.id}
-          isTestPreview={previewAlert}
+          isTestPreview={false}
         />
       )}
 

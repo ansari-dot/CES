@@ -116,25 +116,27 @@ export const HeroGreetingBanner: React.FC<HeroGreetingBannerProps> = ({
               )}
             </button>
 
-            {/* 5-Min Pre-Class Alert Toggle Pill */}
-            {onTogglePreClassAlert && (
+            {/* 5-Min Pre-Class Alert Indicator / Optional Toggle */}
+            {isAlertActive ? (
+              <div
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold bg-amber-100/90 text-amber-900 border-amber-300 shadow-2xs animate-pulse"
+                title="Class starting soon - Get ready"
+              >
+                <BellRing className="w-3.5 h-3.5 text-amber-600 animate-bounce" />
+                <span>Class in 5m</span>
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+              </div>
+            ) : onTogglePreClassAlert ? (
               <button
                 type="button"
                 onClick={onTogglePreClassAlert}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-2xs ${
-                  isAlertActive
-                    ? 'bg-amber-100/90 text-amber-900 border-amber-300'
-                    : 'bg-amber-50/70 hover:bg-amber-100 text-amber-800 border-amber-200/80'
-                }`}
-                title="5-minute pre-class alert (Teacher get ready notification)"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-2xs bg-amber-50/70 hover:bg-amber-100 text-amber-800 border-amber-200/80"
+                title="5-minute pre-class alert preview"
               >
                 <BellRing className="w-3.5 h-3.5 text-amber-600" />
                 <span>5-Min Alert</span>
-                {isAlertActive && (
-                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-                )}
               </button>
-            )}
+            ) : null}
           </div>
         </div>
 
