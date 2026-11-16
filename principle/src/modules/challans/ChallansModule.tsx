@@ -21,7 +21,10 @@ import {
   Phone,
   Globe,
   MapPin,
-  Ban
+  Ban,
+  Plus,
+  Edit2,
+  X
 } from 'lucide-react';
 
 export const ChallansModule: React.FC = () => {
@@ -40,6 +43,73 @@ export const ChallansModule: React.FC = () => {
   const [challanToReassign, setChallanToReassign] = useState<MonthlyChallan | null>(null);
   const [newBankAccountId, setNewBankAccountId] = useState<number | null>(null);
   const [reassigningBank, setReassigningBank] = useState(false);
+
+  // Inline Bank Account Creator / Editor
+  const [showAddAccountForm, setShowAddAccountForm] = useState(false);
+  const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
+  const [accountFormData, setAccountFormData] = useState({
+    bankName: '',
+    branchName: '',
+    accountTitle: 'CAMBRIDGE EDUCATION SYSTEM',
+    accountNumber: '',
+    iban: '',
+    instructions: ''
+  });
+  const [savingAccount, setSavingAccount] = useState(false);
+
+  const handleOpenAddAccount = () => {
+    setEditingAccountId(null);
+    setAccountFormData({
+      bankName: '',
+      branchName: '',
+      accountTitle: 'CAMBRIDGE EDUCATION SYSTEM',
+      accountNumber: '',
+      iban: '',
+      instructions: ''
+    });
+    setShowAddAccountForm(true);
+  };
+
+  const handleOpenEditAccount = (acc: SchoolBankAccount, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingAccountId(acc.id);
+    setAccountFormData({
+      bankName: acc.bankName || '',
+      branchName: acc.branchName || '',
+      accountTitle: acc.accountTitle || 'CAMBRIDGE EDUCATION SYSTEM',
+      accountNumber: acc.accountNumber || '',
+      iban: acc.iban || '',
+      instructions: acc.instructions || ''
+    });
+    setShowAddAccountForm(true);
+  };
+
+  const handleSaveAccountForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!accountFormData.bankName.trim() || !accountFormData.accountNumber.trim()) {
+      toast.warning('Bank name and account number are required.');
+      return;
+    }
+    try {
+      setSavingAccount(true);
+      if (editingAccountId) {
+        const updated = await api.updateBankAccount(editingAccountId, accountFormData);
+        toast.success(`Bank account ${updated.bankName} updated.`);
+        setBankAccounts((prev) => prev.map((b) => (b.id === editingAccountId ? updated : b)));
+      } else {
+        const created = await api.createBankAccount({ ...accountFormData, isDefault: false });
+        toast.success(`Bank account ${created.bankName} created and ready for assignment.`);
+        setBankAccounts((prev) => [...prev, created]);
+        setNewBankAccountId(created.id);
+      }
+      setShowAddAccountForm(false);
+      setEditingAccountId(null);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to save bank account');
+    } finally {
+      setSavingAccount(false);
+    }
+  };
 
   // Generate Challans Modal
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
@@ -687,11 +757,133 @@ export const ChallansModule: React.FC = () => {
         >
           <div className="space-y-4 text-xs">
             <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] leading-relaxed">
-              This updates the target bank account for this specific challan slip. Any voucher reprint or parent portal view for this invoice will display the newly selected bank details.
+              <span className="font-bold">🔒 Principal Access Only:</span> Only school administrators can configure or update bank accounts. Students and parents have strictly read-only access. Updating this challan ensures only this student's linked parent will see the new bank account on their invoice slip.
             </div>
 
+            {/* Inline Add / Edit Bank Account Form */}
+            {showAddAccountForm ? (
+              <form onSubmit={handleSaveAccountForm} className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-200 space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-emerald-200">
+                  <span className="font-bold text-emerald-900">
+                    {editingAccountId ? 'Edit School Bank Account' : 'Add New Alternative Bank Account'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddAccountForm(false);
+                      setEditingAccountId(null);
+                    }}
+                    className="text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Bank Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Habib Bank Limited (HBL), Allied Bank, UBL"
+                    value={accountFormData.bankName}
+                    onChange={(e) => setAccountFormData({ ...accountFormData, bankName: e.target.value })}
+                    className="w-full bg-white border border-slate-300 rounded-lg p-2 text-slate-800 focus:outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">
+                      Account Title <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. CAMBRIDGE EDUCATION SYSTEM"
+                      value={accountFormData.accountTitle}
+                      onChange={(e) => setAccountFormData({ ...accountFormData, accountTitle: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-slate-800 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">
+                      Account Number <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. 23817000192803"
+                      value={accountFormData.accountNumber}
+                      onChange={(e) => setAccountFormData({ ...accountFormData, accountNumber: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-slate-800 font-mono focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Branch Name</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Blue Area, Islamabad"
+                      value={accountFormData.branchName}
+                      onChange={(e) => setAccountFormData({ ...accountFormData, branchName: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-slate-800 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">IBAN (optional)</label>
+                    <input
+                      type="text"
+                      placeholder="PK..."
+                      value={accountFormData.iban}
+                      onChange={(e) => setAccountFormData({ ...accountFormData, iban: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-slate-800 font-mono focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddAccountForm(false);
+                      setEditingAccountId(null);
+                    }}
+                    className="px-3 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingAccount}
+                    className="px-3.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-xs"
+                  >
+                    {savingAccount ? 'Saving...' : editingAccountId ? 'Save Updates' : 'Save & Select Account'}
+                  </button>
+                </div>
+              </form>
+            ) : null}
+
             <div className="space-y-2">
-              <label className="block text-slate-700 font-semibold">Select Bank Account *</label>
+              <div className="flex items-center justify-between">
+                <label className="block text-slate-700 font-semibold">Select Bank Account *</label>
+                {!showAddAccountForm && (
+                  <button
+                    type="button"
+                    onClick={handleOpenAddAccount}
+                    className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white flex items-center gap-1 shadow-2xs"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>+ Add New Bank Account</span>
+                  </button>
+                )}
+              </div>
+
               {bankAccounts.map((acc) => (
                 <label
                   key={acc.id}
@@ -710,7 +902,19 @@ export const ChallansModule: React.FC = () => {
                   />
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-900">{acc.bankName}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-900">{acc.bankName}</span>
+                        {!acc.isDefault && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleOpenEditAccount(acc, e)}
+                            title="Edit this bank account"
+                            className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
                       {acc.isDefault ? (
                         <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-bold uppercase">Default Account</span>
                       ) : (
@@ -718,7 +922,7 @@ export const ChallansModule: React.FC = () => {
                       )}
                     </div>
                     <p className="text-[11px] text-slate-600 font-mono mt-0.5">
-                      A/C: {acc.accountNumber} · Title: {acc.accountTitle}
+                      A/C: {acc.accountNumber || '—'} · Title: {acc.accountTitle || '—'}
                     </p>
                     <p className="text-[10px] text-slate-400">
                       Branch: {acc.branchName || 'Main'} {acc.iban ? `· IBAN: ${acc.iban}` : ''}

@@ -81,6 +81,7 @@ export const FeeStructureModule: React.FC = () => {
   const [bankAccounts, setBankAccounts] = useState<SchoolBankAccount[]>([]);
   const [isBankAccountsModalOpen, setIsBankAccountsModalOpen] = useState(false);
   const [isNewAccountModalOpen, setIsNewAccountModalOpen] = useState(false);
+  const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
   const [newAccountForm, setNewAccountForm] = useState({
     bankName: '',
     branchName: '',
@@ -115,7 +116,33 @@ export const FeeStructureModule: React.FC = () => {
     }
   }, []);
 
-  const handleCreateAccount = async (e: React.FormEvent) => {
+  const handleOpenAddAccount = () => {
+    setEditingAccountId(null);
+    setNewAccountForm({
+      bankName: '',
+      branchName: '',
+      accountTitle: 'CAMBRIDGE EDUCATION SYSTEM',
+      accountNumber: '',
+      iban: '',
+      instructions: ''
+    });
+    setIsNewAccountModalOpen(true);
+  };
+
+  const handleOpenEditAccount = (acc: SchoolBankAccount) => {
+    setEditingAccountId(acc.id);
+    setNewAccountForm({
+      bankName: acc.bankName || '',
+      branchName: acc.branchName || '',
+      accountTitle: acc.accountTitle || 'CAMBRIDGE EDUCATION SYSTEM',
+      accountNumber: acc.accountNumber || '',
+      iban: acc.iban || '',
+      instructions: acc.instructions || ''
+    });
+    setIsNewAccountModalOpen(true);
+  };
+
+  const handleSaveAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAccountForm.bankName.trim() || !newAccountForm.accountNumber.trim() || !newAccountForm.accountTitle.trim()) {
       toast.warning('Please enter bank name, account title, and account number.');
@@ -123,17 +150,30 @@ export const FeeStructureModule: React.FC = () => {
     }
     try {
       setSavingAccount(true);
-      await api.createBankAccount({
-        bankName: newAccountForm.bankName.trim(),
-        branchName: newAccountForm.branchName.trim(),
-        accountTitle: newAccountForm.accountTitle.trim(),
-        accountNumber: newAccountForm.accountNumber.trim(),
-        iban: newAccountForm.iban.trim(),
-        instructions: newAccountForm.instructions.trim(),
-        isDefault: false
-      });
-      toast.success(`Bank account ${newAccountForm.bankName} added successfully.`);
+      if (editingAccountId) {
+        await api.updateBankAccount(editingAccountId, {
+          bankName: newAccountForm.bankName.trim(),
+          branchName: newAccountForm.branchName.trim(),
+          accountTitle: newAccountForm.accountTitle.trim(),
+          accountNumber: newAccountForm.accountNumber.trim(),
+          iban: newAccountForm.iban.trim(),
+          instructions: newAccountForm.instructions.trim()
+        });
+        toast.success(`Bank account ${newAccountForm.bankName} updated.`);
+      } else {
+        await api.createBankAccount({
+          bankName: newAccountForm.bankName.trim(),
+          branchName: newAccountForm.branchName.trim(),
+          accountTitle: newAccountForm.accountTitle.trim(),
+          accountNumber: newAccountForm.accountNumber.trim(),
+          iban: newAccountForm.iban.trim(),
+          instructions: newAccountForm.instructions.trim(),
+          isDefault: false
+        });
+        toast.success(`Bank account ${newAccountForm.bankName} added successfully.`);
+      }
       setIsNewAccountModalOpen(false);
+      setEditingAccountId(null);
       setNewAccountForm({
         bankName: '',
         branchName: '',
@@ -144,7 +184,7 @@ export const FeeStructureModule: React.FC = () => {
       });
       loadData();
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to create bank account');
+      toast.error(err?.message || 'Failed to save bank account');
     } finally {
       setSavingAccount(false);
     }
@@ -417,7 +457,7 @@ export const FeeStructureModule: React.FC = () => {
 
         <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={() => setIsNewAccountModalOpen(true)}
+            onClick={handleOpenAddAccount}
             className="px-3.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
           >
             <Building2 className="w-3.5 h-3.5" />
@@ -461,7 +501,7 @@ export const FeeStructureModule: React.FC = () => {
             </div>
           </div>
           <button
-            onClick={() => setIsNewAccountModalOpen(true)}
+            onClick={handleOpenAddAccount}
             className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer shrink-0"
           >
             <Plus className="w-3 h-3" />
@@ -496,10 +536,17 @@ export const FeeStructureModule: React.FC = () => {
                 </div>
               </div>
               {!acc.isDefault && (
-                <div className="mt-3 pt-2 border-t border-slate-200 flex justify-end">
+                <div className="mt-3 pt-2 border-t border-slate-200 flex items-center justify-end gap-3">
+                  <button
+                    onClick={() => handleOpenEditAccount(acc)}
+                    className="text-amber-700 hover:text-amber-800 text-[11px] flex items-center gap-1 font-medium"
+                  >
+                    <Edit2 className="w-3 h-3" />
+                    <span>Edit</span>
+                  </button>
                   <button
                     onClick={() => handleArchiveAccount(acc.id)}
-                    className="text-rose-600 hover:text-rose-800 text-[11px] flex items-center gap-1"
+                    className="text-rose-600 hover:text-rose-800 text-[11px] flex items-center gap-1 font-medium"
                   >
                     <Trash2 className="w-3 h-3" />
                     <span>Archive</span>
@@ -1121,11 +1168,15 @@ export const FeeStructureModule: React.FC = () => {
         <Modal
           isOpen={isNewAccountModalOpen}
           onClose={() => setIsNewAccountModalOpen(false)}
-          title="Add Alternative School Bank Account"
-          description="Configure an alternative school bank account. This account can be assigned to individual students who cannot transfer funds into the default Meezan Bank account."
+          title={editingAccountId ? 'Edit School Bank Account' : 'Add Alternative School Bank Account'}
+          description={
+            editingAccountId
+              ? 'Update the bank details for this school collection account.'
+              : 'Configure an alternative school bank account. This account can be assigned to individual students who cannot transfer funds into the default Meezan Bank account.'
+          }
           maxWidth="md"
         >
-          <form onSubmit={handleCreateAccount} className="space-y-3 text-xs">
+          <form onSubmit={handleSaveAccount} className="space-y-3 text-xs">
             <div>
               <label className="block text-slate-700 font-semibold mb-1">
                 Bank Name <span className="text-rose-500">*</span>
@@ -1218,7 +1269,7 @@ export const FeeStructureModule: React.FC = () => {
                 disabled={savingAccount}
                 className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-xs"
               >
-                {savingAccount ? 'Adding Account...' : 'Save Bank Account'}
+                {savingAccount ? 'Saving...' : editingAccountId ? 'Save Updates' : 'Save Bank Account'}
               </button>
             </div>
           </form>
