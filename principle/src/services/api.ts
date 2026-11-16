@@ -1507,13 +1507,37 @@ export const api = {
 
   // 10.5. School Bank Accounts
   async getBankAccounts(status?: string): Promise<SchoolBankAccount[]> {
+    const fallbackDefault: SchoolBankAccount = {
+      id: 1,
+      bankName: 'Meezan Bank',
+      branchName: 'F-11 Markaz, Islamabad',
+      accountTitle: 'CAMBRIDGE EDUCATION SYSTEM',
+      accountNumber: '03060114428178',
+      iban: 'PK58MEZN0003060114428178',
+      isDefault: true,
+      status: 'ACTIVE'
+    };
+
     try {
       const q = status ? `?status=${encodeURIComponent(status)}` : '';
-      const data = await requestApi<SchoolBankAccount[]>(`/api/v1/fees/bank-accounts${q}`);
-      return Array.isArray(data) ? data : [];
+      const data = await requestApi<any[]>(`/api/v1/fees/bank-accounts${q}`);
+      if (Array.isArray(data) && data.length > 0) {
+        return data.map((b) => ({
+          id: Number(b.id),
+          bankName: String(b.bankName || b.bank_name || 'Bank'),
+          branchName: String(b.branchName || b.branch_name || ''),
+          accountTitle: String(b.accountTitle || b.account_title || 'CAMBRIDGE EDUCATION SYSTEM'),
+          accountNumber: String(b.accountNumber || b.account_number || ''),
+          iban: String(b.iban || ''),
+          isDefault: Boolean(b.isDefault ?? b.is_default),
+          status: (b.status || 'ACTIVE') as any,
+          instructions: b.instructions || ''
+        }));
+      }
+      return [fallbackDefault];
     } catch (err) {
-      console.warn('getBankAccounts failed:', err);
-      return [];
+      console.warn('getBankAccounts failed, using default:', err);
+      return [fallbackDefault];
     }
   },
 

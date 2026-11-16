@@ -382,7 +382,7 @@ export const ChallansModule: React.FC = () => {
               <option value="custom">All Custom Accounts</option>
               {bankAccounts.map((b) => (
                 <option key={b.id} value={String(b.id)}>
-                  {b.bankName} {b.isDefault ? '(Default)' : `(${b.accountNumber.slice(-4)})`}
+                  {b.bankName} {b.isDefault ? '(Default)' : (b.accountNumber ? `(${String(b.accountNumber).slice(-4)})` : '')}
                 </option>
               ))}
             </select>

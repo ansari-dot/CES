@@ -966,7 +966,7 @@ export const StudentsView: React.FC = () => {
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold uppercase">Alternative</span>
                     </div>
                     <p className="text-[11px] text-slate-600 font-mono mt-0.5">
-                      A/C: {acc.accountNumber} · Title: {acc.accountTitle}
+                      A/C: {acc.accountNumber || '—'} · Title: {acc.accountTitle || '—'}
                     </p>
                     <p className="text-[10px] text-slate-400">
                       Branch: {acc.branchName || 'Main Branch'} {acc.iban ? `· IBAN: ${acc.iban}` : ''}

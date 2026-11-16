@@ -489,8 +489,8 @@ export const FeeStructureModule: React.FC = () => {
                   )}
                 </div>
                 <div className="space-y-0.5 text-slate-600 text-[11px] font-mono">
-                  <div>Title: <strong className="text-slate-800 font-sans">{acc.accountTitle}</strong></div>
-                  <div>A/C: <strong className="text-slate-900">{acc.accountNumber}</strong></div>
+                  <div>Title: <strong className="text-slate-800 font-sans">{acc.accountTitle || '—'}</strong></div>
+                  <div>A/C: <strong className="text-slate-900">{acc.accountNumber || '—'}</strong></div>
                   {acc.iban && <div className="text-[10px]">IBAN: {acc.iban}</div>}
                   {acc.branchName && <div className="text-[10px] text-slate-400 font-sans">Branch: {acc.branchName}</div>}
                 </div>
