@@ -344,7 +344,8 @@ export const parentsRepository = {
       .join('users', 'students.user_id', 'users.id');
 
     const hasBankTable = await db.schema.hasTable('school_bank_accounts');
-    if (hasBankTable) {
+    const hasBankCol = hasBankTable ? await db.schema.hasColumn('fee_challans', 'bank_account_id') : false;
+    if (hasBankTable && hasBankCol) {
       query = query
         .leftJoin('school_bank_accounts', 'fee_challans.bank_account_id', 'school_bank_accounts.id')
         .select(

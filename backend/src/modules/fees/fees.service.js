@@ -243,21 +243,36 @@ export const feesService = {
     if (!data.accountNumber || !data.accountNumber.trim()) {
       throw new AppError('Account number is required', 422, ErrorCodes.VALIDATION_ERROR);
     }
-    return await feesRepository.createBankAccount(data, actorId);
+    try {
+      return await feesRepository.createBankAccount(data, actorId);
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      throw new AppError(err?.message || 'Failed to create bank account', 500, ErrorCodes.INTERNAL_SERVER_ERROR);
+    }
   },
 
   async updateBankAccount(id, data, actorId) {
     if (!id || isNaN(Number(id))) {
       throw new AppError('Valid bank account ID is required', 422, ErrorCodes.VALIDATION_ERROR);
     }
-    return await feesRepository.updateBankAccount(Number(id), data, actorId);
+    try {
+      return await feesRepository.updateBankAccount(Number(id), data, actorId);
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      throw new AppError(err?.message || 'Failed to update bank account', 500, ErrorCodes.INTERNAL_SERVER_ERROR);
+    }
   },
 
   async archiveBankAccount(id, actorId) {
     if (!id || isNaN(Number(id))) {
       throw new AppError('Valid bank account ID is required', 422, ErrorCodes.VALIDATION_ERROR);
     }
-    return await feesRepository.archiveBankAccount(Number(id), actorId);
+    try {
+      return await feesRepository.archiveBankAccount(Number(id), actorId);
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      throw new AppError(err?.message || 'Failed to archive bank account', 500, ErrorCodes.INTERNAL_SERVER_ERROR);
+    }
   },
 
   async assignStudentBankAccount({ studentId, bankAccountId, actorId }) {
@@ -265,7 +280,12 @@ export const feesService = {
       throw new AppError('Valid student ID is required', 422, ErrorCodes.VALIDATION_ERROR);
     }
     const bId = bankAccountId ? Number(bankAccountId) : null;
-    return await feesRepository.assignStudentBankAccount(Number(studentId), bId, actorId);
+    try {
+      return await feesRepository.assignStudentBankAccount(Number(studentId), bId, actorId);
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      throw new AppError(err?.message || 'Failed to assign bank account to student', 500, ErrorCodes.INTERNAL_SERVER_ERROR);
+    }
   },
 
   async assignChallanBankAccount({ challanId, bankAccountId, actorId }) {
@@ -275,7 +295,12 @@ export const feesService = {
     if (!bankAccountId || isNaN(Number(bankAccountId))) {
       throw new AppError('Valid bank account ID is required', 422, ErrorCodes.VALIDATION_ERROR);
     }
-    return await feesRepository.assignChallanBankAccount(Number(challanId), Number(bankAccountId), actorId);
+    try {
+      return await feesRepository.assignChallanBankAccount(Number(challanId), Number(bankAccountId), actorId);
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      throw new AppError(err?.message || 'Failed to assign bank account to challan', 500, ErrorCodes.INTERNAL_SERVER_ERROR);
+    }
   },
 
   async getChallans(filters) {

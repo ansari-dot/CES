@@ -21,10 +21,106 @@ export const FALLBACK_DEFAULT_BANK_ACCOUNT = {
   instructions: 'Primary default fee collection account for Cambridge Education System.'
 };
 
+let _ensuredBankTables = false;
+
+async function ensureBankAccountsTable(conn = db) {
+  if (_ensuredBankTables) return;
+  try {
+    const hasTable = await conn.schema.hasTable('school_bank_accounts');
+    if (!hasTable) {
+      await conn.schema.createTable('school_bank_accounts', (table) => {
+        table.bigIncrements('id').primary();
+        table.string('bank_name', 100).notNullable();
+        table.string('branch_name', 150).nullable();
+        table.string('account_title', 150).notNullable();
+        table.string('account_number', 50).notNullable();
+        table.string('iban', 50).nullable();
+        table.boolean('is_default').notNullable().defaultTo(false);
+        table.enu('status', ['ACTIVE', 'ARCHIVED']).notNullable().defaultTo('ACTIVE');
+        table.string('instructions', 500).nullable();
+        table.specificType('created_at', 'DATETIME(3)').notNullable().defaultTo(conn.raw('CURRENT_TIMESTAMP(3)'));
+        table.specificType('updated_at', 'DATETIME(3)').notNullable().defaultTo(conn.raw('CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)'));
+        table.index(['status'], 'ix_bank_account_status');
+        table.index(['is_default'], 'ix_bank_account_default');
+      });
+
+      await conn('school_bank_accounts').insert([
+        {
+          bank_name: 'Meezan Bank',
+          branch_name: 'F-11 Markaz, Islamabad',
+          account_title: 'CAMBRIDGE EDUCATION SYSTEM',
+          account_number: '03060114428178',
+          iban: 'PK58MEZN0003060114428178',
+          is_default: true,
+          status: 'ACTIVE',
+          instructions: 'Primary default fee collection account for Cambridge Education System.'
+        },
+        {
+          bank_name: 'Habib Bank Limited (HBL)',
+          branch_name: 'F-11 Markaz, Islamabad',
+          account_title: 'CAMBRIDGE EDUCATION SYSTEM',
+          account_number: '23817000192803',
+          iban: 'PK36HABB0023817000192803',
+          is_default: false,
+          status: 'ACTIVE',
+          instructions: 'Alternative bank account for parents using HBL / 1Link transfers.'
+        },
+        {
+          bank_name: 'Allied Bank Limited (ABL)',
+          branch_name: 'Islamabad Main Branch',
+          account_title: 'CAMBRIDGE EDUCATION SYSTEM',
+          account_number: '0010045612340019',
+          iban: 'PK45ABPA0010045612340019',
+          is_default: false,
+          status: 'ACTIVE',
+          instructions: 'Alternative bank account for parents using Allied Bank / Raast.'
+        }
+      ]);
+    }
+
+    if (await conn.schema.hasTable('students')) {
+      const hasCol = await conn.schema.hasColumn('students', 'custom_bank_account_id');
+      if (!hasCol) {
+        await conn.schema.alterTable('students', (table) => {
+          table.bigInteger('custom_bank_account_id').unsigned().nullable();
+        });
+      }
+    }
+
+    if (await conn.schema.hasTable('fee_challans')) {
+      const hasCol = await conn.schema.hasColumn('fee_challans', 'bank_account_id');
+      if (!hasCol) {
+        await conn.schema.alterTable('fee_challans', (table) => {
+          table.bigInteger('bank_account_id').unsigned().nullable();
+        });
+
+        const def = await conn('school_bank_accounts').where({ is_default: true }).first();
+        if (def) {
+          await conn('fee_challans').whereNull('bank_account_id').update({ bank_account_id: def.id });
+        }
+      }
+    }
+
+    if (await conn.schema.hasTable('fee_payment_proofs')) {
+      const hasCol = await conn.schema.hasColumn('fee_payment_proofs', 'target_bank_account_id');
+      if (!hasCol) {
+        await conn.schema.alterTable('fee_payment_proofs', (table) => {
+          table.bigInteger('target_bank_account_id').unsigned().nullable();
+        });
+      }
+    }
+
+    _ensuredBankTables = true;
+  } catch (err) {
+    console.warn('[BankAccounts] Auto-ensure table notice:', err?.message || err);
+  }
+}
+
 export const feesRepository = {
   // 0. School Bank Accounts & Student Custom Assignments
   async getDefaultBankAccount(trx = db) {
     try {
+      await ensureBankAccountsTable(db);
       const hasTable = await trx.schema.hasTable('school_bank_accounts');
       if (!hasTable) return FALLBACK_DEFAULT_BANK_ACCOUNT;
       const defaultAccount = await trx('school_bank_accounts')
@@ -43,6 +139,7 @@ export const feesRepository = {
 
   async getBankAccounts({ status = null } = {}, trx = db) {
     try {
+      await ensureBankAccountsTable(db);
       const hasTable = await trx.schema.hasTable('school_bank_accounts');
       if (!hasTable) return [FALLBACK_DEFAULT_BANK_ACCOUNT];
       let query = trx('school_bank_accounts')
@@ -69,6 +166,7 @@ export const feesRepository = {
   },
 
   async createBankAccount(data, actorId = null) {
+    await ensureBankAccountsTable(db);
     return await db.transaction(async (trx) => {
       const isDefault = Boolean(data.isDefault);
       if (isDefault) {
@@ -86,14 +184,18 @@ export const feesRepository = {
       });
 
       if (actorId) {
-        await auditRepository.logAction(trx, {
-          actorId,
-          action: 'BANK_ACCOUNT_CREATED',
-          recordType: 'school_bank_accounts',
-          recordIdentifier: `Account #${id} (${data.bankName})`,
-          reason: `Added new school bank account: ${data.bankName} - ${data.accountNumber}`,
-          newValue: data
-        });
+        try {
+          await auditRepository.logAction(trx, {
+            actorId,
+            action: 'BANK_ACCOUNT_CREATED',
+            recordType: 'school_bank_accounts',
+            recordIdentifier: `Account #${id} (${data.bankName})`,
+            reason: `Added new school bank account: ${data.bankName} - ${data.accountNumber}`,
+            newValue: data
+          });
+        } catch (auditErr) {
+          console.warn('[BankAccounts] Audit log failed:', auditErr.message);
+        }
       }
 
       const created = await trx('school_bank_accounts').where({ id }).first();
@@ -112,6 +214,7 @@ export const feesRepository = {
   },
 
   async updateBankAccount(id, data, actorId = null) {
+    await ensureBankAccountsTable(db);
     return await db.transaction(async (trx) => {
       const before = await trx('school_bank_accounts').where({ id }).first();
       if (!before) throw new Error('Bank account not found');
@@ -134,15 +237,19 @@ export const feesRepository = {
       });
 
       if (actorId) {
-        await auditRepository.logAction(trx, {
-          actorId,
-          action: 'BANK_ACCOUNT_UPDATED',
-          recordType: 'school_bank_accounts',
-          recordIdentifier: `Account #${id} (${before.bank_name})`,
-          reason: `Updated school bank account #${id}`,
-          previousValue: before,
-          newValue: data
-        });
+        try {
+          await auditRepository.logAction(trx, {
+            actorId,
+            action: 'BANK_ACCOUNT_UPDATED',
+            recordType: 'school_bank_accounts',
+            recordIdentifier: `Account #${id} (${before.bank_name})`,
+            reason: `Updated school bank account #${id}`,
+            previousValue: before,
+            newValue: data
+          });
+        } catch (auditErr) {
+          console.warn('[BankAccounts] Audit log failed:', auditErr.message);
+        }
       }
 
       const updated = await trx('school_bank_accounts').where({ id }).first();
@@ -161,6 +268,7 @@ export const feesRepository = {
   },
 
   async archiveBankAccount(id, actorId = null) {
+    await ensureBankAccountsTable(db);
     return await db.transaction(async (trx) => {
       const before = await trx('school_bank_accounts').where({ id }).first();
       if (!before) throw new Error('Bank account not found');
@@ -180,14 +288,18 @@ export const feesRepository = {
       });
 
       if (actorId) {
-        await auditRepository.logAction(trx, {
-          actorId,
-          action: 'BANK_ACCOUNT_ARCHIVED',
-          recordType: 'school_bank_accounts',
-          recordIdentifier: `Account #${id} (${before.bank_name})`,
-          reason: `Archived school bank account #${id}`,
-          previousValue: before
-        });
+        try {
+          await auditRepository.logAction(trx, {
+            actorId,
+            action: 'BANK_ACCOUNT_ARCHIVED',
+            recordType: 'school_bank_accounts',
+            recordIdentifier: `Account #${id} (${before.bank_name})`,
+            reason: `Archived school bank account #${id}`,
+            previousValue: before
+          });
+        } catch (auditErr) {
+          console.warn('[BankAccounts] Audit log failed:', auditErr.message);
+        }
       }
 
       return { success: true };
@@ -195,6 +307,7 @@ export const feesRepository = {
   },
 
   async assignStudentBankAccount(studentId, bankAccountId, actorId = null) {
+    await ensureBankAccountsTable(db);
     return await db.transaction(async (trx) => {
       const student = await trx('students')
         .join('users', 'students.user_id', 'users.id')
@@ -215,17 +328,21 @@ export const feesRepository = {
       });
 
       if (actorId) {
-        await auditRepository.logAction(trx, {
-          actorId,
-          action: 'STUDENT_BANK_ACCOUNT_ASSIGNED',
-          recordType: 'students',
-          recordIdentifier: `Student #${studentId} (${student.studentName})`,
-          reason: bankAccountId
-            ? `Assigned custom bank account #${bankAccountId} (${targetAccount.bank_name} - ${targetAccount.account_number})`
-            : 'Reset student to default school bank account',
-          previousValue: { customBankAccountId: student.custom_bank_account_id },
-          newValue: { customBankAccountId: bankAccountId }
-        });
+        try {
+          await auditRepository.logAction(trx, {
+            actorId,
+            action: 'STUDENT_BANK_ACCOUNT_ASSIGNED',
+            recordType: 'students',
+            recordIdentifier: `Student #${studentId} (${student.studentName})`,
+            reason: bankAccountId
+              ? `Assigned custom bank account #${bankAccountId} (${targetAccount.bank_name} - ${targetAccount.account_number})`
+              : 'Reset student to default school bank account',
+            previousValue: { customBankAccountId: student.custom_bank_account_id },
+            newValue: { customBankAccountId: bankAccountId }
+          });
+        } catch (auditErr) {
+          console.warn('[BankAccounts] Audit log failed:', auditErr.message);
+        }
       }
 
       return {
@@ -245,6 +362,7 @@ export const feesRepository = {
   },
 
   async assignChallanBankAccount(challanId, bankAccountId, actorId = null) {
+    await ensureBankAccountsTable(db);
     return await db.transaction(async (trx) => {
       const challan = await trx('fee_challans').where({ id: challanId }).first();
       if (!challan) throw new Error('Challan not found');
@@ -258,15 +376,19 @@ export const feesRepository = {
       });
 
       if (actorId) {
-        await auditRepository.logAction(trx, {
-          actorId,
-          action: 'CHALLAN_BANK_ACCOUNT_ASSIGNED',
-          recordType: 'fee_challans',
-          recordIdentifier: `Challan #${challan.challan_number} (ID: ${challanId})`,
-          reason: `Assigned bank account #${bankAccountId} (${targetAccount.bank_name} - ${targetAccount.account_number}) to challan`,
-          previousValue: { bankAccountId: challan.bank_account_id },
-          newValue: { bankAccountId }
-        });
+        try {
+          await auditRepository.logAction(trx, {
+            actorId,
+            action: 'CHALLAN_BANK_ACCOUNT_ASSIGNED',
+            recordType: 'fee_challans',
+            recordIdentifier: `Challan #${challan.challan_number} (ID: ${challanId})`,
+            reason: `Assigned bank account #${bankAccountId} (${targetAccount.bank_name} - ${targetAccount.account_number}) to challan`,
+            previousValue: { bankAccountId: challan.bank_account_id },
+            newValue: { bankAccountId }
+          });
+        } catch (auditErr) {
+          console.warn('[BankAccounts] Audit log failed:', auditErr.message);
+        }
       }
 
       return await this.findChallanById(challanId);
@@ -1002,6 +1124,7 @@ export const feesRepository = {
 
   async getPaymentProofs({ status = null, challanId = null, studentId = null, bankAccountId = null } = {}, trx = db) {
     const hasProofBankCol = await trx.schema.hasColumn('fee_payment_proofs', 'target_bank_account_id');
+    const hasChallanBankCol = await trx.schema.hasColumn('fee_challans', 'bank_account_id');
     const hasBankTable = await trx.schema.hasTable('school_bank_accounts');
     const defaultBank = await this.getDefaultBankAccount(trx);
 
@@ -1015,9 +1138,11 @@ export const feesRepository = {
       .leftJoin('users as reviewer_users', 'fee_payment_proofs.reviewed_by', 'reviewer_users.id');
 
     if (hasBankTable) {
-      if (hasProofBankCol) {
+      if (hasProofBankCol && hasChallanBankCol) {
         query = query.leftJoin('school_bank_accounts as target_sba', db.raw('COALESCE(fee_payment_proofs.target_bank_account_id, fee_challans.bank_account_id)'), 'target_sba.id');
-      } else {
+      } else if (hasProofBankCol) {
+        query = query.leftJoin('school_bank_accounts as target_sba', 'fee_payment_proofs.target_bank_account_id', 'target_sba.id');
+      } else if (hasChallanBankCol) {
         query = query.leftJoin('school_bank_accounts as target_sba', 'fee_challans.bank_account_id', 'target_sba.id');
       }
     }
