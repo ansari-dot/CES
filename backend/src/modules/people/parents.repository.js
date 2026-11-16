@@ -337,20 +337,44 @@ export const parentsRepository = {
   },
 
   async getChildChallanDetail(studentId, challanId) {
-    const challan = await db('fee_challans')
+    let query = db('fee_challans')
       .join('classes', 'fee_challans.class_id', 'classes.id')
       .join('academic_sessions', 'fee_challans.session_id', 'academic_sessions.id')
       .join('students', 'fee_challans.student_id', 'students.id')
-      .join('users', 'students.user_id', 'users.id')
-      .where({ 'fee_challans.id': challanId, 'fee_challans.student_id': studentId })
-      .select(
+      .join('users', 'students.user_id', 'users.id');
+
+    const hasBankTable = await db.schema.hasTable('school_bank_accounts');
+    if (hasBankTable) {
+      query = query
+        .leftJoin('school_bank_accounts', 'fee_challans.bank_account_id', 'school_bank_accounts.id')
+        .select(
+          'fee_challans.*',
+          'classes.name as className',
+          'academic_sessions.name as academicSession',
+          'users.full_name as studentName',
+          'students.admission_no as admissionNo',
+          'students.roll_no as rollNo',
+          'school_bank_accounts.bank_name as bank_name',
+          'school_bank_accounts.branch_name as branch_name',
+          'school_bank_accounts.account_title as account_title',
+          'school_bank_accounts.account_number as account_number',
+          'school_bank_accounts.iban as bank_iban',
+          'school_bank_accounts.instructions as bank_instructions',
+          'school_bank_accounts.is_default as bank_is_default'
+        );
+    } else {
+      query = query.select(
         'fee_challans.*',
         'classes.name as className',
         'academic_sessions.name as academicSession',
         'users.full_name as studentName',
         'students.admission_no as admissionNo',
         'students.roll_no as rollNo'
-      )
+      );
+    }
+
+    const challan = await query
+      .where({ 'fee_challans.id': challanId, 'fee_challans.student_id': studentId })
       .first();
 
     if (!challan) return null;
@@ -386,6 +410,26 @@ export const parentsRepository = {
       issueDate: challan.issue_date,
       dueDate: challan.due_date,
       validUntil: challan.valid_until,
+      bankAccountId: challan.bank_account_id || 1,
+      bankAccount: challan.bank_name ? {
+        id: challan.bank_account_id,
+        bankName: challan.bank_name,
+        branchName: challan.branch_name || '',
+        accountTitle: challan.account_title || 'CAMBRIDGE EDUCATION SYSTEM',
+        accountNumber: challan.account_number || '03060114428178',
+        iban: challan.bank_iban || '',
+        instructions: challan.bank_instructions || '',
+        isDefault: Boolean(challan.bank_is_default)
+      } : {
+        id: 1,
+        bankName: 'Meezan Bank',
+        branchName: 'F-11 Markaz, Islamabad',
+        accountTitle: 'CAMBRIDGE EDUCATION SYSTEM',
+        accountNumber: '03060114428178',
+        iban: 'PK58MEZN0003060114428178',
+        instructions: '',
+        isDefault: true
+      },
       breakdown: {
         tuition: num(challan.tuition_amount),
         technology: num(challan.technology_amount),
