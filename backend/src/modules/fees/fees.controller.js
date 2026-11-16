@@ -7,6 +7,85 @@ import { ErrorCodes } from '../../shared/errors/errorCodes.js';
 import { isStaff, getStudentByUserId, getParentChildren } from '../../shared/services/accessScope.js';
 
 export const feesController = {
+  // 0. School Bank Accounts & Custom Assignments
+  async getBankAccounts(req, res, next) {
+    try {
+      const { status } = req.query;
+      const accounts = await feesService.getBankAccounts({ status: status || null });
+      return sendSuccess(res, accounts);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async createBankAccount(req, res, next) {
+    try {
+      const { bankName, branchName, accountTitle, accountNumber, iban, isDefault, instructions } = req.body;
+      const account = await feesService.createBankAccount(
+        { bankName, branchName, accountTitle, accountNumber, iban, isDefault, instructions },
+        req.user?.id
+      );
+      return sendSuccess(res, account, 'Bank account created successfully', 201);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async updateBankAccount(req, res, next) {
+    try {
+      const id = Number(req.params.id);
+      const { bankName, branchName, accountTitle, accountNumber, iban, isDefault, status, instructions } = req.body;
+      const updated = await feesService.updateBankAccount(
+        id,
+        { bankName, branchName, accountTitle, accountNumber, iban, isDefault, status, instructions },
+        req.user?.id
+      );
+      return sendSuccess(res, updated, 'Bank account updated successfully');
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async archiveBankAccount(req, res, next) {
+    try {
+      const id = Number(req.params.id);
+      await feesService.archiveBankAccount(id, req.user?.id);
+      return sendSuccess(res, { success: true }, 'Bank account archived');
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async assignStudentBankAccount(req, res, next) {
+    try {
+      const studentId = Number(req.params.id);
+      const { bankAccountId } = req.body;
+      const result = await feesService.assignStudentBankAccount({
+        studentId,
+        bankAccountId: bankAccountId ? Number(bankAccountId) : null,
+        actorId: req.user?.id
+      });
+      return sendSuccess(res, result, 'Student bank account updated');
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async assignChallanBankAccount(req, res, next) {
+    try {
+      const challanId = Number(req.params.id);
+      const { bankAccountId } = req.body;
+      const result = await feesService.assignChallanBankAccount({
+        challanId,
+        bankAccountId: Number(bankAccountId),
+        actorId: req.user?.id
+      });
+      return sendSuccess(res, result, 'Challan bank account updated');
+    } catch (error) {
+      next(error);
+    }
+  },
+
   // 1. Fee Structures
   async createOrUpdateFeeStructure(req, res, next) {
     try {
@@ -162,7 +241,7 @@ export const feesController = {
 
   async getChallans(req, res, next) {
     try {
-      const { classId, studentId, billingMonth, status, search } = req.query;
+      const { classId, studentId, billingMonth, status, search, bankAccountId } = req.query;
       let finalStudentId = studentId ? Number(studentId) : null;
 
       if (req.user && req.user.role === 'STUDENT') {
@@ -175,7 +254,8 @@ export const feesController = {
         studentId: finalStudentId,
         billingMonth: billingMonth || null,
         status: status || null,
-        search: search || null
+        search: search || null,
+        bankAccountId: bankAccountId || null
       });
       return sendSuccess(res, challans);
     } catch (error) {
@@ -247,11 +327,12 @@ export const feesController = {
 
   async getPaymentProofs(req, res, next) {
     try {
-      const { status, challanId, studentId } = req.query;
+      const { status, challanId, studentId, bankAccountId } = req.query;
       const proofs = await feesService.getPaymentProofs({
         status: status || null,
         challanId: challanId ? Number(challanId) : null,
-        studentId: studentId ? Number(studentId) : null
+        studentId: studentId ? Number(studentId) : null,
+        bankAccountId: bankAccountId || null
       });
       return sendSuccess(res, proofs);
     } catch (error) {

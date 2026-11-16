@@ -9,6 +9,14 @@ const router = Router();
 // Stats
 router.get('/stats', authenticate, feesController.getFeeStats);
 
+// 0. Bank Accounts & Assignments
+router.get('/bank-accounts', authenticate, feesController.getBankAccounts);
+router.post('/bank-accounts', authenticate, authorize('fees.structure.manage'), feesController.createBankAccount);
+router.put('/bank-accounts/:id', authenticate, authorize('fees.structure.manage'), feesController.updateBankAccount);
+router.delete('/bank-accounts/:id', authenticate, authorize('fees.structure.manage'), feesController.archiveBankAccount);
+router.put('/students/:id/bank-account', authenticate, authorize('fees.structure.manage'), feesController.assignStudentBankAccount);
+router.put('/challans/:id/bank-account', authenticate, authorize('fees.structure.manage'), feesController.assignChallanBankAccount);
+
 // Restricted students & access restoration (Principal only)
 router.get('/restricted-students', authenticate, authorize('fees.access.restore'), feesController.getRestrictedStudents);
 router.post('/students/:id/restore-access', authenticate, authorize('fees.access.restore'), feesController.restoreStudentAccess);

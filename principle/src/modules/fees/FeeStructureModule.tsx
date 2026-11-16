@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api';
-import { ClassFeeStructure, StudentConcession, Student, FeeHeadType } from '../../types';
+import { ClassFeeStructure, StudentConcession, Student, FeeHeadType, SchoolBankAccount } from '../../types';
 import { requestApi } from '../../services/api';
 
 /** Concession types whose value is a percentage (matches the backend calculation). */
@@ -29,7 +29,8 @@ import {
   CheckCircle2,
   Layers,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  Building2
 } from 'lucide-react';
 
 export const FeeStructureModule: React.FC = () => {
@@ -76,6 +77,20 @@ export const FeeStructureModule: React.FC = () => {
   const [concessionSubmitting, setConcessionSubmitting] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
+  // Bank Accounts Management
+  const [bankAccounts, setBankAccounts] = useState<SchoolBankAccount[]>([]);
+  const [isBankAccountsModalOpen, setIsBankAccountsModalOpen] = useState(false);
+  const [isNewAccountModalOpen, setIsNewAccountModalOpen] = useState(false);
+  const [newAccountForm, setNewAccountForm] = useState({
+    bankName: '',
+    branchName: '',
+    accountTitle: '',
+    accountNumber: '',
+    iban: '',
+    instructions: ''
+  });
+  const [savingAccount, setSavingAccount] = useState(false);
+
   const toast = useToast();
   const { activeSession } = useAuth();
 
@@ -83,20 +98,68 @@ export const FeeStructureModule: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const [fData, cData, sData] = await Promise.all([
+      const [fData, cData, sData, bData] = await Promise.all([
         api.getFeeStructures(),
         api.getConcessions(),
-        api.getStudents()
+        api.getStudents(),
+        api.getBankAccounts()
       ]);
       setStructures(fData);
       setConcessions(cData);
       setStudents(sData);
+      setBankAccounts(bData);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load fee structures');
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const handleCreateAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAccountForm.bankName.trim() || !newAccountForm.accountNumber.trim() || !newAccountForm.accountTitle.trim()) {
+      toast.warning('Please enter bank name, account title, and account number.');
+      return;
+    }
+    try {
+      setSavingAccount(true);
+      await api.createBankAccount({
+        bankName: newAccountForm.bankName.trim(),
+        branchName: newAccountForm.branchName.trim(),
+        accountTitle: newAccountForm.accountTitle.trim(),
+        accountNumber: newAccountForm.accountNumber.trim(),
+        iban: newAccountForm.iban.trim(),
+        instructions: newAccountForm.instructions.trim(),
+        isDefault: false
+      });
+      toast.success(`Bank account ${newAccountForm.bankName} added successfully.`);
+      setIsNewAccountModalOpen(false);
+      setNewAccountForm({
+        bankName: '',
+        branchName: '',
+        accountTitle: '',
+        accountNumber: '',
+        iban: '',
+        instructions: ''
+      });
+      loadData();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to create bank account');
+    } finally {
+      setSavingAccount(false);
+    }
+  };
+
+  const handleArchiveAccount = async (id: number) => {
+    if (!confirm('Are you sure you want to archive this bank account? Students assigned to it will revert to the default school bank account.')) return;
+    try {
+      await api.archiveBankAccount(id);
+      toast.success('Bank account archived.');
+      loadData();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to archive bank account');
+    }
+  };
 
   useEffect(() => {
     requestApi<any[]>('/api/v1/sessions')
@@ -352,7 +415,15 @@ export const FeeStructureModule: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setIsNewAccountModalOpen(true)}
+            className="px-3.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+          >
+            <Building2 className="w-3.5 h-3.5" />
+            <span>+ Add Bank Account</span>
+          </button>
+
           <button
             onClick={() => handleOpenEdit(selectedClassNum)}
             className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
@@ -372,6 +443,71 @@ export const FeeStructureModule: React.FC = () => {
             <BadgePercent className="w-3.5 h-3.5" />
             <span>Authorize Student Concession</span>
           </button>
+        </div>
+      </div>
+
+      {/* School Bank Accounts Configuration Overview */}
+      <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center">
+              <Building2 className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-slate-900 text-xs">Official School Bank Accounts for Fee Challans</h3>
+              <p className="text-[11px] text-slate-500">
+                Primary Meezan Bank account applies to all students by default. Principals can configure alternative bank accounts and assign them to specific students.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setIsNewAccountModalOpen(true)}
+            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer shrink-0"
+          >
+            <Plus className="w-3 h-3" />
+            <span>+ Add Alternative Bank</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {bankAccounts.map((acc) => (
+            <div
+              key={acc.id}
+              className={`p-3.5 rounded-xl border transition-all text-xs flex flex-col justify-between ${
+                acc.isDefault
+                  ? 'bg-amber-50/50 border-amber-200'
+                  : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-bold text-slate-900">{acc.bankName}</span>
+                  {acc.isDefault ? (
+                    <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">Default Primary</span>
+                  ) : (
+                    <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">Alternative</span>
+                  )}
+                </div>
+                <div className="space-y-0.5 text-slate-600 text-[11px] font-mono">
+                  <div>Title: <strong className="text-slate-800 font-sans">{acc.accountTitle}</strong></div>
+                  <div>A/C: <strong className="text-slate-900">{acc.accountNumber}</strong></div>
+                  {acc.iban && <div className="text-[10px]">IBAN: {acc.iban}</div>}
+                  {acc.branchName && <div className="text-[10px] text-slate-400 font-sans">Branch: {acc.branchName}</div>}
+                </div>
+              </div>
+              {!acc.isDefault && (
+                <div className="mt-3 pt-2 border-t border-slate-200 flex justify-end">
+                  <button
+                    onClick={() => handleArchiveAccount(acc.id)}
+                    className="text-rose-600 hover:text-rose-800 text-[11px] flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Archive</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 
@@ -980,6 +1116,114 @@ export const FeeStructureModule: React.FC = () => {
           </div>
         </form>
       </Modal>
+      {/* Add New Alternative Bank Account Modal */}
+      {isNewAccountModalOpen && (
+        <Modal
+          isOpen={isNewAccountModalOpen}
+          onClose={() => setIsNewAccountModalOpen(false)}
+          title="Add Alternative School Bank Account"
+          description="Configure an alternative school bank account. This account can be assigned to individual students who cannot transfer funds into the default Meezan Bank account."
+          maxWidth="md"
+        >
+          <form onSubmit={handleCreateAccount} className="space-y-3 text-xs">
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">
+                Bank Name <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Habib Bank Limited (HBL), Allied Bank, UBL"
+                value={newAccountForm.bankName}
+                onChange={(e) => setNewAccountForm({ ...newAccountForm, bankName: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800 focus:bg-white"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">
+                  Account Title <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. CAMBRIDGE EDUCATION SYSTEM"
+                  value={newAccountForm.accountTitle}
+                  onChange={(e) => setNewAccountForm({ ...newAccountForm, accountTitle: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">
+                  Account Number <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 23817000192803"
+                  value={newAccountForm.accountNumber}
+                  onChange={(e) => setNewAccountForm({ ...newAccountForm, accountNumber: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800 font-mono focus:bg-white"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Branch Name / City</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Blue Area, Islamabad"
+                  value={newAccountForm.branchName}
+                  onChange={(e) => setNewAccountForm({ ...newAccountForm, branchName: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">IBAN (optional)</label>
+                <input
+                  type="text"
+                  placeholder="PK..."
+                  value={newAccountForm.iban}
+                  onChange={(e) => setNewAccountForm({ ...newAccountForm, iban: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800 font-mono focus:bg-white"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">Deposit Instructions for Parents (optional)</label>
+              <textarea
+                rows={2}
+                placeholder="Special notes to show on the printed challan slip..."
+                value={newAccountForm.instructions}
+                onChange={(e) => setNewAccountForm({ ...newAccountForm, instructions: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800 focus:bg-white resize-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsNewAccountModalOpen(false)}
+                className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={savingAccount}
+                className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-xs"
+              >
+                {savingAccount ? 'Adding Account...' : 'Save Bank Account'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 };

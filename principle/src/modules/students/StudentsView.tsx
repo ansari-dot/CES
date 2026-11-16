@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api';
-import { Student } from '../../types';
+import { Student, SchoolBankAccount } from '../../types';
 import { DataTable, Column } from '../../components/common/DataTable';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { Modal } from '../../components/common/Modal';
@@ -17,7 +17,8 @@ import {
   Eye,
   Printer,
   Award,
-  FileText
+  FileText,
+  Building2
 } from 'lucide-react';
 
 export const StudentsView: React.FC = () => {
@@ -77,6 +78,43 @@ export const StudentsView: React.FC = () => {
   const [statusReason, setStatusReason] = useState('');
   const [isFeeNonPayment, setIsFeeNonPayment] = useState(false);
   const [statusSubmitting, setStatusSubmitting] = useState(false);
+
+  // Custom Bank Account Assignment
+  const [isBankModalOpen, setIsBankModalOpen] = useState(false);
+  const [bankAccounts, setBankAccounts] = useState<SchoolBankAccount[]>([]);
+  const [selectedBankId, setSelectedBankId] = useState<number | null>(null);
+  const [bankSubmitting, setBankSubmitting] = useState(false);
+
+  const handleOpenBankModal = async (student: Student) => {
+    setSelectedStudent(student);
+    setSelectedBankId(student.customBankAccountId ?? null);
+    setIsBankModalOpen(true);
+    try {
+      const accounts = await api.getBankAccounts('ACTIVE');
+      setBankAccounts(accounts);
+    } catch {
+      toast.error('Failed to load bank accounts');
+    }
+  };
+
+  const handleBankSubmit = async () => {
+    if (!selectedStudent) return;
+    try {
+      setBankSubmitting(true);
+      await api.assignStudentBankAccount(selectedStudent.id, selectedBankId);
+      toast.success(
+        selectedBankId
+          ? `Custom bank account assigned to ${selectedStudent.name}`
+          : `Default bank account restored for ${selectedStudent.name}`
+      );
+      setIsBankModalOpen(false);
+      loadStudents();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to update student bank account');
+    } finally {
+      setBankSubmitting(false);
+    }
+  };
 
   const toast = useToast();
   const { activeSession } = useAuth();
@@ -211,8 +249,19 @@ export const StudentsView: React.FC = () => {
       key: 'name',
       header: 'Student Name',
       render: (s) => (
-        <div className="flex flex-col">
-          <span className="font-semibold text-slate-900">{s.name}</span>
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-semibold text-slate-900">{s.name}</span>
+            {s.customBankAccountId && (
+              <span
+                title={`Custom Bank Account: ${s.customBankName || 'Assigned'} (${s.customAccountNumber || ''})`}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200"
+              >
+                <Building2 className="w-3 h-3 text-emerald-600" />
+                <span>{s.customBankName || 'Custom Bank'}</span>
+              </span>
+            )}
+          </div>
           <span className="text-[11px] text-slate-500">
             Admitted: {s.admissionDate} (Session: {s.academicSession})
           </span>
@@ -282,6 +331,17 @@ export const StudentsView: React.FC = () => {
             className="p-1.5 rounded-lg border border-amber-200 bg-amber-50/60 text-amber-700 hover:bg-amber-100 transition-colors shadow-2xs"
           >
             <ArrowRightLeft className="w-3.5 h-3.5" strokeWidth={1.75} />
+          </button>
+          <button
+            onClick={() => handleOpenBankModal(s)}
+            title={s.customBankAccountId ? `Custom Bank: ${s.customBankName || 'Assigned'} - Click to change` : 'Assign Custom Bank Account for Fee Challans'}
+            className={`p-1.5 rounded-lg border transition-colors shadow-2xs ${
+              s.customBankAccountId
+                ? 'border-emerald-300 bg-emerald-50/80 text-emerald-700 hover:bg-emerald-100'
+                : 'border-slate-200 hover:bg-slate-100 text-slate-500'
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5" strokeWidth={1.75} />
           </button>
           <button
             onClick={() => {
@@ -640,6 +700,62 @@ export const StudentsView: React.FC = () => {
               </div>
             </div>
 
+            {/* Assigned Fee Payment Bank Account */}
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-semibold text-slate-900 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Assigned Fee Payment Bank Account</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsDetailsModalOpen(false);
+                    handleOpenBankModal(selectedStudent);
+                  }}
+                  className="px-2.5 py-1 text-[11px] rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium shadow-2xs"
+                >
+                  Change Account
+                </button>
+              </div>
+              {selectedStudent.customBankAccountId ? (
+                <div className="bg-emerald-50/70 border border-emerald-200 rounded-lg p-2.5 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-emerald-900">{selectedStudent.customBankName}</span>
+                    <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-emerald-200 text-emerald-800">Custom Assigned</span>
+                  </div>
+                  <div className="text-slate-600 font-mono text-[11px]">
+                    Title: <span className="font-semibold text-slate-800">{selectedStudent.customAccountTitle}</span>
+                  </div>
+                  <div className="text-slate-600 font-mono text-[11px]">
+                    A/C #: <span className="font-bold text-slate-900">{selectedStudent.customAccountNumber}</span>
+                    {selectedStudent.customBranchName && <span className="text-slate-500 font-sans ml-2">({selectedStudent.customBranchName})</span>}
+                  </div>
+                  {selectedStudent.customIban && (
+                    <div className="text-slate-600 font-mono text-[11px]">
+                      IBAN: <span className="font-mono text-slate-800">{selectedStudent.customIban}</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-slate-100/70 border border-slate-200 rounded-lg p-2.5 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-slate-900">Meezan Bank (Default Primary Account)</span>
+                    <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">School Default</span>
+                  </div>
+                  <div className="text-slate-600 font-mono text-[11px]">
+                    Title: <span className="font-semibold text-slate-800">CAMBRIDGE EDUCATION SYSTEM</span>
+                  </div>
+                  <div className="text-slate-600 font-mono text-[11px]">
+                    A/C #: <span className="font-bold text-slate-900">03060114428178</span> (F-11 Markaz, Islamabad)
+                  </div>
+                  <div className="text-slate-600 font-mono text-[11px]">
+                    IBAN: <span className="font-mono text-slate-800">PK58MEZN0003060114428178</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Transfer & Promotion History */}
             <div>
               <h4 className="font-semibold text-slate-900 mb-2 flex items-center gap-1.5">
@@ -780,6 +896,103 @@ export const StudentsView: React.FC = () => {
                 ))}
               </div>
             )}
+          </div>
+        </Modal>
+      )}
+      {/* Assign Custom Bank Account Modal */}
+      {isBankModalOpen && selectedStudent && (
+        <Modal
+          isOpen={isBankModalOpen}
+          onClose={() => setIsBankModalOpen(false)}
+          title={`Assign Fee Payment Bank Account · ${selectedStudent.name}`}
+          description={`Select the bank account parents must use when depositing fees for ${selectedStudent.name} (Adm: ${selectedStudent.admissionNumber}).`}
+          maxWidth="md"
+        >
+          <div className="space-y-4 text-xs">
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] leading-relaxed">
+              <strong>Parent Fee Deposit Account:</strong> By default, all students use the school's primary Meezan Bank account. If this family requires a different bank (e.g. HBL, Allied Bank) to make transfers, select an alternative account below. Future and newly generated challans will display these bank details.
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-slate-700 font-semibold">Select Bank Account *</label>
+
+              {/* Option 1: School Default */}
+              <label
+                className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                  selectedBankId === null
+                    ? 'border-amber-500 bg-amber-50/40 ring-1 ring-amber-500'
+                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="bankAccountChoice"
+                  checked={selectedBankId === null}
+                  onChange={() => setSelectedBankId(null)}
+                  className="mt-0.5 text-amber-600 focus:ring-0"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-900">Default Primary Account (Meezan Bank)</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold uppercase">Standard Default</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 font-mono mt-0.5">
+                    Meezan Bank · 03060114428178 · CAMBRIDGE EDUCATION SYSTEM
+                  </p>
+                  <p className="text-[10px] text-slate-400">Branch: F-11 Markaz, Islamabad · IBAN: PK58MEZN0003060114428178</p>
+                </div>
+              </label>
+
+              {/* Configured alternative accounts */}
+              {bankAccounts.filter(b => !b.isDefault).map((acc) => (
+                <label
+                  key={acc.id}
+                  className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                    selectedBankId === acc.id
+                      ? 'border-emerald-500 bg-emerald-50/40 ring-1 ring-emerald-500'
+                      : 'border-slate-200 hover:border-slate-300 bg-white'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="bankAccountChoice"
+                    checked={selectedBankId === acc.id}
+                    onChange={() => setSelectedBankId(acc.id)}
+                    className="mt-0.5 text-emerald-600 focus:ring-0"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900">{acc.bankName}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold uppercase">Alternative</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 font-mono mt-0.5">
+                      A/C: {acc.accountNumber} · Title: {acc.accountTitle}
+                    </p>
+                    <p className="text-[10px] text-slate-400">
+                      Branch: {acc.branchName || 'Main Branch'} {acc.iban ? `· IBAN: ${acc.iban}` : ''}
+                    </p>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsBankModalOpen(false)}
+                className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleBankSubmit}
+                disabled={bankSubmitting}
+                className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-xs"
+              >
+                {bankSubmitting ? 'Saving Assignment...' : 'Save Bank Assignment'}
+              </button>
+            </div>
           </div>
         </Modal>
       )}

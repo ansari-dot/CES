@@ -228,6 +228,56 @@ export const feesService = {
     });
   },
 
+  // Bank Accounts Management & Student Assignments
+  async getBankAccounts(filters) {
+    return await feesRepository.getBankAccounts(filters);
+  },
+
+  async createBankAccount(data, actorId) {
+    if (!data.bankName || !data.bankName.trim()) {
+      throw new AppError('Bank name is required', 422, ErrorCodes.VALIDATION_ERROR);
+    }
+    if (!data.accountTitle || !data.accountTitle.trim()) {
+      throw new AppError('Account title is required', 422, ErrorCodes.VALIDATION_ERROR);
+    }
+    if (!data.accountNumber || !data.accountNumber.trim()) {
+      throw new AppError('Account number is required', 422, ErrorCodes.VALIDATION_ERROR);
+    }
+    return await feesRepository.createBankAccount(data, actorId);
+  },
+
+  async updateBankAccount(id, data, actorId) {
+    if (!id || isNaN(Number(id))) {
+      throw new AppError('Valid bank account ID is required', 422, ErrorCodes.VALIDATION_ERROR);
+    }
+    return await feesRepository.updateBankAccount(Number(id), data, actorId);
+  },
+
+  async archiveBankAccount(id, actorId) {
+    if (!id || isNaN(Number(id))) {
+      throw new AppError('Valid bank account ID is required', 422, ErrorCodes.VALIDATION_ERROR);
+    }
+    return await feesRepository.archiveBankAccount(Number(id), actorId);
+  },
+
+  async assignStudentBankAccount({ studentId, bankAccountId, actorId }) {
+    if (!studentId || isNaN(Number(studentId))) {
+      throw new AppError('Valid student ID is required', 422, ErrorCodes.VALIDATION_ERROR);
+    }
+    const bId = bankAccountId ? Number(bankAccountId) : null;
+    return await feesRepository.assignStudentBankAccount(Number(studentId), bId, actorId);
+  },
+
+  async assignChallanBankAccount({ challanId, bankAccountId, actorId }) {
+    if (!challanId || isNaN(Number(challanId))) {
+      throw new AppError('Valid challan ID is required', 422, ErrorCodes.VALIDATION_ERROR);
+    }
+    if (!bankAccountId || isNaN(Number(bankAccountId))) {
+      throw new AppError('Valid bank account ID is required', 422, ErrorCodes.VALIDATION_ERROR);
+    }
+    return await feesRepository.assignChallanBankAccount(Number(challanId), Number(bankAccountId), actorId);
+  },
+
   async getChallans(filters) {
     return await feesRepository.getChallans(filters);
   },

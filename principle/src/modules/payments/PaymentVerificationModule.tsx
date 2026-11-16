@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { api, openProtectedFile } from '../../services/api';
-import { PaymentProofSubmission } from '../../types';
+import { PaymentProofSubmission, SchoolBankAccount, AccountBreakdownItem } from '../../types';
 import { DataTable, Column } from '../../components/common/DataTable';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { Modal } from '../../components/common/Modal';
@@ -23,6 +23,10 @@ import { formatDateTime, formatTime } from '../../lib/timezone';
 
 export const PaymentVerificationModule: React.FC = () => {
   const [proofs, setProofs] = useState<PaymentProofSubmission[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<SchoolBankAccount[]>([]);
+  const [accountBreakdown, setAccountBreakdown] = useState<AccountBreakdownItem[]>([]);
+  const [bankAccountFilter, setBankAccountFilter] = useState<string>('All');
+  const [statusFilter, setStatusFilter] = useState<string>('All');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,14 +44,24 @@ export const PaymentVerificationModule: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await api.getPaymentProofs();
+      const [data, accounts, stats] = await Promise.all([
+        api.getPaymentProofs({
+          bankAccountId: bankAccountFilter !== 'All' ? bankAccountFilter : undefined
+        }),
+        api.getBankAccounts('ACTIVE'),
+        api.getFeeStats()
+      ]);
       setProofs(data);
+      setBankAccounts(accounts);
+      if (stats?.accountBreakdown && Array.isArray(stats.accountBreakdown)) {
+        setAccountBreakdown(stats.accountBreakdown);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load payment proofs');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [bankAccountFilter]);
 
   useEffect(() => {
     loadProofs();
@@ -138,10 +152,25 @@ export const PaymentVerificationModule: React.FC = () => {
     },
     {
       key: 'bankOrWallet',
-      header: 'Channel & Reference',
+      header: 'Deposit Channel & Account',
       render: (p) => (
-        <div className="flex flex-col text-xs">
-          <span className="text-slate-800 font-medium">{p.bankOrWallet}</span>
+        <div className="flex flex-col gap-0.5 text-xs">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-slate-800 font-medium">{p.bankOrWallet}</span>
+            {p.targetBankAccount ? (
+              <span
+                title={`Target Deposit Account: ${p.targetBankAccount.bankName} (${p.targetBankAccount.accountNumber})`}
+                className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-medium ${
+                  p.targetBankAccount.isDefault
+                    ? 'bg-slate-100 text-slate-700'
+                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                }`}
+              >
+                <Building2 className="w-2.5 h-2.5" />
+                <span>{p.targetBankAccount.bankName}</span>
+              </span>
+            ) : null}
+          </div>
           <span className="font-mono text-[10px] text-slate-500 font-semibold tracking-wide">
             Ref: {p.transactionReference}
           </span>
@@ -173,6 +202,21 @@ export const PaymentVerificationModule: React.FC = () => {
     }
   ];
 
+  const filteredProofs = proofs.filter((p) => {
+    if (statusFilter !== 'All' && p.status !== statusFilter) return false;
+    if (bankAccountFilter !== 'All') {
+      if (bankAccountFilter === 'default') {
+        if (p.targetBankAccount && !p.targetBankAccount.isDefault) return false;
+      } else if (bankAccountFilter === 'custom') {
+        if (!p.targetBankAccount || p.targetBankAccount.isDefault) return false;
+      } else {
+        const tId = p.targetBankAccountId || p.targetBankAccount?.id;
+        if (String(tId) !== bankAccountFilter) return false;
+      }
+    }
+    return true;
+  });
+
   if (loading) return <LoadingState message="Loading payment submissions from bank feed..." rows={5} />;
   if (error) return <ErrorState message={error} onRetry={loadProofs} />;
 
@@ -183,7 +227,7 @@ export const PaymentVerificationModule: React.FC = () => {
         <div>
           <h2 className="text-base font-semibold text-slate-900">Payment Proof Verification</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Inspect uploaded bank transaction receipts, detect duplicate transaction references, and authorize challan ledger credits.
+            Inspect uploaded bank transaction receipts, detect duplicate transaction references, and track account-wise collections.
           </p>
         </div>
 
@@ -194,9 +238,56 @@ export const PaymentVerificationModule: React.FC = () => {
         </div>
       </div>
 
+      {/* Account-wise Reconciliation Cards */}
+      {accountBreakdown.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {accountBreakdown.map((acc) => (
+            <div
+              key={acc.id}
+              className={`p-4 rounded-2xl border transition-all shadow-xs ${
+                acc.isDefault
+                  ? 'bg-gradient-to-br from-amber-50/70 to-white border-amber-200'
+                  : 'bg-gradient-to-br from-emerald-50/70 to-white border-emerald-200'
+              }`}
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200/60 mb-2">
+                <div className="flex items-center gap-2">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${acc.isDefault ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                    <Building2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-900 text-xs block">{acc.bankName}</span>
+                    <span className="font-mono text-[10px] text-slate-500">A/C: {acc.accountNumber}</span>
+                  </div>
+                </div>
+                {acc.isDefault ? (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold uppercase">Default</span>
+                ) : (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold uppercase">Alternative</span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="text-slate-500 text-[10px] block">Collected</span>
+                  <span className="font-mono font-bold text-emerald-700 text-sm">Rs. {(acc.totalCollected || 0).toLocaleString()}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-[10px] block">Outstanding</span>
+                  <span className="font-mono font-bold text-amber-700 text-sm">Rs. {(acc.totalOutstanding || 0).toLocaleString()}</span>
+                </div>
+              </div>
+              <div className="mt-2 pt-2 border-t border-slate-200/50 flex items-center justify-between text-[11px] text-slate-600">
+                <span>Challans: <strong>{acc.totalChallans || 0}</strong></span>
+                <span className="text-emerald-700 font-medium">{acc.paidCount || 0} Paid · {acc.unpaidCount || 0} Unpaid</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <DataTable
         columns={columns}
-        data={proofs}
+        data={filteredProofs}
         keyExtractor={(p) => p.id}
         searchPlaceholder="Search challan number, student name, reference number, bank..."
         searchFilter={(p, q) =>
@@ -204,6 +295,36 @@ export const PaymentVerificationModule: React.FC = () => {
           p.studentName.toLowerCase().includes(q) ||
           p.transactionReference.toLowerCase().includes(q) ||
           p.bankOrWallet.toLowerCase().includes(q)
+        }
+        filtersSlot={
+          <div className="flex items-center gap-2 flex-wrap">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none shadow-2xs"
+            >
+              <option value="All">All Verification Statuses</option>
+              <option value="Pending">Pending Clearance</option>
+              <option value="Approved">Approved</option>
+              <option value="Rejected">Rejected</option>
+              <option value="Resubmission Requested">Resubmission Requested</option>
+            </select>
+
+            <select
+              value={bankAccountFilter}
+              onChange={(e) => setBankAccountFilter(e.target.value)}
+              className="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none shadow-2xs font-medium"
+            >
+              <option value="All">All School Bank Accounts</option>
+              <option value="default">Default Account (Meezan Bank)</option>
+              <option value="custom">All Custom Accounts</option>
+              {bankAccounts.map((b) => (
+                <option key={b.id} value={String(b.id)}>
+                  {b.bankName} {b.isDefault ? '(Default)' : `(${b.accountNumber.slice(-4)})`}
+                </option>
+              ))}
+            </select>
+          </div>
         }
       />
 
@@ -276,6 +397,25 @@ export const PaymentVerificationModule: React.FC = () => {
                       <span>No proof file attached</span>
                     </span>
                   )}
+                </div>
+              </div>
+
+              {/* Target School Bank Account */}
+              <div className="p-3 rounded-lg bg-emerald-50/60 border border-emerald-200 text-[11px] text-emerald-950">
+                <div className="flex items-center justify-between font-semibold mb-1">
+                  <span className="flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>Target School Deposit Account:</span>
+                    <span>{selectedProof.targetBankAccount?.bankName || 'Meezan Bank'}</span>
+                  </span>
+                  {selectedProof.targetBankAccount?.isDefault ? (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-bold uppercase">Default Account</span>
+                  ) : (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-200 text-emerald-800 font-bold uppercase">Custom Assigned</span>
+                  )}
+                </div>
+                <div className="font-mono text-[10px] text-emerald-800">
+                  Account Number: <strong>{selectedProof.targetBankAccount?.accountNumber || '03060114428178'}</strong> · Title: {selectedProof.targetBankAccount?.accountTitle || 'CAMBRIDGE EDUCATION SYSTEM'}
                 </div>
               </div>
 

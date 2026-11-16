@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api';
-import { MonthlyChallan } from '../../types';
+import { MonthlyChallan, SchoolBankAccount } from '../../types';
 import { DataTable, Column } from '../../components/common/DataTable';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { Modal } from '../../components/common/Modal';
@@ -32,6 +32,14 @@ export const ChallansModule: React.FC = () => {
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [classFilter, setClassFilter] = useState<string>('All');
+  const [bankAccountFilter, setBankAccountFilter] = useState<string>('All');
+
+  // Bank Accounts & Reassignment
+  const [bankAccounts, setBankAccounts] = useState<SchoolBankAccount[]>([]);
+  const [isChallanBankModalOpen, setIsChallanBankModalOpen] = useState(false);
+  const [challanToReassign, setChallanToReassign] = useState<MonthlyChallan | null>(null);
+  const [newBankAccountId, setNewBankAccountId] = useState<number | null>(null);
+  const [reassigningBank, setReassigningBank] = useState(false);
 
   // Generate Challans Modal
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
@@ -59,14 +67,42 @@ export const ChallansModule: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await api.getChallans();
+      const [data, accounts] = await Promise.all([
+        api.getChallans({
+          bankAccountId: bankAccountFilter !== 'All' ? bankAccountFilter : undefined
+        }),
+        api.getBankAccounts('ACTIVE')
+      ]);
       setChallans(data);
+      setBankAccounts(accounts);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load challans');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [bankAccountFilter]);
+
+  const handleOpenChallanBankModal = (ch: MonthlyChallan) => {
+    setChallanToReassign(ch);
+    const existingId = ch.bankAccountId || ch.bankAccount?.id || (bankAccounts.find(b => b.isDefault)?.id ?? null);
+    setNewBankAccountId(existingId ? Number(existingId) : null);
+    setIsChallanBankModalOpen(true);
+  };
+
+  const handleSaveChallanBank = async () => {
+    if (!challanToReassign || !newBankAccountId) return;
+    try {
+      setReassigningBank(true);
+      await api.assignChallanBankAccount(challanToReassign.id, newBankAccountId);
+      toast.success(`Challan ${challanToReassign.challanNumber} bank account updated.`);
+      setIsChallanBankModalOpen(false);
+      loadChallans();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to update challan bank account');
+    } finally {
+      setReassigningBank(false);
+    }
+  };
 
   useEffect(() => {
     loadChallans();
@@ -115,6 +151,16 @@ export const ChallansModule: React.FC = () => {
   const filteredChallans = challans.filter((ch) => {
     if (statusFilter !== 'All' && ch.status !== statusFilter) return false;
     if (classFilter !== 'All' && ch.classNumber !== Number(classFilter)) return false;
+    if (bankAccountFilter !== 'All') {
+      if (bankAccountFilter === 'default') {
+        if (ch.bankAccount && !ch.bankAccount.isDefault) return false;
+      } else if (bankAccountFilter === 'custom') {
+        if (!ch.bankAccount || ch.bankAccount.isDefault) return false;
+      } else {
+        const targetId = ch.bankAccountId || ch.bankAccount?.id;
+        if (String(targetId) !== bankAccountFilter) return false;
+      }
+    }
     return true;
   });
 
@@ -132,13 +178,26 @@ export const ChallansModule: React.FC = () => {
     },
     {
       key: 'studentName',
-      header: 'Student & Roll',
+      header: 'Student & Target Bank',
       render: (ch) => (
-        <div className="flex flex-col">
+        <div className="flex flex-col gap-0.5">
           <span className="font-semibold text-slate-900 text-xs">{ch.studentName}</span>
-          <span className="text-[11px] text-slate-500">
-            Class {ch.classNumber} · Roll: {ch.rollNumber}
-          </span>
+          <div className="flex items-center gap-1.5 flex-wrap text-[11px] text-slate-500">
+            <span>Class {ch.classNumber} · Roll: {ch.rollNumber}</span>
+            {ch.bankAccount ? (
+              <span
+                title={`Deposit Account: ${ch.bankAccount.bankName} - A/C: ${ch.bankAccount.accountNumber}`}
+                className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-medium ${
+                  ch.bankAccount.isDefault
+                    ? 'bg-slate-100 text-slate-700'
+                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                }`}
+              >
+                <Building2 className="w-2.5 h-2.5" />
+                <span>{ch.bankAccount.bankName}</span>
+              </span>
+            ) : null}
+          </div>
         </div>
       )
     },
@@ -214,6 +273,13 @@ export const ChallansModule: React.FC = () => {
           >
             <Printer className="w-3.5 h-3.5" strokeWidth={1.75} />
           </button>
+          <button
+            onClick={() => handleOpenChallanBankModal(ch)}
+            title={`Assigned Bank: ${ch.bankAccount?.bankName || 'Default'} - Click to change bank account for this challan`}
+            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50 transition-colors shadow-2xs"
+          >
+            <Building2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+          </button>
           {ch.status !== 'Paid' && (
             <button
               onClick={() => handleSendReminder(ch)}
@@ -279,7 +345,7 @@ export const ChallansModule: React.FC = () => {
           ch.rollNumber.includes(q)
         }
         filtersSlot={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -302,6 +368,21 @@ export const ChallansModule: React.FC = () => {
               {[1, 2, 3, 4, 5, 6, 7, 8].map((c) => (
                 <option key={c} value={c}>
                   Class {c}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={bankAccountFilter}
+              onChange={(e) => setBankAccountFilter(e.target.value)}
+              className="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none shadow-2xs font-medium"
+            >
+              <option value="All">All Bank Accounts</option>
+              <option value="default">Default Account (Meezan Bank)</option>
+              <option value="custom">All Custom Accounts</option>
+              {bankAccounts.map((b) => (
+                <option key={b.id} value={String(b.id)}>
+                  {b.bankName} {b.isDefault ? '(Default)' : `(${b.accountNumber.slice(-4)})`}
                 </option>
               ))}
             </select>
@@ -459,11 +540,20 @@ export const ChallansModule: React.FC = () => {
             {/* Header info */}
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
               <div>
-                <span className="text-slate-500 text-[11px] block">Payment Method</span>
-                <span className="font-semibold text-slate-900">Meezan Bank F-11 MARKAZ, ISLAMABAD</span>
-                <span className="text-[10px] text-slate-500 block">Title: CAMBRIDGE EDUCATION SYSTEM</span>
-                <span className="text-[10px] text-slate-500 block font-mono">Account Number : 03060114428178</span>
-                <span className="text-[10px] text-slate-500 block font-mono">IBAN : PK58MEZN0003060114428178</span>
+                <span className="text-slate-500 text-[11px] block">Payment Method & Bank Details</span>
+                <span className="font-semibold text-slate-900">
+                  {selectedChallan.bankAccount?.bankName || 'Meezan Bank'}{' '}
+                  {selectedChallan.bankAccount?.branchName ? `(${selectedChallan.bankAccount.branchName})` : 'F-11 MARKAZ, ISLAMABAD'}
+                </span>
+                <span className="text-[10px] text-slate-500 block">
+                  Title: {selectedChallan.bankAccount?.accountTitle || 'CAMBRIDGE EDUCATION SYSTEM'}
+                </span>
+                <span className="text-[10px] text-slate-700 block font-mono font-semibold">
+                  Account Number : {selectedChallan.bankAccount?.accountNumber || '03060114428178'}
+                </span>
+                <span className="text-[10px] text-slate-500 block font-mono">
+                  IBAN : {selectedChallan.bankAccount?.iban || 'PK58MEZN0003060114428178'}
+                </span>
               </div>
               <div className="text-right">
                 <span className="text-slate-500 text-[11px] block">Due Date</span>
@@ -488,6 +578,12 @@ export const ChallansModule: React.FC = () => {
                       <span className="font-mono text-[10px] text-slate-400">
                         {selectedChallan.challanNumber}
                       </span>
+                    </div>
+
+                    <div className="my-1.5 p-1.5 rounded bg-slate-50 border border-slate-100 text-[10px]">
+                      <span className="text-slate-400 block">Bank Account:</span>
+                      <span className="font-bold text-slate-800">{selectedChallan.bankAccount?.bankName || 'Meezan Bank'}</span>
+                      <span className="font-mono text-slate-600 block">{selectedChallan.bankAccount?.accountNumber || '03060114428178'}</span>
                     </div>
 
                     <div className="mt-2 space-y-1 text-slate-700">
@@ -575,6 +671,78 @@ export const ChallansModule: React.FC = () => {
               >
                 <Printer className="w-3.5 h-3.5" strokeWidth={1.75} />
                 <span>Print Official Voucher</span>
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {/* Reassign Bank Account for Specific Challan Modal */}
+      {isChallanBankModalOpen && challanToReassign && (
+        <Modal
+          isOpen={isChallanBankModalOpen}
+          onClose={() => setIsChallanBankModalOpen(false)}
+          title={`Reassign Target Bank Account · ${challanToReassign.challanNumber}`}
+          description={`Update the deposit bank account for ${challanToReassign.studentName} (Class ${challanToReassign.classNumber}).`}
+          maxWidth="md"
+        >
+          <div className="space-y-4 text-xs">
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] leading-relaxed">
+              This updates the target bank account for this specific challan slip. Any voucher reprint or parent portal view for this invoice will display the newly selected bank details.
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-slate-700 font-semibold">Select Bank Account *</label>
+              {bankAccounts.map((acc) => (
+                <label
+                  key={acc.id}
+                  className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                    newBankAccountId === acc.id
+                      ? 'border-emerald-500 bg-emerald-50/40 ring-1 ring-emerald-500'
+                      : 'border-slate-200 hover:border-slate-300 bg-white'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="challanBankChoice"
+                    checked={newBankAccountId === acc.id}
+                    onChange={() => setNewBankAccountId(acc.id)}
+                    className="mt-0.5 text-emerald-600 focus:ring-0"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900">{acc.bankName}</span>
+                      {acc.isDefault ? (
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-bold uppercase">Default Account</span>
+                      ) : (
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold uppercase">Alternative</span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-600 font-mono mt-0.5">
+                      A/C: {acc.accountNumber} · Title: {acc.accountTitle}
+                    </p>
+                    <p className="text-[10px] text-slate-400">
+                      Branch: {acc.branchName || 'Main'} {acc.iban ? `· IBAN: ${acc.iban}` : ''}
+                    </p>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsChallanBankModalOpen(false)}
+                className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveChallanBank}
+                disabled={reassigningBank || !newBankAccountId}
+                className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-xs"
+              >
+                {reassigningBank ? 'Updating...' : 'Update Challan Account'}
               </button>
             </div>
           </div>

@@ -38,6 +38,16 @@ interface ChallanDetail {
   paidAmount: number;
   outstandingBalance: number;
   status: string;
+  bankAccount?: {
+    id: number;
+    bankName: string;
+    branchName?: string;
+    accountTitle: string;
+    accountNumber: string;
+    iban?: string;
+    instructions?: string;
+    isDefault?: boolean;
+  };
   payments: {
     id: number;
     submittedAmount: number;
@@ -113,6 +123,14 @@ function PaymentProofForm({ studentId, challan, onDone }: { studentId: number; c
       <p className="text-xs text-muted-foreground">
         After paying at the bank or by mobile wallet, submit the details below. The challan is marked as paid only after the school verifies the payment.
       </p>
+      {challan.bankAccount && (
+        <div className="p-2.5 rounded bg-muted/40 border border-border text-xs">
+          <span className="text-muted-foreground block text-[11px]">Assigned School Deposit Account:</span>
+          <span className="font-semibold text-foreground">{challan.bankAccount.bankName}</span>
+          <span className="font-mono text-muted-foreground ml-2">A/C: {challan.bankAccount.accountNumber}</span>
+          {challan.bankAccount.accountTitle && <span className="text-[11px] text-muted-foreground block">Title: {challan.bankAccount.accountTitle}</span>}
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="text-xs font-semibold text-muted-foreground block mb-1">Amount paid (Rs.)</label>
@@ -302,12 +320,17 @@ function FeesContent() {
 
             <div className="grid grid-cols-2 gap-4 text-xs items-start">
               <div>
-                <div className="font-headings font-bold mb-1">Payment Method :</div>
+                <div className="font-headings font-bold mb-1">Payment Method & Bank Details :</div>
                 <div className="space-y-0.5 text-muted-foreground">
-                  <div>Meezan Bank F-11 MARKAZ, ISLAMABAD</div>
-                  <div>Title: CAMBRIDGE EDUCATION SYSTEM</div>
-                  <div>Account Number : 03060114428178</div>
-                  <div>IBAN : PK58MEZN0003060114428178</div>
+                  <div className="font-semibold text-foreground">
+                    {detail.bankAccount?.bankName || 'Meezan Bank'} {detail.bankAccount?.branchName ? `(${detail.bankAccount.branchName})` : 'F-11 MARKAZ, ISLAMABAD'}
+                  </div>
+                  <div>Title: {detail.bankAccount?.accountTitle || 'CAMBRIDGE EDUCATION SYSTEM'}</div>
+                  <div className="font-mono font-medium text-foreground">Account Number : {detail.bankAccount?.accountNumber || '03060114428178'}</div>
+                  <div className="font-mono">IBAN : {detail.bankAccount?.iban || 'PK58MEZN0003060114428178'}</div>
+                  {detail.bankAccount?.instructions && (
+                    <div className="text-[11px] text-primary italic mt-1">{detail.bankAccount.instructions}</div>
+                  )}
                 </div>
               </div>
               <div>

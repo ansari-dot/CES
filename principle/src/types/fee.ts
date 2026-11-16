@@ -72,6 +72,35 @@ export interface FeeBreakdown {
   totalPayable: number;
 }
 
+export interface SchoolBankAccount {
+  id: number;
+  bankName: string;
+  branchName: string;
+  accountTitle: string;
+  accountNumber: string;
+  iban: string;
+  isDefault: boolean;
+  status: 'ACTIVE' | 'ARCHIVED';
+  instructions?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AccountBreakdownItem {
+  id: number;
+  bankName: string;
+  accountNumber: string;
+  accountTitle: string;
+  isDefault: boolean;
+  status: string;
+  totalChallans: number;
+  totalBilled: number;
+  totalCollected: number;
+  totalOutstanding: number;
+  paidCount: number;
+  unpaidCount: number;
+}
+
 export interface MonthlyChallan {
   id: string;
   challanNumber: string; // e.g. CH-2024-05-101
@@ -93,6 +122,8 @@ export interface MonthlyChallan {
   lastReminderDate?: string;
   /** Student portal account status (ACTIVE / SUSPENDED) for the fee-block button */
   studentPortalStatus?: string;
+  bankAccountId?: number | null;
+  bankAccount?: SchoolBankAccount;
 }
 
 export type PaymentVerificationStatus = 'Pending' | 'Approved' | 'Rejected' | 'Resubmission Requested';
@@ -118,6 +149,8 @@ export interface PaymentProofSubmission {
   reviewDecisionNote?: string;
   verifiedAmount?: number;
   receiptNumber?: string;
+  targetBankAccountId?: number | null;
+  targetBankAccount?: SchoolBankAccount;
 }
 
 // Student whose portal access is restricted for overdue fees

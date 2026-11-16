@@ -21,6 +21,8 @@ import {
   ConcessionInput,
   MonthlyChallan,
   PaymentProofSubmission,
+  SchoolBankAccount,
+  AccountBreakdownItem,
   RestrictedStudent,
   TeacherSalaryDraft,
   SchoolNotice,
@@ -578,7 +580,13 @@ export const api = {
           contactPhone: s.phone || '',
           parentIds: [],
           parentNames: [],
-          transferHistory: []
+          transferHistory: [],
+          customBankAccountId: s.customBankAccountId ? Number(s.customBankAccountId) : null,
+          customBankName: s.customBankName || null,
+          customBranchName: s.customBranchName || null,
+          customAccountNumber: s.customAccountNumber || null,
+          customAccountTitle: s.customAccountTitle || null,
+          customIban: s.customIban || null
         }));
         return formatted;
       }
@@ -1497,10 +1505,92 @@ export const api = {
     });
   },
 
-  // 11. Challans & Billing — Live Only
-  async getChallans(): Promise<MonthlyChallan[]> {
+  // 10.5. School Bank Accounts
+  async getBankAccounts(status?: string): Promise<SchoolBankAccount[]> {
     try {
-      const data = await requestApi<any[]>('/api/v1/fees/challans');
+      const q = status ? `?status=${encodeURIComponent(status)}` : '';
+      const data = await requestApi<SchoolBankAccount[]>(`/api/v1/fees/bank-accounts${q}`);
+      return Array.isArray(data) ? data : [];
+    } catch (err) {
+      console.warn('getBankAccounts failed:', err);
+      return [];
+    }
+  },
+
+  async createBankAccount(data: Partial<SchoolBankAccount>): Promise<SchoolBankAccount> {
+    return await requestApi<SchoolBankAccount>('/api/v1/fees/bank-accounts', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+
+  async updateBankAccount(id: number, data: Partial<SchoolBankAccount>): Promise<SchoolBankAccount> {
+    return await requestApi<SchoolBankAccount>(`/api/v1/fees/bank-accounts/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
+
+  async archiveBankAccount(id: number): Promise<void> {
+    await requestApi(`/api/v1/fees/bank-accounts/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async assignStudentBankAccount(studentId: number | string, bankAccountId: number | null): Promise<any> {
+    const rawId = String(studentId);
+    const numericStudentId = parseInt(rawId.replace(/\D/g, ''), 10) || Number(rawId);
+    return await requestApi(`/api/v1/fees/students/${numericStudentId}/bank-account`, {
+      method: 'PUT',
+      body: JSON.stringify({ bankAccountId })
+    });
+  },
+
+  async assignChallanBankAccount(challanId: number | string, bankAccountId: number): Promise<any> {
+    const rawId = String(challanId);
+    const numericId = parseInt(rawId.replace(/\D/g, ''), 10) || Number(rawId);
+    return await requestApi(`/api/v1/fees/challans/${numericId}/bank-account`, {
+      method: 'PUT',
+      body: JSON.stringify({ bankAccountId })
+    });
+  },
+
+  async getFeeStats(filters?: { billingMonth?: string; classId?: number }): Promise<any> {
+    try {
+      const params = new URLSearchParams();
+      if (filters?.billingMonth) params.append('billingMonth', filters.billingMonth);
+      if (filters?.classId) params.append('classId', String(filters.classId));
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      return await requestApi<any>(`/api/v1/fees/stats${qs}`);
+    } catch {
+      return null;
+    }
+  },
+
+  // 11. Challans & Billing — Live Only
+  async getChallans(filters?: {
+    classId?: number;
+    studentId?: number | string;
+    billingMonth?: string;
+    status?: string;
+    search?: string;
+    bankAccountId?: string | number;
+  }): Promise<MonthlyChallan[]> {
+    try {
+      const params = new URLSearchParams();
+      if (filters?.classId) params.append('classId', String(filters.classId));
+      if (filters?.studentId) {
+        const raw = String(filters.studentId);
+        const numeric = parseInt(raw.replace(/\D/g, ''), 10) || Number(raw);
+        params.append('studentId', String(numeric));
+      }
+      if (filters?.billingMonth) params.append('billingMonth', filters.billingMonth);
+      if (filters?.status) params.append('status', filters.status);
+      if (filters?.search) params.append('search', filters.search);
+      if (filters?.bankAccountId) params.append('bankAccountId', String(filters.bankAccountId));
+      const qs = params.toString() ? `?${params.toString()}` : '';
+
+      const data = await requestApi<any[]>(`/api/v1/fees/challans${qs}`);
       if (Array.isArray(data) && data.length > 0) {
         return data.map((ch) => ({
           id: String(ch.id),
@@ -1533,7 +1623,9 @@ export const api = {
           status: (ch.status === 'PAID' ? 'Paid' : ch.status === 'PENDING_VERIFICATION' ? 'Pending Verification' : ch.status === 'PARTIALLY_PAID' ? 'Partially Paid' : ch.status === 'OVERDUE' ? 'Overdue' : 'Unpaid') as any,
           remindersSentCount: Number(ch.remindersSentCount || 0),
           lastReminderDate: ch.lastReminderDate,
-          studentPortalStatus: ch.studentPortalStatus
+          studentPortalStatus: ch.studentPortalStatus,
+          bankAccountId: ch.bankAccountId ? Number(ch.bankAccountId) : null,
+          bankAccount: ch.bankAccount || undefined
         }));
       }
     } catch {
@@ -1655,9 +1747,29 @@ export const api = {
     });
   },
 
-  async getPaymentProofs(): Promise<PaymentProofSubmission[]> {
+  async getPaymentProofs(filters?: {
+    status?: string;
+    challanId?: number | string;
+    studentId?: number | string;
+    bankAccountId?: string | number;
+  }): Promise<PaymentProofSubmission[]> {
     try {
-      const data = await requestApi<any[]>('/api/v1/fees/payment-proofs');
+      const params = new URLSearchParams();
+      if (filters?.status) params.append('status', filters.status);
+      if (filters?.challanId) {
+        const raw = String(filters.challanId);
+        const num = parseInt(raw.replace(/\D/g, ''), 10) || Number(raw);
+        params.append('challanId', String(num));
+      }
+      if (filters?.studentId) {
+        const raw = String(filters.studentId);
+        const num = parseInt(raw.replace(/\D/g, ''), 10) || Number(raw);
+        params.append('studentId', String(num));
+      }
+      if (filters?.bankAccountId) params.append('bankAccountId', String(filters.bankAccountId));
+      const qs = params.toString() ? `?${params.toString()}` : '';
+
+      const data = await requestApi<any[]>(`/api/v1/fees/payment-proofs${qs}`);
       if (Array.isArray(data) && data.length > 0) {
         return data.map((p) => ({
           id: String(p.id),
@@ -1685,7 +1797,9 @@ export const api = {
           reviewTimestamp: p.reviewTimestamp,
           reviewDecisionNote: p.reviewDecisionNote,
           verifiedAmount: p.verifiedAmount ? Number(p.verifiedAmount) : undefined,
-          receiptNumber: p.receiptNumber
+          receiptNumber: p.receiptNumber,
+          targetBankAccountId: p.targetBankAccountId ? Number(p.targetBankAccountId) : null,
+          targetBankAccount: p.targetBankAccount || undefined
         }));
       }
     } catch {

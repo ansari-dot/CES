@@ -9,7 +9,270 @@ import {
   GRACE_PERIOD_DAYS
 } from './fees.billing.js';
 
+export const FALLBACK_DEFAULT_BANK_ACCOUNT = {
+  id: 1,
+  bank_name: 'Meezan Bank',
+  branch_name: 'F-11 Markaz, Islamabad',
+  account_title: 'CAMBRIDGE EDUCATION SYSTEM',
+  account_number: '03060114428178',
+  iban: 'PK58MEZN0003060114428178',
+  is_default: true,
+  status: 'ACTIVE',
+  instructions: 'Primary default fee collection account for Cambridge Education System.'
+};
+
 export const feesRepository = {
+  // 0. School Bank Accounts & Student Custom Assignments
+  async getDefaultBankAccount(trx = db) {
+    try {
+      const hasTable = await trx.schema.hasTable('school_bank_accounts');
+      if (!hasTable) return FALLBACK_DEFAULT_BANK_ACCOUNT;
+      const defaultAccount = await trx('school_bank_accounts')
+        .where({ is_default: true, status: 'ACTIVE' })
+        .first();
+      if (defaultAccount) return defaultAccount;
+      const anyActive = await trx('school_bank_accounts')
+        .where({ status: 'ACTIVE' })
+        .orderBy('id', 'asc')
+        .first();
+      return anyActive || FALLBACK_DEFAULT_BANK_ACCOUNT;
+    } catch {
+      return FALLBACK_DEFAULT_BANK_ACCOUNT;
+    }
+  },
+
+  async getBankAccounts({ status = null } = {}, trx = db) {
+    try {
+      const hasTable = await trx.schema.hasTable('school_bank_accounts');
+      if (!hasTable) return [FALLBACK_DEFAULT_BANK_ACCOUNT];
+      let query = trx('school_bank_accounts')
+        .select('*')
+        .orderBy('is_default', 'desc')
+        .orderBy('id', 'asc');
+      if (status) query = query.where({ status });
+      const accounts = await query;
+      if (accounts.length === 0) return [FALLBACK_DEFAULT_BANK_ACCOUNT];
+      return accounts.map((a) => ({
+        id: a.id,
+        bankName: a.bank_name,
+        branchName: a.branch_name,
+        accountTitle: a.account_title,
+        accountNumber: a.account_number,
+        iban: a.iban,
+        isDefault: Boolean(a.is_default),
+        status: a.status,
+        instructions: a.instructions
+      }));
+    } catch {
+      return [FALLBACK_DEFAULT_BANK_ACCOUNT];
+    }
+  },
+
+  async createBankAccount(data, actorId = null) {
+    return await db.transaction(async (trx) => {
+      const isDefault = Boolean(data.isDefault);
+      if (isDefault) {
+        await trx('school_bank_accounts').update({ is_default: false });
+      }
+      const [id] = await trx('school_bank_accounts').insert({
+        bank_name: data.bankName,
+        branch_name: data.branchName || null,
+        account_title: data.accountTitle,
+        account_number: data.accountNumber,
+        iban: data.iban || null,
+        is_default: isDefault,
+        status: 'ACTIVE',
+        instructions: data.instructions || null
+      });
+
+      if (actorId) {
+        await auditRepository.logAction(trx, {
+          actorId,
+          action: 'BANK_ACCOUNT_CREATED',
+          recordType: 'school_bank_accounts',
+          recordIdentifier: `Account #${id} (${data.bankName})`,
+          reason: `Added new school bank account: ${data.bankName} - ${data.accountNumber}`,
+          newValue: data
+        });
+      }
+
+      const created = await trx('school_bank_accounts').where({ id }).first();
+      return {
+        id: created.id,
+        bankName: created.bank_name,
+        branchName: created.branch_name,
+        accountTitle: created.account_title,
+        accountNumber: created.account_number,
+        iban: created.iban,
+        isDefault: Boolean(created.is_default),
+        status: created.status,
+        instructions: created.instructions
+      };
+    });
+  },
+
+  async updateBankAccount(id, data, actorId = null) {
+    return await db.transaction(async (trx) => {
+      const before = await trx('school_bank_accounts').where({ id }).first();
+      if (!before) throw new Error('Bank account not found');
+
+      const isDefault = data.isDefault !== undefined ? Boolean(data.isDefault) : Boolean(before.is_default);
+      if (isDefault && !before.is_default) {
+        await trx('school_bank_accounts').whereNot({ id }).update({ is_default: false });
+      }
+
+      await trx('school_bank_accounts').where({ id }).update({
+        bank_name: data.bankName || before.bank_name,
+        branch_name: data.branchName !== undefined ? data.branchName : before.branch_name,
+        account_title: data.accountTitle || before.account_title,
+        account_number: data.accountNumber || before.account_number,
+        iban: data.iban !== undefined ? data.iban : before.iban,
+        is_default: isDefault,
+        status: data.status || before.status,
+        instructions: data.instructions !== undefined ? data.instructions : before.instructions,
+        updated_at: trx.fn.now(3)
+      });
+
+      if (actorId) {
+        await auditRepository.logAction(trx, {
+          actorId,
+          action: 'BANK_ACCOUNT_UPDATED',
+          recordType: 'school_bank_accounts',
+          recordIdentifier: `Account #${id} (${before.bank_name})`,
+          reason: `Updated school bank account #${id}`,
+          previousValue: before,
+          newValue: data
+        });
+      }
+
+      const updated = await trx('school_bank_accounts').where({ id }).first();
+      return {
+        id: updated.id,
+        bankName: updated.bank_name,
+        branchName: updated.branch_name,
+        accountTitle: updated.account_title,
+        accountNumber: updated.account_number,
+        iban: updated.iban,
+        isDefault: Boolean(updated.is_default),
+        status: updated.status,
+        instructions: updated.instructions
+      };
+    });
+  },
+
+  async archiveBankAccount(id, actorId = null) {
+    return await db.transaction(async (trx) => {
+      const before = await trx('school_bank_accounts').where({ id }).first();
+      if (!before) throw new Error('Bank account not found');
+
+      if (before.is_default) {
+        const other = await trx('school_bank_accounts').whereNot({ id }).where({ status: 'ACTIVE' }).first();
+        if (!other) {
+          throw new Error('Cannot archive the only active default school bank account.');
+        }
+        await trx('school_bank_accounts').where({ id: other.id }).update({ is_default: true });
+      }
+
+      await trx('school_bank_accounts').where({ id }).update({
+        status: 'ARCHIVED',
+        is_default: false,
+        updated_at: trx.fn.now(3)
+      });
+
+      if (actorId) {
+        await auditRepository.logAction(trx, {
+          actorId,
+          action: 'BANK_ACCOUNT_ARCHIVED',
+          recordType: 'school_bank_accounts',
+          recordIdentifier: `Account #${id} (${before.bank_name})`,
+          reason: `Archived school bank account #${id}`,
+          previousValue: before
+        });
+      }
+
+      return { success: true };
+    });
+  },
+
+  async assignStudentBankAccount(studentId, bankAccountId, actorId = null) {
+    return await db.transaction(async (trx) => {
+      const student = await trx('students')
+        .join('users', 'students.user_id', 'users.id')
+        .where('students.id', studentId)
+        .select('students.id', 'students.custom_bank_account_id', 'users.full_name as studentName')
+        .first();
+
+      if (!student) throw new Error('Student not found');
+
+      let targetAccount = null;
+      if (bankAccountId) {
+        targetAccount = await trx('school_bank_accounts').where({ id: bankAccountId, status: 'ACTIVE' }).first();
+        if (!targetAccount) throw new Error('Specified bank account is not active or does not exist');
+      }
+
+      await trx('students').where({ id: studentId }).update({
+        custom_bank_account_id: bankAccountId ? Number(bankAccountId) : null
+      });
+
+      if (actorId) {
+        await auditRepository.logAction(trx, {
+          actorId,
+          action: 'STUDENT_BANK_ACCOUNT_ASSIGNED',
+          recordType: 'students',
+          recordIdentifier: `Student #${studentId} (${student.studentName})`,
+          reason: bankAccountId
+            ? `Assigned custom bank account #${bankAccountId} (${targetAccount.bank_name} - ${targetAccount.account_number})`
+            : 'Reset student to default school bank account',
+          previousValue: { customBankAccountId: student.custom_bank_account_id },
+          newValue: { customBankAccountId: bankAccountId }
+        });
+      }
+
+      return {
+        studentId: Number(studentId),
+        customBankAccountId: bankAccountId ? Number(bankAccountId) : null,
+        bankAccount: targetAccount ? {
+          id: targetAccount.id,
+          bankName: targetAccount.bank_name,
+          branchName: targetAccount.branch_name,
+          accountTitle: targetAccount.account_title,
+          accountNumber: targetAccount.account_number,
+          iban: targetAccount.iban,
+          isDefault: Boolean(targetAccount.is_default)
+        } : null
+      };
+    });
+  },
+
+  async assignChallanBankAccount(challanId, bankAccountId, actorId = null) {
+    return await db.transaction(async (trx) => {
+      const challan = await trx('fee_challans').where({ id: challanId }).first();
+      if (!challan) throw new Error('Challan not found');
+
+      const targetAccount = await trx('school_bank_accounts').where({ id: bankAccountId, status: 'ACTIVE' }).first();
+      if (!targetAccount) throw new Error('Specified bank account is not active or does not exist');
+
+      await trx('fee_challans').where({ id: challanId }).update({
+        bank_account_id: Number(bankAccountId),
+        updated_at: trx.fn.now(3)
+      });
+
+      if (actorId) {
+        await auditRepository.logAction(trx, {
+          actorId,
+          action: 'CHALLAN_BANK_ACCOUNT_ASSIGNED',
+          recordType: 'fee_challans',
+          recordIdentifier: `Challan #${challan.challan_number} (ID: ${challanId})`,
+          reason: `Assigned bank account #${bankAccountId} (${targetAccount.bank_name} - ${targetAccount.account_number}) to challan`,
+          previousValue: { bankAccountId: challan.bank_account_id },
+          newValue: { bankAccountId }
+        });
+      }
+
+      return await this.findChallanById(challanId);
+    });
+  },
+
   // 1. Fee Structures
   async createOrUpdateFeeStructure({ sessionId, classId, heads = [], effectiveFrom, userId }) {
     return await db.transaction(async (trx) => {
@@ -399,6 +662,8 @@ export const feesRepository = {
     const periodKey = normalizeBillingMonth(cleanMonth);
     const policyPeriod = periodKey ? getBillingPeriod(Number(periodKey.slice(0, 4)), Number(periodKey.slice(5, 7))) : null;
     const hasConcessionDetails = await db.schema.hasColumn('fee_challans', 'concession_details');
+    const hasBankCol = await db.schema.hasColumn('fee_challans', 'bank_account_id');
+    const defaultBank = await this.getDefaultBankAccount(db);
     const effectiveDueDate = dueDate || policyPeriod?.dueDate || null;
     const effectiveValidUntil =
       validUntil || (effectiveDueDate ? addDays(effectiveDueDate, gracePeriodDays ?? GRACE_PERIOD_DAYS) : null);
@@ -512,6 +777,9 @@ export const feesRepository = {
       if (hasConcessionDetails && concessionResult.details.length > 0) {
         row.concession_details = JSON.stringify(concessionResult.details);
       }
+      if (hasBankCol) {
+        row.bank_account_id = student.custom_bank_account_id || (defaultBank ? defaultBank.id : null);
+      }
 
       try {
         const [cId] = await db('fee_challans').insert(row);
@@ -545,46 +813,66 @@ export const feesRepository = {
     throw new Error(`Unable to allocate a unique consumer number for ${yyyy}-${mm}-${studentSeq}`);
   },
 
-  async getChallans({ classId = null, studentId = null, billingMonth = null, status = null, search = null } = {}) {
+  async getChallans({ classId = null, studentId = null, billingMonth = null, status = null, search = null, bankAccountId = null } = {}) {
+    const hasBankTable = await db.schema.hasTable('school_bank_accounts');
+    const hasBankCol = await db.schema.hasColumn('fee_challans', 'bank_account_id');
+    const defaultBank = await this.getDefaultBankAccount(db);
+
     let query = db('fee_challans')
       .join('classes', 'fee_challans.class_id', 'classes.id')
       .join('students', 'fee_challans.student_id', 'students.id')
       .join('users as student_users', 'students.user_id', 'student_users.id')
-      .join('academic_sessions', 'fee_challans.session_id', 'academic_sessions.id')
-      .select(
-        'fee_challans.id',
-        'fee_challans.challan_number as challanNumber',
-        'fee_challans.consumer_number as consumerNumber',
-        'fee_challans.student_id as studentId',
-        'student_users.full_name as studentName',
-        'students.roll_no as rollNumber',
-        'students.admission_no as admissionNumber',
-        'classes.grade_level as classNumber',
-        'classes.name as className',
-        'fee_challans.billing_month as billingMonth',
-        'academic_sessions.name as academicSession',
-        'fee_challans.issue_date as generationDate',
-        'fee_challans.due_date as dueDate',
-        'fee_challans.valid_until as validUntil',
-        'fee_challans.grace_period_days as gracePeriodDays',
-        'fee_challans.tuition_amount as tuitionFee',
-        'fee_challans.technology_amount as technologyFee',
-        'fee_challans.examination_amount as examinationFee',
-        'fee_challans.books_amount as booksFee',
-        'fee_challans.admission_amount as admissionFee',
-        'fee_challans.other_amount as otherFee',
-        'fee_challans.gross_amount as grossAmount',
-        'fee_challans.concession_amount as concessionAmount',
-        'fee_challans.arrears_amount as arrearsAmount',
-        'fee_challans.late_fee_amount as lateFeeAmount',
-        'fee_challans.total_payable as totalPayable',
-        'fee_challans.paid_amount as paidAmount',
-        'fee_challans.status',
-        'fee_challans.reminders_sent_count as remindersSentCount',
-        'fee_challans.last_reminder_at as lastReminderDate',
-        'student_users.status as studentPortalStatus'
-      )
-      .orderBy('fee_challans.created_at', 'desc');
+      .join('academic_sessions', 'fee_challans.session_id', 'academic_sessions.id');
+
+    if (hasBankTable && hasBankCol) {
+      query = query.leftJoin('school_bank_accounts as sba', 'fee_challans.bank_account_id', 'sba.id');
+    }
+
+    query = query.select(
+      'fee_challans.id',
+      'fee_challans.challan_number as challanNumber',
+      'fee_challans.consumer_number as consumerNumber',
+      'fee_challans.student_id as studentId',
+      'student_users.full_name as studentName',
+      'students.roll_no as rollNumber',
+      'students.admission_no as admissionNumber',
+      'classes.grade_level as classNumber',
+      'classes.name as className',
+      'fee_challans.billing_month as billingMonth',
+      'academic_sessions.name as academicSession',
+      'fee_challans.issue_date as generationDate',
+      'fee_challans.due_date as dueDate',
+      'fee_challans.valid_until as validUntil',
+      'fee_challans.grace_period_days as gracePeriodDays',
+      'fee_challans.tuition_amount as tuitionFee',
+      'fee_challans.technology_amount as technologyFee',
+      'fee_challans.examination_amount as examinationFee',
+      'fee_challans.books_amount as booksFee',
+      'fee_challans.admission_amount as admissionFee',
+      'fee_challans.other_amount as otherFee',
+      'fee_challans.gross_amount as grossAmount',
+      'fee_challans.concession_amount as concessionAmount',
+      'fee_challans.arrears_amount as arrearsAmount',
+      'fee_challans.late_fee_amount as lateFeeAmount',
+      'fee_challans.total_payable as totalPayable',
+      'fee_challans.paid_amount as paidAmount',
+      'fee_challans.status',
+      'fee_challans.reminders_sent_count as remindersSentCount',
+      'fee_challans.last_reminder_at as lastReminderDate',
+      'student_users.status as studentPortalStatus',
+      ...(hasBankCol && hasBankTable
+        ? [
+            'fee_challans.bank_account_id as bankAccountId',
+            'sba.bank_name as bankName',
+            'sba.branch_name as branchName',
+            'sba.account_title as accountTitle',
+            'sba.account_number as accountNumber',
+            'sba.iban as iban',
+            'sba.is_default as isDefaultBank',
+            'sba.instructions as bankInstructions'
+          ]
+        : [])
+    ).orderBy('fee_challans.created_at', 'desc');
 
     if (classId) query = query.where('fee_challans.class_id', classId);
     if (studentId) query = query.where('fee_challans.student_id', studentId);
@@ -598,26 +886,59 @@ export const feesRepository = {
       });
     }
 
-    const rows = await query;
-    return rows.map((r) => ({
-      ...r,
-      paidAmount: Number(r.paidAmount),
-      totalPayable: Number(r.totalPayable),
-      outstandingBalance: Number(r.totalPayable) - Number(r.paidAmount),
-      breakdown: {
-        tuitionFee: Number(r.tuitionFee),
-        technologyFee: Number(r.technologyFee),
-        examinationFee: Number(r.examinationFee),
-        booksFee: Number(r.booksFee),
-        admissionFee: Number(r.admissionFee),
-        otherFee: Number(r.otherFee),
-        grossAmount: Number(r.grossAmount),
-        concessionAmount: Number(r.concessionAmount),
-        arrearsAmount: Number(r.arrearsAmount),
-        lateFeeAmount: Number(r.lateFeeAmount),
-        totalPayable: Number(r.totalPayable)
+    if (bankAccountId && hasBankTable && hasBankCol) {
+      if (bankAccountId === 'default') {
+        query = query.where((q) => q.where('sba.is_default', true).orWhereNull('fee_challans.bank_account_id'));
+      } else if (bankAccountId === 'custom') {
+        query = query.where('sba.is_default', false).whereNotNull('fee_challans.bank_account_id');
+      } else if (!isNaN(Number(bankAccountId))) {
+        query = query.where('fee_challans.bank_account_id', Number(bankAccountId));
       }
-    }));
+    }
+
+    const rows = await query;
+    return rows.map((r) => {
+      const bank = r.bankAccountId ? {
+        id: r.bankAccountId,
+        bankName: r.bankName,
+        branchName: r.branchName,
+        accountTitle: r.accountTitle,
+        accountNumber: r.accountNumber,
+        iban: r.iban,
+        isDefault: Boolean(r.isDefaultBank),
+        instructions: r.bankInstructions
+      } : {
+        id: defaultBank.id,
+        bankName: defaultBank.bank_name,
+        branchName: defaultBank.branch_name,
+        accountTitle: defaultBank.account_title,
+        accountNumber: defaultBank.account_number,
+        iban: defaultBank.iban,
+        isDefault: true,
+        instructions: defaultBank.instructions
+      };
+
+      return {
+        ...r,
+        bankAccount: bank,
+        paidAmount: Number(r.paidAmount),
+        totalPayable: Number(r.totalPayable),
+        outstandingBalance: Number(r.totalPayable) - Number(r.paidAmount),
+        breakdown: {
+          tuitionFee: Number(r.tuitionFee),
+          technologyFee: Number(r.technologyFee),
+          examinationFee: Number(r.examinationFee),
+          booksFee: Number(r.booksFee),
+          admissionFee: Number(r.admissionFee),
+          otherFee: Number(r.otherFee),
+          grossAmount: Number(r.grossAmount),
+          concessionAmount: Number(r.concessionAmount),
+          arrearsAmount: Number(r.arrearsAmount),
+          lateFeeAmount: Number(r.lateFeeAmount),
+          totalPayable: Number(r.totalPayable)
+        }
+      };
+    });
   },
 
   async findChallanById(id) {
@@ -639,7 +960,8 @@ export const feesRepository = {
     bankOrWallet,
     transactionReference,
     paymentDate,
-    proofDocumentUrl
+    proofDocumentUrl,
+    targetBankAccountId = null
   }) {
     // 1. Check duplicate transaction reference per SRS Section 11.4
     const duplicate = await db('fee_payment_proofs')
@@ -648,6 +970,13 @@ export const feesRepository = {
 
     if (duplicate) {
       return { duplicate: true };
+    }
+
+    const hasProofBankCol = await db.schema.hasColumn('fee_payment_proofs', 'target_bank_account_id');
+    let resolvedBankId = targetBankAccountId ? Number(targetBankAccountId) : null;
+    if (!resolvedBankId) {
+      const challan = await db('fee_challans').where({ id: challanId }).first();
+      resolvedBankId = challan?.bank_account_id || null;
     }
 
     const [id] = await db('fee_payment_proofs').insert({
@@ -659,7 +988,8 @@ export const feesRepository = {
       transaction_reference: transactionReference,
       payment_date: paymentDate || new Date().toISOString().split('T')[0],
       proof_document_url: proofDocumentUrl || null,
-      status: 'PENDING'
+      status: 'PENDING',
+      ...(hasProofBankCol && resolvedBankId ? { target_bank_account_id: resolvedBankId } : {})
     });
 
     // Update challan status to PENDING_VERIFICATION
@@ -670,7 +1000,11 @@ export const feesRepository = {
     return await this.findPaymentProofById(id);
   },
 
-  async getPaymentProofs({ status = null, challanId = null, studentId = null } = {}, trx = db) {
+  async getPaymentProofs({ status = null, challanId = null, studentId = null, bankAccountId = null } = {}, trx = db) {
+    const hasProofBankCol = await trx.schema.hasColumn('fee_payment_proofs', 'target_bank_account_id');
+    const hasBankTable = await trx.schema.hasTable('school_bank_accounts');
+    const defaultBank = await this.getDefaultBankAccount(trx);
+
     let query = trx('fee_payment_proofs')
       .join('fee_challans', 'fee_payment_proofs.challan_id', 'fee_challans.id')
       .join('students', 'fee_payment_proofs.student_id', 'students.id')
@@ -678,41 +1012,95 @@ export const feesRepository = {
       .join('classes', 'fee_challans.class_id', 'classes.id')
       .leftJoin('parents', 'fee_payment_proofs.parent_id', 'parents.id')
       .leftJoin('users as parent_users', 'parents.user_id', 'parent_users.id')
-      .leftJoin('users as reviewer_users', 'fee_payment_proofs.reviewed_by', 'reviewer_users.id')
-      .select(
-        'fee_payment_proofs.id',
-        'fee_payment_proofs.challan_id as challanId',
-        'fee_challans.challan_number as challanNumber',
-        'fee_payment_proofs.student_id as studentId',
-        'student_users.full_name as studentName',
-        'fee_payment_proofs.parent_id as parentId',
-        'parent_users.full_name as parentName',
-        'classes.grade_level as classNumber',
-        'fee_payment_proofs.submitted_amount as submittedAmount',
-        'fee_payment_proofs.bank_or_wallet as bankOrWallet',
-        'fee_payment_proofs.transaction_reference as transactionReference',
-        'fee_payment_proofs.payment_date as paymentDate',
-        'fee_payment_proofs.proof_document_url as proofDocumentUrl',
-        'fee_payment_proofs.created_at as submissionTimestamp',
-        'fee_payment_proofs.status',
-        'reviewer_users.full_name as reviewedBy',
-        'fee_payment_proofs.reviewed_at as reviewTimestamp',
-        'fee_payment_proofs.review_decision_note as reviewDecisionNote',
-        'fee_payment_proofs.verified_amount as verifiedAmount',
-        'fee_payment_proofs.receipt_number as receiptNumber'
-      )
-      .orderBy('fee_payment_proofs.created_at', 'desc');
+      .leftJoin('users as reviewer_users', 'fee_payment_proofs.reviewed_by', 'reviewer_users.id');
+
+    if (hasBankTable) {
+      if (hasProofBankCol) {
+        query = query.leftJoin('school_bank_accounts as target_sba', db.raw('COALESCE(fee_payment_proofs.target_bank_account_id, fee_challans.bank_account_id)'), 'target_sba.id');
+      } else {
+        query = query.leftJoin('school_bank_accounts as target_sba', 'fee_challans.bank_account_id', 'target_sba.id');
+      }
+    }
+
+    query = query.select(
+      'fee_payment_proofs.id',
+      'fee_payment_proofs.challan_id as challanId',
+      'fee_challans.challan_number as challanNumber',
+      'fee_payment_proofs.student_id as studentId',
+      'student_users.full_name as studentName',
+      'fee_payment_proofs.parent_id as parentId',
+      'parent_users.full_name as parentName',
+      'classes.grade_level as classNumber',
+      'fee_payment_proofs.submitted_amount as submittedAmount',
+      'fee_payment_proofs.bank_or_wallet as bankOrWallet',
+      'fee_payment_proofs.transaction_reference as transactionReference',
+      'fee_payment_proofs.payment_date as paymentDate',
+      'fee_payment_proofs.proof_document_url as proofDocumentUrl',
+      'fee_payment_proofs.created_at as submissionTimestamp',
+      'fee_payment_proofs.status',
+      'reviewer_users.full_name as reviewedBy',
+      'fee_payment_proofs.reviewed_at as reviewTimestamp',
+      'fee_payment_proofs.review_decision_note as reviewDecisionNote',
+      'fee_payment_proofs.verified_amount as verifiedAmount',
+      'fee_payment_proofs.receipt_number as receiptNumber',
+      ...(hasBankTable
+        ? [
+            'target_sba.id as targetBankAccountId',
+            'target_sba.bank_name as targetBankName',
+            'target_sba.branch_name as targetBranchName',
+            'target_sba.account_title as targetAccountTitle',
+            'target_sba.account_number as targetAccountNumber',
+            'target_sba.iban as targetIban',
+            'target_sba.is_default as targetIsDefault'
+          ]
+        : [])
+    ).orderBy('fee_payment_proofs.created_at', 'desc');
 
     if (status) query = query.where('fee_payment_proofs.status', status);
     if (challanId) query = query.where('fee_payment_proofs.challan_id', challanId);
     if (studentId) query = query.where('fee_payment_proofs.student_id', studentId);
 
+    if (bankAccountId && hasBankTable) {
+      if (bankAccountId === 'default') {
+        query = query.where((q) => q.where('target_sba.is_default', true).orWhereNull('fee_challans.bank_account_id'));
+      } else if (bankAccountId === 'custom') {
+        query = query.where('target_sba.is_default', false).whereNotNull('fee_challans.bank_account_id');
+      } else if (!isNaN(Number(bankAccountId))) {
+        if (hasProofBankCol) {
+          query = query.where(db.raw('COALESCE(fee_payment_proofs.target_bank_account_id, fee_challans.bank_account_id)'), Number(bankAccountId));
+        } else {
+          query = query.where('fee_challans.bank_account_id', Number(bankAccountId));
+        }
+      }
+    }
+
     const rows = await query;
-    return rows.map((r) => ({
-      ...r,
-      submittedAmount: Number(r.submittedAmount),
-      verifiedAmount: r.verifiedAmount ? Number(r.verifiedAmount) : null
-    }));
+    return rows.map((r) => {
+      const targetBank = r.targetBankAccountId ? {
+        id: r.targetBankAccountId,
+        bankName: r.targetBankName,
+        branchName: r.targetBranchName,
+        accountTitle: r.targetAccountTitle,
+        accountNumber: r.targetAccountNumber,
+        iban: r.targetIban,
+        isDefault: Boolean(r.targetIsDefault)
+      } : {
+        id: defaultBank.id,
+        bankName: defaultBank.bank_name,
+        branchName: defaultBank.branch_name,
+        accountTitle: defaultBank.account_title,
+        accountNumber: defaultBank.account_number,
+        iban: defaultBank.iban,
+        isDefault: true
+      };
+
+      return {
+        ...r,
+        targetBankAccount: targetBank,
+        submittedAmount: Number(r.submittedAmount),
+        verifiedAmount: r.verifiedAmount ? Number(r.verifiedAmount) : null
+      };
+    });
   },
 
   async findPaymentProofById(id, trx = db) {
@@ -1203,7 +1591,7 @@ export const feesRepository = {
     if (billingMonth) query = query.where({ billing_month: billingMonth });
     if (classId) query = query.where({ class_id: classId });
 
-    const rows = await query.select('total_payable', 'paid_amount', 'status');
+    const rows = await query.select('id', 'total_payable', 'paid_amount', 'status', 'bank_account_id');
 
     let totalBilled = 0;
     let totalCollected = 0;
@@ -1222,6 +1610,59 @@ export const feesRepository = {
     const totalOutstanding = Math.max(0, totalBilled - totalCollected);
     const collectionRate = totalBilled > 0 ? Number(((totalCollected / totalBilled) * 100).toFixed(1)) : 0;
 
+    // Account-wise reconciliation breakdown
+    let accountBreakdown = [];
+    try {
+      const allBankAccounts = await this.getBankAccounts();
+      const defaultBank = await this.getDefaultBankAccount();
+      const accountMap = new Map();
+
+      for (const b of allBankAccounts) {
+        accountMap.set(b.id, {
+          bankAccountId: b.id,
+          bankName: b.bankName,
+          accountNumber: b.accountNumber,
+          isDefault: b.isDefault,
+          totalChallans: 0,
+          totalBilled: 0,
+          totalCollected: 0,
+          totalOutstanding: 0,
+          paidCount: 0,
+          unpaidCount: 0
+        });
+      }
+
+      for (const r of rows) {
+        const bId = r.bank_account_id || defaultBank.id;
+        let acc = accountMap.get(bId);
+        if (!acc) {
+          acc = {
+            bankAccountId: bId,
+            bankName: defaultBank.bank_name,
+            accountNumber: defaultBank.account_number,
+            isDefault: true,
+            totalChallans: 0,
+            totalBilled: 0,
+            totalCollected: 0,
+            totalOutstanding: 0,
+            paidCount: 0,
+            unpaidCount: 0
+          };
+          accountMap.set(bId, acc);
+        }
+        acc.totalChallans++;
+        acc.totalBilled += Number(r.total_payable);
+        acc.totalCollected += Number(r.paid_amount);
+        acc.totalOutstanding += Math.max(0, Number(r.total_payable) - Number(r.paid_amount));
+        if (r.status === 'PAID') acc.paidCount++;
+        else if (r.status === 'UNPAID' || r.status === 'OVERDUE') acc.unpaidCount++;
+      }
+
+      accountBreakdown = Array.from(accountMap.values());
+    } catch {
+      accountBreakdown = [];
+    }
+
     return {
       totalChallans: rows.length,
       totalBilled,
@@ -1230,7 +1671,8 @@ export const feesRepository = {
       collectionRate,
       paidCount,
       unpaidCount,
-      pendingVerificationCount
+      pendingVerificationCount,
+      accountBreakdown
     };
   }
 };

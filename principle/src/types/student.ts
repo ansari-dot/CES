@@ -26,6 +26,12 @@ export interface Student {
   enrolmentStatus: 'Active' | 'Withdrawn' | 'Graduated' | 'Suspended';
   accountStatus: AccountStatus;
   transferHistory: StudentTransferHistory[];
+  customBankAccountId?: number | null;
+  customBankName?: string | null;
+  customBranchName?: string | null;
+  customAccountNumber?: string | null;
+  customAccountTitle?: string | null;
+  customIban?: string | null;
   suspensionDetails?: {
     reason: string;
     effectiveDate: string;

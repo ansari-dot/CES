@@ -25,27 +25,44 @@ export function letterGrade(pct) {
 
 export const studentsRepository = {
   async getAllStudents({ classId = null, classIds = null, status = null } = {}) {
+    const hasCustomBankCol = await db.schema.hasColumn('students', 'custom_bank_account_id');
+    const hasBankTable = await db.schema.hasTable('school_bank_accounts');
+
     let query = db('students')
       .join('users', 'students.user_id', 'users.id')
-      .join('classes', 'students.current_class_id', 'classes.id')
-      .select(
-        'students.id',
-        'students.user_id',
-        'students.admission_no as admissionNo',
-        'students.roll_no as rollNo',
-        'students.date_of_birth as dateOfBirth',
-        'students.gender',
-        'students.admission_date as admissionDate',
-        'students.current_class_id as currentClassId',
-        'classes.grade_level as classNumber',
-        'classes.name as className',
-        'students.status as enrollmentStatus',
-        'users.full_name as name',
-        'users.email',
-        'users.phone',
-        'users.status as accountStatus'
-      )
-      .orderBy('students.id', 'desc');
+      .join('classes', 'students.current_class_id', 'classes.id');
+
+    if (hasCustomBankCol && hasBankTable) {
+      query = query.leftJoin('school_bank_accounts as sba', 'students.custom_bank_account_id', 'sba.id');
+    }
+
+    query = query.select(
+      'students.id',
+      'students.user_id',
+      'students.admission_no as admissionNo',
+      'students.roll_no as rollNo',
+      'students.date_of_birth as dateOfBirth',
+      'students.gender',
+      'students.admission_date as admissionDate',
+      'students.current_class_id as currentClassId',
+      'classes.grade_level as classNumber',
+      'classes.name as className',
+      'students.status as enrollmentStatus',
+      'users.full_name as name',
+      'users.email',
+      'users.phone',
+      'users.status as accountStatus',
+      ...(hasCustomBankCol && hasBankTable
+        ? [
+            'students.custom_bank_account_id as customBankAccountId',
+            'sba.bank_name as customBankName',
+            'sba.branch_name as customBranchName',
+            'sba.account_number as customAccountNumber',
+            'sba.account_title as customAccountTitle',
+            'sba.iban as customIban'
+          ]
+        : [])
+    ).orderBy('students.id', 'desc');
 
     if (classId) {
       query = query.where('students.current_class_id', classId);
@@ -91,9 +108,18 @@ export const studentsRepository = {
   },
 
   async getStudentById(id) {
-    const student = await db('students')
+    const hasCustomBankCol = await db.schema.hasColumn('students', 'custom_bank_account_id');
+    const hasBankTable = await db.schema.hasTable('school_bank_accounts');
+
+    let query = db('students')
       .join('users', 'students.user_id', 'users.id')
-      .join('classes', 'students.current_class_id', 'classes.id')
+      .join('classes', 'students.current_class_id', 'classes.id');
+
+    if (hasCustomBankCol && hasBankTable) {
+      query = query.leftJoin('school_bank_accounts as sba', 'students.custom_bank_account_id', 'sba.id');
+    }
+
+    const student = await query
       .where('students.id', id)
       .select(
         'students.id',
@@ -110,7 +136,17 @@ export const studentsRepository = {
         'users.full_name as name',
         'users.email',
         'users.phone',
-        'users.status as accountStatus'
+        'users.status as accountStatus',
+        ...(hasCustomBankCol && hasBankTable
+          ? [
+              'students.custom_bank_account_id as customBankAccountId',
+              'sba.bank_name as customBankName',
+              'sba.branch_name as customBranchName',
+              'sba.account_number as customAccountNumber',
+              'sba.account_title as customAccountTitle',
+              'sba.iban as customIban'
+            ]
+          : [])
       )
       .first();
 
