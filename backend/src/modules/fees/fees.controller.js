@@ -1,5 +1,6 @@
 import fs from 'fs';
 import { challanPaymentDetailsService } from './fees.paymentDetails.js';
+import { challanInfoQrService } from './fees.infoQr.js';
 import { feesService } from './fees.service.js';
 import { db } from '../../shared/db/knex.js';
 import { authRepository } from '../auth/auth.repository.js';
@@ -46,6 +47,19 @@ export const feesController = {
       res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('Content-Disposition', 'inline; filename="payment-qr"');
       return fs.createReadStream(filePath).on('error', next).pipe(res);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async streamChallanInfoQr(req, res, next) {
+    try {
+      const { png } = await challanInfoQrService.renderForUser(req.user, Number(req.params.id));
+      res.setHeader('Content-Type', 'image/png');
+      // Regenerated on request so it always reflects the current payment-detail revision
+      res.setHeader('Cache-Control', 'private, no-cache');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      return res.send(png);
     } catch (error) {
       next(error);
     }

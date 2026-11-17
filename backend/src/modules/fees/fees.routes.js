@@ -30,6 +30,8 @@ router.put(
   feesController.reviseChallanPaymentDetails
 );
 router.get('/challans/:id/payment-qr', authenticate, feesController.streamChallanPaymentQr);
+// Automatic information QR (challan details + verification link); not a payment QR
+router.get('/challans/:id/info-qr', authenticate, feesController.streamChallanInfoQr);
 
 // Restricted students & access restoration (Principal only)
 router.get('/restricted-students', authenticate, authorize('fees.access.restore'), feesController.getRestrictedStudents);

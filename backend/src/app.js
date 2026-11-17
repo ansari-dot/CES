@@ -22,6 +22,7 @@ import attendanceRoutes from './modules/attendance/attendance.routes.js';
 import tasksRoutes from './modules/tasks/tasks.routes.js';
 import uploadsRoutes from './modules/uploads/uploads.routes.js';
 import feesRoutes from './modules/fees/fees.routes.js';
+import feesPublicRoutes from './modules/fees/fees.public.routes.js';
 import payrollRoutes from './modules/payroll/payroll.routes.js';
 import noticesRoutes from './modules/notices/notices.routes.js';
 import auditRoutes from './modules/audit/audit.routes.js';
@@ -146,6 +147,7 @@ export function createApp() {
   app.use('/api/v1/tasks', tasksRoutes);
   app.use('/api/v1/uploads', uploadsRoutes);
   app.use('/api/v1/fees', feesRoutes);
+  app.use('/api/v1/public/challans', feesPublicRoutes);
   app.use('/api/v1/payroll', payrollRoutes);
   app.use('/api/v1/notices', noticesRoutes);
   app.use('/api/v1/audit', auditRoutes);
