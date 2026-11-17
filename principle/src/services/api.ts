@@ -2139,6 +2139,20 @@ export const api = {
     });
   },
 
+  async getStudentAnnualSummary(studentId: number, sessionId?: number): Promise<any> {
+    const qs = sessionId ? `?sessionId=${sessionId}` : '';
+    return await requestApi<any>(`/api/v1/results/students/${studentId}/annual-summary${qs}`);
+  },
+
+  async getSubjectDetailedMarks(studentId: number, subjectId: number, sessionId?: number): Promise<any> {
+    const qs = sessionId ? `?sessionId=${sessionId}` : '';
+    return await requestApi<any>(`/api/v1/results/students/${studentId}/subjects/${subjectId}/detailed-marks${qs}`);
+  },
+
+  async getStudentResults(studentId: number): Promise<any> {
+    return await requestApi<any>(`/api/v1/results/students/${studentId}`);
+  },
+
   async getPromotionsOverview(sessionId: number): Promise<any> {
     return await requestApi<any>(`/api/v1/promotions/overview?sessionId=${sessionId}`);
   },

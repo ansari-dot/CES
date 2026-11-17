@@ -113,7 +113,7 @@ export const promotionsService = {
         let eligibility = 'PENDING_RESULT';
         if (enr.enrollmentStatus === 'WITHDRAWN' || enr.studentStatus === 'INACTIVE') {
           eligibility = 'WITHDRAWN';
-        } else if (result && ['APPROVED', 'PUBLISHED'].includes(result.result_status)) {
+        } else if (result && result.result_status === 'PUBLISHED') {
           if (result.pass_status === 'PASSED') {
             eligibility = Number(enr.classNumber) >= maxGrade ? 'GRADUATING' : 'ELIGIBLE';
           } else if (result.pass_status === 'FAILED') {

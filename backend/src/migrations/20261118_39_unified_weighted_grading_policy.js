@@ -25,6 +25,14 @@ export async function up(knex) {
   // 1. Alter academic_grading_policies
   const hasPoliciesTable = await knex.schema.hasTable('academic_grading_policies');
   if (hasPoliciesTable) {
+    // Drop existing check constraints that do not account for terminal_exam_weight
+    try {
+      await knex.raw('ALTER TABLE academic_grading_policies DROP CONSTRAINT chk_agp_weights_sum');
+    } catch (_) {}
+    try {
+      await knex.raw('ALTER TABLE academic_grading_policies DROP CONSTRAINT chk_agp_weights_positive');
+    } catch (_) {}
+
     const hasTerminalWeight = await knex.schema.hasColumn('academic_grading_policies', 'terminal_exam_weight');
     if (!hasTerminalWeight) {
       await knex.schema.alterTable('academic_grading_policies', (table) => {
@@ -78,6 +86,17 @@ export async function up(knex) {
         created_by: null
       });
     }
+
+    // Add updated check constraints that validate the 5-weight sum and positivity
+    try {
+      await knex.raw(`
+        ALTER TABLE academic_grading_policies
+          ADD CONSTRAINT chk_agp_weights_sum 
+            CHECK (ROUND(monthly_test_weight + quiz_weight + mid_term_weight + homework_weight + terminal_exam_weight, 2) = 100.00),
+          ADD CONSTRAINT chk_agp_weights_positive 
+            CHECK (monthly_test_weight >= 0 AND quiz_weight >= 0 AND mid_term_weight >= 0 AND homework_weight >= 0 AND terminal_exam_weight >= 0)
+      `);
+    } catch (_) {}
   }
 
   // 2. Alter final_result_subjects to store transparent category breakdowns

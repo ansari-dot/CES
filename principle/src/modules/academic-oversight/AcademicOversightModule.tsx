@@ -29,6 +29,7 @@ import {
   Calculator,
   RefreshCw
 } from 'lucide-react';
+import { StudentAnnualPerformanceSummary } from '../../components/performance/StudentAnnualPerformanceSummary';
 
 export type AcademicTab = 'terminal' | 'progress' | 'approvals';
 
@@ -73,6 +74,7 @@ export const AcademicOversightModule: React.FC = () => {
   });
 
   // Transcript inspection modal state
+  const [annualSummaryStudentId, setAnnualSummaryStudentId] = useState<number | null>(null);
   const [transcriptModal, setTranscriptModal] = useState<{
     open: boolean;
     student: StudentRecordReportRow | null;
@@ -1083,7 +1085,18 @@ export const AcademicOversightModule: React.FC = () => {
                       </td>
                       <td className="px-5 py-3.5">{renderGradeBadge(termRes?.grade)}</td>
                       <td className="px-5 py-3.5">{renderStatusDot(termRes?.status, termRes?.resultStatus)}</td>
-                      <td className="px-5 py-3.5 text-right">
+                      <td className="px-5 py-3.5 text-right space-x-1.5 whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setAnnualSummaryStudentId(Number(s.id));
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-semibold inline-flex items-center gap-1 transition-colors shadow-2xs border border-indigo-200"
+                        >
+                          <Award className="w-3 h-3 text-indigo-600" />
+                          <span>Annual Summary</span>
+                        </button>
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1187,7 +1200,15 @@ export const AcademicOversightModule: React.FC = () => {
                           </span>
                         )}
                       </td>
-                      <td className="px-5 py-3.5 text-right space-x-1">
+                      <td className="px-5 py-3.5 text-right space-x-1.5 whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => setAnnualSummaryStudentId(Number(s.id))}
+                          className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-semibold inline-flex items-center gap-1 transition-colors shadow-2xs"
+                        >
+                          <Award className="w-3 h-3 text-indigo-600" />
+                          <span>Annual Summary</span>
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleOpenAlert(s)}
@@ -1658,61 +1679,61 @@ export const AcademicOversightModule: React.FC = () => {
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-100/80 text-slate-700 font-bold border-b border-slate-200 text-[10px] uppercase tracking-wider print:bg-slate-100">
                       <tr>
-                        <th className="px-3.5 py-2.5">Subject</th>
-                        <th className="px-3.5 py-2.5 text-right font-mono">Max Marks</th>
-                        <th className="px-3.5 py-2.5 text-right font-mono">Obtained Marks</th>
-                        <th className="px-3.5 py-2.5 text-right font-mono">Percentage</th>
-                        <th className="px-3.5 py-2.5 text-center">Grade</th>
-                        <th className="px-3.5 py-2.5 text-center">Remarks</th>
+                        <th className="px-3 py-2.5">Subject</th>
+                        <th className="px-2 py-2.5 text-right font-mono">Mid (25%)</th>
+                        <th className="px-2 py-2.5 text-right font-mono">Month (15%)</th>
+                        <th className="px-2 py-2.5 text-right font-mono">Task (10%)</th>
+                        <th className="px-2 py-2.5 text-right font-mono">Term (50%)</th>
+                        <th className="px-2.5 py-2.5 text-right font-mono">Final %</th>
+                        <th className="px-2.5 py-2.5 text-center">Grade</th>
+                        <th className="px-2.5 py-2.5 text-center">Remarks</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 print:divide-slate-300">
                       {transcriptModal.data?.results?.[0]?.subjects?.length > 0 ? (
                         transcriptModal.data.results[0].subjects.map((sub: any) => {
                           const isSuppPassed = sub.supplementary?.is_passed;
-                          const finalObt = isSuppPassed
-                            ? Math.round(sub.supplementary.obtained_marks)
-                            : Math.round(sub.obtained_marks);
+                          const b = sub.category_breakdown;
                           const finalPct = isSuppPassed
                             ? Math.round((sub.supplementary.obtained_marks / sub.supplementary.max_marks) * 100)
-                            : Math.round(sub.percentage);
+                            : sub.percentage != null
+                              ? Math.round(Number(sub.percentage) * 10) / 10
+                              : null;
                           const finalGrade = isSuppPassed ? sub.supplementary.grade : sub.grade;
 
                           return (
                             <tr key={sub.id} className="hover:bg-slate-50/50 print:hover:bg-transparent">
-                              <td className="px-3.5 py-2.5">
+                              <td className="px-3 py-2.5">
                                 <span className="font-bold text-slate-900 block">{sub.subjectName}</span>
                                 <span className="text-[10px] text-slate-400 font-mono">{sub.subjectCode}</span>
                               </td>
-                              <td className="px-3.5 py-2.5 text-right font-mono text-slate-500">
-                                {Math.round(sub.total_marks)}
+                              <td className="px-2 py-2.5 text-right font-mono text-slate-600 text-[11px]">
+                                {b?.midTerm?.percentage != null ? `${b.midTerm.percentage}%` : '—'}
                               </td>
-                              <td className="px-3.5 py-2.5 text-right font-mono font-bold text-slate-900">
-                                {finalObt}
+                              <td className="px-2 py-2.5 text-right font-mono text-slate-600 text-[11px]">
+                                {b?.monthly?.percentage != null ? `${b.monthly.percentage}%` : '—'}
                               </td>
-                              <td className="px-3.5 py-2.5 text-right font-mono font-bold text-slate-900">
-                                {finalPct}%
+                              <td className="px-2 py-2.5 text-right font-mono text-slate-600 text-[11px]">
+                                {b?.assignments?.percentage != null ? `${b.assignments.percentage}%` : '—'}
                               </td>
-                              <td className="px-3.5 py-2.5 text-center">
+                              <td className="px-2 py-2.5 text-right font-mono text-slate-600 text-[11px]">
+                                {b?.terminal?.percentage != null ? `${b.terminal.percentage}%` : '—'}
+                              </td>
+                              <td className="px-2.5 py-2.5 text-right font-mono font-bold text-slate-900">
+                                {finalPct != null ? `${finalPct}%` : '—'}
+                              </td>
+                              <td className="px-2.5 py-2.5 text-center">
                                 {renderGradeBadge(finalGrade)}
                               </td>
-                              <td className="px-3.5 py-2.5 text-center text-[11px] text-slate-600">
-                                {isSuppPassed ? 'Cleared in Resit' : finalPct >= 50 ? 'Passed' : 'Needs Work'}
+                              <td className="px-2.5 py-2.5 text-center text-[11px] text-slate-600">
+                                {isSuppPassed ? 'Cleared in Resit' : finalPct != null && finalPct >= 40 ? 'Passed' : 'Needs Work'}
                               </td>
                             </tr>
                           );
                         })
                       ) : (
                         <tr>
-                          <td className="px-3.5 py-3 font-semibold text-slate-900">Terminal Examination (Composite)</td>
-                          <td className="px-3.5 py-3 text-right font-mono text-slate-500">
-                            {transcriptModal.student.terminalResult?.totalMarks || 100}
-                          </td>
-                          <td className="px-3.5 py-3 text-right font-mono font-bold text-slate-900">
-                            {transcriptModal.student.terminalResult?.obtainedMarks != null
-                              ? transcriptModal.student.terminalResult.obtainedMarks
-                              : '—'}
-                          </td>
+                          <td className="px-3.5 py-3 font-semibold text-slate-900" colSpan={5}>Terminal Examination (Composite)</td>
                           <td className="px-3.5 py-3 text-right font-mono font-bold text-slate-900">
                             {transcriptModal.student.terminalResult?.percentage != null
                               ? `${Number(transcriptModal.student.terminalResult.percentage).toFixed(1)}%`
@@ -1819,6 +1840,21 @@ export const AcademicOversightModule: React.FC = () => {
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* 7b. ANNUAL ACADEMIC PERFORMANCE SUMMARY MODAL */}
+      {annualSummaryStudentId && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-5xl w-full max-h-[92vh] overflow-y-auto border border-slate-200/80 relative">
+            <div className="p-4 sm:p-6">
+              <StudentAnnualPerformanceSummary
+                studentId={annualSummaryStudentId}
+                initialSessionId={selectedSessionId}
+                onClose={() => setAnnualSummaryStudentId(null)}
+              />
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 8. PARENT INTERVENTION ALERT MODAL WITH 48H COOLDOWN */}

@@ -1,5 +1,8 @@
 import { resultsService } from './results.service.js';
 import { sendSuccess } from '../../shared/http/response.js';
+import { getStudentByUserId } from '../../shared/services/accessScope.js';
+import { AppError } from '../../shared/errors/AppError.js';
+import { ErrorCodes } from '../../shared/errors/errorCodes.js';
 
 export const resultsController = {
   async compute(req, res, next) {
@@ -104,6 +107,61 @@ export const resultsController = {
   async studentResults(req, res, next) {
     try {
       const data = await resultsService.getStudentAcademicHistory(Number(req.params.studentId), { isStaffUser: true });
+      return sendSuccess(res, data);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getAnnualPerformanceSummary(req, res, next) {
+    try {
+      const data = await resultsService.getStudentAnnualSubjectSummary({
+        studentId: req.params.studentId,
+        sessionId: req.query.sessionId,
+        user: req.user
+      });
+      return sendSuccess(res, data);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getSubjectDetailedMarks(req, res, next) {
+    try {
+      const data = await resultsService.getStudentSubjectDetailedMarks({
+        studentId: req.params.studentId,
+        subjectId: req.params.subjectId,
+        sessionId: req.query.sessionId,
+        user: req.user
+      });
+      return sendSuccess(res, data);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getMyAnnualPerformanceSummary(req, res, next) {
+    try {
+      const student = await getStudentByUserId(req.user.id);
+      if (!student) throw new AppError('Student profile not found', 404, ErrorCodes.NOT_FOUND);
+      const data = await resultsService.getStudentAnnualSubjectSummary({
+        studentId: student.id,
+        sessionId: req.query.sessionId,
+        user: req.user
+      });
+      return sendSuccess(res, data);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getChildAnnualPerformanceSummary(req, res, next) {
+    try {
+      const data = await resultsService.getStudentAnnualSubjectSummary({
+        studentId: req.params.studentId,
+        sessionId: req.query.sessionId,
+        user: req.user
+      });
       return sendSuccess(res, data);
     } catch (error) {
       next(error);

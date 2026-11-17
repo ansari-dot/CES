@@ -8,12 +8,26 @@ const router = Router();
 
 // Student / parent self-service reads (static paths before /:id)
 router.get('/me', authenticate, requireRole('STUDENT'), resultsController.myResults);
+router.get('/me/annual-summary', authenticate, requireRole('STUDENT'), resultsController.getMyAnnualPerformanceSummary);
 router.get('/child/:studentId', authenticate, requireRole('PARENT'), resultsController.childResults);
+router.get('/child/:studentId/annual-summary', authenticate, requireRole('PARENT'), resultsController.getChildAnnualPerformanceSummary);
 router.get(
   '/students/:studentId',
   authenticate,
   requireRole('ADMIN', 'PRINCIPAL'),
   resultsController.studentResults
+);
+router.get(
+  '/students/:studentId/annual-summary',
+  authenticate,
+  requireRole('ADMIN', 'PRINCIPAL', 'TEACHER'),
+  resultsController.getAnnualPerformanceSummary
+);
+router.get(
+  '/students/:studentId/subjects/:subjectId/detailed-marks',
+  authenticate,
+  requireRole('ADMIN', 'PRINCIPAL', 'TEACHER', 'STUDENT', 'PARENT'),
+  resultsController.getSubjectDetailedMarks
 );
 
 // Teacher marks hand-off

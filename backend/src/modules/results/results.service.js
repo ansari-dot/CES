@@ -724,5 +724,635 @@ export const resultsService = {
     });
 
     return { results: enrichedResults, enrollments, promotions, supplementaryList };
+  },
+
+  /**
+   * Unified Role-Based Student Annual Academic Performance Summary
+   * Returns subject-wise summary table with all 5 category percentages,
+   * annual weighted score, grade, teacher name, and student context.
+   */
+  async getStudentAnnualSubjectSummary({ studentId, sessionId = null, user }) {
+    studentId = Number(studentId);
+    const student = await resultsRepository.getStudentProfile(studentId);
+    if (!student) throw new AppError('Student profile not found', 404, ErrorCodes.NOT_FOUND);
+
+    // RBAC Authorization
+    let teacherScope = null;
+    if (user.role === 'STUDENT') {
+      if (student.userId !== user.id) throw forbidden();
+    } else if (user.role === 'PARENT') {
+      await assertCanViewStudent(user, studentId);
+    } else if (user.role === 'TEACHER') {
+      teacherScope = await getTeacherScope(user.id);
+      if (!teacherScope.classIds.has(Number(student.currentClassId))) {
+        throw forbidden('You can only view students enrolled in your assigned classes.');
+      }
+    } else if (!isStaff(user)) {
+      throw forbidden();
+    }
+
+    // Resolve academic session
+    let session = null;
+    if (sessionId) {
+      session = await academicRepository.getSessionById(Number(sessionId));
+    }
+    if (!session) {
+      session = (await academicRepository.getCurrentSession()) || (await db('academic_sessions').first());
+    }
+    if (!session) throw new AppError('Academic session not found', 404, ErrorCodes.NOT_FOUND);
+
+    const allSessions = await db('academic_sessions').select('id', 'name', 'is_current').orderBy('start_date', 'desc');
+
+    // Check enrollment for this session
+    const enrollment = await db('enrollments')
+      .where({ student_id: studentId, session_id: session.id })
+      .first();
+
+    const classId = enrollment?.class_id || student.currentClassId;
+    let className = student.className;
+    if (enrollment && enrollment.class_id !== student.currentClassId) {
+      const cls = await db('classes').where({ id: enrollment.class_id }).first();
+      if (cls) className = cls.name;
+    }
+
+    const classSubjects = await resultsRepository.getClassSubjects(classId);
+    const policy = await academicRepository.getEffectivePolicy(session.id);
+    let gradingPolicy = await performanceRepository.findActivePolicy(session.id);
+    if (!gradingPolicy) gradingPolicy = DEFAULT_WEIGHTED_POLICY;
+
+    const data = await resultsRepository.getStudentAnnualAssessments({
+      studentId,
+      classId,
+      sessionId: session.id
+    });
+
+    const teacherMap = new Map();
+    for (const ta of data.teacherAssignments) {
+      teacherMap.set(Number(ta.subjectId), ta.teacherName);
+    }
+
+    const publishedMap = new Map();
+    for (const ps of data.publishedSubjects) {
+      publishedMap.set(Number(ps.subject_id), ps);
+    }
+
+    const suppMap = new Map();
+    for (const sr of data.supplementaryResults) {
+      suppMap.set(Number(sr.final_result_subject_id), sr);
+    }
+
+    const subjectRows = [];
+    const isRestrictedAudience = user.role === 'STUDENT' || user.role === 'PARENT';
+
+    for (const sub of classSubjects) {
+      const subId = Number(sub.id);
+      const teacherName = teacherMap.get(subId) || 'Unassigned';
+
+      // 1. Quizzes
+      const quizzes = [
+        ...data.tests.filter((t) => Number(t.subject_id) === subId && t.exam_type === 'CLASS_QUIZ'),
+        ...data.tasks.filter((t) => Number(t.subject_id) === subId && t.task_type === 'QUIZ')
+      ];
+
+      // 2. Assignments
+      const assignments = data.tasks.filter(
+        (t) => Number(t.subject_id) === subId && ['ASSIGNMENT', 'HOMEWORK', 'PROJECT'].includes(t.task_type)
+      );
+
+      // 3. Monthly Tests
+      const monthlyTests = data.tests.filter(
+        (t) => Number(t.subject_id) === subId && t.exam_type === 'MONTHLY_TEST'
+      );
+
+      // 4. Mid-Term
+      const midTerm = [
+        ...data.tests.filter((t) => Number(t.subject_id) === subId && t.exam_type === 'MID_TERM'),
+        ...data.papers.filter(
+          (p) =>
+            Number(p.subject_id) === subId &&
+            (p.exam_type === 'MID_TERM' || String(p.paper_name || p.exam_title || '').toLowerCase().includes('mid'))
+        )
+      ];
+
+      // 5. Terminal Examination
+      const terminal = [
+        ...data.papers.filter(
+          (p) =>
+            Number(p.subject_id) === subId &&
+            p.exam_type !== 'MID_TERM' &&
+            !String(p.paper_name || p.exam_title || '').toLowerCase().includes('mid')
+        ),
+        ...data.tests.filter(
+          (t) => Number(t.subject_id) === subId && ['FINAL_TERM', 'TERM_EXAM'].includes(t.exam_type)
+        ),
+        ...data.tasks.filter((t) => Number(t.subject_id) === subId && t.task_type === 'EXAM')
+      ];
+
+      const quizAgg = aggregateCategoryAssessments(
+        quizzes.map((q) => ({
+          totalMarks: q.total_marks,
+          obtainedMarks: q.obtained_score ?? q.marks_awarded,
+          status: q.attempt_status ?? q.submission_status,
+          isAbsent: q.attempt_status === 'ABSENT' || q.submission_status === 'ABSENT'
+        }))
+      );
+
+      const assignAgg = aggregateCategoryAssessments(
+        assignments.map((a) => ({
+          totalMarks: a.total_marks,
+          obtainedMarks: a.marks_awarded,
+          status: a.submission_status,
+          isAbsent: a.submission_status === 'ABSENT'
+        }))
+      );
+
+      const monthlyAgg = aggregateCategoryAssessments(
+        monthlyTests.map((m) => ({
+          totalMarks: m.total_marks,
+          obtainedMarks: m.obtained_score,
+          status: m.attempt_status,
+          isAbsent: m.attempt_status === 'ABSENT'
+        }))
+      );
+
+      const midTermAgg = aggregateCategoryAssessments(
+        midTerm.map((mt) => ({
+          totalMarks: mt.total_marks,
+          obtainedMarks: mt.obtained_score ?? mt.total_obtained,
+          status: mt.attempt_status ?? mt.mark_status,
+          isAbsent: mt.attempt_status === 'ABSENT' || mt.is_absent === 1
+        }))
+      );
+
+      const terminalAgg = aggregateCategoryAssessments(
+        terminal.map((t) => ({
+          totalMarks: t.total_marks,
+          obtainedMarks: t.total_obtained ?? t.obtained_score ?? t.marks_awarded,
+          status: t.mark_status ?? t.attempt_status ?? t.submission_status,
+          isAbsent: t.is_absent === 1 || t.attempt_status === 'ABSENT' || t.submission_status === 'ABSENT'
+        }))
+      );
+
+      // Tasks / Assignments category for 10% weight: includes quizzes if configured
+      const tasksAndQuizzes = Boolean(gradingPolicy.include_quizzes_in_assignments ?? true)
+        ? [...assignments, ...quizzes]
+        : assignments;
+
+      const tasksCategoryAgg = aggregateCategoryAssessments(
+        tasksAndQuizzes.map((item) => ({
+          totalMarks: item.total_marks,
+          obtainedMarks: item.marks_awarded ?? item.obtained_score,
+          status: item.submission_status ?? item.attempt_status,
+          isAbsent: item.submission_status === 'ABSENT' || item.attempt_status === 'ABSENT'
+        }))
+      );
+
+      const weightedCalc = calculateSubjectWeightedScore({
+        midTerm: midTermAgg,
+        monthly: monthlyAgg,
+        assignments: tasksCategoryAgg,
+        terminal: terminalAgg,
+        policy: gradingPolicy,
+        passingPolicy: policy
+      });
+
+      const publishedSubject = publishedMap.get(subId);
+      const supp = publishedSubject ? suppMap.get(publishedSubject.id) : null;
+
+      let finalPct = weightedCalc.percentage;
+      let finalGrade = weightedCalc.grade;
+      let isPassed = weightedCalc.isPassed;
+      let status = 'DRAFT';
+
+      if (publishedSubject) {
+        status = 'PUBLISHED';
+        if (supp?.is_passed) {
+          finalPct = Math.round((supp.obtained_marks / supp.max_marks) * 100);
+          finalGrade = supp.grade;
+          isPassed = true;
+        } else if (publishedSubject.percentage !== null) {
+          finalPct = Number(publishedSubject.percentage);
+          finalGrade = publishedSubject.grade;
+          isPassed = Boolean(publishedSubject.passed);
+        }
+      } else if (weightedCalc.isIncomplete) {
+        status = 'MARKS_PENDING';
+      }
+
+      const isTeacherAuthorized =
+        user.role === 'PRINCIPAL' ||
+        user.role === 'ADMIN' ||
+        (user.role === 'TEACHER' && teacherScope?.pairs?.has(`${classId}-${subId}`));
+
+      // If student/parent and terminal exam marks are unpublished, mask them as pending
+      const terminalDisplayPct =
+        isRestrictedAudience && !publishedSubject && terminalAgg.hasPendingMarks
+          ? null
+          : terminalAgg.percentage;
+
+      subjectRows.push({
+        subjectId: sub.id,
+        subjectName: sub.name,
+        subjectCode: sub.code,
+        teacherName,
+        quizzesPct: quizAgg.percentage,
+        assignmentsPct: assignAgg.percentage,
+        monthlyTestsPct: monthlyAgg.percentage,
+        midTermPct: midTermAgg.percentage,
+        terminalPct: terminalDisplayPct,
+        annualPercentage: finalPct,
+        grade: finalGrade,
+        isPassed,
+        status,
+        isTeacherAuthorized,
+        supplementary: supp ? { is_passed: supp.is_passed, grade: supp.grade } : null,
+        breakdown: weightedCalc.breakdown
+      });
+    }
+
+    const overall = calculateAnnualOverallResult({
+      subjectResults: subjectRows.map((s) => ({
+        percentage: s.annualPercentage,
+        isPassed: s.isPassed,
+        isIncomplete: s.status === 'MARKS_PENDING',
+        isAbsent: false
+      })),
+      policy
+    });
+
+    return {
+      student: {
+        id: student.studentId,
+        studentName: student.studentName,
+        admissionNo: student.admissionNo,
+        rollNo: student.rollNo,
+        classId,
+        className,
+        classNumber: student.classNumber
+      },
+      session: {
+        id: session.id,
+        name: session.name,
+        isCurrent: Boolean(session.is_current)
+      },
+      sessions: allSessions,
+      subjects: subjectRows,
+      overallPercentage: overall.overallPercentage,
+      overallGrade: overall.overallGrade,
+      passStatus: overall.passStatus,
+      resultStatus: overall.resultStatus
+    };
+  },
+
+  /**
+   * Detailed Marks Page for a specific subject
+   * Returns itemized lists for:
+   * A. Quizzes
+   * B. Assignments / Homework
+   * C. Monthly Tests
+   * D. Mid-Term Examination
+   * E. Terminal Examination
+   * F. Annual Weighted Result
+   */
+  async getStudentSubjectDetailedMarks({ studentId, subjectId, sessionId = null, user }) {
+    studentId = Number(studentId);
+    subjectId = Number(subjectId);
+
+    const student = await resultsRepository.getStudentProfile(studentId);
+    if (!student) throw new AppError('Student profile not found', 404, ErrorCodes.NOT_FOUND);
+
+    let isTeacherAuthorized = false;
+    if (user.role === 'STUDENT') {
+      if (student.userId !== user.id) throw forbidden();
+    } else if (user.role === 'PARENT') {
+      await assertCanViewStudent(user, studentId);
+    } else if (user.role === 'TEACHER') {
+      const scope = await getTeacherScope(user.id);
+      if (!scope.classIds.has(Number(student.currentClassId))) {
+        throw forbidden('You can only view students enrolled in your assigned classes.');
+      }
+      isTeacherAuthorized = scope.pairs.has(`${student.currentClassId}-${subjectId}`);
+    } else if (!isStaff(user)) {
+      throw forbidden();
+    } else {
+      isTeacherAuthorized = true; // Staff / Principal
+    }
+
+    let session = null;
+    if (sessionId) {
+      session = await academicRepository.getSessionById(Number(sessionId));
+    }
+    if (!session) {
+      session = (await academicRepository.getCurrentSession()) || (await db('academic_sessions').first());
+    }
+    if (!session) throw new AppError('Academic session not found', 404, ErrorCodes.NOT_FOUND);
+
+    const enrollment = await db('enrollments')
+      .where({ student_id: studentId, session_id: session.id })
+      .first();
+
+    const classId = enrollment?.class_id || student.currentClassId;
+    const subject = await db('subjects').where({ id: subjectId }).first();
+    if (!subject) throw new AppError('Subject not found', 404, ErrorCodes.NOT_FOUND);
+
+    const policy = await academicRepository.getEffectivePolicy(session.id);
+    let gradingPolicy = await performanceRepository.findActivePolicy(session.id);
+    if (!gradingPolicy) gradingPolicy = DEFAULT_WEIGHTED_POLICY;
+
+    const data = await resultsRepository.getStudentAnnualAssessments({
+      studentId,
+      classId,
+      sessionId: session.id,
+      subjectId
+    });
+
+    const teacherAssigned = data.teacherAssignments.find((ta) => Number(ta.subjectId) === subjectId);
+    const teacherName = teacherAssigned?.teacherName || 'Unassigned';
+
+    // Helper to format an assessment entry
+    const formatItem = (item, { title, date, total, obtained, status, isAbsent, isExcused }) => {
+      const tot = Number(total || 0);
+      let obt = obtained !== null && obtained !== undefined ? Number(obtained) : null;
+      let finalStatus = status || 'PUBLISHED';
+      if (isExcused) finalStatus = 'EXCUSED';
+      else if (isAbsent) finalStatus = 'ABSENT';
+      else if (obt === null) finalStatus = 'MARKS_PENDING';
+
+      // Security rule: Students and parents cannot see unapproved / draft marks
+      if ((user.role === 'STUDENT' || user.role === 'PARENT') && ['DRAFT', 'SUBMITTED', 'PENDING'].includes(status)) {
+        obt = null;
+        finalStatus = 'MARKS_PENDING';
+      }
+
+      let pct = null;
+      if (tot > 0 && obt !== null) {
+        pct = round2((obt / tot) * 100);
+      }
+
+      return {
+        id: item.id,
+        title: title || item.title || item.paper_name || 'Assessment',
+        date: date ? String(date).slice(0, 10) : '—',
+        totalMarks: tot,
+        obtainedMarks: obt,
+        percentage: pct,
+        status: finalStatus
+      };
+    };
+
+    // A. Quizzes
+    const rawQuizzes = [
+      ...data.tests.filter((t) => t.exam_type === 'CLASS_QUIZ').map((t) =>
+        formatItem(t, {
+          title: t.title,
+          date: t.available_from,
+          total: t.total_marks,
+          obtained: t.obtained_score,
+          status: t.attempt_status,
+          isAbsent: t.attempt_status === 'ABSENT'
+        })
+      ),
+      ...data.tasks.filter((t) => t.task_type === 'QUIZ').map((t) =>
+        formatItem(t, {
+          title: t.title,
+          date: t.deadline,
+          total: t.total_marks,
+          obtained: t.marks_awarded,
+          status: t.submission_status,
+          isAbsent: t.submission_status === 'ABSENT'
+        })
+      )
+    ];
+
+    // B. Assignments
+    const rawAssignments = data.tasks
+      .filter((t) => ['ASSIGNMENT', 'HOMEWORK', 'PROJECT'].includes(t.task_type))
+      .map((t) =>
+        formatItem(t, {
+          title: t.title,
+          date: t.deadline,
+          total: t.total_marks,
+          obtained: t.marks_awarded,
+          status: t.submission_status,
+          isAbsent: t.submission_status === 'ABSENT'
+        })
+      );
+
+    // C. Monthly Tests
+    const rawMonthly = data.tests
+      .filter((t) => t.exam_type === 'MONTHLY_TEST')
+      .map((t) =>
+        formatItem(t, {
+          title: t.title,
+          date: t.available_from,
+          total: t.total_marks,
+          obtained: t.obtained_score,
+          status: t.attempt_status,
+          isAbsent: t.attempt_status === 'ABSENT'
+        })
+      );
+
+    // D. Mid-Term
+    const rawMidTerm = [
+      ...data.tests.filter((t) => t.exam_type === 'MID_TERM').map((t) =>
+        formatItem(t, {
+          title: t.title,
+          date: t.available_from,
+          total: t.total_marks,
+          obtained: t.obtained_score,
+          status: t.attempt_status,
+          isAbsent: t.attempt_status === 'ABSENT'
+        })
+      ),
+      ...data.papers
+        .filter((p) => p.exam_type === 'MID_TERM' || String(p.paper_name || p.exam_title || '').toLowerCase().includes('mid'))
+        .map((p) =>
+          formatItem(p, {
+            title: p.paper_name || p.exam_title || 'Mid-Term Paper',
+            date: p.exam_date,
+            total: p.total_marks,
+            obtained: p.total_obtained,
+            status: p.mark_status,
+            isAbsent: p.is_absent === 1
+          })
+        )
+    ];
+
+    // E. Terminal Examination
+    const rawTerminal = [
+      ...data.papers
+        .filter((p) => p.exam_type !== 'MID_TERM' && !String(p.paper_name || p.exam_title || '').toLowerCase().includes('mid'))
+        .map((p) =>
+          formatItem(p, {
+            title: p.paper_name || p.exam_title || 'Terminal Paper',
+            date: p.exam_date,
+            total: p.total_marks,
+            obtained: p.total_obtained,
+            status: p.mark_status,
+            isAbsent: p.is_absent === 1
+          })
+        ),
+      ...data.tests.filter((t) => ['FINAL_TERM', 'TERM_EXAM'].includes(t.exam_type)).map((t) =>
+        formatItem(t, {
+          title: t.title,
+          date: t.available_from,
+          total: t.total_marks,
+          obtained: t.obtained_score,
+          status: t.attempt_status,
+          isAbsent: t.attempt_status === 'ABSENT'
+        })
+      ),
+      ...data.tasks.filter((t) => t.task_type === 'EXAM').map((t) =>
+        formatItem(t, {
+          title: t.title,
+          date: t.deadline,
+          total: t.total_marks,
+          obtained: t.marks_awarded,
+          status: t.submission_status,
+          isAbsent: t.submission_status === 'ABSENT'
+        })
+      )
+    ];
+
+    // Category aggregations
+    const quizAgg = aggregateCategoryAssessments(rawQuizzes);
+    const assignAgg = aggregateCategoryAssessments(rawAssignments);
+    const monthlyAgg = aggregateCategoryAssessments(rawMonthly);
+    const midTermAgg = aggregateCategoryAssessments(rawMidTerm);
+    const terminalAgg = aggregateCategoryAssessments(rawTerminal);
+
+    const includeQuizzes = Boolean(gradingPolicy.include_quizzes_in_assignments ?? true);
+    const tasksCategoryItems = includeQuizzes ? [...rawAssignments, ...rawQuizzes] : rawAssignments;
+    const taskCatAgg = aggregateCategoryAssessments(tasksCategoryItems);
+
+    const weightedCalc = calculateSubjectWeightedScore({
+      midTerm: midTermAgg,
+      monthly: monthlyAgg,
+      assignments: taskCatAgg,
+      terminal: terminalAgg,
+      policy: gradingPolicy,
+      passingPolicy: policy
+    });
+
+    const publishedSubject = data.publishedSubjects.find((ps) => Number(ps.subject_id) === subjectId);
+    const supp = publishedSubject
+      ? data.supplementaryResults.find((sr) => Number(sr.final_result_subject_id) === publishedSubject.id)
+      : null;
+
+    let finalPct = weightedCalc.percentage;
+    let finalGrade = weightedCalc.grade;
+    let isPassed = weightedCalc.isPassed;
+    let resultStatus = publishedSubject ? 'PUBLISHED' : weightedCalc.isIncomplete ? 'MARKS_PENDING' : 'DRAFT';
+
+    if (publishedSubject) {
+      if (supp?.is_passed) {
+        finalPct = Math.round((supp.obtained_marks / supp.max_marks) * 100);
+        finalGrade = supp.grade;
+        isPassed = true;
+      } else if (publishedSubject.percentage !== null) {
+        finalPct = Number(publishedSubject.percentage);
+        finalGrade = publishedSubject.grade;
+        isPassed = Boolean(publishedSubject.passed);
+      }
+    }
+
+    const breakdownList = [
+      {
+        category: 'Mid-Term Examination',
+        weight: 25,
+        studentPercentage: midTermAgg.categoryPercentage,
+        contribution: weightedCalc.breakdown.midTerm.contribution,
+        status: weightedCalc.breakdown.midTerm.status
+      },
+      {
+        category: 'Monthly Tests',
+        weight: 15,
+        studentPercentage: monthlyAgg.categoryPercentage,
+        contribution: weightedCalc.breakdown.monthly.contribution,
+        status: weightedCalc.breakdown.monthly.status
+      },
+      {
+        category: 'Tasks / Assignments',
+        weight: 10,
+        studentPercentage: taskCatAgg.categoryPercentage,
+        contribution: weightedCalc.breakdown.assignments.contribution,
+        status: weightedCalc.breakdown.assignments.status
+      },
+      {
+        category: 'Terminal Examination',
+        weight: 50,
+        studentPercentage: terminalAgg.categoryPercentage,
+        contribution: weightedCalc.breakdown.terminal.contribution,
+        status: weightedCalc.breakdown.terminal.status
+      }
+    ];
+
+    return {
+      student: {
+        id: student.studentId,
+        studentName: student.studentName,
+        admissionNo: student.admissionNo,
+        rollNo: student.rollNo,
+        classId,
+        className: student.className
+      },
+      session: {
+        id: session.id,
+        name: session.name
+      },
+      subject: {
+        id: subject.id,
+        name: subject.name,
+        code: subject.code,
+        teacherName
+      },
+      teacherName,
+      gradingPolicy,
+      quizzes: {
+        categoryPercentage: quizAgg.categoryPercentage,
+        items: rawQuizzes,
+        summary: quizAgg
+      },
+      assignments: {
+        categoryPercentage: assignAgg.categoryPercentage,
+        items: rawAssignments,
+        summary: assignAgg
+      },
+      monthlyTests: {
+        categoryPercentage: monthlyAgg.categoryPercentage,
+        items: rawMonthly,
+        summary: monthlyAgg
+      },
+      midTerm: {
+        categoryPercentage: midTermAgg.categoryPercentage,
+        items: rawMidTerm,
+        summary: midTermAgg
+      },
+      terminal: {
+        categoryPercentage: terminalAgg.categoryPercentage,
+        items: rawTerminal,
+        summary: terminalAgg
+      },
+      annualWeightedResult: {
+        midTerm: weightedCalc.breakdown.midTerm,
+        monthly: weightedCalc.breakdown.monthly,
+        assignments: weightedCalc.breakdown.assignments,
+        terminal: weightedCalc.breakdown.terminal,
+        finalPercentage: finalPct,
+        grade: finalGrade,
+        isPassed,
+        status: resultStatus,
+        supplementary: supp ? { is_passed: supp.is_passed, grade: supp.grade, marks: supp.obtained_marks } : null
+      },
+      weightedCalculation: {
+        finalPercentage: finalPct,
+        grade: finalGrade,
+        passStatus: isPassed ? 'PASSED' : 'FAILED',
+        isPassed,
+        status: resultStatus,
+        breakdown: breakdownList
+      },
+      isTeacherAuthorized
+    };
   }
 };

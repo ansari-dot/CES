@@ -13,6 +13,7 @@
     "setup:prod": "node scripts/setup-production-data.js",
     "create:principal": "node scripts/create-principal.js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --detectOpenHandles --forceExit",
+    "test:grading": "node tests/weighted_grading_system.test.js",
     "seed:fee-test": "node scripts/seed-fee-test-data.js",
     "fees:run": "node scripts/run-fee-lifecycle.js"
   },

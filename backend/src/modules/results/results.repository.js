@@ -564,5 +564,128 @@ export const resultsRepository = {
       .select('class_id as classId')
       .count({ count: '*' });
     return { classes, enrolled, results, submissions, subjectCounts };
+  },
+
+  async getStudentProfile(studentId) {
+    return await db('students')
+      .join('users', 'students.user_id', 'users.id')
+      .leftJoin('classes', 'students.current_class_id', 'classes.id')
+      .where('students.id', studentId)
+      .select(
+        'students.id as studentId',
+        'students.user_id as userId',
+        'students.admission_no as admissionNo',
+        'students.roll_no as rollNo',
+        'students.current_class_id as currentClassId',
+        'classes.name as className',
+        'classes.grade_level as classNumber',
+        'users.full_name as studentName'
+      )
+      .first();
+  },
+
+  async getStudentAnnualAssessments({ studentId, classId, sessionId, subjectId = null }) {
+    let testQuery = db('monthly_tests as mt')
+      .leftJoin('test_attempts as ta', function () {
+        this.on('ta.test_id', '=', 'mt.id').andOn('ta.student_id', '=', db.raw('?', [studentId]));
+      })
+      .where('mt.class_id', classId)
+      .where('mt.session_id', sessionId);
+
+    let taskQuery = db('learning_tasks as lt')
+      .leftJoin('task_submissions as ts', function () {
+        this.on('ts.task_id', '=', 'lt.id').andOn('ts.student_id', '=', db.raw('?', [studentId]));
+      })
+      .where('lt.class_id', classId)
+      .where('lt.session_id', sessionId);
+
+    let paperQuery = null;
+    if (await db.schema.hasTable('terminal_exam_papers')) {
+      paperQuery = db('terminal_exam_papers as tep')
+        .join('terminal_exams as te', 'tep.exam_id', 'te.id')
+        .leftJoin('terminal_exam_marks as tem', function () {
+          this.on('tem.paper_id', '=', 'tep.id').andOn('tem.student_id', '=', db.raw('?', [studentId]));
+        })
+        .where('tep.class_id', classId)
+        .where('te.session_id', sessionId);
+    }
+
+    if (subjectId) {
+      testQuery = testQuery.where('mt.subject_id', subjectId);
+      taskQuery = taskQuery.where('lt.subject_id', subjectId);
+      if (paperQuery) paperQuery = paperQuery.where('tep.subject_id', subjectId);
+    }
+
+    const [tests, tasks, papers] = await Promise.all([
+      testQuery.select(
+        'mt.id',
+        'mt.title',
+        'mt.exam_type',
+        'mt.subject_id',
+        'mt.total_marks',
+        'mt.available_from',
+        'ta.id as attempt_id',
+        'ta.total_score as obtained_score',
+        'ta.status as attempt_status',
+        'ta.is_passed',
+        'ta.submitted_at'
+      ),
+      taskQuery.select(
+        'lt.id',
+        'lt.title',
+        'lt.task_type',
+        'lt.subject_id',
+        'lt.total_marks',
+        'lt.deadline',
+        'ts.id as submission_id',
+        'ts.marks_awarded',
+        'ts.status as submission_status',
+        'ts.is_late',
+        'ts.submitted_at'
+      ),
+      paperQuery
+        ? paperQuery.select(
+            'tep.id',
+            'te.title as exam_title',
+            'te.exam_type',
+            'tep.subject_id',
+            'tep.total_marks',
+            'tep.paper_date as exam_date',
+            'tem.id as mark_id',
+            'tem.total_obtained',
+            'tem.status as mark_status',
+            'tem.is_absent',
+            'tem.is_exempt'
+          )
+        : Promise.resolve([])
+    ]);
+
+    const teacherAssignments = await db('teacher_assignments as ta')
+      .join('teachers as t', 'ta.teacher_id', 't.id')
+      .join('users as u', 't.user_id', 'u.id')
+      .where({ 'ta.class_id': classId, 'ta.session_id': sessionId })
+      .select('ta.subject_id as subjectId', 'u.full_name as teacherName', 't.id as teacherId');
+
+    const publishedResult = await db('final_results')
+      .where({ student_id: studentId, session_id: sessionId, result_status: 'PUBLISHED' })
+      .first();
+
+    let publishedSubjects = [];
+    if (publishedResult) {
+      publishedSubjects = await this.getResultSubjects(publishedResult.id);
+    }
+
+    const supplementaryResults = await db('supplementary_exam_results')
+      .where({ student_id: studentId, session_id: sessionId, status: 'PUBLISHED' });
+
+    return {
+      tests,
+      tasks,
+      papers,
+      teacherAssignments,
+      publishedResult,
+      publishedSubjects,
+      supplementaryResults
+    };
   }
 };

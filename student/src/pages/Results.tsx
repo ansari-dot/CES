@@ -22,6 +22,7 @@ import { RootState } from '../store';
 import { requestApi } from '../services/api';
 import Modal from '../components/common/Modal';
 import { LoadingBlock } from '../components/common/LoadingBlock';
+import { StudentAnnualPerformanceSummary } from '../components/results/StudentAnnualPerformanceSummary';
 
 interface SubjectRow {
   id: number;
@@ -127,6 +128,7 @@ export default function Results() {
   const [error, setError] = useState<string | null>(null);
   const [expandedCardId, setExpandedCardId] = useState<number | null>(null);
   const [cardToPrint, setCardToPrint] = useState<TermResult | null>(null);
+  const [resultsTab, setResultsTab] = useState<'annual' | 'transcripts'>('annual');
 
   const fetchResults = useCallback(async () => {
     try {
@@ -220,8 +222,40 @@ export default function Results() {
         <div className="absolute -right-8 -bottom-8 w-44 h-44 rounded-full bg-secondary/10 blur-2xl pointer-events-none" />
       </div>
 
-      {/* Promotion / Placement Notification Card (if exists) */}
-      {latestPromotion && (
+      {/* View Switcher Tabs */}
+      <div className="flex items-center gap-2 border-b border-border pb-2 print:hidden">
+        <button
+          type="button"
+          onClick={() => setResultsTab('annual')}
+          className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            resultsTab === 'annual'
+              ? 'bg-navy text-white shadow-xs'
+              : 'bg-card border border-border text-muted-foreground hover:bg-muted'
+          }`}
+        >
+          <Award className="w-4 h-4 text-secondary" />
+          <span>Annual Academic Performance (Weighted 100%)</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setResultsTab('transcripts')}
+          className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            resultsTab === 'transcripts'
+              ? 'bg-navy text-white shadow-xs'
+              : 'bg-card border border-border text-muted-foreground hover:bg-muted'
+          }`}
+        >
+          <ScrollText className="w-4 h-4 text-secondary" />
+          <span>Terminal Result Cards &amp; Transcripts</span>
+        </button>
+      </div>
+
+      {resultsTab === 'annual' ? (
+        <StudentAnnualPerformanceSummary />
+      ) : (
+        <>
+          {/* Promotion / Placement Notification Card (if exists) */}
+          {latestPromotion && (
         <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-sky-50 border border-emerald-200 rounded-md p-4 flex items-start gap-3.5 shadow-xs">
           <div className="w-10 h-10 rounded-md bg-emerald-600 flex items-center justify-center text-white shrink-0 shadow-xs">
             <GraduationCap className="w-6 h-6" />
@@ -529,6 +563,8 @@ export default function Results() {
             })}
           </div>
         </div>
+      )}
+        </>
       )}
 
       {/* Official Result Card Modal (Printable & Downloadable via print-to-PDF) */}

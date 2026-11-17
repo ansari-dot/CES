@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { TrendingUp, Award, ClipboardList, CalendarCheck } from 'lucide-react';
-import { useChildData } from '../context/ParentContext';
+import { useChildData, useParent } from '../context/ParentContext';
 import { MetricCard, RequireChild, LoadingBlock, ErrorBlock, EmptyBlock } from '../components/common';
 import { pct, formatDate, TASK_TYPE_LABELS } from '../lib/format';
 import TermResultsSection from '../components/TermResultsSection';
 import { MonthlyTestResultsSection } from '../components/MonthlyTestResultsSection';
+import { StudentAnnualPerformanceSummary } from '../components/StudentAnnualPerformanceSummary';
 
 interface ResultsData {
   summary: {
@@ -45,6 +46,8 @@ interface ResultsData {
 }
 
 function ResultsContent() {
+  const { selectedChild } = useParent();
+  const [resultsTab, setResultsTab] = useState<'annual' | 'activity'>('annual');
   const { data, loading, error, reload } = useChildData<ResultsData>((id) => `/api/v1/parents/me/children/${id}/results`);
   const [typeFilter, setTypeFilter] = useState('All');
 
@@ -57,7 +60,39 @@ function ResultsContent() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* View Switcher Tabs */}
+      <div className="flex items-center gap-2 border-b border-border pb-3 print:hidden">
+        <button
+          type="button"
+          onClick={() => setResultsTab('annual')}
+          className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            resultsTab === 'annual'
+              ? 'bg-navy text-white shadow-xs'
+              : 'bg-card border border-border text-muted-foreground hover:bg-muted'
+          }`}
+        >
+          <Award className="w-4 h-4 text-secondary" />
+          <span>Annual Academic Performance (Weighted 100%)</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setResultsTab('activity')}
+          className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            resultsTab === 'activity'
+              ? 'bg-navy text-white shadow-xs'
+              : 'bg-card border border-border text-muted-foreground hover:bg-muted'
+          }`}
+        >
+          <ClipboardList className="w-4 h-4 text-secondary" />
+          <span>Coursework &amp; Activity Log</span>
+        </button>
+      </div>
+
+      {resultsTab === 'annual' && selectedChild ? (
+        <StudentAnnualPerformanceSummary childId={selectedChild.studentId} />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <MetricCard
           icon={TrendingUp}
           title="Overall Average"
@@ -152,6 +187,8 @@ function ResultsContent() {
 
       {/* Official term results, promotion status & academic year history */}
       <TermResultsSection />
+        </>
+      )}
     </div>
   );
 }
