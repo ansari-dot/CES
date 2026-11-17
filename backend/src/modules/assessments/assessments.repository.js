@@ -438,18 +438,73 @@ export const assessmentsRepository = {
         'test_attempts.total_score',
         'test_attempts.is_passed',
         'test_attempts.teacher_remarks',
-        'test_attempts.graded_at'
+        'test_attempts.graded_at',
+        'test_attempts.submitted_at',
+        'monthly_tests.available_from',
+        'monthly_tests.duration_minutes',
+        'monthly_tests.results_published_at',
+        'monthly_tests.updated_at as test_updated_at',
+        db.raw('(SELECT COUNT(*) FROM test_attempt_grade_revisions r WHERE r.attempt_id = test_attempts.id) as correction_count'),
+        db.raw('(SELECT MAX(r.created_at) FROM test_attempt_grade_revisions r WHERE r.attempt_id = test_attempts.id) as last_corrected_at')
       )
       .orderBy('test_attempts.graded_at', 'desc');
 
-    return attempts.map((a) => ({
-      ...a,
-      total_marks: Number(a.total_marks),
-      passing_marks: Number(a.passing_marks),
-      mcq_score: Number(a.mcq_score),
-      subjective_score: a.subjective_score != null ? Number(a.subjective_score) : 0,
-      total_score: Number(a.total_score)
-    }));
+    // Only finalized (GRADED) attempts of tests whose results are published reach parents.
+    // No questions, answers or answer keys are included.
+    const iso = (v) => {
+      const d = parseDbDate(v);
+      return d ? d.toISOString() : null;
+    };
+    return attempts.map((a) => {
+      const totalMarks = Number(a.total_marks);
+      const totalScore = Number(a.total_score);
+      const percentage = totalMarks > 0 ? Math.round((totalScore / totalMarks) * 1000) / 10 : 0;
+      const isPassed = Boolean(a.is_passed);
+      const publishedAt = iso(a.results_published_at) || iso(a.test_updated_at);
+      const correctionCount = Number(a.correction_count || 0);
+      return {
+        // camelCase contract used by the parent portal
+        attemptId: a.attempt_id,
+        testId: a.test_id,
+        title: a.title,
+        examType: a.exam_type || 'MONTHLY_TEST',
+        termName: a.term_name || a.month_name || null,
+        className: a.class_name,
+        subjectName: a.subject_name,
+        quizDate: iso(a.available_from),
+        durationMinutes: a.duration_minutes != null ? Number(a.duration_minutes) : null,
+        totalMarks,
+        passingMarks: Number(a.passing_marks),
+        mcqScore: Number(a.mcq_score),
+        subjectiveScore: a.subjective_score != null ? Number(a.subjective_score) : 0,
+        totalScore,
+        percentage,
+        isPassed,
+        resultStatus: isPassed ? 'PASSED' : 'BELOW_PASSING',
+        teacherRemarks: a.teacher_remarks || null,
+        submittedAt: iso(a.submitted_at),
+        gradedAt: iso(a.graded_at),
+        publishedAt,
+        correctionCount,
+        lastCorrectedAt: iso(a.last_corrected_at),
+        // legacy snake_case fields kept for any existing consumer
+        attempt_id: a.attempt_id,
+        test_id: a.test_id,
+        exam_type: a.exam_type,
+        term_name: a.term_name,
+        month_name: a.month_name,
+        class_name: a.class_name,
+        subject_name: a.subject_name,
+        total_marks: totalMarks,
+        passing_marks: Number(a.passing_marks),
+        mcq_score: Number(a.mcq_score),
+        subjective_score: a.subjective_score != null ? Number(a.subjective_score) : 0,
+        total_score: totalScore,
+        is_passed: isPassed,
+        teacher_remarks: a.teacher_remarks || null,
+        graded_at: a.graded_at
+      };
+    });
   },
 
   /**

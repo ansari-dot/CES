@@ -1,13 +1,45 @@
 import { assessmentsService } from './assessments.service.js';
 import { sendSuccess } from '../../shared/http/response.js';
+import { aiQuizService } from './aiQuiz.service.js';
 
 export const assessmentsController = {
+  // -------------------------------------------------------------
+  // AI Quiz Generator
+  // -------------------------------------------------------------
+  async getAiStatus(req, res, next) {
+    try {
+      return sendSuccess(res, aiQuizService.status());
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async generateAiQuiz(req, res, next) {
+    try {
+      const data = await aiQuizService.generateQuiz(req.user, req.body);
+      return sendSuccess(res, data, 'AI draft generated. Review every question before saving.');
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async regenerateAiQuestion(req, res, next) {
+    try {
+      const data = await aiQuizService.regenerateQuestion(req.user, req.body);
+      return sendSuccess(res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   // -------------------------------------------------------------
   // Teacher Test Management
   // -------------------------------------------------------------
   async updateTestStatus(req, res, next) {
     try {
-      const data = await assessmentsService.updateTestStatus(req.user, Number(req.params.id), req.body.status);
+      const data = await assessmentsService.updateTestStatus(req.user, Number(req.params.id), req.body.status, {
+        confirmAiReview: req.body?.confirmAiReview
+      });
       return sendSuccess(res, data, 'Test status updated.');
     } catch (err) {
       next(err);
@@ -34,7 +66,9 @@ export const assessmentsController = {
 
   async publishTest(req, res, next) {
     try {
-      const test = await assessmentsService.publishTest(req.user, Number(req.params.id));
+      const test = await assessmentsService.publishTest(req.user, Number(req.params.id), {
+        confirmAiReview: req.body?.confirmAiReview
+      });
       return sendSuccess(res, test, 'Monthly test published successfully.');
     } catch (err) {
       next(err);

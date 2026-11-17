@@ -17,6 +17,18 @@ import { emailService } from '../../shared/email/email.service.js';
 import { dispatchSocketEvent } from '../../shared/realtime/eventEmitter.js';
 import { auditRepository } from '../audit/audit.repository.js';
 import { zoomRepository } from '../zoom/zoom.repository.js';
+import { aiQuizService } from './aiQuiz.service.js';
+
+const EXAM_TYPE_LABELS = {
+  CLASS_QUIZ: 'quiz',
+  MONTHLY_TEST: 'monthly test',
+  MID_TERM: 'mid-term exam',
+  FINAL_TERM: 'final-term exam'
+};
+
+function truthy(v) {
+  return v === true || v === 1 || v === '1' || v === 'true';
+}
 
 function validationError(message) {
   return new AppError(message, 422, ErrorCodes.VALIDATION_ERROR);
@@ -117,6 +129,32 @@ export const assessmentsService = {
     const isDedicatedExam = examType === 'MID_TERM' || examType === 'FINAL_TERM';
     const schedulingMode = isDedicatedExam ? 'DEDICATED_EXAM' : (data.scheduling_mode || data.schedulingMode || 'TIMETABLE_ASSESSMENT');
 
+    const requestedStatus = data.status || (data.publishImmediately ? 'PUBLISHED' : 'DRAFT');
+
+    // AI-drafted quizzes: link the generation, never publish without explicit teacher review,
+    // and make a retried "save" return the quiz already created from that generation.
+    const aiGenerationId = data.ai_generation_id ?? data.aiGenerationId ?? null;
+    let aiReviewStatus = 'NOT_APPLICABLE';
+    if (aiGenerationId) {
+      await aiQuizService.assertUsableForQuiz(user, aiGenerationId, { classId, subjectId });
+      const already = await db('monthly_tests').where({ ai_generation_id: Number(aiGenerationId) }).first();
+      if (already) return { ...(await this.getTestDetails(user, already.id)), idempotentReplay: true };
+      if (questions.length === 0) throw validationError('An AI-generated quiz must contain at least one reviewed question.');
+      if (requestedStatus === 'PUBLISHED') {
+        if (!truthy(data.ai_review_confirmed ?? data.aiReviewConfirmed)) {
+          throw new AppError(
+            'Review and confirm the AI-generated questions before publishing. You can save the quiz as a draft instead.',
+            422,
+            ErrorCodes.VALIDATION_ERROR,
+            { requiresAiReviewConfirmation: true }
+          );
+        }
+        aiReviewStatus = 'REVIEWED';
+      } else {
+        aiReviewStatus = 'PENDING_REVIEW';
+      }
+    }
+
     const test = await db.transaction(async (trx) => {
       const created = await assessmentsRepository.createTest(
         {
@@ -141,8 +179,9 @@ export const assessmentsService = {
           shuffle_questions: Boolean(data.shuffle_questions || data.shuffleQuestions),
           shuffle_options: Boolean(data.shuffle_options || data.shuffleOptions),
           max_attempts: 1,
-          status: data.status || (data.publishImmediately ? 'PUBLISHED' : 'DRAFT'),
-          created_by: user.id
+          status: requestedStatus,
+          created_by: user.id,
+          ...(aiGenerationId ? { ai_generation_id: Number(aiGenerationId), ai_review_status: aiReviewStatus } : {})
         },
         trx
       );
@@ -155,16 +194,27 @@ export const assessmentsService = {
         actorId: user.id,
         actorName: user.name || user.username,
         actorRole: user.role,
-        action: 'CREATE_MONTHLY_TEST',
+        action: aiGenerationId ? 'CREATE_AI_GENERATED_QUIZ' : 'CREATE_MONTHLY_TEST',
         recordType: 'MONTHLY_TEST',
         recordIdentifier: String(created.id),
-        reason: `Created monthly test: ${created.title} with total marks ${finalTotalMarks}`
+        reason: aiGenerationId
+          ? `Created ${EXAM_TYPE_LABELS[examType] || 'assessment'} "${created.title}" from AI generation #${aiGenerationId} (${questions.length} questions after teacher review, ${finalTotalMarks} marks, status ${requestedStatus}, review ${aiReviewStatus})`
+          : `Created monthly test: ${created.title} with total marks ${finalTotalMarks}`
       }).catch(() => {});
 
       return created;
+    }).catch(async (err) => {
+      // Concurrent duplicate save of the same AI generation (unique ai_generation_id):
+      // return the quiz the first request created instead of failing or duplicating.
+      if (aiGenerationId && (err?.code === 'ER_DUP_ENTRY' || err?.errno === 1062)) {
+        const existing = await db('monthly_tests').where({ ai_generation_id: Number(aiGenerationId) }).first();
+        if (existing) return { id: existing.id, replay: true };
+      }
+      throw err;
     });
 
-    return this.getTestDetails(user, test.id);
+    const details = await this.getTestDetails(user, test.id);
+    return test.replay ? { ...details, idempotentReplay: true } : details;
   },
 
   async updateTest(user, testId, data) {
@@ -213,7 +263,7 @@ export const assessmentsService = {
     return this.getTestDetails(user, testId);
   },
 
-  async publishTest(user, testId) {
+  async publishTest(user, testId, { confirmAiReview = false } = {}) {
     const test = await assessmentsRepository.findTestById(testId);
     if (!test) throw notFound('Monthly test not found.');
     await this.assertTeacherCanManageTest(user, test);
@@ -223,7 +273,29 @@ export const assessmentsService = {
       throw validationError('Cannot publish an assessment with zero questions.');
     }
 
-    const updated = await assessmentsRepository.updateTest(testId, { status: 'PUBLISHED' });
+    const updates = { status: 'PUBLISHED' };
+    if (test.ai_review_status === 'PENDING_REVIEW') {
+      if (!truthy(confirmAiReview)) {
+        throw new AppError(
+          'This quiz was drafted with AI. Confirm that you have reviewed every question and answer key before publishing.',
+          422,
+          ErrorCodes.VALIDATION_ERROR,
+          { requiresAiReviewConfirmation: true }
+        );
+      }
+      updates.ai_review_status = 'REVIEWED';
+      await auditRepository.recordAuditLog({
+        actorId: user.id,
+        actorName: user.name || user.username,
+        actorRole: user.role,
+        action: 'AI_QUIZ_REVIEW_CONFIRMED',
+        recordType: 'MONTHLY_TEST',
+        recordIdentifier: String(testId),
+        reason: `Teacher confirmed review of AI-generated questions before publishing "${test.title}"`
+      }).catch(() => {});
+    }
+
+    const updated = await assessmentsRepository.updateTest(testId, updates);
 
     // Notify class students & parents
     const audienceIds = await getClassAudienceUserIds([test.class_id], { includeStudents: true, includeParents: true });
@@ -252,11 +324,11 @@ export const assessmentsService = {
    * (PATCH /:id/status). Dispatches to the dedicated transition handlers so
    * their validations and notifications keep applying.
    */
-  async updateTestStatus(user, testId, status) {
+  async updateTestStatus(user, testId, status, options = {}) {
     const target = String(status || '').toUpperCase();
 
     if (target === 'PUBLISHED') {
-      const test = await this.publishTest(user, testId);
+      const test = await this.publishTest(user, testId, options);
       return { test };
     }
     if (target === 'CLOSED') {
@@ -290,6 +362,20 @@ export const assessmentsService = {
     if (!test) throw notFound('Monthly test not found.');
 
     const isTeacherOrStaff = user.role === 'TEACHER' || isStaff(user);
+    if (user.role === 'TEACHER') {
+      await this.assertTeacherCanManageTest(user, test);
+    } else if (user.role === 'STUDENT') {
+      // Students only see non-draft assessments of their own class; answer keys only
+      // after results are published (existing student policy).
+      const student = await getStudentByUserId(user.id);
+      if (!student || Number(student.current_class_id) !== Number(test.class_id) || test.status === 'DRAFT') {
+        throw notFound('Monthly test not found.');
+      }
+    } else if (!isStaff(user)) {
+      // Parents see their child's results through the parent results endpoint, which
+      // never includes questions or answer keys.
+      throw forbidden('You do not have access to this assessment.');
+    }
     const questions = await assessmentsRepository.getQuestionsForTest(testId, {
       includeAnswers: isTeacherOrStaff || test.status === 'RESULTS_PUBLISHED'
     });
@@ -680,6 +766,12 @@ export const assessmentsService = {
       trigger
     });
 
+    // A fully auto-graded attempt submitted after results were published is visible
+    // to parents immediately, so tell them (once).
+    if (!hasSubjective && test.status === 'RESULTS_PUBLISHED') {
+      await this.notifyParentsOfResult(test, [attempt.student_id], 'RESULTS_PUBLISHED');
+    }
+
     return assessmentsRepository.findAttemptById(attemptId);
   },
 
@@ -747,12 +839,16 @@ export const assessmentsService = {
     };
   },
 
-  async gradeAttempt(user, attemptId, { questionGrades, grades, teacherRemarks }) {
+  async gradeAttempt(user, attemptId, { questionGrades, grades, teacherRemarks, correctionReason, correction_reason }) {
     const attempt = await assessmentsRepository.findAttemptById(attemptId);
     if (!attempt) throw notFound('Attempt not found.');
 
     const test = await assessmentsRepository.findTestById(attempt.test_id);
     await this.assertTeacherCanManageTest(user, test);
+
+    if (attempt.status === 'IN_PROGRESS') {
+      throw validationError('This attempt has not been submitted yet and cannot be graded.');
+    }
 
     // The grading modal sends `grades`; accept both payload key styles.
     const gradeItems = Array.isArray(questionGrades) ? questionGrades : Array.isArray(grades) ? grades : null;
@@ -760,12 +856,35 @@ export const assessmentsService = {
       throw validationError('An array of question grades is required.');
     }
 
+    // Changing a result parents can already see is a correction: it needs a reason
+    // and leaves an audit trail (test_attempt_grade_revisions + audit_logs).
+    const resultsPublished = test.status === 'RESULTS_PUBLISHED';
+    const isCorrection = resultsPublished && attempt.status === 'GRADED';
+    const reason = String(correctionReason ?? correction_reason ?? '').trim();
+    if (isCorrection && reason.length < 5) {
+      throw new AppError(
+        'Results for this assessment are already published. Enter a reason for correcting this result (at least 5 characters).',
+        422,
+        ErrorCodes.VALIDATION_ERROR,
+        { requiresCorrectionReason: true }
+      );
+    }
+    if (reason.length > 500) throw validationError('Correction reason must be at most 500 characters.');
+
     const questions = await assessmentsRepository.getQuestionsForTest(test.id, { includeAnswers: true });
     const qMap = new Map(questions.map((q) => [Number(q.id), q]));
 
     let subjectiveScore = 0;
+    let revisionId = null;
+    let changed = false;
 
     await db.transaction(async (trx) => {
+      // Lock the attempt so concurrent grading requests serialize
+      const locked = await trx('test_attempts').where({ id: attemptId }).forUpdate().first();
+      const beforeAnswers = await trx('test_attempt_answers').where({ attempt_id: attemptId });
+      const beforeByQ = new Map(beforeAnswers.map((a) => [Number(a.question_id), a]));
+      const answerChanges = [];
+
       for (const item of gradeItems) {
         const q = qMap.get(Number(item.questionId ?? item.question_id));
         if (!q) continue;
@@ -776,19 +895,68 @@ export const assessmentsService = {
             throw validationError(`Marks for question #${q.question_number} must be between 0 and ${q.marks}`);
           }
           subjectiveScore += marks;
+          const rawFeedback = item.teacherFeedback ?? item.teacher_feedback ?? null;
+          // Blank feedback is stored as NULL so a re-save is not mistaken for a change
+          const feedback = rawFeedback != null && String(rawFeedback).trim() ? String(rawFeedback).trim() : null;
+          const prev = beforeByQ.get(Number(q.id));
+          const prevMarks = prev?.marks_awarded != null ? Number(prev.marks_awarded) : null;
+          if (prevMarks !== marks || (prev?.teacher_feedback ?? null) !== (feedback ?? null)) {
+            answerChanges.push({
+              questionId: q.id,
+              questionNumber: q.question_number,
+              previousMarks: prevMarks,
+              newMarks: marks,
+              feedbackChanged: (prev?.teacher_feedback ?? null) !== (feedback ?? null)
+            });
+          }
 
           await trx('test_attempt_answers')
             .where({ attempt_id: attemptId, question_id: q.id })
             .update({
               marks_awarded: marks,
-              teacher_feedback: item.teacherFeedback ?? item.teacher_feedback ?? null,
+              teacher_feedback: feedback,
               updated_at: trx.raw('CURRENT_TIMESTAMP(3)')
             });
         }
       }
 
-      const totalScore = Number(attempt.mcq_score) + subjectiveScore;
+      const totalScore = Number(locked.mcq_score) + subjectiveScore;
       const isPassed = totalScore >= Number(test.passing_marks);
+      const newRemarks = teacherRemarks && String(teacherRemarks).trim() ? String(teacherRemarks).trim() : null;
+      changed =
+        answerChanges.length > 0 ||
+        Number(locked.total_score) !== totalScore ||
+        (locked.teacher_remarks ?? null) !== newRemarks;
+
+      if (isCorrection && changed) {
+        const last = await trx('test_attempt_grade_revisions').where({ attempt_id: attemptId }).max('revision_no as n').first();
+        const [revId] = await trx('test_attempt_grade_revisions').insert({
+          attempt_id: attemptId,
+          test_id: test.id,
+          revision_no: Number(last?.n || 0) + 1,
+          previous_subjective_score: locked.subjective_score,
+          previous_total_score: locked.total_score,
+          previous_is_passed: locked.is_passed,
+          previous_remarks: locked.teacher_remarks,
+          new_subjective_score: subjectiveScore,
+          new_total_score: totalScore,
+          new_is_passed: isPassed,
+          new_remarks: newRemarks,
+          answer_changes: JSON.stringify(answerChanges),
+          reason,
+          changed_by: user.id
+        });
+        revisionId = revId;
+        await auditRepository.logAction(trx, {
+          actorId: user.id,
+          action: 'ASSESSMENT_RESULT_CORRECTED',
+          recordType: 'TEST_ATTEMPT',
+          recordIdentifier: `Attempt #${attemptId} (test #${test.id})`,
+          reason,
+          previousValue: { totalScore: Number(locked.total_score), isPassed: Boolean(locked.is_passed), remarks: locked.teacher_remarks },
+          newValue: { totalScore, isPassed, remarks: newRemarks, answerChanges }
+        });
+      }
 
       await assessmentsRepository.updateAttempt(
         attemptId,
@@ -796,7 +964,7 @@ export const assessmentsService = {
           subjective_score: subjectiveScore,
           total_score: totalScore,
           is_passed: isPassed,
-          teacher_remarks: teacherRemarks || null,
+          teacher_remarks: newRemarks,
           graded_by: user.id,
           graded_at: new Date(),
           status: 'GRADED'
@@ -804,6 +972,14 @@ export const assessmentsService = {
         trx
       );
     });
+
+    // Parents are notified once per event: a correction of a visible result, or a
+    // first-time grade that becomes visible because results are already published.
+    if (revisionId) {
+      await this.notifyParentsOfResult(test, [attempt.student_id], `RESULT_CORRECTED:${revisionId}`);
+    } else if (resultsPublished && !isCorrection) {
+      await this.notifyParentsOfResult(test, [attempt.student_id], 'RESULTS_PUBLISHED');
+    }
 
     return this.getAttemptForGrading(user, attemptId);
   },
@@ -823,18 +999,48 @@ export const assessmentsService = {
       throw validationError(`Cannot publish results. There are ${pending.count} submission(s) pending grading.`);
     }
 
-    await assessmentsRepository.updateTest(testId, { status: 'RESULTS_PUBLISHED' });
-
-    // Notify students & parents of published results
-    const audienceIds = await getClassAudienceUserIds([test.class_id], { includeStudents: true, includeParents: true });
-    if (audienceIds.length > 0) {
-      await notificationService.notifyUsers(audienceIds, {
-        title: `Results Published: ${test.title}`,
-        message: `Marks for ${test.subject_name} monthly test have been evaluated and published.`,
-        type: 'Academic Updates'
+    // Conditional transition: only the first publish request proceeds, so a double
+    // click or retried request cannot send a second round of notifications.
+    const transitioned = await db('monthly_tests')
+      .where({ id: testId })
+      .whereNot('status', 'RESULTS_PUBLISHED')
+      .update({
+        status: 'RESULTS_PUBLISHED',
+        results_published_at: db.raw('CURRENT_TIMESTAMP(3)'),
+        results_published_by: user.id,
+        updated_at: db.raw('CURRENT_TIMESTAMP(3)')
       });
-      dispatchSocketEvent('ASSESSMENT_RESULTS_PUBLISHED', { testId, title: test.title, classId: test.class_id });
+    if (!transitioned) {
+      return { success: true, alreadyPublished: true, message: 'Results were already published.' };
     }
+
+    await auditRepository.recordAuditLog({
+      actorId: user.id,
+      actorName: user.name || user.username,
+      actorRole: user.role,
+      action: 'ASSESSMENT_RESULTS_PUBLISHED',
+      recordType: 'MONTHLY_TEST',
+      recordIdentifier: String(testId),
+      reason: `Published results for ${EXAM_TYPE_LABELS[test.exam_type] || 'assessment'} "${test.title}"`
+    }).catch(() => {});
+
+    // Students of the class get the class-wide notice; parents get a per-child notice
+    // only when their child has a finalized (GRADED) result.
+    const studentAudience = await getClassAudienceUserIds([test.class_id], { includeStudents: true, includeParents: false });
+    if (studentAudience.length > 0) {
+      await notificationService.notifyUsers(studentAudience, {
+        title: `Results Published: ${test.title}`,
+        message: `Marks for the ${test.subject_name} ${EXAM_TYPE_LABELS[test.exam_type] || 'assessment'} have been evaluated and published.`,
+        type: 'Results Published',
+        relatedRecordId: test.id,
+        relatedRecordType: 'MonthlyTest'
+      });
+    }
+    const gradedStudentIds = (
+      await db('test_attempts').where({ test_id: testId, status: 'GRADED' }).distinct('student_id')
+    ).map((r) => r.student_id);
+    await this.notifyParentsOfResult(test, gradedStudentIds, 'RESULTS_PUBLISHED');
+    dispatchSocketEvent('ASSESSMENT_RESULTS_PUBLISHED', { testId, title: test.title, classId: test.class_id });
 
     // Automatically trigger background notification to parents of low/failing scorers
     // Uses setImmediate so that HTTP response to teacher is instant with zero latency.
@@ -851,6 +1057,74 @@ export const assessmentsService = {
     });
 
     return { success: true, message: 'Monthly test results published successfully.' };
+  },
+
+  /**
+   * Notify each linked parent that their child's finalized result is available.
+   * Deduplicated per (test, student, parent, event) via assessment_result_notifications,
+   * so retries and repeated calls never send the same notice twice.
+   * @param {object} test         row from findTestById
+   * @param {number[]} studentIds students with GRADED attempts
+   * @param {string} eventKey     RESULTS_PUBLISHED | RESULT_CORRECTED:<revisionId>
+   */
+  async notifyParentsOfResult(test, studentIds, eventKey) {
+    const ids = Array.from(new Set((studentIds || []).map(Number).filter(Boolean)));
+    if (ids.length === 0) return 0;
+    try {
+      const parents = await assessmentsRepository.getParentsForStudents(ids);
+      if (parents.length === 0) return 0;
+      const names = new Map(
+        (
+          await db('students').join('users', 'students.user_id', 'users.id').whereIn('students.id', ids).select('students.id', 'users.full_name')
+        ).map((r) => [Number(r.id), r.full_name])
+      );
+      const already = new Set(
+        (
+          await db('assessment_result_notifications')
+            .where({ test_id: test.id, event_key: eventKey })
+            .whereIn('student_id', ids)
+            .select('student_id', 'recipient_user_id')
+        ).map((r) => `${r.student_id}:${r.recipient_user_id}`)
+      );
+
+      const label = EXAM_TYPE_LABELS[test.exam_type] || 'assessment';
+      const isCorrection = eventKey.startsWith('RESULT_CORRECTED');
+      let sent = 0;
+      for (const p of parents) {
+        const key = `${p.student_id}:${p.user_id}`;
+        if (already.has(key)) continue;
+        already.add(key);
+        // Claim the event first; a concurrent duplicate hits the unique key and is skipped.
+        try {
+          await db('assessment_result_notifications').insert({
+            test_id: test.id,
+            student_id: p.student_id,
+            recipient_user_id: p.user_id,
+            event_key: eventKey
+          });
+        } catch (err) {
+          if (err?.code === 'ER_DUP_ENTRY' || err?.errno === 1062) continue;
+          throw err;
+        }
+        const studentName = names.get(Number(p.student_id)) || 'Your child';
+        await notificationService.notifyUsers([p.user_id], {
+          title: isCorrection
+            ? `Result Updated: ${studentName} - ${test.title}`
+            : `Result Available: ${studentName} - ${test.title}`,
+          message: isCorrection
+            ? `The teacher corrected ${studentName}'s checked result for the ${test.subject_name} ${label} "${test.title}". Open Results to see the updated marks.`
+            : `${studentName}'s result for the ${test.subject_name} ${label} "${test.title}" has been checked and published. Open Results to view the marks and teacher feedback.`,
+          type: 'Results Published',
+          relatedRecordId: test.id,
+          relatedRecordType: 'MonthlyTest'
+        });
+        sent++;
+      }
+      return sent;
+    } catch (err) {
+      console.warn(`[Assessments] Parent result notification warning for test #${test.id}:`, err.message);
+      return 0;
+    }
   },
 
   /**

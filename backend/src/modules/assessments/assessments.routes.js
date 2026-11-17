@@ -9,6 +9,13 @@ const router = Router();
 router.use(authenticate);
 
 // -------------------------------------------------------------
+// AI Quiz Generator (drafts only; saving/publishing uses the normal routes)
+// -------------------------------------------------------------
+router.get('/ai/status', requireRole('TEACHER', 'ADMIN', 'PRINCIPAL'), assessmentsController.getAiStatus);
+router.post('/ai/generate', requireRole('TEACHER', 'ADMIN', 'PRINCIPAL'), assessmentsController.generateAiQuiz);
+router.post('/ai/regenerate-question', requireRole('TEACHER', 'ADMIN', 'PRINCIPAL'), assessmentsController.regenerateAiQuestion);
+
+// -------------------------------------------------------------
 // Teacher & Staff Assessment Management Routes
 // -------------------------------------------------------------
 router.post(
