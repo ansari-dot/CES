@@ -124,6 +124,61 @@ export interface MonthlyChallan {
   studentPortalStatus?: string;
   bankAccountId?: number | null;
   bankAccount?: SchoolBankAccount;
+  /** Frozen per-challan payment details (current revision) printed on the voucher */
+  paymentDetails?: ChallanPaymentDetails | null;
+}
+
+/** One revision of the recipient / payment details printed on a challan. */
+export interface ChallanPaymentDetails {
+  revision: number;
+  source: 'ISSUED_SNAPSHOT' | 'PRINCIPAL_EDIT' | 'BANK_REASSIGNMENT';
+  accountTitle: string;
+  bankName: string | null;
+  branchName: string | null;
+  accountNumber: string | null;
+  iban: string | null;
+  paymentMethod: string;
+  instructions: string | null;
+  qr: {
+    enabled: boolean;
+    uploaded: boolean;
+    label: string | null;
+    /** Authenticated, access-checked image URL (never a storage path) */
+    url: string | null;
+    sizeBytes: number | null;
+    attestedAt: string | null;
+  };
+  changeReason: string | null;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+export interface ChallanPaymentDetailsResponse {
+  challanId: number;
+  challanNumber: string;
+  status: string;
+  editable: boolean;
+  lockedReason: string | null;
+  current: ChallanPaymentDetails | null;
+  history: ChallanPaymentDetails[];
+  revision?: number;
+}
+
+export interface ChallanPaymentDetailsInput {
+  accountTitle: string;
+  bankName?: string;
+  branchName?: string;
+  accountNumber?: string;
+  iban?: string;
+  paymentMethod: string;
+  instructions?: string;
+  reason: string;
+  confirmRevision: boolean;
+  expectedRevision: number;
+  qrAction: 'keep' | 'replace' | 'remove';
+  qrEnabled: boolean;
+  qrAttested?: boolean;
+  qrLabel?: string;
 }
 
 export type PaymentVerificationStatus = 'Pending' | 'Approved' | 'Rejected' | 'Resubmission Requested';

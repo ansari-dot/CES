@@ -48,6 +48,13 @@ interface ChallanDetail {
     instructions?: string;
     isDefault?: boolean;
   };
+  /** Frozen payment details for this challan, revised only by the Principal */
+  paymentDetails?: {
+    revision: number;
+    paymentMethod: string;
+    instructions: string | null;
+    qr: { enabled: boolean; label: string | null; url: string | null };
+  } | null;
   payments: {
     id: number;
     submittedAmount: number;
@@ -129,6 +136,9 @@ function PaymentProofForm({ studentId, challan, onDone }: { studentId: number; c
           <span className="font-semibold text-foreground">{challan.bankAccount.bankName}</span>
           <span className="font-mono text-muted-foreground ml-2">A/C: {challan.bankAccount.accountNumber}</span>
           {challan.bankAccount.accountTitle && <span className="text-[11px] text-muted-foreground block">Title: {challan.bankAccount.accountTitle}</span>}
+          {challan.paymentDetails?.paymentMethod && (
+            <span className="text-[11px] text-muted-foreground block">Method: {challan.paymentDetails.paymentMethod}</span>
+          )}
         </div>
       )}
       <div className="grid grid-cols-2 gap-3">
@@ -328,8 +338,23 @@ function FeesContent() {
                   <div>Title: {detail.bankAccount?.accountTitle || 'CAMBRIDGE EDUCATION SYSTEM'}</div>
                   <div className="font-mono font-medium text-foreground">Account Number : {detail.bankAccount?.accountNumber || '03060114428178'}</div>
                   <div className="font-mono">IBAN : {detail.bankAccount?.iban || 'PK58MEZN0003060114428178'}</div>
+                  {detail.paymentDetails?.paymentMethod && (
+                    <div>Payment Method : <span className="font-medium text-foreground">{detail.paymentDetails.paymentMethod}</span></div>
+                  )}
                   {detail.bankAccount?.instructions && (
-                    <div className="text-[11px] text-primary italic mt-1">{detail.bankAccount.instructions}</div>
+                    <div className="text-[11px] text-primary italic mt-1 whitespace-pre-line break-words">{detail.bankAccount.instructions}</div>
+                  )}
+                  {detail.paymentDetails?.qr.enabled && detail.paymentDetails.qr.url && (
+                    <div className="pt-2 break-inside-avoid">
+                      <img
+                        src={detail.paymentDetails.qr.url}
+                        alt="Payment QR code"
+                        className="w-28 h-28 object-contain bg-white border border-border rounded-sm p-0.5"
+                      />
+                      <div className="text-[10px] mt-0.5 max-w-[7rem] leading-tight break-words">
+                        Scan to pay{detail.paymentDetails.qr.label ? ` · ${detail.paymentDetails.qr.label}` : ''}
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>

@@ -6,6 +6,7 @@ import { StatusBadge } from '../../components/common/StatusBadge';
 import { Modal } from '../../components/common/Modal';
 import { LoadingState, ErrorState } from '../../components/common/StateViews';
 import { useToast } from '../../context/ToastContext';
+import { ChallanPaymentDetailsModal, ChallanPaymentExtras } from './ChallanPaymentDetailsModal';
 import {
   Receipt,
   FilePlus,
@@ -24,7 +25,8 @@ import {
   Ban,
   Plus,
   Edit2,
-  X
+  X,
+  QrCode
 } from 'lucide-react';
 
 export const ChallansModule: React.FC = () => {
@@ -126,6 +128,9 @@ export const ChallansModule: React.FC = () => {
   // Printable Challan View
   const [selectedChallan, setSelectedChallan] = useState<MonthlyChallan | null>(null);
   const [isChallanModalOpen, setIsChallanModalOpen] = useState(false);
+
+  // Per-challan payment details / QR editor
+  const [paymentDetailsTarget, setPaymentDetailsTarget] = useState<MonthlyChallan | null>(null);
 
   // Manual portal block for unpaid fee
   const [blockTarget, setBlockTarget] = useState<MonthlyChallan | null>(null);
@@ -344,12 +349,27 @@ export const ChallansModule: React.FC = () => {
             <Printer className="w-3.5 h-3.5" strokeWidth={1.75} />
           </button>
           <button
+            onClick={() => setPaymentDetailsTarget(ch)}
+            title={
+              ch.status === 'Paid'
+                ? 'View payment details (locked: challan is paid)'
+                : `Edit recipient account, instructions & QR for this challan${ch.paymentDetails?.qr.enabled ? ' (QR on challan)' : ''}`
+            }
+            className={`p-1.5 rounded-lg border transition-colors shadow-2xs ${
+              ch.paymentDetails?.qr.enabled
+                ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                : 'border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <QrCode className="w-3.5 h-3.5" strokeWidth={1.75} />
+          </button>
+          {ch.status !== 'Paid' && ch.status !== 'Pending Verification' && <button
             onClick={() => handleOpenChallanBankModal(ch)}
             title={`Assigned Bank: ${ch.bankAccount?.bankName || 'Default'} - Click to change bank account for this challan`}
             className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50 transition-colors shadow-2xs"
           >
             <Building2 className="w-3.5 h-3.5" strokeWidth={1.75} />
-          </button>
+          </button>}
           {ch.status !== 'Paid' && (
             <button
               onClick={() => handleSendReminder(ch)}
@@ -624,6 +644,12 @@ export const ChallansModule: React.FC = () => {
                 <span className="text-[10px] text-slate-500 block font-mono">
                   IBAN : {selectedChallan.bankAccount?.iban || 'PK58MEZN0003060114428178'}
                 </span>
+                <ChallanPaymentExtras
+                  method={selectedChallan.paymentDetails?.paymentMethod}
+                  instructions={selectedChallan.paymentDetails?.instructions}
+                  qrUrl={selectedChallan.paymentDetails?.qr.enabled ? selectedChallan.paymentDetails.qr.url : null}
+                  qrLabel={selectedChallan.paymentDetails?.qr.label}
+                />
               </div>
               <div className="text-right">
                 <span className="text-slate-500 text-[11px] block">Due Date</span>
@@ -654,6 +680,12 @@ export const ChallansModule: React.FC = () => {
                       <span className="text-slate-400 block">Bank Account:</span>
                       <span className="font-bold text-slate-800">{selectedChallan.bankAccount?.bankName || 'Meezan Bank'}</span>
                       <span className="font-mono text-slate-600 block">{selectedChallan.bankAccount?.accountNumber || '03060114428178'}</span>
+                      {selectedChallan.paymentDetails && (
+                        <span className="text-slate-500 block break-words">{selectedChallan.paymentDetails.accountTitle}</span>
+                      )}
+                      {selectedChallan.paymentDetails?.qr.enabled && copyTitle !== 'Bank Copy' && (
+                        <ChallanPaymentExtras qrUrl={selectedChallan.paymentDetails.qr.url} qrLabel={selectedChallan.paymentDetails.qr.label} compact />
+                      )}
                     </div>
 
                     <div className="mt-2 space-y-1 text-slate-700">
@@ -745,6 +777,15 @@ export const ChallansModule: React.FC = () => {
             </div>
           </div>
         </Modal>
+      )}
+      {paymentDetailsTarget && (
+        <ChallanPaymentDetailsModal
+          challan={paymentDetailsTarget}
+          bankAccounts={bankAccounts}
+          isOpen={!!paymentDetailsTarget}
+          onClose={() => setPaymentDetailsTarget(null)}
+          onSaved={loadChallans}
+        />
       )}
       {/* Reassign Bank Account for Specific Challan Modal */}
       {isChallanBankModalOpen && challanToReassign && (

@@ -34,7 +34,9 @@ import {
   StudentMarksReportRow,
   NoticeFormPayload,
   UserProfile,
-  AccountStatus
+  AccountStatus,
+  ChallanPaymentDetailsResponse,
+  ChallanPaymentDetailsInput
 } from '../types';
 
 // In-memory runtime state: never write credentials, tokens, or database dumps to localStorage/sessionStorage
@@ -1570,6 +1572,34 @@ export const api = {
     });
   },
 
+  /** Current + historical payment-detail revisions of one challan (Principal/Admin only). */
+  async getChallanPaymentDetails(challanId: number | string): Promise<ChallanPaymentDetailsResponse> {
+    const numericId = parseInt(String(challanId).replace(/\D/g, ''), 10) || Number(challanId);
+    return await requestApi<ChallanPaymentDetailsResponse>(`/api/v1/fees/challans/${numericId}/payment-details`);
+  },
+
+  /**
+   * Issue a new payment-detail revision for one challan. Sent as multipart so an
+   * optional QR image can be attached. `expectedRevision` guards against stale edits.
+   */
+  async reviseChallanPaymentDetails(
+    challanId: number | string,
+    input: ChallanPaymentDetailsInput,
+    qrFile?: File | null
+  ): Promise<ChallanPaymentDetailsResponse> {
+    const numericId = parseInt(String(challanId).replace(/\D/g, ''), 10) || Number(challanId);
+    const form = new FormData();
+    Object.entries(input).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+      form.append(key, typeof value === 'boolean' ? String(value) : String(value));
+    });
+    if (qrFile) form.append('qr', qrFile);
+    return await requestApi<ChallanPaymentDetailsResponse>(`/api/v1/fees/challans/${numericId}/payment-details`, {
+      method: 'PUT',
+      body: form
+    });
+  },
+
   async assignChallanBankAccount(challanId: number | string, bankAccountId: number): Promise<any> {
     const rawId = String(challanId);
     const numericId = parseInt(rawId.replace(/\D/g, ''), 10) || Number(rawId);
@@ -1649,7 +1679,8 @@ export const api = {
           lastReminderDate: ch.lastReminderDate,
           studentPortalStatus: ch.studentPortalStatus,
           bankAccountId: ch.bankAccountId ? Number(ch.bankAccountId) : null,
-          bankAccount: ch.bankAccount || undefined
+          bankAccount: ch.bankAccount || undefined,
+          paymentDetails: ch.paymentDetails || null
         }));
       }
     } catch {
