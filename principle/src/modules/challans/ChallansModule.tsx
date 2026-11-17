@@ -671,11 +671,13 @@ export const ChallansModule: React.FC = () => {
             </div>
 
             {/* 3 Voucher Copies (Bank, School, Student) in clean white slips */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {/* print:grid-cols-3 keeps the three copies side by side on paper: an A4 page is
+                narrower than the md breakpoint, so md:grid-cols-3 alone stacked them when printing. */}
+            <div className="grid grid-cols-1 md:grid-cols-3 print:grid-cols-3 gap-3">
               {['Bank Copy', 'School Copy', 'Student / Parent Copy'].map((copyTitle) => (
                 <div
                   key={copyTitle}
-                  className="p-3.5 rounded-xl bg-white border border-slate-200 flex flex-col justify-between gap-3 text-[11px] shadow-2xs"
+                  className="p-3.5 rounded-xl bg-white border border-slate-200 flex flex-col justify-between gap-3 text-[11px] shadow-2xs break-inside-avoid"
                 >
                   <div>
                     <div className="flex items-center justify-between pb-2 border-b border-slate-100">
