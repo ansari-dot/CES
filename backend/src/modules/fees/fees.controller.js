@@ -1,3 +1,5 @@
+import fs from 'fs';
+import { challanPaymentDetailsService } from './fees.paymentDetails.js';
 import { feesService } from './fees.service.js';
 import { db } from '../../shared/db/knex.js';
 import { authRepository } from '../auth/auth.repository.js';
@@ -7,6 +9,48 @@ import { ErrorCodes } from '../../shared/errors/errorCodes.js';
 import { isStaff, getStudentByUserId, getParentChildren } from '../../shared/services/accessScope.js';
 
 export const feesController = {
+  // 0b. Per-challan payment details (revisioned) & QR code
+  async getChallanPaymentDetails(req, res, next) {
+    try {
+      const data = await challanPaymentDetailsService.getDetails(Number(req.params.id));
+      return sendSuccess(res, data);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async reviseChallanPaymentDetails(req, res, next) {
+    try {
+      const data = await challanPaymentDetailsService.revise({
+        challanId: Number(req.params.id),
+        actor: req.user,
+        input: req.body || {},
+        file: req.file || null,
+        ipAddress: req.ip || null
+      });
+      return sendSuccess(res, data, 'Challan payment details revised');
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async streamChallanPaymentQr(req, res, next) {
+    try {
+      const { filePath, mimeType } = await challanPaymentDetailsService.resolveQrFile(
+        req.user,
+        Number(req.params.id),
+        req.query.rev ? Number(req.query.rev) : null
+      );
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Cache-Control', 'private, max-age=300');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Disposition', 'inline; filename="payment-qr"');
+      return fs.createReadStream(filePath).on('error', next).pipe(res);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   // 0. School Bank Accounts & Custom Assignments
   async getBankAccounts(req, res, next) {
     try {

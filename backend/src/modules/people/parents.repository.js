@@ -1,5 +1,6 @@
 import { db } from '../../shared/db/knex.js';
 import { computeAttendanceRate } from './students.repository.js';
+import { loadCurrentDetails, overlayChallanDetails } from '../fees/fees.paymentDetails.js';
 
 export const parentsRepository = {
   async getAllParents({ status = null } = {}) {
@@ -398,7 +399,10 @@ export const parentsRepository = {
       .orderBy('created_at', 'desc');
 
     const num = (v) => Number(v || 0);
-    return {
+    // Frozen per-challan payment details (revisioned by the Principal) take precedence
+    // over the live bank-account join, so parents see exactly what was issued.
+    const frozen = (await loadCurrentDetails([challan.id])).get(Number(challan.id));
+    return overlayChallanDetails({
       id: challan.id,
       challanNumber: challan.challan_number,
       consumerNumber: challan.consumer_number,
@@ -452,7 +456,7 @@ export const parentsRepository = {
         submittedAmount: num(p.submittedAmount),
         verifiedAmount: p.verifiedAmount != null ? num(p.verifiedAmount) : null
       }))
-    };
+    }, frozen);
   },
 
   async verifyParentStudentLink(parentId, studentId) {

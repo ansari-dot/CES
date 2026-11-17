@@ -3,6 +3,8 @@ import { feesController } from './fees.controller.js';
 import { authenticate } from '../../shared/middleware/authenticate.js';
 import { authorize } from '../../shared/middleware/authorize.js';
 import { upload } from '../../shared/storage/upload.js';
+import { requireRole } from '../../shared/services/accessScope.js';
+import { qrUploadSingle } from './fees.qrUpload.js';
 
 const router = Router();
 
@@ -15,7 +17,19 @@ router.post('/bank-accounts', authenticate, authorize('fees.structure.manage'), 
 router.put('/bank-accounts/:id', authenticate, authorize('fees.structure.manage'), feesController.updateBankAccount);
 router.delete('/bank-accounts/:id', authenticate, authorize('fees.structure.manage'), feesController.archiveBankAccount);
 router.put('/students/:id/bank-account', authenticate, authorize('fees.structure.manage'), feesController.assignStudentBankAccount);
-router.put('/challans/:id/bank-account', authenticate, authorize('fees.structure.manage'), feesController.assignChallanBankAccount);
+router.put('/challans/:id/bank-account', authenticate, requireRole('ADMIN', 'PRINCIPAL'), feesController.assignChallanBankAccount);
+
+// 0b. Per-challan payment details (revisioned) & optional QR code.
+// Editing is Principal/Admin only; the QR image is served only to users who may view the challan.
+router.get('/challans/:id/payment-details', authenticate, requireRole('ADMIN', 'PRINCIPAL'), feesController.getChallanPaymentDetails);
+router.put(
+  '/challans/:id/payment-details',
+  authenticate,
+  requireRole('ADMIN', 'PRINCIPAL'),
+  qrUploadSingle('qr'),
+  feesController.reviseChallanPaymentDetails
+);
+router.get('/challans/:id/payment-qr', authenticate, feesController.streamChallanPaymentQr);
 
 // Restricted students & access restoration (Principal only)
 router.get('/restricted-students', authenticate, authorize('fees.access.restore'), feesController.getRestrictedStudents);

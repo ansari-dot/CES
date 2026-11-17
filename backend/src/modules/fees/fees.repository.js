@@ -1,5 +1,7 @@
 import { db } from '../../shared/db/knex.js';
 import { auditRepository } from '../audit/audit.repository.js';
+import { AppError } from '../../shared/errors/AppError.js';
+import { ErrorCodes } from '../../shared/errors/errorCodes.js';
 import { getApplicableConcessions, computeConcession, periodBounds } from './fees.concessions.js';
 import {
   normalizeBillingMonth,
@@ -8,6 +10,12 @@ import {
   addDays,
   GRACE_PERIOD_DAYS
 } from './fees.billing.js';
+import {
+  snapshotMissingChallans,
+  loadCurrentDetails,
+  overlayChallanDetails,
+  challanPaymentDetailsService
+} from './fees.paymentDetails.js';
 
 export const FALLBACK_DEFAULT_BANK_ACCOUNT = {
   id: 1,
@@ -168,6 +176,8 @@ export const feesRepository = {
   async createBankAccount(data, actorId = null) {
     await ensureBankAccountsTable(db);
     return await db.transaction(async (trx) => {
+      // Freeze issued challans' details before the default account can change
+      await snapshotMissingChallans(trx);
       const isDefault = Boolean(data.isDefault);
       if (isDefault) {
         await trx('school_bank_accounts').update({ is_default: false });
@@ -218,6 +228,10 @@ export const feesRepository = {
     return await db.transaction(async (trx) => {
       const before = await trx('school_bank_accounts').where({ id }).first();
       if (!before) throw new Error('Bank account not found');
+
+      // Issued challans keep the details they were issued with; only future
+      // challans (and new revisions) pick up the edited account.
+      await snapshotMissingChallans(trx);
 
       const isDefault = data.isDefault !== undefined ? Boolean(data.isDefault) : Boolean(before.is_default);
       if (isDefault && !before.is_default) {
@@ -272,6 +286,8 @@ export const feesRepository = {
     return await db.transaction(async (trx) => {
       const before = await trx('school_bank_accounts').where({ id }).first();
       if (!before) throw new Error('Bank account not found');
+
+      await snapshotMissingChallans(trx);
 
       if (before.is_default) {
         const other = await trx('school_bank_accounts').whereNot({ id }).where({ status: 'ACTIVE' }).first();
@@ -364,8 +380,11 @@ export const feesRepository = {
   async assignChallanBankAccount(challanId, bankAccountId, actorId = null) {
     await ensureBankAccountsTable(db);
     return await db.transaction(async (trx) => {
-      const challan = await trx('fee_challans').where({ id: challanId }).first();
+      const challan = await trx('fee_challans').where({ id: challanId }).forUpdate().first();
       if (!challan) throw new Error('Challan not found');
+
+      const locked = challanPaymentDetailsService.LOCKED_STATUSES[challan.status];
+      if (locked) throw new AppError(locked, 409, ErrorCodes.INVALID_STATE);
 
       const targetAccount = await trx('school_bank_accounts').where({ id: bankAccountId, status: 'ACTIVE' }).first();
       if (!targetAccount) throw new Error('Specified bank account is not active or does not exist');
@@ -373,6 +392,13 @@ export const feesRepository = {
       await trx('fee_challans').where({ id: challanId }).update({
         bank_account_id: Number(bankAccountId),
         updated_at: trx.fn.now(3)
+      });
+
+      // New, frozen payment-detail revision for this challan only
+      await challanPaymentDetailsService.recordBankReassignment(trx, {
+        challanId,
+        account: targetAccount,
+        actorId
       });
 
       if (actorId) {
@@ -914,6 +940,11 @@ export const feesRepository = {
       }
     }
 
+    // Freeze the payment details each new challan was issued with
+    await snapshotMissingChallans(db).catch((err) =>
+      console.warn('[Challans] Payment detail snapshot warning:', err?.message || err)
+    );
+
     return {
       message: `Generated ${generatedChallans.length} fee challans for ${cleanMonth}`,
       count: generatedChallans.length,
@@ -1019,6 +1050,7 @@ export const feesRepository = {
     }
 
     const rows = await query;
+    const frozen = await loadCurrentDetails(rows.map((r) => r.id));
     return rows.map((r) => {
       const bank = r.bankAccountId ? {
         id: r.bankAccountId,
@@ -1040,7 +1072,7 @@ export const feesRepository = {
         instructions: defaultBank.instructions
       };
 
-      return {
+      return overlayChallanDetails({
         ...r,
         bankAccount: bank,
         paidAmount: Number(r.paidAmount),
@@ -1059,7 +1091,7 @@ export const feesRepository = {
           lateFeeAmount: Number(r.lateFeeAmount),
           totalPayable: Number(r.totalPayable)
         }
-      };
+      }, frozen.get(Number(r.id)));
     });
   },
 
