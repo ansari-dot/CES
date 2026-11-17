@@ -1,7 +1,14 @@
 import { db } from '../../shared/db/knex.js';
 import { resultsRepository } from './results.repository.js';
 import { academicRepository } from '../academic/academic.repository.js';
+import { performanceRepository } from '../performance/performance.repository.js';
 import { letterGrade } from '../people/students.repository.js';
+import {
+  calculateSubjectWeightedScore,
+  calculateAnnualOverallResult,
+  aggregateCategoryAssessments,
+  DEFAULT_WEIGHTED_POLICY
+} from './weightedGrading.calculator.js';
 import { AppError } from '../../shared/errors/AppError.js';
 import { ErrorCodes } from '../../shared/errors/errorCodes.js';
 import {
@@ -74,12 +81,20 @@ export const resultsService = {
 
     const windowStart = term.exam_start_date || term.start_date;
     const windowEnd = term.exam_end_date || term.end_date;
-    const { taskTotals, perStudent } = await resultsRepository.getExamAggregates({
-      classId,
-      sessionId: session.id,
-      termStart: String(windowStart).slice(0, 10),
-      termEnd: String(windowEnd).slice(0, 10)
-    });
+
+    let gradingPolicy = await performanceRepository.findActivePolicy(session.id);
+    if (!gradingPolicy) {
+      gradingPolicy = DEFAULT_WEIGHTED_POLICY;
+    }
+
+    const { midTermRows, monthlyRows, assignmentRows, terminalRows } =
+      await resultsRepository.getUnifiedCategoryAggregates({
+        classId,
+        sessionId: session.id,
+        termStart: String(windowStart).slice(0, 10),
+        termEnd: String(windowEnd).slice(0, 10),
+        includeQuizzes: Boolean(gradingPolicy.include_quizzes_in_assignments ?? true)
+      });
 
     let computed = 0;
     let skippedProtected = 0;
@@ -111,7 +126,6 @@ export const resultsService = {
           }
         }
 
-        const studentMarks = perStudent.get(student.studentId) || new Map();
         const subjectRows = [];
         let totalMarks = 0;
         let obtainedMarks = 0;
@@ -122,92 +136,85 @@ export const resultsService = {
 
         for (const subject of subjects) {
           const manual = manualBySubject.get(Number(subject.id));
-          const subjectTotal = manual ? Number(manual.total_marks) : Number(taskTotals.get(subject.id) || 0);
-          let obtained = null;
+
+          // Filter student category items
+          const studentMT = midTermRows.filter((r) => r.studentId === student.studentId && r.subjectId === subject.id);
+          const studentM = monthlyRows.filter((r) => r.studentId === student.studentId && r.subjectId === subject.id);
+          const studentA = assignmentRows.filter((r) => r.studentId === student.studentId && r.subjectId === subject.id);
+          const studentT = terminalRows.filter((r) => r.studentId === student.studentId && r.subjectId === subject.id);
+
+          const mtAgg = aggregateCategoryAssessments(studentMT, { absentPolicy: policy.absent_policy });
+          const mAgg = aggregateCategoryAssessments(studentM, { absentPolicy: policy.absent_policy });
+          const aAgg = aggregateCategoryAssessments(studentA, { absentPolicy: policy.absent_policy });
+          const tAgg = aggregateCategoryAssessments(studentT, { absentPolicy: policy.absent_policy });
+
+          let weightedResult = calculateSubjectWeightedScore({
+            midTerm: mtAgg,
+            monthly: mAgg,
+            assignments: aAgg,
+            terminal: tAgg,
+            policy: gradingPolicy,
+            passingPolicy: policy
+          });
+
+          // If manual subject marks were preserved
           if (manual) {
-            obtained = manual.obtained_marks === null ? null : Number(manual.obtained_marks);
-          } else if (studentMarks.has(subject.id)) {
-            obtained = studentMarks.get(subject.id).obtained;
+            const manualTotal = Number(manual.total_marks || 100);
+            const manualObtained = manual.obtained_marks !== null ? Number(manual.obtained_marks) : null;
+            const manualPct = manualTotal > 0 && manualObtained !== null ? round2((manualObtained / manualTotal) * 100) : null;
+            weightedResult = {
+              ...weightedResult,
+              percentage: manualPct,
+              grade: letterGrade(manualPct),
+              isPassed: manualPct !== null ? manualPct >= Number(policy.min_subject_percentage) : false,
+              breakdown: {
+                ...weightedResult.breakdown,
+                manualOverride: true,
+                manualObtained,
+                manualTotal,
+                finalPercentage: manualPct
+              }
+            };
           }
 
-          if (subjectTotal === 0) {
-            // No exam exists yet for this subject: coverage incomplete.
-            hasMissingCoverage = true;
-            subjectRows.push({
-              subject_id: subject.id,
-              total_marks: 0,
-              obtained_marks: null,
-              percentage: null,
-              grade: null,
-              is_absent: 0,
-              passed: null,
-              source: manual ? 'MANUAL' : 'TASKS',
-              teacher_remarks: manual ? manual.teacher_remarks : null
-            });
-            continue;
-          }
+          if (weightedResult.isIncomplete) hasMissingCoverage = true;
+          if (weightedResult.isAbsent) absentCount += 1;
+          if (!weightedResult.isPassed && !weightedResult.isIncomplete) failedCount += 1;
+          if (weightedResult.percentage !== null) gradedSubjects += 1;
 
-          const isAbsent = obtained === null;
-          if (isAbsent) {
-            absentCount += 1;
-            if (policy.absent_policy === 'EXCLUDE') {
-              subjectRows.push({
-                subject_id: subject.id,
-                total_marks: subjectTotal,
-                obtained_marks: null,
-                percentage: null,
-                grade: null,
-                is_absent: 1,
-                passed: null,
-                source: manual ? 'MANUAL' : 'TASKS',
-                teacher_remarks: manual ? manual.teacher_remarks : null
-              });
-              continue;
-            }
-            obtained = 0; // ZERO and FAIL both count the subject at zero marks
-          }
+          totalMarks += 100.00;
+          obtainedMarks += weightedResult.percentage !== null ? weightedResult.percentage : 0;
 
-          const clamped = Math.min(Math.max(Number(obtained), 0), subjectTotal);
-          const pct = round2((clamped / subjectTotal) * 100);
-          const passed = pct >= Number(policy.min_subject_percentage) ? 1 : 0;
-          if (!passed) failedCount += 1;
-          if (!isAbsent) gradedSubjects += 1;
-          totalMarks += subjectTotal;
-          obtainedMarks += clamped;
           subjectRows.push({
             subject_id: subject.id,
-            total_marks: subjectTotal,
-            obtained_marks: clamped,
-            percentage: pct,
-            grade: letterGrade(pct),
-            is_absent: isAbsent ? 1 : 0,
-            passed,
+            total_marks: 100.00,
+            obtained_marks: weightedResult.percentage !== null ? weightedResult.percentage : 0,
+            percentage: weightedResult.percentage,
+            grade: weightedResult.grade,
+            is_absent: weightedResult.isAbsent ? 1 : 0,
+            passed: weightedResult.isPassed ? 1 : 0,
             source: manual ? 'MANUAL' : 'TASKS',
-            teacher_remarks: manual ? manual.teacher_remarks : null
+            teacher_remarks: manual ? manual.teacher_remarks : null,
+            category_breakdown: JSON.stringify(weightedResult.breakdown),
+            mid_term_pct: weightedResult.breakdown.midTerm?.percentage ?? null,
+            monthly_test_pct: weightedResult.breakdown.monthly?.percentage ?? null,
+            assignment_pct: weightedResult.breakdown.assignments?.percentage ?? null,
+            terminal_pct: weightedResult.breakdown.terminal?.percentage ?? null,
+            policy_id: gradingPolicy.id || null
           });
         }
 
-        const percentage = totalMarks > 0 ? round2((obtainedMarks / totalMarks) * 100) : null;
-        let passStatus = 'PENDING';
-        let resultStatus = 'DRAFT';
-        if (hasMissingCoverage) {
-          resultStatus = 'INCOMPLETE';
-        } else if (percentage !== null) {
-          const failsOverall = percentage < Number(policy.min_overall_percentage);
-          if (absentCount > 0 && policy.absent_policy === 'FAIL') {
-            passStatus = 'FAILED';
-          } else if (!failsOverall && failedCount <= Number(policy.max_failed_subjects)) {
-            passStatus = 'PASSED';
-          } else if (
-            policy.supplementary_allowed &&
-            failedCount > 0 &&
-            failedCount <= Number(policy.max_supplementary_subjects)
-          ) {
-            passStatus = 'SUPPLEMENTARY';
-          } else {
-            passStatus = 'FAILED';
-          }
-        }
+        const overallResult = calculateAnnualOverallResult({
+          subjectResults: subjectRows.map((r) => ({
+            percentage: r.percentage,
+            isPassed: Boolean(r.passed),
+            isIncomplete:
+              r.percentage === null ||
+              (r.category_breakdown ? JSON.parse(r.category_breakdown).terminal?.status === 'MARKS_PENDING' : false),
+            isAbsent: Boolean(r.is_absent)
+          })),
+          policy
+        });
 
         const header = {
           enrollment_id: enrollmentId,
@@ -217,14 +224,14 @@ export const resultsService = {
           term_id: term.id,
           total_marks: round2(totalMarks),
           obtained_marks: round2(obtainedMarks),
-          percentage,
-          overall_grade: percentage !== null ? letterGrade(percentage) : null,
+          percentage: overallResult.overallPercentage,
+          overall_grade: overallResult.overallGrade,
           subjects_count: subjects.length,
-          graded_subjects_count: gradedSubjects,
-          failed_subjects_count: failedCount,
-          absent_subjects_count: absentCount,
-          result_status: resultStatus,
-          pass_status: passStatus,
+          graded_subjects_count: overallResult.gradedSubjects,
+          failed_subjects_count: overallResult.failedSubjects,
+          absent_subjects_count: overallResult.absentSubjects,
+          result_status: hasMissingCoverage || overallResult.resultStatus === 'INCOMPLETE' ? 'INCOMPLETE' : 'DRAFT',
+          pass_status: overallResult.passStatus,
           computed_at: db.fn.now(3)
         };
 

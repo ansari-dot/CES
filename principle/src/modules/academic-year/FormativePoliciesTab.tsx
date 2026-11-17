@@ -30,13 +30,14 @@ export const FormativePoliciesTab: React.FC<FormativePoliciesTabProps> = ({ year
   const [actionLoading, setActionLoading] = useState(false);
 
   // Form fields
-  const [policyName, setPolicyName] = useState('Standard Formative Continuous Policy');
+  const [policyName, setPolicyName] = useState('Unified Weighted Annual Grading Policy (25/15/10/50)');
   const [scope, setScope] = useState<'GLOBAL' | 'SESSION'>('SESSION');
-  const [version, setVersion] = useState('v1.1.0');
-  const [monthlyWeight, setMonthlyWeight] = useState(40);
-  const [quizWeight, setQuizWeight] = useState(20);
-  const [midTermWeight, setMidTermWeight] = useState(30);
+  const [version, setVersion] = useState('v2.0.0');
+  const [midTermWeight, setMidTermWeight] = useState(25);
+  const [monthlyWeight, setMonthlyWeight] = useState(15);
   const [homeworkWeight, setHomeworkWeight] = useState(10);
+  const [terminalWeight, setTerminalWeight] = useState(50);
+  const [includeQuizzes, setIncludeQuizzes] = useState(true);
 
   const [critThreshold, setCritThreshold] = useState(40);
   const [attnThreshold, setAttnThreshold] = useState(60);
@@ -63,7 +64,7 @@ export const FormativePoliciesTab: React.FC<FormativePoliciesTabProps> = ({ year
     loadPolicies();
   }, [loadPolicies]);
 
-  const totalWeights = Number(monthlyWeight) + Number(quizWeight) + Number(midTermWeight) + Number(homeworkWeight);
+  const totalWeights = Number(midTermWeight) + Number(monthlyWeight) + Number(homeworkWeight) + Number(terminalWeight);
   const isWeightValid = Math.round(totalWeights * 100) / 100 === 100;
   const isThresholdValid =
     critThreshold < attnThreshold &&
@@ -88,10 +89,12 @@ export const FormativePoliciesTab: React.FC<FormativePoliciesTabProps> = ({ year
         scope,
         session_id: scope === 'SESSION' ? year.id : null,
         version,
-        monthly_test_weight: monthlyWeight,
-        quiz_weight: quizWeight,
         mid_term_weight: midTermWeight,
+        monthly_test_weight: monthlyWeight,
         homework_weight: homeworkWeight,
+        terminal_exam_weight: terminalWeight,
+        include_quizzes_in_assignments: includeQuizzes,
+        quiz_weight: 0,
         critical_risk_threshold: critThreshold,
         attention_threshold: attnThreshold,
         good_standing_threshold: goodThreshold,
@@ -99,7 +102,7 @@ export const FormativePoliciesTab: React.FC<FormativePoliciesTabProps> = ({ year
         status: 'ACTIVE',
         effective_from: new Date().toISOString().split('T')[0]
       });
-      toast.success('New continuous grading policy activated successfully');
+      toast.success('Unified annual grading policy activated successfully');
       setCreateModal(false);
       await loadPolicies();
     } catch (err: any) {
@@ -174,42 +177,49 @@ export const FormativePoliciesTab: React.FC<FormativePoliciesTabProps> = ({ year
             </div>
           </div>
 
-          {/* Formative Weights Cards */}
+          {/* Unified Annual Grading Weights Cards */}
           <div>
-            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">
-              Formative Assessment Component Weights (Sum = 100%)
-            </h4>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Official Annual Assessment Distribution (Sum = 100%)
+              </h4>
+              <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                {activePolicy.include_quizzes_in_assignments !== false
+                  ? '✓ Quizzes counted in Tasks (10%)'
+                  : 'Quizzes excluded from annual tasks'}
+              </span>
+            </div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-4 rounded-xl bg-purple-50/60 border border-purple-100">
+                <div className="text-[11px] font-semibold text-purple-700 uppercase">Mid-Term Exam</div>
+                <div className="text-2xl font-black text-purple-950 mt-1">
+                  {Number(activePolicy.mid_term_weight)}%
+                </div>
+                <div className="text-[10px] text-purple-600 mt-0.5">Comprehensive mid-year examination</div>
+              </div>
+
               <div className="p-4 rounded-xl bg-indigo-50/60 border border-indigo-100">
                 <div className="text-[11px] font-semibold text-indigo-700 uppercase">Monthly Tests</div>
                 <div className="text-2xl font-black text-indigo-950 mt-1">
                   {Number(activePolicy.monthly_test_weight)}%
                 </div>
-                <div className="text-[10px] text-indigo-500 mt-0.5">Regular monthly syllabus tests</div>
-              </div>
-
-              <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-100">
-                <div className="text-[11px] font-semibold text-blue-700 uppercase">Class Quizzes</div>
-                <div className="text-2xl font-black text-blue-950 mt-1">
-                  {Number(activePolicy.quiz_weight)}%
-                </div>
-                <div className="text-[10px] text-blue-500 mt-0.5">Frequent formative pop quizzes</div>
-              </div>
-
-              <div className="p-4 rounded-xl bg-purple-50/60 border border-purple-100">
-                <div className="text-[11px] font-semibold text-purple-700 uppercase">Mid-Term Assessment</div>
-                <div className="text-2xl font-black text-purple-950 mt-1">
-                  {Number(activePolicy.mid_term_weight)}%
-                </div>
-                <div className="text-[10px] text-purple-500 mt-0.5">Mid-year diagnostic evaluation</div>
+                <div className="text-[10px] text-indigo-600 mt-0.5">Scheduled monthly syllabus tests</div>
               </div>
 
               <div className="p-4 rounded-xl bg-amber-50/60 border border-amber-100">
-                <div className="text-[11px] font-semibold text-amber-700 uppercase">Homework &amp; Tasks</div>
+                <div className="text-[11px] font-semibold text-amber-700 uppercase">Tasks / Assignments</div>
                 <div className="text-2xl font-black text-amber-950 mt-1">
                   {Number(activePolicy.homework_weight)}%
                 </div>
-                <div className="text-[10px] text-amber-500 mt-0.5">Submitted assignments &amp; tasks</div>
+                <div className="text-[10px] text-amber-600 mt-0.5">Submitted tasks, homework &amp; quizzes</div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-100">
+                <div className="text-[11px] font-semibold text-emerald-700 uppercase">Terminal Exam</div>
+                <div className="text-2xl font-black text-emerald-950 mt-1">
+                  {Number(activePolicy.terminal_exam_weight ?? 50)}%
+                </div>
+                <div className="text-[10px] text-emerald-600 mt-0.5">Official final terminal papers</div>
               </div>
             </div>
           </div>
@@ -275,7 +285,7 @@ export const FormativePoliciesTab: React.FC<FormativePoliciesTabProps> = ({ year
               <tr>
                 <th className="px-4 py-3">Version &amp; Name</th>
                 <th className="px-4 py-3">Scope</th>
-                <th className="px-4 py-3">Weights (T/Q/M/H)</th>
+                <th className="px-4 py-3">Weights (MT/M/A/T)</th>
                 <th className="px-4 py-3">Thresholds</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3 text-right">Actions</th>
@@ -290,7 +300,7 @@ export const FormativePoliciesTab: React.FC<FormativePoliciesTabProps> = ({ year
                   </td>
                   <td className="px-4 py-3 font-semibold text-slate-600">{p.scope}</td>
                   <td className="px-4 py-3 font-mono">
-                    {Number(p.monthly_test_weight)}% / {Number(p.quiz_weight)}% / {Number(p.mid_term_weight)}% / {Number(p.homework_weight)}%
+                    {Number(p.mid_term_weight)}% / {Number(p.monthly_test_weight)}% / {Number(p.homework_weight)}% / {Number(p.terminal_exam_weight ?? 50)}%
                   </td>
                   <td className="px-4 py-3 font-mono text-[11px] text-slate-500">
                     Crit &lt;{p.critical_risk_threshold}% · Attn &lt;{p.attention_threshold}%
@@ -360,60 +370,74 @@ export const FormativePoliciesTab: React.FC<FormativePoliciesTabProps> = ({ year
               </div>
             </div>
 
-            {/* Weights */}
+            {/* Unified 4-Category Weights */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-semibold text-slate-700">Formative Category Weights</label>
+                <label className="text-xs font-semibold text-slate-700">Official Assessment Category Weights</label>
                 <span className={`text-xs font-bold font-mono ${isWeightValid ? 'text-emerald-600' : 'text-rose-600'}`}>
                   Sum: {totalWeights}% {isWeightValid ? '✓' : '(Must equal 100%)'}
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="grid grid-cols-2 gap-2.5 text-xs">
                 <div>
-                  <span className="text-slate-500 text-[11px]">Monthly Tests (%)</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={monthlyWeight}
-                    onChange={(e) => setMonthlyWeight(Number(e.target.value))}
-                    className="w-full text-xs rounded-xl border border-slate-200 px-3 py-1.5 mt-0.5 outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-                <div>
-                  <span className="text-slate-500 text-[11px]">Quizzes (%)</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={quizWeight}
-                    onChange={(e) => setQuizWeight(Number(e.target.value))}
-                    className="w-full text-xs rounded-xl border border-slate-200 px-3 py-1.5 mt-0.5 outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-                <div>
-                  <span className="text-slate-500 text-[11px]">Mid-Term Assessment (%)</span>
+                  <span className="text-slate-600 font-medium text-[11px]">Mid-Term Examination (%)</span>
                   <input
                     type="number"
                     min="0"
                     max="100"
                     value={midTermWeight}
                     onChange={(e) => setMidTermWeight(Number(e.target.value))}
-                    className="w-full text-xs rounded-xl border border-slate-200 px-3 py-1.5 mt-0.5 outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full text-xs rounded-xl border border-slate-200 px-3 py-1.5 mt-0.5 outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
                   />
                 </div>
                 <div>
-                  <span className="text-slate-500 text-[11px]">Homework &amp; Tasks (%)</span>
+                  <span className="text-slate-600 font-medium text-[11px]">Monthly Tests (%)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={monthlyWeight}
+                    onChange={(e) => setMonthlyWeight(Number(e.target.value))}
+                    className="w-full text-xs rounded-xl border border-slate-200 px-3 py-1.5 mt-0.5 outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                  />
+                </div>
+                <div>
+                  <span className="text-slate-600 font-medium text-[11px]">Tasks / Assignments (%)</span>
                   <input
                     type="number"
                     min="0"
                     max="100"
                     value={homeworkWeight}
                     onChange={(e) => setHomeworkWeight(Number(e.target.value))}
-                    className="w-full text-xs rounded-xl border border-slate-200 px-3 py-1.5 mt-0.5 outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full text-xs rounded-xl border border-slate-200 px-3 py-1.5 mt-0.5 outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                  />
+                </div>
+                <div>
+                  <span className="text-slate-600 font-medium text-[11px]">Terminal Examination (%)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={terminalWeight}
+                    onChange={(e) => setTerminalWeight(Number(e.target.value))}
+                    className="w-full text-xs rounded-xl border border-slate-200 px-3 py-1.5 mt-0.5 outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
                   />
                 </div>
               </div>
+
+              {/* Explicit Quiz Classification Toggle */}
+              <label className="flex items-start gap-2.5 mt-3 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 cursor-pointer text-xs">
+                <input
+                  type="checkbox"
+                  checked={includeQuizzes}
+                  onChange={(e) => setIncludeQuizzes(e.target.checked)}
+                  className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500"
+                />
+                <span className="text-slate-700">
+                  <strong className="block text-slate-800 font-semibold">Include Class Quizzes in Tasks / Assignments (10%)</strong>
+                  Count eligible quizzes within the 10% Tasks category rather than dropping them. Quizzes are never double-counted.
+                </span>
+              </label>
             </div>
 
             {/* Thresholds */}

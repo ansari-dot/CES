@@ -1,5 +1,44 @@
 import { db } from '../../shared/db/knex.js';
 
+let _ensuredGradingSchema = false;
+async function ensureGradingPolicySchema(conn = db) {
+  if (_ensuredGradingSchema) return;
+  try {
+    const hasTable = await conn.schema.hasTable('academic_grading_policies');
+    if (hasTable) {
+      const hasTerminal = await conn.schema.hasColumn('academic_grading_policies', 'terminal_exam_weight');
+      if (!hasTerminal) {
+        await conn.schema.alterTable('academic_grading_policies', (t) => {
+          t.decimal('terminal_exam_weight', 5, 2).notNullable().defaultTo(50.00);
+        });
+      }
+      const hasQuizToggle = await conn.schema.hasColumn('academic_grading_policies', 'include_quizzes_in_assignments');
+      if (!hasQuizToggle) {
+        await conn.schema.alterTable('academic_grading_policies', (t) => {
+          t.boolean('include_quizzes_in_assignments').notNullable().defaultTo(true);
+        });
+      }
+    }
+    const hasFRS = await conn.schema.hasTable('final_result_subjects');
+    if (hasFRS) {
+      const hasCB = await conn.schema.hasColumn('final_result_subjects', 'category_breakdown');
+      if (!hasCB) {
+        await conn.schema.alterTable('final_result_subjects', (t) => {
+          t.json('category_breakdown').nullable();
+          t.decimal('mid_term_pct', 5, 2).nullable();
+          t.decimal('monthly_test_pct', 5, 2).nullable();
+          t.decimal('assignment_pct', 5, 2).nullable();
+          t.decimal('terminal_pct', 5, 2).nullable();
+          t.bigInteger('policy_id').unsigned().nullable();
+        });
+      }
+    }
+    _ensuredGradingSchema = true;
+  } catch (err) {
+    // schema ensure notice
+  }
+}
+
 export const performanceRepository = {
   // =========================================================================
   // 1. ACADEMIC GRADING POLICIES
@@ -10,6 +49,7 @@ export const performanceRepository = {
    * Checks session-specific first; falls back to GLOBAL active policy.
    */
   async findActivePolicy(sessionId = null, trx = db) {
+    await ensureGradingPolicySchema(trx);
     if (sessionId) {
       const sessionPolicy = await trx('academic_grading_policies')
         .where({ scope: 'SESSION', session_id: sessionId, status: 'ACTIVE' })

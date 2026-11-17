@@ -3,6 +3,23 @@ import { ChevronDown, ChevronUp, GraduationCap, History, Printer, ScrollText } f
 import { useChildData, useParent } from '../context/ParentContext';
 import { Modal } from './common';
 
+interface CategoryComponent {
+  obtained: number;
+  total: number;
+  percentage: number | null;
+  weight: number;
+  contribution: number;
+  status: string;
+}
+
+interface CategoryBreakdown {
+  midTerm?: CategoryComponent;
+  monthly?: CategoryComponent;
+  assignments?: CategoryComponent;
+  terminal?: CategoryComponent;
+  finalPercentage?: number | null;
+}
+
 interface SubjectRow {
   id: number;
   subjectName: string;
@@ -14,6 +31,11 @@ interface SubjectRow {
   is_absent: number;
   passed: number | null;
   teacher_remarks: string | null;
+  category_breakdown?: CategoryBreakdown | null;
+  mid_term_pct?: number | null;
+  monthly_test_pct?: number | null;
+  assignment_pct?: number | null;
+  terminal_pct?: number | null;
 }
 
 interface TermResult {
@@ -159,31 +181,47 @@ export default function TermResultsSection() {
                         <thead className="text-muted-foreground uppercase tracking-wider text-[10px]">
                           <tr>
                             <th className="text-left py-1.5">Subject</th>
-                            <th className="text-right py-1.5">Marks</th>
-                            <th className="text-right py-1.5">%</th>
+                            <th className="text-right py-1.5 hidden sm:table-cell">Mid (25%)</th>
+                            <th className="text-right py-1.5 hidden sm:table-cell">Month (15%)</th>
+                            <th className="text-right py-1.5 hidden sm:table-cell">Task (10%)</th>
+                            <th className="text-right py-1.5 hidden sm:table-cell">Term (50%)</th>
+                            <th className="text-right py-1.5">Final %</th>
                             <th className="text-right py-1.5">Grade</th>
                             <th className="text-right py-1.5">Status</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
-                          {r.subjects.map((s) => (
-                            <tr key={s.id}>
-                              <td className="py-1.5 font-medium text-foreground">{s.subjectName}</td>
-                              <td className="py-1.5 text-right font-mono">
-                                {s.is_absent ? 'Absent' : s.obtained_marks != null ? Number(s.obtained_marks).toFixed(0) : '—'} /{' '}
-                                {Number(s.total_marks).toFixed(0)}
-                              </td>
-                              <td className="py-1.5 text-right font-mono">{s.percentage != null ? `${Number(s.percentage).toFixed(1)}%` : '—'}</td>
-                              <td className="py-1.5 text-right font-semibold">{s.grade || '—'}</td>
-                              <td className="py-1.5 text-right">
-                                {s.passed === null ? '—' : s.passed ? (
-                                  <span className="text-success font-semibold">Pass</span>
-                                ) : (
-                                  <span className="text-error font-semibold">Fail</span>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
+                          {r.subjects.map((s) => {
+                            const b = s.category_breakdown;
+                            return (
+                              <tr key={s.id}>
+                                <td className="py-1.5 font-medium text-foreground">{s.subjectName}</td>
+                                <td className="py-1.5 text-right font-mono text-[11px] text-muted-foreground hidden sm:table-cell">
+                                  {b?.midTerm?.percentage != null ? `${b.midTerm.percentage}%` : '—'}
+                                </td>
+                                <td className="py-1.5 text-right font-mono text-[11px] text-muted-foreground hidden sm:table-cell">
+                                  {b?.monthly?.percentage != null ? `${b.monthly.percentage}%` : '—'}
+                                </td>
+                                <td className="py-1.5 text-right font-mono text-[11px] text-muted-foreground hidden sm:table-cell">
+                                  {b?.assignments?.percentage != null ? `${b.assignments.percentage}%` : '—'}
+                                </td>
+                                <td className="py-1.5 text-right font-mono text-[11px] text-muted-foreground hidden sm:table-cell">
+                                  {b?.terminal?.percentage != null ? `${b.terminal.percentage}%` : '—'}
+                                </td>
+                                <td className="py-1.5 text-right font-mono font-bold text-foreground">
+                                  {s.percentage != null ? `${Number(s.percentage).toFixed(1)}%` : '—'}
+                                </td>
+                                <td className="py-1.5 text-right font-semibold">{s.grade || '—'}</td>
+                                <td className="py-1.5 text-right">
+                                  {s.passed === null ? '—' : s.passed ? (
+                                    <span className="text-success font-semibold">Pass</span>
+                                  ) : (
+                                    <span className="text-error font-semibold">Fail</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                       <div className="flex justify-end mt-3">
@@ -266,34 +304,47 @@ export default function TermResultsSection() {
 
             <table className="w-full text-xs border border-border">
               <thead>
-                <tr className="bg-navy text-white">
-                  <th className="px-3 py-2 text-left font-bold">SUBJECT</th>
-                  <th className="px-3 py-2 text-right font-bold">MARKS</th>
-                  <th className="px-3 py-2 text-right font-bold">PERCENT</th>
-                  <th className="px-3 py-2 text-right font-bold">GRADE</th>
+                <tr className="bg-navy text-white text-[11px]">
+                  <th className="px-2.5 py-2 text-left font-bold">SUBJECT</th>
+                  <th className="px-1.5 py-2 text-right font-bold">MID (25%)</th>
+                  <th className="px-1.5 py-2 text-right font-bold">MONTH (15%)</th>
+                  <th className="px-1.5 py-2 text-right font-bold">TASK (10%)</th>
+                  <th className="px-1.5 py-2 text-right font-bold">TERM (50%)</th>
+                  <th className="px-2 py-2 text-right font-bold">FINAL %</th>
+                  <th className="px-2 py-2 text-right font-bold">GRADE</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {cardResult.subjects.map((s) => (
-                  <tr key={s.id}>
-                    <td className="px-3 py-1.5">{s.subjectName}</td>
-                    <td className="px-3 py-1.5 text-right font-mono">
-                      {s.is_absent ? 'Absent' : s.obtained_marks != null ? Number(s.obtained_marks).toFixed(0) : '—'} /{' '}
-                      {Number(s.total_marks).toFixed(0)}
-                    </td>
-                    <td className="px-3 py-1.5 text-right font-mono">{s.percentage != null ? `${Number(s.percentage).toFixed(1)}%` : '—'}</td>
-                    <td className="px-3 py-1.5 text-right font-semibold">{s.grade || '—'}</td>
-                  </tr>
-                ))}
-                <tr className="font-bold">
-                  <td className="px-3 py-2">Total</td>
-                  <td className="px-3 py-2 text-right font-mono">
-                    {Number(cardResult.obtained_marks).toFixed(0)} / {Number(cardResult.total_marks).toFixed(0)}
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono">
+                {cardResult.subjects.map((s) => {
+                  const b = s.category_breakdown;
+                  return (
+                    <tr key={s.id} className="text-[11px]">
+                      <td className="px-2.5 py-1.5 font-medium">{s.subjectName}</td>
+                      <td className="px-1.5 py-1.5 text-right font-mono text-muted-foreground">
+                        {b?.midTerm?.percentage != null ? `${b.midTerm.percentage}%` : '—'}
+                      </td>
+                      <td className="px-1.5 py-1.5 text-right font-mono text-muted-foreground">
+                        {b?.monthly?.percentage != null ? `${b.monthly.percentage}%` : '—'}
+                      </td>
+                      <td className="px-1.5 py-1.5 text-right font-mono text-muted-foreground">
+                        {b?.assignments?.percentage != null ? `${b.assignments.percentage}%` : '—'}
+                      </td>
+                      <td className="px-1.5 py-1.5 text-right font-mono text-muted-foreground">
+                        {b?.terminal?.percentage != null ? `${b.terminal.percentage}%` : '—'}
+                      </td>
+                      <td className="px-2 py-1.5 text-right font-mono font-bold text-foreground">
+                        {s.percentage != null ? `${Number(s.percentage).toFixed(1)}%` : '—'}
+                      </td>
+                      <td className="px-2 py-1.5 text-right font-semibold">{s.grade || '—'}</td>
+                    </tr>
+                  );
+                })}
+                <tr className="font-bold bg-muted/30">
+                  <td className="px-2.5 py-2" colSpan={5}>Annual Overall Result</td>
+                  <td className="px-2 py-2 text-right font-mono text-navy font-bold">
                     {cardResult.percentage != null ? `${Number(cardResult.percentage).toFixed(1)}%` : '—'}
                   </td>
-                  <td className="px-3 py-2 text-right">{cardResult.overall_grade || '—'}</td>
+                  <td className="px-2 py-2 text-right font-bold">{cardResult.overall_grade || '—'}</td>
                 </tr>
               </tbody>
             </table>

@@ -23,12 +23,14 @@ export const performanceService = {
         policy = await performanceRepository.createPolicy({
           scope: 'GLOBAL',
           session_id: null,
-          version: 'v1.0.0',
-          policy_name: 'Standard Continuous Formative Policy',
-          monthly_test_weight: 40.00,
-          quiz_weight: 20.00,
-          mid_term_weight: 30.00,
+          version: 'v2.0.0',
+          policy_name: 'Unified Weighted Annual Grading Policy (25/15/10/50)',
+          mid_term_weight: 25.00,
+          monthly_test_weight: 15.00,
           homework_weight: 10.00,
+          quiz_weight: 0.00,
+          terminal_exam_weight: 50.00,
+          include_quizzes_in_assignments: true,
           critical_risk_threshold: 40.00,
           attention_threshold: 60.00,
           good_standing_threshold: 75.00,
@@ -58,14 +60,16 @@ export const performanceService = {
 
   async createPolicy(policyData, actor) {
     // Validate weight sum
-    const totalWeight =
-      Number(policyData.monthly_test_weight || 0) +
-      Number(policyData.quiz_weight || 0) +
-      Number(policyData.mid_term_weight || 0) +
-      Number(policyData.homework_weight || 0);
+    const mt = Number(policyData.mid_term_weight || 0);
+    const m = Number(policyData.monthly_test_weight || 0);
+    const a = Number(policyData.homework_weight ?? policyData.assignment_weight ?? 0);
+    const t = Number(policyData.terminal_exam_weight ?? 0);
+    const q = Number(policyData.quiz_weight || 0);
+
+    const totalWeight = mt + m + a + t + q;
 
     if (Math.round(totalWeight * 100) / 100 !== 100.00) {
-      throw new AppError('Formative weights must sum exactly to 100.00%', 422, ErrorCodes.VALIDATION_ERROR);
+      throw new AppError('Grading weights must sum exactly to 100.00%', 422, ErrorCodes.VALIDATION_ERROR);
     }
 
     // Validate threshold hierarchy

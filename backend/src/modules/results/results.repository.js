@@ -149,12 +149,180 @@ export const resultsRepository = {
     return { taskTotals, perStudent, examTaskCount: seenTasks.size };
   },
 
+  /**
+   * Unified 4-Category Assessment Extraction for annual weighted grading:
+   * 1. Mid-Term Exam (25%)
+   * 2. Monthly Tests (15%)
+   * 3. Tasks / Assignments (10%)
+   * 4. Terminal Exam (50%)
+   */
+  async getUnifiedCategoryAggregates({ classId, sessionId, termStart, termEnd, includeQuizzes = true }) {
+    // 1. Mid-Term Assessments
+    const midTermTests = await db('monthly_tests as mt')
+      .leftJoin('test_attempts as ta', 'ta.test_id', 'mt.id')
+      .where('mt.class_id', classId)
+      .where('mt.session_id', sessionId)
+      .where('mt.exam_type', 'MID_TERM')
+      .select(
+        db.raw('CONCAT("mt-", mt.id) as assessmentId'),
+        'mt.subject_id as subjectId',
+        'mt.total_marks as totalMarks',
+        'ta.student_id as studentId',
+        'ta.total_score as obtainedMarks',
+        'ta.status as attemptStatus'
+      );
+
+    let midTermPapers = [];
+    try {
+      if (await db.schema.hasTable('terminal_exam_papers')) {
+        midTermPapers = await db('terminal_exam_papers as tep')
+          .join('terminal_exams as te', 'tep.exam_id', 'te.id')
+          .leftJoin('terminal_exam_marks as tem', 'tem.paper_id', 'tep.id')
+          .where('tep.class_id', classId)
+          .where('te.session_id', sessionId)
+          .where(function () {
+            this.where('te.exam_type', 'MID_TERM').orWhere('tep.paper_name', 'like', '%mid%');
+          })
+          .select(
+            db.raw('CONCAT("tep-mid-", tep.id) as assessmentId'),
+            'tep.subject_id as subjectId',
+            'tep.total_marks as totalMarks',
+            'tem.student_id as studentId',
+            'tem.total_obtained as obtainedMarks',
+            'tem.status as attemptStatus'
+          );
+      }
+    } catch (_) {}
+
+    // 2. Monthly Tests Assessments
+    const monthlyTests = await db('monthly_tests as mt')
+      .leftJoin('test_attempts as ta', 'ta.test_id', 'mt.id')
+      .where('mt.class_id', classId)
+      .where('mt.session_id', sessionId)
+      .where('mt.exam_type', 'MONTHLY_TEST')
+      .select(
+        db.raw('CONCAT("monthly-", mt.id) as assessmentId'),
+        'mt.subject_id as subjectId',
+        'mt.total_marks as totalMarks',
+        'ta.student_id as studentId',
+        'ta.total_score as obtainedMarks',
+        'ta.status as attemptStatus'
+      );
+
+    // 3. Tasks / Assignments Assessments
+    let assignmentTasks = [];
+    try {
+      if (await db.schema.hasTable('learning_tasks')) {
+        assignmentTasks = await db('learning_tasks as lt')
+          .leftJoin('task_submissions as ts', 'ts.task_id', 'lt.id')
+          .where('lt.class_id', classId)
+          .where('lt.session_id', sessionId)
+          .where(function () {
+            if (includeQuizzes) {
+              this.whereIn('lt.task_type', ['ASSIGNMENT', 'QUIZ']);
+            } else {
+              this.where('lt.task_type', 'ASSIGNMENT');
+            }
+          })
+          .whereIn('lt.status', ['ACTIVE', 'ARCHIVED'])
+          .select(
+            db.raw('CONCAT("task-", lt.id) as assessmentId'),
+            'lt.subject_id as subjectId',
+            'lt.total_marks as totalMarks',
+            'ts.student_id as studentId',
+            'ts.marks_awarded as obtainedMarks',
+            'ts.status as attemptStatus'
+          );
+      }
+    } catch (_) {}
+
+    let quizTests = [];
+    if (includeQuizzes) {
+      quizTests = await db('monthly_tests as mt')
+        .leftJoin('test_attempts as ta', 'ta.test_id', 'mt.id')
+        .where('mt.class_id', classId)
+        .where('mt.session_id', sessionId)
+        .where('mt.exam_type', 'CLASS_QUIZ')
+        .select(
+          db.raw('CONCAT("quiz-", mt.id) as assessmentId'),
+          'mt.subject_id as subjectId',
+          'mt.total_marks as totalMarks',
+          'ta.student_id as studentId',
+          'ta.total_score as obtainedMarks',
+          'ta.status as attemptStatus'
+        );
+    }
+
+    // 4. Terminal Examination Papers
+    let terminalPapers = [];
+    try {
+      if (await db.schema.hasTable('terminal_exam_papers')) {
+        terminalPapers = await db('terminal_exam_papers as tep')
+          .join('terminal_exams as te', 'tep.exam_id', 'te.id')
+          .leftJoin('terminal_exam_marks as tem', 'tem.paper_id', 'tep.id')
+          .where('tep.class_id', classId)
+          .where('te.session_id', sessionId)
+          .whereNot('te.exam_type', 'MID_TERM')
+          .select(
+            db.raw('CONCAT("tep-final-", tep.id) as assessmentId'),
+            'tep.subject_id as subjectId',
+            'tep.total_marks as totalMarks',
+            'tem.student_id as studentId',
+            'tem.total_obtained as obtainedMarks',
+            'tem.status as attemptStatus'
+          );
+      }
+    } catch (_) {}
+
+    const terminalTests = await db('monthly_tests as mt')
+      .leftJoin('test_attempts as ta', 'ta.test_id', 'mt.id')
+      .where('mt.class_id', classId)
+      .where('mt.session_id', sessionId)
+      .whereIn('mt.exam_type', ['FINAL_TERM', 'TERM_EXAM'])
+      .select(
+        db.raw('CONCAT("mt-final-", mt.id) as assessmentId'),
+        'mt.subject_id as subjectId',
+        'mt.total_marks as totalMarks',
+        'ta.student_id as studentId',
+        'ta.total_score as obtainedMarks',
+        'ta.status as attemptStatus'
+      );
+
+    let terminalExamTasks = [];
+    try {
+      if (await db.schema.hasTable('learning_tasks')) {
+        terminalExamTasks = await db('learning_tasks as lt')
+          .leftJoin('task_submissions as ts', 'ts.task_id', 'lt.id')
+          .where('lt.class_id', classId)
+          .where('lt.session_id', sessionId)
+          .where('lt.task_type', 'EXAM')
+          .whereIn('lt.status', ['ACTIVE', 'ARCHIVED'])
+          .whereBetween('lt.deadline', [`${termStart} 00:00:00`, `${termEnd} 23:59:59`])
+          .select(
+            db.raw('CONCAT("task-exam-", lt.id) as assessmentId'),
+            'lt.subject_id as subjectId',
+            'lt.total_marks as totalMarks',
+            'ts.student_id as studentId',
+            'ts.marks_awarded as obtainedMarks',
+            'ts.status as attemptStatus'
+          );
+      }
+    } catch (_) {}
+
+    return {
+      midTermRows: [...midTermTests, ...midTermPapers],
+      monthlyRows: [...monthlyTests],
+      assignmentRows: [...assignmentTasks, ...quizTests],
+      terminalRows: [...terminalPapers, ...terminalTests, ...terminalExamTasks]
+    };
+  },
+
   async getResultByEnrollmentTerm(trx, enrollmentId, termId) {
     return await (trx || db)('final_results').where({ enrollment_id: enrollmentId, term_id: termId }).first();
   },
 
   async getResultSubjects(resultId, trx = null) {
-    return await (trx || db)('final_result_subjects')
+    const rows = await (trx || db)('final_result_subjects')
       .join('subjects', 'final_result_subjects.subject_id', 'subjects.id')
       .where('final_result_subjects.final_result_id', resultId)
       .select(
@@ -162,6 +330,20 @@ export const resultsRepository = {
         'subjects.name as subjectName',
         'subjects.code as subjectCode'
       );
+    return rows.map((r) => {
+      let breakdown = r.category_breakdown;
+      if (typeof breakdown === 'string') {
+        try {
+          breakdown = JSON.parse(breakdown);
+        } catch {
+          breakdown = null;
+        }
+      }
+      return {
+        ...r,
+        category_breakdown: breakdown
+      };
+    });
   },
 
   async getResultById(id) {
