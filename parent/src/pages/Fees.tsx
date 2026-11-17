@@ -344,18 +344,29 @@ function FeesContent() {
                   {detail.bankAccount?.instructions && (
                     <div className="text-[11px] text-primary italic mt-1 whitespace-pre-line break-words">{detail.bankAccount.instructions}</div>
                   )}
-                  {detail.paymentDetails?.qr.enabled && detail.paymentDetails.qr.url && (
-                    <div className="pt-2 break-inside-avoid">
+                  <div className="pt-2 flex flex-wrap items-start gap-4 break-inside-avoid">
+                    {/* Automatic information QR: challan details + verification link (not a payment QR) */}
+                    <div>
                       <img
-                        src={detail.paymentDetails.qr.url}
-                        alt="Payment QR code"
-                        className="w-28 h-28 object-contain bg-white border border-border rounded-sm p-0.5"
+                        src={`/api/v1/fees/challans/${detail.id}/info-qr`}
+                        alt="Challan details QR code"
+                        className="w-36 h-36 object-contain bg-white border border-border rounded-sm p-0.5"
                       />
-                      <div className="text-[10px] mt-0.5 max-w-[7rem] leading-tight break-words">
-                        Scan to pay{detail.paymentDetails.qr.label ? ` · ${detail.paymentDetails.qr.label}` : ''}
-                      </div>
+                      <div className="text-[10px] mt-0.5 max-w-[9rem] leading-tight">Scan for challan details &amp; verification</div>
                     </div>
-                  )}
+                    {detail.paymentDetails?.qr.enabled && detail.paymentDetails.qr.url && (
+                      <div>
+                        <img
+                          src={detail.paymentDetails.qr.url}
+                          alt="Payment QR code"
+                          className="w-28 h-28 object-contain bg-white border border-border rounded-sm p-0.5"
+                        />
+                        <div className="text-[10px] mt-0.5 max-w-[7rem] leading-tight break-words">
+                          Scan to pay{detail.paymentDetails.qr.label ? ` · ${detail.paymentDetails.qr.label}` : ''}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               <div>

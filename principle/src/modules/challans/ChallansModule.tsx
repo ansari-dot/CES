@@ -651,11 +651,22 @@ export const ChallansModule: React.FC = () => {
                   qrLabel={selectedChallan.paymentDetails?.qr.label}
                 />
               </div>
-              <div className="text-right">
-                <span className="text-slate-500 text-[11px] block">Due Date</span>
-                <span className="font-mono font-bold text-amber-700 text-sm">{selectedChallan.dueDate}</span>
-                <span className="text-[10px] text-slate-500 block">Status: {selectedChallan.status}</span>
-                <span className="text-[10px] text-slate-500 block">Invoice No: {selectedChallan.challanNumber}</span>
+              <div className="flex items-start gap-3 shrink-0">
+                <div className="text-right">
+                  <span className="text-slate-500 text-[11px] block">Due Date</span>
+                  <span className="font-mono font-bold text-amber-700 text-sm">{selectedChallan.dueDate}</span>
+                  <span className="text-[10px] text-slate-500 block">Status: {selectedChallan.status}</span>
+                  <span className="text-[10px] text-slate-500 block">Invoice No: {selectedChallan.challanNumber}</span>
+                </div>
+                {/* Automatic information QR: challan details + verification link (not a payment QR) */}
+                <div className="text-center break-inside-avoid">
+                  <img
+                    src={`/api/v1/fees/challans/${selectedChallan.id}/info-qr`}
+                    alt="Challan details QR code"
+                    className="w-36 h-36 object-contain bg-white border border-slate-200 rounded-md p-0.5"
+                  />
+                  <span className="text-[9px] text-slate-500 block mt-0.5 leading-tight">Scan for challan details &amp; verification</span>
+                </div>
               </div>
             </div>
 
