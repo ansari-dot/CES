@@ -69,18 +69,17 @@ interface ChallanDetail {
   }[];
 }
 
-const BREAKDOWN_LABELS: [string, string][] = [
-  ['tuition', 'Tuition Fee'],
-  ['technology', 'Technology Fee'],
-  ['examination', 'Examination Fee'],
-  ['books', 'Books'],
-  ['admission', 'Admission Fee'],
-  ['other', 'Other Charges'],
-  ['arrears', 'Arrears'],
-  ['lateFee', 'Late Fee'],
-];
-
 const statusLabel = (s: string) => CHALLAN_STATUS_LABELS[s] || s;
+
+/** Fee lines on each voucher copy; `true` = always shown (as on the Principal voucher). */
+const VOUCHER_LINES: [string, string, boolean][] = [
+  ['tuition', 'Tuition Fee', true],
+  ['technology', 'Tech & Zoom Fee', true],
+  ['examination', 'Exam Fee', true],
+  ['books', 'Books', false],
+  ['admission', 'Admission Fee', false],
+  ['other', 'Other Charges', false]
+];
 
 function PaymentProofForm({ studentId, challan, onDone }: { studentId: number; challan: ChallanDetail; onDone: () => void }) {
   const { showToast } = useParent();
@@ -182,7 +181,7 @@ function PaymentProofForm({ studentId, challan, onDone }: { studentId: number; c
 }
 
 function FeesContent() {
-  const { selectedChild, showToast, refreshDashboard, user } = useParent();
+  const { selectedChild, showToast, refreshDashboard } = useParent();
   const { data, loading, error, reload, studentId } = useChildData<ChallanRow[]>(
     (id) => `/api/v1/parents/me/children/${id}/challans`
   );
@@ -263,126 +262,196 @@ function FeesContent() {
       </div>
 
       {detail && studentId != null && (
-        <Modal isOpen={Boolean(detail)} onClose={() => setDetail(null)} title={`Fee Challan · ${detail.billingMonth}`} maxWidth="max-w-xl">
+        <Modal isOpen={Boolean(detail)} onClose={() => setDetail(null)} title={`Fee Challan · ${detail.billingMonth}`} maxWidth="max-w-4xl">
           <div className="space-y-4 text-sm" style={{ printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' } as React.CSSProperties}>
-            {/* Branded invoice header — Cambridge Education System template */}
-            <div className="bg-navy text-white rounded-md px-5 py-4 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center overflow-hidden shrink-0">
-                  <img src="/logowb.png" alt="Cambridge Education System logo" className="w-full h-full object-contain" />
-                </div>
-                <div className="leading-tight">
-                  <div className="font-headings font-extrabold tracking-wide text-lg">CAMBRIDGE</div>
-                  <div className="text-xs text-white/85">Education System</div>
-                </div>
-              </div>
-              <div className="font-headings font-extrabold text-2xl tracking-[0.2em]">INVOICE</div>
-            </div>
-
-            <div className="flex items-center justify-between gap-3 text-xs">
-              <div><span className="text-muted-foreground">Invoice No:</span> <span className="font-mono font-semibold">{detail.challanNumber}</span></div>
-              <div><span className="text-muted-foreground">Date :</span> <span className="font-semibold">{formatDate(detail.issueDate)}</span></div>
-              <StatusChip status={statusLabel(detail.status)} />
-            </div>
-
-            <div className="text-center font-headings font-bold text-sm underline underline-offset-4">INVOICE TO:</div>
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div>
-                <div className="font-headings font-bold underline underline-offset-4 mb-1.5">Student Details:</div>
-                <div className="space-y-0.5">
-                  <div className="font-semibold">{detail.studentName}</div>
-                  <div className="text-muted-foreground">{detail.className} · Admission No {detail.admissionNo}</div>
-                  <div className="text-muted-foreground">Session {detail.academicSession} · {detail.billingMonth}</div>
-                  <div className="text-muted-foreground font-mono">Consumer No (1Link): {detail.consumerNumber}</div>
-                  <div className="text-muted-foreground">Due {formatDate(detail.dueDate)} · Valid until {formatDate(detail.validUntil)}</div>
-                </div>
-              </div>
-              <div>
-                <div className="font-headings font-bold underline underline-offset-4 mb-1.5">Parents Details:</div>
-                <div className="space-y-0.5">
-                  <div className="font-semibold">{user?.fullName || '—'}</div>
-                  {user?.email && <div className="text-muted-foreground">{user.email}</div>}
-                  {user?.phone && <div className="text-muted-foreground">{user.phone}</div>}
-                </div>
-              </div>
-            </div>
-
-            <table className="w-full text-xs border border-border">
-              <thead>
-                <tr className="bg-navy text-white">
-                  <th className="px-3 py-2 text-left font-bold w-14">SR.NO</th>
-                  <th className="px-3 py-2 text-left font-bold">DESCRIPTION</th>
-                  <th className="px-3 py-2 text-right font-bold">TOTAL FEE</th>
-                  <th className="px-3 py-2 text-right font-bold">STATUS</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {BREAKDOWN_LABELS.filter(([key]) => Number(detail.breakdown[key]) > 0).map(([key, label], i) => (
-                  <tr key={key}>
-                    <td className="px-3 py-1.5 font-mono text-muted-foreground">{String(i + 1).padStart(2, '0')}</td>
-                    <td className="px-3 py-1.5">{label}</td>
-                    <td className="px-3 py-1.5 text-right">{rupees(detail.breakdown[key])}</td>
-                    <td className="px-3 py-1.5 text-right text-muted-foreground">{statusLabel(detail.status)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <div className="grid grid-cols-2 gap-4 text-xs items-start">
-              <div>
-                <div className="font-headings font-bold mb-1">Payment Method & Bank Details :</div>
-                <div className="space-y-0.5 text-muted-foreground">
-                  <div className="font-semibold text-foreground">
-                    {detail.bankAccount?.bankName || 'Meezan Bank'} {detail.bankAccount?.branchName ? `(${detail.bankAccount.branchName})` : 'F-11 MARKAZ, ISLAMABAD'}
+            {/* Printable voucher: same layout as the Principal portal's 3-part challan
+                (bank / school / student copies) so a downloaded challan matches the official one. */}
+            <div className="print-area space-y-4 text-xs">
+              {/* Branded invoice header */}
+              <div className="bg-[#1b1a47] text-white rounded-xl px-5 py-4 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center overflow-hidden shrink-0">
+                    <img src="/logo.jpeg" alt="Cambridge Education System logo" className="w-full h-full object-contain" />
                   </div>
-                  <div>Title: {detail.bankAccount?.accountTitle || 'CAMBRIDGE EDUCATION SYSTEM'}</div>
-                  <div className="font-mono font-medium text-foreground">Account Number : {detail.bankAccount?.accountNumber || '03060114428178'}</div>
-                  <div className="font-mono">IBAN : {detail.bankAccount?.iban || 'PK58MEZN0003060114428178'}</div>
-                  {detail.paymentDetails?.paymentMethod && (
-                    <div>Payment Method : <span className="font-medium text-foreground">{detail.paymentDetails.paymentMethod}</span></div>
-                  )}
-                  {detail.bankAccount?.instructions && (
-                    <div className="text-[11px] text-primary italic mt-1 whitespace-pre-line break-words">{detail.bankAccount.instructions}</div>
-                  )}
-                  <div className="pt-2 flex flex-wrap items-start gap-4 break-inside-avoid">
-                    {/* Automatic information QR: challan details + verification link (not a payment QR) */}
-                    <div>
-                      <img
-                        src={`/api/v1/fees/challans/${detail.id}/info-qr`}
-                        alt="Challan details QR code"
-                        className="w-36 h-36 object-contain bg-white border border-border rounded-sm p-0.5"
-                      />
-                      <div className="text-[10px] mt-0.5 max-w-[9rem] leading-tight">Scan for challan details &amp; verification</div>
+                  <div className="leading-tight">
+                    <div className="font-headings font-extrabold tracking-wide text-lg">CAMBRIDGE</div>
+                    <div className="text-[11px] text-white/85">Education System</div>
+                  </div>
+                </div>
+                <div className="font-headings font-extrabold text-2xl tracking-[0.2em]">INVOICE</div>
+              </div>
+
+              {/* Payment details + due date + QR codes */}
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <span className="text-slate-500 text-[11px] block">Payment Method &amp; Bank Details</span>
+                  <span className="font-semibold text-slate-900">
+                    {detail.bankAccount?.bankName || 'Meezan Bank'}{' '}
+                    {detail.bankAccount?.branchName ? `(${detail.bankAccount.branchName})` : 'F-11 MARKAZ, ISLAMABAD'}
+                  </span>
+                  <span className="text-[10px] text-slate-500 block">
+                    Title: {detail.bankAccount?.accountTitle || 'CAMBRIDGE EDUCATION SYSTEM'}
+                  </span>
+                  <span className="text-[10px] text-slate-700 block font-mono font-semibold">
+                    Account Number : {detail.bankAccount?.accountNumber || '03060114428178'}
+                  </span>
+                  <span className="text-[10px] text-slate-500 block font-mono">
+                    IBAN : {detail.bankAccount?.iban || 'PK58MEZN0003060114428178'}
+                  </span>
+                  <span className="text-[10px] text-slate-500 block font-mono">Consumer No (1Link) : {detail.consumerNumber}</span>
+                  <div className="flex items-start gap-3 mt-2 break-inside-avoid">
+                    <div className="flex-1 min-w-0 space-y-0.5">
+                      {detail.paymentDetails?.paymentMethod && (
+                        <span className="text-[10px] text-slate-500 block">
+                          Payment Method: <span className="font-semibold text-slate-700">{detail.paymentDetails.paymentMethod}</span>
+                        </span>
+                      )}
+                      {detail.bankAccount?.instructions && (
+                        <span className="text-[10px] text-slate-600 block whitespace-pre-line break-words">{detail.bankAccount.instructions}</span>
+                      )}
                     </div>
                     {detail.paymentDetails?.qr.enabled && detail.paymentDetails.qr.url && (
-                      <div>
+                      <div className="shrink-0 text-center break-inside-avoid">
                         <img
                           src={detail.paymentDetails.qr.url}
                           alt="Payment QR code"
-                          className="w-28 h-28 object-contain bg-white border border-border rounded-sm p-0.5"
+                          className="w-24 h-24 object-contain bg-white border border-slate-200 rounded-md p-0.5"
                         />
-                        <div className="text-[10px] mt-0.5 max-w-[7rem] leading-tight break-words">
+                        <span className="text-[9px] text-slate-500 block mt-0.5 max-w-[6rem] leading-tight break-words">
                           Scan to pay{detail.paymentDetails.qr.label ? ` · ${detail.paymentDetails.qr.label}` : ''}
-                        </div>
+                        </span>
                       </div>
                     )}
                   </div>
                 </div>
+                <div className="flex items-start gap-3 shrink-0">
+                  <div className="text-right">
+                    <span className="text-slate-500 text-[11px] block">Due Date</span>
+                    <span className="font-mono font-bold text-amber-700 text-sm">{detail.dueDate}</span>
+                    <span className="text-[10px] text-slate-500 block">Status: {statusLabel(detail.status)}</span>
+                    <span className="text-[10px] text-slate-500 block">Invoice No: {detail.challanNumber}</span>
+                  </div>
+                  {/* Automatic information QR: challan details + verification link (not a payment QR) */}
+                  <div className="text-center break-inside-avoid">
+                    <img
+                      src={`/api/v1/fees/challans/${detail.id}/info-qr`}
+                      alt="Challan details QR code"
+                      className="w-36 h-36 object-contain bg-white border border-slate-200 rounded-md p-0.5"
+                    />
+                    <span className="text-[9px] text-slate-500 block mt-0.5 leading-tight">Scan for challan details &amp; verification</span>
+                  </div>
+                </div>
               </div>
-              <div>
-                <div className="flex justify-between py-1 border-b border-border"><span className="text-muted-foreground">Sub-total :</span><span>{rupees(BREAKDOWN_LABELS.reduce((s, [key]) => s + (Number(detail.breakdown[key]) > 0 ? Number(detail.breakdown[key]) : 0), 0))}</span></div>
-                <div className="flex justify-between py-1 border-b border-border"><span className="text-muted-foreground">Discount:</span><span className="text-success">{Number(detail.breakdown.concession) > 0 ? `− ${rupees(detail.breakdown.concession)}` : '—'}</span></div>
-                <div className="flex justify-between py-1.5 font-bold border-b-2 border-navy"><span>Total :</span><span>{rupees(detail.totalPayable)}</span></div>
-                <div className="flex justify-between py-1"><span className="text-muted-foreground">Paid (verified)</span><span>{rupees(detail.paidAmount)}</span></div>
-                <div className="flex justify-between py-1 font-bold text-error"><span>Outstanding</span><span>{rupees(detail.outstandingBalance)}</span></div>
+
+              {/* 3 voucher copies, side by side on screen and on paper */}
+              <div className="grid grid-cols-1 md:grid-cols-3 print:grid-cols-3 gap-3">
+                {['Bank Copy', 'School Copy', 'Student / Parent Copy'].map((copyTitle) => (
+                  <div
+                    key={copyTitle}
+                    className="p-3.5 rounded-xl bg-white border border-slate-200 flex flex-col justify-between gap-3 text-[11px] shadow-2xs break-inside-avoid"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                        <span className="font-bold text-amber-700 text-[10px] uppercase tracking-wider">{copyTitle}</span>
+                        <span className="font-mono text-[10px] text-slate-400">{detail.challanNumber}</span>
+                      </div>
+
+                      <div className="my-1.5 p-1.5 rounded bg-slate-50 border border-slate-100 text-[10px]">
+                        <span className="text-slate-400 block">Bank Account:</span>
+                        <span className="font-bold text-slate-800">{detail.bankAccount?.bankName || 'Meezan Bank'}</span>
+                        <span className="font-mono text-slate-600 block">{detail.bankAccount?.accountNumber || '03060114428178'}</span>
+                        {detail.bankAccount?.accountTitle && (
+                          <span className="text-slate-500 block break-words">{detail.bankAccount.accountTitle}</span>
+                        )}
+                        {detail.paymentDetails?.qr.enabled && detail.paymentDetails.qr.url && copyTitle !== 'Bank Copy' && (
+                          <div className="mt-1.5 text-center break-inside-avoid">
+                            <img
+                              src={detail.paymentDetails.qr.url}
+                              alt="Payment QR code"
+                              className="w-16 h-16 object-contain bg-white border border-slate-200 rounded-md p-0.5 mx-auto"
+                            />
+                            <span className="text-[9px] text-slate-500 block mt-0.5 leading-tight">Scan to pay</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-2 space-y-1 text-slate-700">
+                        <div className="flex justify-between gap-2">
+                          <span className="text-slate-400">Student:</span>
+                          <span className="font-semibold text-slate-900 text-right">{detail.studentName}</span>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span className="text-slate-400">Class:</span>
+                          <span>{detail.className}</span>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span className="text-slate-400">Roll No:</span>
+                          <span className="font-mono">{detail.rollNo || '—'}</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 pt-2 border-t border-slate-100 space-y-1 font-mono">
+                        {VOUCHER_LINES.filter(([key, , always]) => always || Number(detail.breakdown[key]) > 0).map(([key, label]) => (
+                          <div key={key} className="flex justify-between text-slate-600">
+                            <span>{label}</span>
+                            <span>Rs. {Number(detail.breakdown[key] || 0).toLocaleString()}</span>
+                          </div>
+                        ))}
+                        {Number(detail.breakdown.concession) > 0 && (
+                          <div className="flex justify-between text-emerald-700 font-semibold">
+                            <span>Concession</span>
+                            <span>-Rs. {Number(detail.breakdown.concession).toLocaleString()}</span>
+                          </div>
+                        )}
+                        {Number(detail.breakdown.arrears) > 0 && (
+                          <div className="flex justify-between text-amber-700 font-semibold">
+                            <span>Previous Arrears</span>
+                            <span>+Rs. {Number(detail.breakdown.arrears).toLocaleString()}</span>
+                          </div>
+                        )}
+                        {Number(detail.breakdown.lateFee) > 0 && detail.status === 'OVERDUE' && (
+                          <div className="flex justify-between text-rose-700 font-semibold">
+                            <span>Late Fee</span>
+                            <span>+Rs. {Number(detail.breakdown.lateFee).toLocaleString()}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold text-xs">
+                          <span>Net Payable</span>
+                          <span>Rs. {Number(detail.totalPayable).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-dashed border-slate-200 text-[10px] text-slate-400 flex justify-between">
+                      <span>Officer Stamp / Sign</span>
+                      <span>Date: __________</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Branded contact footer */}
+              <div className="bg-[#1b1a47] text-white rounded-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 text-[11px]">
+                <span className="inline-flex items-center gap-1.5"><Phone className="w-3 h-3" /> 0300 511 8716</span>
+                <span className="inline-flex items-center gap-1.5"><Globe className="w-3 h-3" /> www.cambridgeeducation.uk.com</span>
+                <span className="inline-flex items-center gap-1.5"><MapPin className="w-3 h-3" /> Islamabad Pakistan</span>
               </div>
             </div>
 
-            {/* Branded contact footer */}
-            <div className="bg-navy text-white rounded-md px-4 py-2.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 text-[11px]">
-              <span className="inline-flex items-center gap-1.5"><Phone className="w-3 h-3" /> 0300 511 8716</span>
-              <span className="inline-flex items-center gap-1.5"><Globe className="w-3 h-3" /> www.cambridgeeducation.uk.com</span>
-              <span className="inline-flex items-center gap-1.5"><MapPin className="w-3 h-3" /> Islamabad Pakistan</span>
+            {/* Balance summary for the parent (screen only) */}
+            <div className="grid grid-cols-3 gap-3 text-xs print:hidden">
+              <div className="p-2.5 rounded-sm bg-muted/40 border border-border">
+                <span className="text-muted-foreground block">Net payable</span>
+                <span className="font-bold">{rupees(detail.totalPayable)}</span>
+              </div>
+              <div className="p-2.5 rounded-sm bg-muted/40 border border-border">
+                <span className="text-muted-foreground block">Paid (verified)</span>
+                <span className="font-bold text-success">{rupees(detail.paidAmount)}</span>
+              </div>
+              <div className="p-2.5 rounded-sm bg-muted/40 border border-border">
+                <span className="text-muted-foreground block">Outstanding</span>
+                <span className="font-bold text-error">{rupees(detail.outstandingBalance)}</span>
+              </div>
             </div>
 
             <div className="print:hidden">

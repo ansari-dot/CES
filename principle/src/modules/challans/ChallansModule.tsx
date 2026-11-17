@@ -729,6 +729,18 @@ export const ChallansModule: React.FC = () => {
                         <span>Exam Fee</span>
                         <span>Rs. {selectedChallan.breakdown.examinationFee.toLocaleString()}</span>
                       </div>
+                      {[
+                        ['Books', selectedChallan.breakdown.booksFee],
+                        ['Admission Fee', selectedChallan.breakdown.admissionFee],
+                        ['Other Charges', selectedChallan.breakdown.otherFee]
+                      ]
+                        .filter(([, amount]) => Number(amount) > 0)
+                        .map(([label, amount]) => (
+                          <div key={String(label)} className="flex justify-between text-slate-600">
+                            <span>{label}</span>
+                            <span>Rs. {Number(amount).toLocaleString()}</span>
+                          </div>
+                        ))}
                       {selectedChallan.breakdown.concessionAmount > 0 && (
                         <div className="flex justify-between text-emerald-700 font-semibold">
                           <span>Concession</span>
