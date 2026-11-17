@@ -15,6 +15,7 @@ import { hashPassword } from '../src/shared/crypto/password.js';
 import { aiQuizService, allocateMarks, validateGeneratedQuestions } from '../src/modules/assessments/aiQuiz.service.js';
 import { normalizeIban } from '../src/modules/fees/fees.paymentDetails.js';
 import { UPLOAD_ROOT } from '../src/shared/storage/upload.js';
+import { challanInfoQrService, createVerifyToken, maskName } from '../src/modules/fees/fees.infoQr.js';
 
 const PASSWORD = 'Fixture@Pass12345';
 const SUFFIX = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`;
@@ -546,6 +547,50 @@ describe('Challan payment details and QR code', () => {
     expect(JSON.parse(rev2.new_value).accountTitle).toBe('CES Fee Collection');
     expect(JSON.parse(rev2.previous_value).revision).toBe(1);
     expect(rev2.reason).toBe('Collect via the new fee account');
+  });
+
+  test('Information QR: PNG for authorised viewers only, encoding the current challan details', async () => {
+    const own = await as(actors.parentA).get(`/api/v1/fees/challans/${challanA}/info-qr`).buffer(true);
+    expect(own.status).toBe(200);
+    expect(own.headers['content-type']).toBe('image/png');
+    expect(own.body.subarray(0, 4).toString('hex')).toBe('89504e47');
+    expect((await as(actors.principal).get(`/api/v1/fees/challans/${challanA}/info-qr`)).status).toBe(200);
+    expect((await as(actors.parentB).get(`/api/v1/fees/challans/${challanA}/info-qr`)).status).toBe(403);
+    expect((await request(app).get(`/api/v1/fees/challans/${challanA}/info-qr`)).status).toBe(401);
+
+    const { text } = await challanInfoQrService.renderForUser({ id: 0, role: 'PRINCIPAL' }, challanA);
+    const challan = await db('fee_challans').where({ id: challanA }).first();
+    expect(text).toContain(`Challan: ${challan.challan_number}`);
+    expect(text).toContain(`Consumer No: ${challan.consumer_number}`);
+    expect(text).toContain(studentA.name);
+    expect(text).toContain('Payable by 10 Nov 2026: Rs 8,500');
+    // Frozen current revision, not the live default bank account
+    expect(text).toContain('Pay to: CES Fee Collection');
+    expect(text).toContain(`IBAN: ${VALID_IBAN}`);
+    expect(text).toMatch(/Verify: .*\/api\/v1\/public\/challans\/verify\/[0-9a-z]+\.[A-Za-z0-9_-]{22}$/);
+  });
+
+  test('Public verification page: genuine token shows masked details; tampered token is rejected', async () => {
+    const challan = await db('fee_challans').where({ id: challanA }).first();
+    const token = createVerifyToken(challan);
+    const ok = await request(app).get(`/api/v1/public/challans/verify/${token}`); // no login
+    expect(ok.status).toBe(200);
+    expect(ok.headers['content-type']).toMatch(/text\/html/);
+    expect(ok.text).toContain('Genuine fee challan');
+    expect(ok.text).toContain(challan.challan_number);
+    expect(ok.text).toContain('Rs 8,500');
+    expect(ok.text).toContain('CES Fee Collection');
+    expect(ok.text).toContain(maskName(studentA.name));
+    expect(ok.text).not.toContain(studentA.name);
+
+    const forged = token.slice(0, -1) + (token.endsWith('A') ? 'B' : 'A');
+    const bad = await request(app).get(`/api/v1/public/challans/verify/${forged}`);
+    expect(bad.status).toBe(404);
+    expect(bad.text).toContain('Not verified');
+    // A valid signature cannot be reused for another challan id
+    const otherId = Number(challanB).toString(36);
+    const swapped = await request(app).get(`/api/v1/public/challans/verify/${otherId}.${token.split('.')[1]}`);
+    expect(swapped.status).toBe(404);
   });
 });
 
