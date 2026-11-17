@@ -36,6 +36,9 @@ export interface MonthlyTest {
   teacher_name?: string;
   exam_type?: ExamType;
   date_sheet_entry_id?: number | null;
+  /** Set when the quiz was drafted with AI; PENDING_REVIEW must be confirmed before publishing */
+  ai_review_status?: 'NOT_APPLICABLE' | 'PENDING_REVIEW' | 'REVIEWED';
+  results_published_at?: string | null;
   term_name?: string | null;
   title: string;
   description?: string;
@@ -147,5 +150,71 @@ export interface GradeQuestionPayload {
 export interface GradeSubmissionPayload {
   grades: GradeQuestionPayload[];
   teacherRemarks?: string;
+  /** Required by the server when changing a result that is already published to parents */
+  correctionReason?: string;
 }
 
+
+// -------------------------------------------------------------
+// AI Quiz Generator
+// -------------------------------------------------------------
+export type AiQuestionType = 'MCQ' | 'TRUE_FALSE' | 'FILL_IN_THE_BLANK' | 'SHORT_ANSWER';
+export type AiDifficulty = 'EASY' | 'MEDIUM' | 'HARD' | 'MIXED';
+
+export interface AiStatus {
+  configured: boolean;
+  provider: string | null;
+  questionTypes: AiQuestionType[];
+  difficulties: AiDifficulty[];
+  maxQuestions: number;
+}
+
+interface AiContext {
+  classId: number;
+  subjectId: number;
+  topics: string[];
+  syllabus?: string;
+  instructions?: string;
+  allowOutsideSyllabus?: boolean;
+  idempotencyKey: string;
+}
+
+export interface AiGenerateQuizPayload extends AiContext {
+  title: string;
+  difficulty: AiDifficulty;
+  questionCount: number;
+  questionTypes: AiQuestionType[];
+  totalMarks: number;
+  durationMinutes: number;
+}
+
+export interface AiRegenerateQuestionPayload extends AiContext {
+  difficulty: Exclude<AiDifficulty, 'MIXED'>;
+  questionType: AiQuestionType;
+  marks: number;
+  existingQuestions: string[];
+}
+
+/** A drafted question in the quiz builder's format (maps onto the existing engine). */
+export interface AiDraftQuestion {
+  sectionName: string;
+  questionType: QuestionType;
+  prompt: string;
+  marks: number;
+  options: QuestionOption[];
+  correctOption: string;
+  rubricGuide: string;
+  aiMeta: { sourceType: AiQuestionType; difficulty: 'EASY' | 'MEDIUM' | 'HARD'; topic: string };
+}
+
+export interface AiGeneratedQuiz {
+  generationId: number;
+  cached: boolean;
+  provider: string | null;
+  model: string | null;
+  difficulty: AiDifficulty;
+  totalMarks: number;
+  durationMinutes: number;
+  title: string;
+  questions: AiDraftQuestion[];
+}

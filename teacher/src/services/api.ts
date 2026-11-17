@@ -140,7 +140,13 @@ export async function requestApi<T>(path: string, options: RequestInit = {}, isR
   json = normalizeApiDates(json);
 
   if (!res.ok || (json && json.success === false)) {
-    throw new Error(json?.error?.message || `API request failed (${res.status})`);
+    const apiError: Error & { status?: number; code?: string; details?: any } = new Error(
+      json?.error?.message || `API request failed (${res.status})`
+    );
+    apiError.status = res.status;
+    apiError.code = json?.error?.code;
+    apiError.details = json?.error?.details;
+    throw apiError;
   }
 
   return (json ? json.data : null) as T;

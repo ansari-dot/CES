@@ -46,6 +46,8 @@ export const TestGradingModal: React.FC<Props> = ({ testId, isOpen, onClose, onR
   const [gradingMarks, setGradingMarks] = useState<Record<number, number>>({});
   const [gradingFeedback, setGradingFeedback] = useState<Record<number, string>>({});
   const [teacherRemarks, setTeacherRemarks] = useState('');
+  // Changing a result parents can already see is an audited correction
+  const [correctionReason, setCorrectionReason] = useState('');
   const [isSavingGrades, setIsSavingGrades] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isNotifyingLow, setIsNotifyingLow] = useState(false);
@@ -78,6 +80,7 @@ export const TestGradingModal: React.FC<Props> = ({ testId, isOpen, onClose, onR
       setErrorMsg(null);
       const detail = await assessmentsApi.getAttemptDetail(testId, attemptId);
       setActiveAttemptDetail(detail);
+      setCorrectionReason('');
 
       // Initialize grading state
       const marksMap: Record<number, number> = {};
@@ -112,6 +115,12 @@ export const TestGradingModal: React.FC<Props> = ({ testId, isOpen, onClose, onR
       }
     }
 
+    const isCorrection = test?.status === 'RESULTS_PUBLISHED' && activeAttemptDetail.attempt.status === 'GRADED';
+    if (isCorrection && correctionReason.trim().length < 5) {
+      setErrorMsg('Results are already published to parents. Enter a reason for this correction (at least 5 characters).');
+      return;
+    }
+
     try {
       setIsSavingGrades(true);
       const gradesPayload = activeAttemptDetail.questions.map((q) => ({
@@ -122,8 +131,10 @@ export const TestGradingModal: React.FC<Props> = ({ testId, isOpen, onClose, onR
 
       await assessmentsApi.submitGrades(testId, activeAttemptDetail.attempt.id, {
         grades: gradesPayload,
-        teacherRemarks: teacherRemarks.trim() || undefined
+        teacherRemarks: teacherRemarks.trim() || undefined,
+        correctionReason: isCorrection ? correctionReason.trim() : undefined
       });
+      if (isCorrection) setCorrectionReason('');
 
       setSuccessMsg('Grades and feedback saved successfully!');
       setTimeout(() => setSuccessMsg(null), 3000);
@@ -622,6 +633,26 @@ export const TestGradingModal: React.FC<Props> = ({ testId, isOpen, onClose, onR
                   className="w-full text-xs border border-slate-200 rounded-lg p-2.5 bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
+
+              {test?.status === 'RESULTS_PUBLISHED' && activeAttemptDetail.attempt.status === 'GRADED' && (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+                  <label className="block text-xs font-bold text-amber-900">
+                    Reason for correcting a published result *
+                  </label>
+                  <p className="text-[11px] text-amber-800">
+                    Parents can already see this result. The change, its reason and the previous marks are kept in the audit history,
+                    and the parent is notified that the result was updated.
+                  </p>
+                  <input
+                    type="text"
+                    maxLength={500}
+                    placeholder="e.g. Re-marked Q2 after reviewing the answer sheet"
+                    value={correctionReason}
+                    onChange={(e) => setCorrectionReason(e.target.value)}
+                    className="w-full text-xs border border-amber-300 rounded-lg px-3 py-2 bg-white focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="flex items-center justify-end gap-3 pt-2">

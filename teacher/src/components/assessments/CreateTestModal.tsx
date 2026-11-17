@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useAppSelector } from '../../store';
 import { assessmentsApi } from '../../services/assessmentsApi';
 import { teacherDatesheetsApi } from '../../services/datesheetsApi';
-import { CreateTestPayload, QuestionType, QuestionOption, ExamType } from '../../types/assessments';
+import { CreateTestPayload, QuestionType, QuestionOption, ExamType, AiGeneratedQuiz, AiDraftQuestion } from '../../types/assessments';
+import { AiQuizGeneratorPanel, AiGenerationContext, AI_TYPE_LABELS, newIdempotencyKey } from './AiQuizGeneratorPanel';
 import {
   X,
   Plus,
@@ -12,7 +13,10 @@ import {
   Clock,
   Calendar,
   AlertCircle,
-  FileText
+  FileText,
+  Sparkles,
+  RefreshCw,
+  ShieldCheck
 } from 'lucide-react';
 
 interface Props {
@@ -30,7 +34,23 @@ interface LocalQuestion {
   options: QuestionOption[];
   correctOption: string;
   rubricGuide: string;
+  /** Present when the question was drafted by AI (kept after teacher edits). */
+  aiMeta?: AiDraftQuestion['aiMeta'];
 }
+
+const DIFFICULTY_LABELS: Record<string, string> = { EASY: 'Easy', MEDIUM: 'Medium', HARD: 'Hard' };
+
+const toLocalQuestion = (q: AiDraftQuestion, idx: number): LocalQuestion => ({
+  id: `ai_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
+  sectionName: q.sectionName,
+  questionType: q.questionType,
+  prompt: q.prompt,
+  marks: q.marks,
+  options: q.options?.length ? q.options.map((o) => ({ ...o })) : [],
+  correctOption: q.correctOption || '',
+  rubricGuide: q.rubricGuide || '',
+  aiMeta: q.aiMeta
+});
 
 export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated }) => {
   const teacher = useAppSelector((state) => state.auth.teacher);
@@ -207,7 +227,12 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  if (!isOpen) return null;
+  // AI drafting state: the generation id links the saved quiz to its AI request
+  // (server-side idempotency), and publishing requires an explicit review.
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [aiGeneration, setAiGeneration] = useState<{ id: number; context: AiGenerationContext } | null>(null);
+  const [aiReviewConfirmed, setAiReviewConfirmed] = useState(false);
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
 
   // Calculate total marks dynamically
   const calculatedTotalMarks = questions.reduce((acc, q) => acc + (Number(q.marks) || 0), 0);
@@ -217,6 +242,57 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
       setPassingMarks(Math.max(1, Math.round(calculatedTotalMarks * 0.4)));
     }
   }, [calculatedTotalMarks, passingMarksEdited]);
+
+  const subjectName = availableSubjects.find((s) => s.id === selectedSubjectId)?.name || '';
+  const hasAuthoredQuestions = questions.some((q) => q.prompt.trim());
+  const aiQuestionCount = questions.filter((q) => q.aiMeta).length;
+
+  const handleOpenAiPanel = () => {
+    setAiPanelOpen((open) => !open);
+    // AI drafting is aimed at quizzes; the category stays editable.
+    if (!aiPanelOpen && examType === 'MONTHLY_TEST' && !hasAuthoredQuestions) setExamType('CLASS_QUIZ');
+  };
+
+  const handleAiGenerated = (result: AiGeneratedQuiz, context: AiGenerationContext) => {
+    setQuestions(result.questions.map(toLocalQuestion));
+    setAiGeneration({ id: result.generationId, context });
+    setAiReviewConfirmed(false);
+    setPassingMarksEdited(false);
+    if (!title.trim() && result.title) setTitle(result.title);
+    setErrorMsg(null);
+    setAiPanelOpen(false);
+  };
+
+  const handleRegenerateQuestion = async (index: number) => {
+    const q = questions[index];
+    if (!q.aiMeta || !aiGeneration) return;
+    try {
+      setRegeneratingId(q.id);
+      setErrorMsg(null);
+      const res = await assessmentsApi.regenerateAiQuestion({
+        classId: selectedClassId,
+        subjectId: selectedSubjectId,
+        topics: aiGeneration.context.topics,
+        syllabus: aiGeneration.context.syllabus,
+        instructions: aiGeneration.context.instructions,
+        allowOutsideSyllabus: aiGeneration.context.allowOutsideSyllabus,
+        difficulty: q.aiMeta.difficulty,
+        questionType: q.aiMeta.sourceType,
+        marks: Number(q.marks) || 1,
+        existingQuestions: questions.filter((_, i) => i !== index).map((x) => x.prompt).filter(Boolean),
+        idempotencyKey: newIdempotencyKey()
+      });
+      const fresh = toLocalQuestion(res.question, index);
+      setQuestions((prev) => prev.map((x, i) => (i === index ? { ...fresh, sectionName: x.sectionName } : x)));
+      setAiReviewConfirmed(false);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Could not regenerate this question. Edit it manually instead.');
+    } finally {
+      setRegeneratingId(null);
+    }
+  };
+
+  if (!isOpen) return null;
 
   const handleClassChange = (cId: number) => {
     setSelectedClassId(cId);
@@ -260,10 +336,12 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
       setErrorMsg('A test must contain at least one question.');
       return;
     }
+    setAiReviewConfirmed(false);
     setQuestions(questions.filter((_, i) => i !== index));
   };
 
   const handleQuestionChange = (index: number, updates: Partial<LocalQuestion>) => {
+    setAiReviewConfirmed(false);
     setQuestions(
       questions.map((q, i) => (i === index ? { ...q, ...updates } : q))
     );
@@ -340,6 +418,11 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
       return;
     }
 
+    if (publishImmediately && aiGeneration && !aiReviewConfirmed) {
+      setErrorMsg('Tick the review confirmation below: every AI-generated question, answer key and mark must be checked before publishing. You can save a draft instead.');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
 
@@ -368,6 +451,8 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
         available_until: new Date(availableUntil).toISOString(),
         status: publishImmediately ? 'PUBLISHED' : 'DRAFT',
         publishImmediately,
+        aiGenerationId: aiGeneration?.id,
+        aiReviewConfirmed: aiGeneration ? aiReviewConfirmed : undefined,
         questions: questions.map((q) => ({
           sectionName: q.sectionName || 'Part 1',
           section_name: q.sectionName || 'Part 1',
@@ -600,6 +685,41 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
             </div>
           </div>
 
+          {/* AI Quiz Generator (drafts questions into the builder below) */}
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={handleOpenAiPanel}
+              className={`w-full sm:w-auto px-3.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition border ${
+                aiPanelOpen ? 'bg-indigo-100 border-indigo-300 text-indigo-800' : 'bg-white border-indigo-200 text-indigo-700 hover:bg-indigo-50'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              {aiPanelOpen ? 'Hide AI Generator' : aiGeneration ? 'Regenerate Quiz with AI' : 'Generate Quiz with AI'}
+            </button>
+            {aiPanelOpen && (
+              <AiQuizGeneratorPanel
+                classId={selectedClassId}
+                subjectId={selectedSubjectId}
+                subjectName={subjectName}
+                title={title}
+                durationMinutes={Number(durationMinutes)}
+                hasExistingQuestions={hasAuthoredQuestions}
+                onGenerated={handleAiGenerated}
+              />
+            )}
+            {aiGeneration && !aiPanelOpen && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900 flex items-start gap-2">
+                <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <span>
+                  <strong>AI draft loaded ({aiQuestionCount} AI questions).</strong> Review every question, option, answer key and mark
+                  below. Edit, delete, add your own or regenerate individual questions. The quiz is saved or published only when you
+                  choose to.
+                </span>
+              </div>
+            )}
+          </div>
+
           {/* Question Builder Section */}
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
@@ -673,6 +793,15 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
                           ? 'Short Answer'
                           : 'Long Answer'}
                       </span>
+                      {q.aiMeta && (
+                        <span
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1"
+                          title={`AI draft · ${AI_TYPE_LABELS[q.aiMeta.sourceType]} · Topic: ${q.aiMeta.topic}`}
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          AI · {AI_TYPE_LABELS[q.aiMeta.sourceType]} · {DIFFICULTY_LABELS[q.aiMeta.difficulty] || q.aiMeta.difficulty}
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-3">
@@ -688,6 +817,17 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
                         />
                       </div>
 
+                      {q.aiMeta && aiGeneration && (
+                        <button
+                          type="button"
+                          disabled={regeneratingId !== null}
+                          onClick={() => handleRegenerateQuestion(idx)}
+                          className="text-indigo-500 hover:text-indigo-700 p-1 rounded-md transition disabled:opacity-40"
+                          title="Regenerate this question with AI"
+                        >
+                          <RefreshCw className={`w-4 h-4 ${regeneratingId === q.id ? 'animate-spin' : ''}`} />
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleRemoveQuestion(idx)}
@@ -777,10 +917,26 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
 
         {/* Modal Footer */}
         <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="text-xs text-slate-600">
+          <div className="text-xs text-slate-600 space-y-1.5">
+            {aiGeneration && (
+              <label className="flex items-start gap-2 text-[11px] text-slate-700 font-semibold">
+                <input
+                  type="checkbox"
+                  checked={aiReviewConfirmed}
+                  onChange={(e) => setAiReviewConfirmed(e.target.checked)}
+                  className="mt-0.5 accent-emerald-600"
+                />
+                <span className="flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  I have reviewed every AI-generated question, answer key and mark.
+                </span>
+              </label>
+            )}
+            <div>
             Total: <span className="font-bold text-slate-900">{questions.length} Questions</span> |{' '}
             <span className="font-bold text-indigo-700">{calculatedTotalMarks} Marks</span> | Pass at{' '}
             <span className="font-bold text-slate-900">{passingMarks} Marks</span>
+            </div>
           </div>
 
           <div className="flex items-center gap-2 self-end sm:self-auto">
@@ -802,9 +958,10 @@ export const CreateTestModal: React.FC<Props> = ({ isOpen, onClose, onCreated })
             </button>
             <button
               type="button"
-              disabled={isSubmitting}
+              disabled={isSubmitting || (Boolean(aiGeneration) && !aiReviewConfirmed)}
+              title={aiGeneration && !aiReviewConfirmed ? 'Confirm you reviewed the AI questions to publish' : undefined}
               onClick={() => handleSubmit(true)}
-              className="px-5 py-2 bg-[#1b1a47] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition"
+              className="px-5 py-2 bg-[#1b1a47] hover:bg-[#ffc53a] hover:text-[#1b1a47] text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? 'Publishing...' : 'Publish Test Now'}
             </button>

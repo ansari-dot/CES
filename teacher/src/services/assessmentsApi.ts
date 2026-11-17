@@ -6,7 +6,12 @@ import {
   StudentAttemptDetail,
   GradeSubmissionPayload,
   TestStatus,
-  ExamType
+  ExamType,
+  AiStatus,
+  AiGenerateQuizPayload,
+  AiGeneratedQuiz,
+  AiRegenerateQuestionPayload,
+  AiDraftQuestion
 } from '../types/assessments';
 
 export const assessmentsApi = {
@@ -53,10 +58,35 @@ export const assessmentsApi = {
   /**
    * Transition test status (e.g. DRAFT -> PUBLISHED, PUBLISHED -> CLOSED, etc.)
    */
-  async updateTestStatus(testId: number, status: TestStatus): Promise<{ test: MonthlyTest }> {
+  async updateTestStatus(
+    testId: number,
+    status: TestStatus,
+    options: { confirmAiReview?: boolean } = {}
+  ): Promise<{ test: MonthlyTest }> {
     return requestApi<{ test: MonthlyTest }>(`/api/v1/assessments/${testId}/status`, {
       method: 'PATCH',
-      body: JSON.stringify({ status })
+      body: JSON.stringify({ status, ...options })
+    });
+  },
+
+  /** Whether AI quiz generation is configured on the server (keys stay server-side). */
+  async getAiStatus(): Promise<AiStatus> {
+    return requestApi<AiStatus>('/api/v1/assessments/ai/status');
+  },
+
+  /** Draft a quiz with AI. Nothing is saved as a quiz until the teacher saves it. */
+  async generateAiQuiz(payload: AiGenerateQuizPayload): Promise<AiGeneratedQuiz> {
+    return requestApi<AiGeneratedQuiz>('/api/v1/assessments/ai/generate', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  /** Replace one question with a fresh AI draft that avoids the existing questions. */
+  async regenerateAiQuestion(payload: AiRegenerateQuestionPayload): Promise<{ generationId: number; question: AiDraftQuestion }> {
+    return requestApi<{ generationId: number; question: AiDraftQuestion }>('/api/v1/assessments/ai/regenerate-question', {
+      method: 'POST',
+      body: JSON.stringify(payload)
     });
   },
 

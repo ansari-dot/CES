@@ -133,7 +133,17 @@ export const MonthlyTestsPage: React.FC = () => {
 
   const handleUpdateStatus = async (testId: number, status: TestStatus) => {
     try {
-      await assessmentsApi.updateTestStatus(testId, status);
+      // AI-drafted quizzes need an explicit review confirmation before going live
+      const target = tests.find((t) => t.id === testId);
+      let confirmAiReview: boolean | undefined;
+      if (status === 'PUBLISHED' && target?.ai_review_status === 'PENDING_REVIEW') {
+        const ok = window.confirm(
+          'This quiz was drafted with AI. Confirm that you have reviewed every question, answer key and mark before publishing it to students.'
+        );
+        if (!ok) return;
+        confirmAiReview = true;
+      }
+      await assessmentsApi.updateTestStatus(testId, status, confirmAiReview ? { confirmAiReview } : {});
       await loadTests();
     } catch (err: any) {
       alert(err.message || 'Failed to update test status.');
