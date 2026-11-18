@@ -131,10 +131,33 @@ export const StudentAnnualPerformanceSummary: React.FC<StudentAnnualPerformanceS
     <div className="space-y-6">
       {/* ── HEADER CARD: Student info & Academic Year Selector ───────────── */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 md:p-6 print:border-none print:shadow-none print:p-0">
+        {/* Printable Official School Letterhead (Visible only during print) */}
+        <div className="hidden print:flex items-center justify-between border-b-2 border-[#004aad] pb-4 mb-4">
+          <div className="flex items-center gap-3.5">
+            <img src="/logowb.png" alt="Cambridge Education System" className="w-16 h-16 object-contain" />
+            <div>
+              <h1 className="text-xl font-black tracking-tight text-[#004aad] uppercase">CAMBRIDGE EDUCATION SYSTEM</h1>
+              <p className="text-xs text-slate-700 font-bold">Official Terminal Examination &amp; Annual Academic Performance Transcript</p>
+              <p className="text-[10px] text-[#c8952b] font-semibold mt-0.5">Affiliated with Cambridge Assessment International Education • Cambridge Curriculum</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="text-xs font-mono font-bold text-slate-800 block">OFFICIAL RESULT CARD</span>
+            <span className="text-[10px] text-slate-500 block">Session: {session?.name} • Issued: {new Date().toLocaleDateString('en-GB')}</span>
+          </div>
+        </div>
+
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
           <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-900 flex items-center justify-center shrink-0">
-              <GraduationCap className="w-6 h-6" />
+            <div className="w-14 h-14 rounded-2xl bg-white border border-[#004aad]/25 p-1 shadow-xs flex items-center justify-center shrink-0">
+              <img
+                src="/logowb.png"
+                alt="Cambridge Education System"
+                className="w-full h-full object-contain"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = '/logo.jpeg';
+                }}
+              />
             </div>
             <div>
               <div className="flex items-center gap-2">
