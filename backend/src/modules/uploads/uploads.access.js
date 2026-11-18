@@ -16,7 +16,7 @@ export async function canAccessUploadedFile(user, fileUrl) {
 
   const safeFilename = fileUrl ? fileUrl.split('/').pop() : '';
 
-  const [submission, handoutTask, resource, proof, lesson] = await Promise.all([
+  const [submission, handoutTask, resource, proof, lesson, montessoriActivity] = await Promise.all([
     db('task_submissions')
       .join('learning_tasks', 'task_submissions.task_id', 'learning_tasks.id')
       .where(function () {
@@ -62,10 +62,20 @@ export async function canAccessUploadedFile(user, fileUrl) {
         }
       })
       .select('class_id', 'teacher_id')
+      .first(),
+    // Montessori activity attachments (section-scoped)
+    db('montessori_activities')
+      .where('attachment_url', fileUrl)
+      .select('section_id')
       .first()
+      .catch(() => null)
   ]);
 
   // Files not linked to any record are only available to staff and teachers
+  if (montessoriActivity) {
+    return canAccessMontessoriSection(user, montessoriActivity.section_id);
+  }
+
   if (!submission && !handoutTask && !resource && !proof && !lesson) {
     return user.role === 'TEACHER';
   }
@@ -104,4 +114,25 @@ export async function canAccessUploadedFile(user, fileUrl) {
   if (resource && resource.is_published && classIds.has(Number(resource.class_id))) return true;
   if (lesson && classIds.has(Number(lesson.class_id))) return true;
   return false;
+}
+
+/** Montessori attachments: assigned teachers, and students/parents of children allocated to the section. */
+async function canAccessMontessoriSection(user, sectionId) {
+  if (user.role === 'TEACHER') {
+    const teacher = await db('teachers').where({ user_id: user.id }).first();
+    if (!teacher) return false;
+    return Boolean(await db('montessori_teacher_assignments').where({ section_id: sectionId, teacher_id: teacher.id }).whereNull('ended_at').first());
+  }
+  let studentIds = [];
+  if (user.role === 'STUDENT') {
+    const student = await getStudentByUserId(user.id);
+    if (student) studentIds = [student.id];
+  } else if (user.role === 'PARENT') {
+    const { children } = await getParentChildren(user.id);
+    studentIds = children.map((c) => c.id);
+  }
+  if (!studentIds.length) return false;
+  return Boolean(
+    await db('montessori_student_allocations').where({ section_id: sectionId }).whereIn('student_id', studentIds).whereNull('ended_at').first()
+  );
 }

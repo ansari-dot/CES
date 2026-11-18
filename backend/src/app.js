@@ -23,6 +23,8 @@ import tasksRoutes from './modules/tasks/tasks.routes.js';
 import uploadsRoutes from './modules/uploads/uploads.routes.js';
 import feesRoutes from './modules/fees/fees.routes.js';
 import feesPublicRoutes from './modules/fees/fees.public.routes.js';
+import certificatesRoutes from './modules/certificates/certificates.routes.js';
+import montessoriRoutes from './modules/montessori/montessori.routes.js';
 import payrollRoutes from './modules/payroll/payroll.routes.js';
 import noticesRoutes from './modules/notices/notices.routes.js';
 import auditRoutes from './modules/audit/audit.routes.js';
@@ -148,6 +150,8 @@ export function createApp() {
   app.use('/api/v1/uploads', uploadsRoutes);
   app.use('/api/v1/fees', feesRoutes);
   app.use('/api/v1/public/challans', feesPublicRoutes);
+  app.use('/api/v1/certificates', certificatesRoutes);
+  app.use('/api/v1/montessori', montessoriRoutes);
   app.use('/api/v1/payroll', payrollRoutes);
   app.use('/api/v1/notices', noticesRoutes);
   app.use('/api/v1/audit', auditRoutes);
