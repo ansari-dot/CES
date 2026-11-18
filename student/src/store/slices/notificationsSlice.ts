@@ -61,6 +61,8 @@ function linkFor(recordType: string | undefined, type: string): string {
       return '/student/learning';
     case 'Achievement':
       return '/student/achievements';
+    case 'Certificate':
+      return '/student/achievements?tab=certificates';
     case 'Notice':
       return '';
     default:

@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
+import { useSearchParams } from 'react-router-dom';
 import { Star, Award, Trophy, ScrollText, MessageSquareText } from 'lucide-react';
 import { RootState } from '../store';
 import { requestApi } from '../services/api';
 import { LoadingBlock } from '../components/common/LoadingBlock';
+import CertificatesSection, { StudentCertificate } from '../components/certificates/CertificatesSection';
 
 interface AchievementRecord {
   id: number;
@@ -32,6 +34,26 @@ export default function Achievements() {
   const [records, setRecords] = useState<AchievementRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Badges / Certificates switch (?tab=certificates opens certificates, e.g. from a notification)
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view = searchParams.get('tab') === 'certificates' ? 'certificates' : 'badges';
+  const [certificates, setCertificates] = useState<StudentCertificate[]>([]);
+  const [certLoading, setCertLoading] = useState(true);
+  const [certError, setCertError] = useState<string | null>(null);
+
+  // Certificates load independently, so a failure never hides the badges
+  const loadCertificates = useCallback(() => {
+    setCertLoading(true);
+    setCertError(null);
+    requestApi<StudentCertificate[]>('/api/v1/certificates/mine')
+      .then((data) => setCertificates(Array.isArray(data) ? data : []))
+      .catch((err: any) => setCertError(err.message || 'Failed to load certificates'))
+      .finally(() => setCertLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadCertificates();
+  }, [loadCertificates]);
 
   useEffect(() => {
     // Only published records for the signed-in student are returned by the server
@@ -64,7 +86,7 @@ export default function Achievements() {
           </div>
           <div>
             <div className="font-headings font-bold text-2xl">
-              {totalStars} Stars · {badges.length} Badges
+              {totalStars} Stars · {badges.length} Badges · {certificates.filter((c) => c.status === 'ACTIVE').length} Certificates
             </div>
             <div className="text-xs opacity-80 mt-0.5">
               {records.length > 0
@@ -80,6 +102,27 @@ export default function Achievements() {
         </div>
       </div>
 
+      <div className="flex gap-1.5">
+        {(['badges', 'certificates'] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setSearchParams(v === 'certificates' ? { tab: 'certificates' } : {})}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer ${
+              view === v ? 'bg-foreground text-card font-bold' : 'bg-card border border-border text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            {v === 'badges' ? 'Badges' : `Certificates${certificates.length ? ` (${certificates.length})` : ''}`}
+          </button>
+        ))}
+      </div>
+
+      {view === 'certificates' ? (
+        <>
+          <div className="font-headings font-bold text-base text-foreground">Your certificates</div>
+          <CertificatesSection items={certificates} loading={certLoading} error={certError} onRetry={loadCertificates} />
+        </>
+      ) : (
+      <>
       <div className="font-headings font-bold text-base text-foreground">Your badges</div>
       {badges.length === 0 ? (
         <div className="bg-card border border-dashed border-border rounded-md p-8 text-center text-sm text-muted-foreground">
@@ -129,6 +172,8 @@ export default function Achievements() {
             ))}
           </div>
         </>
+      )}
+      </>
       )}
     </div>
   );

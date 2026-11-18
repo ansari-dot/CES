@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Star, Award, Trophy, ScrollText, MessageSquareText } from 'lucide-react';
 import { useChildData, useParent } from '../context/ParentContext';
 import { RequireChild, LoadingBlock, ErrorBlock, EmptyBlock } from '../components/common';
 import { formatDate } from '../lib/format';
+import CertificatesSection, { StudentCertificate } from '../components/certificates/CertificatesSection';
 
 interface AchievementRow {
   id: number;
@@ -26,6 +27,9 @@ const BADGE_STYLES: Record<string, { icon: React.ElementType; color: string }> =
 function AchievementsContent() {
   const { selectedChild } = useParent();
   const { data, loading, error, reload } = useChildData<AchievementRow[]>((id) => `/api/v1/parents/me/children/${id}/achievements`);
+  // Certificates load separately so a failure never hides the badges
+  const certs = useChildData<StudentCertificate[]>((id) => `/api/v1/certificates/children/${id}`);
+  const [view, setView] = useState<'badges' | 'certificates'>('badges');
 
   if (loading && !data) return <LoadingBlock message="Loading achievements…" />;
   if (error) return <ErrorBlock message={error} onRetry={reload} />;
@@ -41,12 +45,30 @@ function AchievementsContent() {
           <Award className="w-6 h-6 text-white" />
         </div>
         <div>
-          <div className="font-headings font-bold text-2xl">{stars} Stars · {badges.length} Badges</div>
+          <div className="font-headings font-bold text-2xl">
+            {stars} Stars · {badges.length} Badges · {(certs.data || []).filter((c) => c.status === 'ACTIVE').length} Certificates
+          </div>
           <div className="text-xs opacity-80 mt-0.5">Recognition earned by {selectedChild?.studentName}</div>
         </div>
       </div>
 
-      {items.length === 0 ? (
+      <div className="flex gap-1.5">
+        {(['badges', 'certificates'] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer ${
+              view === v ? 'bg-foreground text-card font-bold' : 'bg-card border border-border text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            {v === 'badges' ? 'Badges & Feedback' : `Certificates${certs.data?.length ? ` (${certs.data.length})` : ''}`}
+          </button>
+        ))}
+      </div>
+
+      {view === 'certificates' ? (
+        <CertificatesSection items={certs.data || []} loading={certs.loading && !certs.data} error={certs.error} onRetry={certs.reload} />
+      ) : items.length === 0 ? (
         <EmptyBlock title="No achievements or feedback yet" description="Badges and comments shared by teachers will appear here." />
       ) : (
         <>
