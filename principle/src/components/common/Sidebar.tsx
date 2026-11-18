@@ -47,12 +47,21 @@ export type ActiveModule =
   | 'payroll'
   | 'academic-oversight'
   | 'academic-year'
+  | 'certificates'
   | 'notices'
   | 'notifications'
   | 'reports'
   | 'audit'
   | 'password-resets'
   | 'chat-oversight'
+  | 'montessori-dashboard'
+  | 'montessori-sections'
+  | 'montessori-teachers'
+  | 'montessori-students'
+  | 'montessori-attendance'
+  | 'montessori-activities'
+  | 'montessori-progress'
+  | 'montessori-reports'
   | 'profile';
 
 interface SidebarProps {
@@ -97,6 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     personnel: false,
     academics: false,
     examinations: false,
+    montessori: false,
     financials: false,
     governance: false
   });
@@ -107,8 +117,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       setExpandedDropdowns((prev) => ({ ...prev, personnel: true }));
     } else if (['academics', 'academic-calendar', 'timetable', 'zoom', 'attendance'].includes(activeModule)) {
       setExpandedDropdowns((prev) => ({ ...prev, academics: true }));
-    } else if (['datesheets', 'academic-oversight', 'academic-year'].includes(activeModule)) {
+    } else if (['datesheets', 'academic-oversight', 'academic-year', 'certificates'].includes(activeModule)) {
       setExpandedDropdowns((prev) => ({ ...prev, examinations: true }));
+    } else if (activeModule.startsWith('montessori-')) {
+      setExpandedDropdowns((prev) => ({ ...prev, montessori: true }));
     } else if (['fees', 'challans', 'payments', 'restricted-students', 'payroll'].includes(activeModule)) {
       setExpandedDropdowns((prev) => ({ ...prev, financials: true }));
     } else if (['notices', 'reports', 'audit', 'chat-oversight'].includes(activeModule)) {
@@ -166,7 +178,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
       subItems: [
         { id: 'datesheets', label: 'Official Date Sheets', icon: Calendar },
         { id: 'academic-oversight', label: 'Terminal Exam Results', icon: Trophy },
+        { id: 'certificates', label: 'Student Certificates', icon: FileCheck2 },
         { id: 'academic-year', label: 'Year & Promotions', icon: GraduationCap }
+      ]
+    },
+    {
+      // Montessori Management: separate from Regular Class Management
+      id: 'montessori',
+      label: 'Montessori',
+      icon: Sparkles,
+      subItems: [
+        { id: 'montessori-dashboard', label: 'Montessori Dashboard', icon: LayoutDashboard },
+        { id: 'montessori-sections', label: 'KG Sections', icon: Layers },
+        { id: 'montessori-teachers', label: 'Montessori Teachers', icon: Users },
+        { id: 'montessori-students', label: 'Student Allocation', icon: GraduationCap },
+        { id: 'montessori-attendance', label: 'Montessori Attendance', icon: Clock },
+        { id: 'montessori-activities', label: 'Daily Activities', icon: BookOpen },
+        { id: 'montessori-progress', label: 'Student Progress', icon: Sparkles },
+        { id: 'montessori-reports', label: 'Progress Reports', icon: FileText },
       ]
     },
     {

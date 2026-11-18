@@ -23,6 +23,14 @@ import { PaymentVerificationModule } from './modules/payments/PaymentVerificatio
 import { RestrictedStudentsModule } from './modules/restricted-students/RestrictedStudentsModule';
 import { TeacherPayrollModule } from './modules/payroll/TeacherPayrollModule';
 import { AcademicOversightModule } from './modules/academic-oversight/AcademicOversightModule';
+import { CertificatesModule } from './modules/certificates/CertificatesModule';
+import { MontessoriDashboard } from './modules/montessori/MontessoriDashboard';
+import { MontessoriSections } from './modules/montessori/MontessoriSections';
+import { MontessoriTeachers } from './modules/montessori/MontessoriTeachers';
+import { MontessoriStudents } from './modules/montessori/MontessoriStudents';
+import { MontessoriAttendance } from './modules/montessori/MontessoriAttendance';
+import { MontessoriActivities, MontessoriProgress } from './modules/montessori/MontessoriActivitiesProgress';
+import { MontessoriReports } from './modules/montessori/MontessoriReports';
 import { AcademicYearModule } from './modules/academic-year/AcademicYearModule';
 import { PasswordResetsModule } from './modules/password-resets/PasswordResetsModule';
 import { NoticesModule } from './modules/notices/NoticesModule';
@@ -141,6 +149,24 @@ function PrincipalPortalApp() {
         return <TeacherPayrollModule />;
       case 'academic-oversight':
         return <AcademicOversightModule />;
+      case 'certificates':
+        return <CertificatesModule />;
+      case 'montessori-dashboard':
+        return <MontessoriDashboard onNavigate={(m) => setActiveModule(m)} />;
+      case 'montessori-sections':
+        return <MontessoriSections />;
+      case 'montessori-teachers':
+        return <MontessoriTeachers />;
+      case 'montessori-students':
+        return <MontessoriStudents />;
+      case 'montessori-attendance':
+        return <MontessoriAttendance />;
+      case 'montessori-activities':
+        return <MontessoriActivities />;
+      case 'montessori-progress':
+        return <MontessoriProgress />;
+      case 'montessori-reports':
+        return <MontessoriReports />;
       case 'academic-year':
         return <AcademicYearModule />;
       case 'password-resets':
