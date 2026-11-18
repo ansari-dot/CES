@@ -19,6 +19,7 @@ import { LearningResourcesPage } from './pages/LearningResourcesPage';
 import { StudentPerformancePage } from './pages/StudentPerformancePage';
 import { ExamResultsPage } from './pages/ExamResultsPage';
 import { AchievementsFeedbackPage } from './pages/AchievementsFeedbackPage';
+import { MontessoriWorkspacePage } from './pages/MontessoriWorkspacePage';
 import { NoticesPage } from './pages/NoticesPage';
 import { DutySalaryPage } from './pages/DutySalaryPage';
 import { ProfileSettingsPage } from './pages/ProfileSettingsPage';
@@ -144,6 +145,14 @@ export default function App() {
         return <ProfileSettingsPage />;
       case 'student-mistakes':
         return <StudentMistakesPage />;
+      case 'montessori-class':
+        return <MontessoriWorkspacePage view="class" />;
+      case 'montessori-attendance':
+        return <MontessoriWorkspacePage view="attendance" />;
+      case 'montessori-activities':
+        return <MontessoriWorkspacePage view="activities" />;
+      case 'montessori-progress':
+        return <MontessoriWorkspacePage view="progress" />;
       case 'student-chat':
         return <StudentChatPage />;
       default:

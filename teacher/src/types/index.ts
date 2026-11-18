@@ -16,7 +16,11 @@ export type NavTab =
   | 'duty-salary'
   | 'profile-settings'
   | 'student-mistakes'
-  | 'student-chat';
+  | 'student-chat'
+  | 'montessori-class'
+  | 'montessori-attendance'
+  | 'montessori-activities'
+  | 'montessori-progress';
 
 export interface AssignedClass {
   id: string;

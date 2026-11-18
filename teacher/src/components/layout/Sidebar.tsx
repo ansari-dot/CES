@@ -3,6 +3,7 @@ import { useAppDispatch, useAppSelector } from '../../store';
 import { logoutTeacherThunk } from '../../store/slices/authSlice';
 import { setCurrentTab, closeMobileSidebar, addToast } from '../../store/slices/uiSlice';
 import { NavTab } from '../../types';
+import { montessoriApi } from '../../services/montessoriApi';
 import {
   Home,
   Layers,
@@ -70,7 +71,17 @@ export const Sidebar: React.FC = () => {
     classes: false,
     assessments: false,
     resources: false,
+    montessori: false,
   });
+
+  // The Montessori group is shown only to teachers with an active Montessori assignment
+  const [hasMontessori, setHasMontessori] = useState(false);
+  useEffect(() => {
+    montessoriApi
+      .mySections()
+      .then((s) => setHasMontessori(Array.isArray(s) && s.length > 0))
+      .catch(() => setHasMontessori(false));
+  }, []);
 
   // Automatically expand parent dropdown if active tab belongs to its children
   useEffect(() => {
@@ -78,6 +89,8 @@ export const Sidebar: React.FC = () => {
       setExpandedDropdowns((prev) => ({ ...prev, classes: true }));
     } else if (['monthly-tests', 'exam-results', 'datesheet', 'achievements-feedback', 'student-mistakes'].includes(currentTab)) {
       setExpandedDropdowns((prev) => ({ ...prev, assessments: true }));
+    } else if (currentTab.startsWith('montessori-')) {
+      setExpandedDropdowns((prev) => ({ ...prev, montessori: true }));
     } else if (['learning-resources', 'student-projects', 'notices', 'duty-salary'].includes(currentTab)) {
       setExpandedDropdowns((prev) => ({ ...prev, resources: true }));
     }
@@ -159,6 +172,21 @@ export const Sidebar: React.FC = () => {
         { id: 'student-mistakes', label: 'Student Mistakes', icon: AlertCircle },
       ],
     },
+    ...(hasMontessori
+      ? [
+          {
+            id: 'montessori',
+            label: 'Montessori Class',
+            icon: Sparkles,
+            subItems: [
+              { id: 'montessori-class' as NavTab, label: 'My Class & Students', icon: Users },
+              { id: 'montessori-attendance' as NavTab, label: 'Attendance', icon: CheckCircle2 },
+              { id: 'montessori-activities' as NavTab, label: 'Daily Activities', icon: BookOpen },
+              { id: 'montessori-progress' as NavTab, label: 'Progress & History', icon: BarChart3 },
+            ],
+          } as NavItemConfig,
+        ]
+      : []),
     {
       id: 'resources',
       label: 'Resources',
