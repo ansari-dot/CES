@@ -158,6 +158,42 @@ export async function requestApi<T>(path: string, options: RequestInit = {}, isR
  * server can check the user's access before anything is shown. External links
  * can also be downloaded or opened directly.
  */
+/**
+ * Request a binary response (e.g. a generated PDF preview) with the same session,
+ * CSRF and refresh handling as requestApi. Error bodies are read as the usual JSON.
+ */
+export async function requestBlob(path: string, options: RequestInit = {}, isRetry = false): Promise<Blob> {
+  const headers = new Headers(options.headers || {});
+  if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  const method = (options.method || 'GET').toUpperCase();
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const csrf = await getCsrfHeader();
+    if (csrf) headers.set('X-CSRF-Token', csrf);
+  }
+  const res = await fetch(path, { ...options, headers, credentials: 'include' });
+  if (res.status === 401 && !isRetry && (await executeTokenRefresh())) {
+    return requestBlob(path, options, true);
+  }
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`;
+    let details: any;
+    try {
+      const json = await res.json();
+      message = json?.error?.message || message;
+      details = json?.error?.details;
+    } catch {
+      // non-JSON error body
+    }
+    const err: Error & { status?: number; details?: any } = new Error(message);
+    err.status = res.status;
+    err.details = details;
+    throw err;
+  }
+  return res.blob();
+}
+
 export async function openProtectedFile(url: string, fileName?: string, download = false): Promise<void> {
   if (!url) throw new Error('No file is attached');
 

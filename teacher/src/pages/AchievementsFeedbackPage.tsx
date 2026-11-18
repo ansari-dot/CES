@@ -20,8 +20,12 @@ import {
   Lock,
   X,
   Send,
-  FileText
+  FileText,
+  ScrollText,
+  History
 } from 'lucide-react';
+import { IssueCertificatePanel } from '../components/certificates/IssueCertificatePanel';
+import { CertificateHistoryPanel } from '../components/certificates/CertificateHistoryPanel';
 
 const BADGE_ICONS: Record<AchievementItem['badgeType'], string> = {
   star: '⭐',
@@ -37,6 +41,8 @@ export const AchievementsFeedbackPage: React.FC = () => {
   const metrics = useAppSelector((state) => state.performance.metrics);
   const assignedClasses = useAppSelector((state) => state.auth.teacher.assignedClasses || []);
 
+  const [tab, setTab] = useState<'badges' | 'issue' | 'history'>('badges');
+  const [historyRefresh, setHistoryRefresh] = useState(0);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [studentId, setStudentId] = useState(metrics[0]?.studentId || '');
   const [badgeType, setBadgeType] = useState<AchievementItem['badgeType']>('star');
@@ -189,6 +195,31 @@ export const AchievementsFeedbackPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Recognition tabs: existing badges & feedback, plus certificates */}
+      <div className="flex flex-wrap gap-1.5">
+        {([
+          ['badges', 'Badges & Feedback', Award],
+          ['issue', 'Issue Certificate', ScrollText],
+          ['history', 'Issued Certificates', History]
+        ] as const).map(([id, label, Icon]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition ${
+              tab === id ? 'bg-[#36348e] text-white border-[#36348e] shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <Icon className="w-3.5 h-3.5" /> {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'issue' && <IssueCertificatePanel onIssued={() => setHistoryRefresh((n) => n + 1)} />}
+      {tab === 'history' && <CertificateHistoryPanel refreshKey={historyRefresh} />}
+
+      {tab === 'badges' && (
+      <>
       {/* ------------------------------------------------------------- */}
       {/* 2. TOP 4 WAVE KPI CARDS */}
       {/* ------------------------------------------------------------- */}
@@ -558,6 +589,8 @@ export const AchievementsFeedbackPage: React.FC = () => {
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 };
