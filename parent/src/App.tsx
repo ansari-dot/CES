@@ -11,6 +11,7 @@ import Fees from './pages/Fees';
 import Results from './pages/Results';
 import Assignments from './pages/Assignments';
 import Achievements from './pages/Achievements';
+import Montessori from './pages/Montessori';
 import Notices from './pages/Notices';
 import Profile from './pages/Profile';
 
@@ -185,6 +186,7 @@ export default function App() {
         <Route path="results" element={<Results />} />
         <Route path="assignments" element={<Assignments />} />
         <Route path="achievements" element={<Achievements />} />
+        <Route path="montessori" element={<Montessori />} />
         <Route path="notices" element={<Notices />} />
         <Route path="profile" element={<Profile />} />
       </Route>

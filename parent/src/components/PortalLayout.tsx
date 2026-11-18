@@ -12,8 +12,10 @@ import {
   Menu,
   Settings,
   Users,
+  Sparkles,
 } from 'lucide-react';
 import { useParent } from '../context/ParentContext';
+import { requestApi } from '../services/api';
 import { Toast } from './common';
 import { useSectionBadges } from '../hooks/useSectionBadges';
 import { badgeLabel } from '../lib/sectionBadges';
@@ -37,6 +39,7 @@ const PAGE_INFO: Record<string, { title: string; subtitle: string }> = {
   '/parent/achievements': { title: 'Achievements & Feedback', subtitle: 'Recognition and comments from teachers' },
   '/parent/notices': { title: 'Notices & Circulars', subtitle: 'Announcements from the school and your children\'s teachers' },
   '/parent/profile': { title: 'My Profile', subtitle: 'Account details and password' },
+  '/parent/montessori': { title: 'Montessori Progress', subtitle: 'Daily activities, attendance and teacher remarks' },
 };
 
 function Sidebar({ onNavigate, onLogout }: { onNavigate?: () => void; onLogout: () => void }) {
@@ -48,6 +51,16 @@ function Sidebar({ onNavigate, onLogout }: { onNavigate?: () => void; onLogout: 
   const activityCounts = useSectionBadges();
   const childCount = dashboard?.children.length ?? null;
   const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=36348e&color=fff`;
+  // Montessori link only when a linked child is allocated to a Montessori section
+  const [hasMontessori, setHasMontessori] = useState(false);
+  React.useEffect(() => {
+    requestApi<{ studentId: number }[]>('/api/v1/montessori/parent/children')
+      .then((rows) => setHasMontessori(Array.isArray(rows) && rows.length > 0))
+      .catch(() => setHasMontessori(false));
+  }, []);
+  const navItems = hasMontessori
+    ? [...NAV_ITEMS.slice(0, 4), { name: 'Montessori Progress', path: '/parent/montessori', icon: Sparkles }, ...NAV_ITEMS.slice(4)]
+    : NAV_ITEMS;
 
   const openSettings = () => {
     navigate('/parent/profile');
@@ -75,7 +88,7 @@ function Sidebar({ onNavigate, onLogout }: { onNavigate?: () => void; onLogout: 
 
         {/* Navigation */}
         <nav className="px-2.5 py-1.5 space-y-0.5 text-xs flex-1">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon;
             const count = activityCounts[item.path] || 0;
             const badge = count > 0 ? badgeLabel(count) : null;
