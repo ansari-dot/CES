@@ -167,18 +167,29 @@ export const StudentAnnualPerformanceSummary: React.FC<StudentAnnualPerformanceS
             </button>
           ) : null}
 
-          <div>
-            <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-              <GraduationCap className="w-5 h-5 text-primary" />
-              <span>
-                {selectedSubjectId && detailedMarks
-                  ? `${detailedMarks.subject?.name} — Detailed Marks`
-                  : 'Annual Academic Performance Summary'}
-              </span>
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Official 4-Category Weighted Evaluation Policy (Mid-Term 25% · Monthly Tests 15% · Tasks 10% · Terminal 50%)
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-white border border-[#004aad]/25 p-1 shadow-xs flex items-center justify-center shrink-0">
+              <img
+                src="/logowb.png"
+                alt="Cambridge Education System"
+                className="w-full h-full object-contain"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = '/logo.jpeg';
+                }}
+              />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                <span>
+                  {selectedSubjectId && detailedMarks
+                    ? `${detailedMarks.subject?.name} — Detailed Marks`
+                    : 'Annual Academic Performance Summary'}
+                </span>
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Official 4-Category Weighted Evaluation Policy (Mid-Term 25% · Monthly Tests 15% · Tasks 10% · Terminal 50%)
+              </p>
+            </div>
           </div>
         </div>
 
@@ -213,16 +224,25 @@ export const StudentAnnualPerformanceSummary: React.FC<StudentAnnualPerformanceS
       </div>
 
       {/* Official School Letterhead (Visible when printing) */}
-      <div className="hidden print:block border-b-2 border-slate-900 pb-3 mb-4 text-center">
-        <h1 className="text-xl font-black uppercase tracking-wider text-slate-900">
-          Cambridge Education System
-        </h1>
-        <p className="text-xs text-slate-600 font-medium">
-          Official Student Annual Academic Evaluation &amp; Progress Transcript
-        </p>
-        <p className="text-[11px] text-slate-500 mt-0.5">
-          Academic Session: {session?.name || 'Current'} · Issued: {new Date().toLocaleDateString('en-GB')}
-        </p>
+      <div className="hidden print:flex items-center justify-between border-b-2 border-[#004aad] pb-4 mb-4 text-left">
+        <div className="flex items-center gap-3">
+          <img src="/logowb.png" alt="Cambridge Education System" className="w-16 h-16 object-contain shrink-0" />
+          <div>
+            <h1 className="text-xl font-black uppercase tracking-wider text-[#004aad]">
+              Cambridge Education System
+            </h1>
+            <p className="text-xs text-slate-700 font-bold">
+              Official Student Annual Academic Evaluation &amp; Progress Transcript
+            </p>
+            <p className="text-[11px] text-[#c8952b] font-semibold mt-0.5">
+              Academic Session: {session?.name || 'Current'} · Cambridge Curriculum Standard
+            </p>
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          <span className="text-xs font-mono font-bold text-slate-900 block">OFFICIAL RESULT CARD</span>
+          <span className="text-[10px] text-slate-500 block">Issued: {new Date().toLocaleDateString('en-GB')}</span>
+        </div>
       </div>
 
       {/* 2. Student Info Header Card */}
