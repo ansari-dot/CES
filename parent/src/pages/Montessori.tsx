@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, CalendarCheck, CheckCircle2, AlertTriangle, BookOpen } from 'lucide-react';
+import { Sparkles, CalendarCheck, CheckCircle2, AlertTriangle, BookOpen, Video } from 'lucide-react';
 import { useChildData, useParent } from '../context/ParentContext';
 import { RequireChild, LoadingBlock, ErrorBlock, EmptyBlock, MetricCard } from '../components/common';
 import { formatDate } from '../lib/format';
@@ -29,6 +29,56 @@ const Status: React.FC<{ s: ProgressStatus }> = ({ s }) => (
   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${STYLES[s]}`}>{LABELS[s]}</span>
 );
 
+/**
+ * Upcoming Montessori live classes of the child's current section. The server verifies the
+ * parent–child link and releases the Zoom link only inside the join window.
+ */
+function LiveClassesCard() {
+  const { data, loading, error, reload } = useChildData<{ section: { name: string } | null; upcoming: any[] }>(
+    (id) => `/api/v1/montessori/parent/children/${id}/live-classes`
+  );
+  return (
+    <div className="bg-card border border-border rounded-md shadow-sm">
+      <div className="px-5 py-3 border-b border-border font-headings font-bold text-base flex items-center gap-2">
+        <Video className="w-4 h-4 text-primary" /> Upcoming live classes
+      </div>
+      {loading && !data ? (
+        <p className="px-5 py-6 text-xs text-muted-foreground">Loading live classes…</p>
+      ) : error ? (
+        <p className="px-5 py-6 text-xs text-muted-foreground">
+          {error} <button onClick={reload} className="text-primary font-semibold hover:underline cursor-pointer">Retry</button>
+        </p>
+      ) : !data || data.upcoming.length === 0 ? (
+        <p className="px-5 py-6 text-xs text-muted-foreground">No upcoming live classes are scheduled.</p>
+      ) : (
+        <div className="divide-y divide-border">
+          {data.upcoming.map((c: any) => (
+            <div key={c.id} className="px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm">
+              <div className="min-w-0">
+                <div className="font-semibold">
+                  {c.title} {c.state === 'LIVE' && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 ml-1">Live now</span>}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {formatDate(c.date)} · {c.startTime} – {c.endTime} · {c.teacherName}
+                </div>
+                {c.description && <div className="text-xs text-muted-foreground mt-0.5">{c.description}</div>}
+                {c.canJoin && c.passcode && <div className="text-xs text-muted-foreground mt-0.5">Passcode: <span className="font-mono font-bold">{c.passcode}</span></div>}
+              </div>
+              {c.canJoin && c.joinUrl ? (
+                <a href={c.joinUrl} target="_blank" rel="noopener noreferrer" className="bg-primary text-white text-xs font-bold px-4 py-2 rounded-sm inline-flex items-center justify-center gap-1.5 shrink-0">
+                  <Video className="w-3.5 h-3.5" /> Join Live Class
+                </a>
+              ) : (
+                <span className="text-[11px] text-muted-foreground shrink-0">Link opens 10 min before start</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MontessoriContent() {
   const { selectedChild } = useParent();
   const { data, loading, error, reload } = useChildData<any>((id) => `/api/v1/montessori/parent/children/${id}`);
@@ -54,6 +104,8 @@ function MontessoriContent() {
           </div>
         </div>
       </div>
+
+      {data.currentSection && <LiveClassesCard />}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <MetricCard icon={CalendarCheck} title="Attendance" value={data.attendance.attendanceRate != null ? `${data.attendance.attendanceRate}%` : '—'} subtitle={`${data.attendance.total} day(s) recorded`} colorScheme="primary" />
