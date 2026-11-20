@@ -15,7 +15,7 @@ import { AcademicSetupView } from './modules/academics/AcademicSetupView';
 import { AcademicCalendarModule } from './modules/calendar/AcademicCalendarModule';
 import { TimetableModule } from './modules/timetable/TimetableModule';
 import { DateSheetsModule } from './modules/datesheets/DateSheetsModule';
-import { ZoomLinksModule } from './modules/zoom/ZoomLinksModule';
+import { LiveClassesHub } from './modules/zoom/LiveClassesHub';
 import { AttendanceModule } from './modules/attendance/AttendanceModule';
 import { FeeStructureModule } from './modules/fees/FeeStructureModule';
 import { ChallansModule } from './modules/challans/ChallansModule';
@@ -134,7 +134,7 @@ function PrincipalPortalApp() {
       case 'datesheets':
         return <DateSheetsModule />;
       case 'zoom':
-        return <ZoomLinksModule />;
+        return <LiveClassesHub />;
       case 'attendance':
         return <AttendanceModule />;
       case 'fees':

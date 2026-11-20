@@ -147,8 +147,48 @@ export const montessoriApi = {
   progress: (params: Record<string, string | number | undefined>) => requestApi<Page<MProgress>>(`${M}/progress${qs(params)}`),
   progressHistory: (id: number) => requestApi<{ id: number; previousValues: any; reason: string; changedBy: string; at: string }[]>(`${M}/progress/${id}/history`),
   sectionReport: (id: number, params: { from?: string; to?: string }) => requestApi<any>(`${M}/reports/sections/${id}${qs(params)}`),
-  studentReport: (id: number, params: { from?: string; to?: string }) => requestApi<any>(`${M}/reports/students/${id}${qs(params)}`)
+  studentReport: (id: number, params: { from?: string; to?: string }) => requestApi<any>(`${M}/reports/students/${id}${qs(params)}`),
+  liveClasses: (params: { scope?: 'upcoming' | 'previous' | 'all'; sectionId?: number | '' }) => requestApi<MLiveClass[]>(`${M}/live-classes${qs(params)}`),
+  liveClassOptions: () => requestApi<{ zoomApiConfigured: boolean; timezone: string }>(`${M}/live-classes/options`),
+  createLiveClass: (body: MLiveClassInput) => requestApi<MLiveClass>(`${M}/live-classes`, json('POST', body)),
+  updateLiveClass: (id: number, body: MLiveClassInput) => requestApi<MLiveClass>(`${M}/live-classes/${id}`, json('PUT', body)),
+  cancelLiveClass: (id: number, reason: string) => requestApi<MLiveClass>(`${M}/live-classes/${id}/cancel`, json('POST', { reason }))
 };
+
+export type LiveClassState = 'UPCOMING' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
+export interface MLiveClass {
+  id: number;
+  sectionId: number;
+  sectionName: string;
+  teacherId: number;
+  teacherName: string;
+  title: string;
+  description: string | null;
+  date: string;
+  startTime: string;
+  endTime: string;
+  startAt: string;
+  endAt: string;
+  timezone: string;
+  state: LiveClassState;
+  joinUrl: string | null;
+  passcode: string | null;
+  cancelReason: string | null;
+  meetingSource: 'MANUAL' | 'ZOOM_API';
+  zoomMeetingId: string | null;
+}
+export interface MLiveClassInput {
+  sectionId: number;
+  teacherId: number;
+  title: string;
+  description?: string | null;
+  date: string;
+  startTime: string;
+  endTime: string;
+  meetingMode: 'MANUAL' | 'ZOOM_API';
+  joinUrl?: string | null;
+  passcode?: string | null;
+}
 
 export const ATTENDANCE_LABELS: Record<AttendanceStatus, string> = { PRESENT: 'Present', ABSENT: 'Absent', LATE: 'Late', LEAVE: 'Leave' };
 export const PROGRESS_LABELS: Record<ProgressStatus, string> = {
