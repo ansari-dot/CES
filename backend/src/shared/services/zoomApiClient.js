@@ -334,6 +334,60 @@ export const zoomApiClient = {
     };
   },
 
+  /**
+   * Creates a one-off scheduled meeting (type 2) at a fixed school-local time, e.g. a
+   * Montessori live class. `startLocal` is "YYYY-MM-DDTHH:MM:SS" wall-clock in `timezone`.
+   * Join-before-host is on so the class teacher can open the room with the ordinary join
+   * link; the host start URL is deliberately not returned.
+   */
+  async createScheduledMeeting({ hostUserId = 'me', topic, agenda = '', startLocal, durationMinutes, timezone, passcode }) {
+    const payload = {
+      topic,
+      type: 2,
+      start_time: startLocal,
+      duration: durationMinutes,
+      timezone,
+      password: passcode || generateMeetingPasscode(),
+      agenda: String(agenda || '').slice(0, 2000),
+      settings: {
+        host_video: true,
+        participant_video: true,
+        join_before_host: true,
+        jbh_time: 0,
+        waiting_room: false,
+        mute_upon_entry: true,
+        use_pmi: false,
+        approval_type: 2,
+        audio: 'both',
+        auto_recording: 'none'
+      }
+    };
+    const created = await this.request(`/users/${encodeURIComponent(hostUserId)}/meetings`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    return {
+      meetingId: String(created.id),
+      topic: created.topic,
+      joinUrl: created.join_url,
+      passcode: created.password || payload.password
+    };
+  },
+
+  /** Updates the topic / agenda / time of a scheduled meeting created by createScheduledMeeting. */
+  async updateScheduledMeeting(meetingId, { topic, agenda = '', startLocal, durationMinutes, timezone }) {
+    return await this.request(`/meetings/${encodeURIComponent(meetingId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        topic,
+        agenda: String(agenda || '').slice(0, 2000),
+        start_time: startLocal,
+        duration: durationMinutes,
+        timezone
+      })
+    });
+  },
+
   async getMeeting(meetingId) {
     return await this.request(`/meetings/${meetingId}`);
   },

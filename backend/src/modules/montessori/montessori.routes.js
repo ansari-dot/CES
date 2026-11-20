@@ -4,6 +4,7 @@ import { requireRole } from '../../shared/services/accessScope.js';
 import { sendSuccess } from '../../shared/http/response.js';
 import * as mgmt from './montessori.management.service.js';
 import * as rec from './montessori.records.service.js';
+import * as live from './montessori.live.service.js';
 import { assertCanViewStudent } from './montessori.access.js';
 
 /**
@@ -67,6 +68,16 @@ router.get('/reports/students/:id', staffOrTeacher, ok(async (req) => {
   await assertCanViewStudent(req.user, req.params.id);
   return rec.studentReport(req.user, req.params.id, req.query);
 }));
+
+// ---- Montessori Live Classes (Zoom). Separate records from regular timetable live classes.
+router.get('/live-classes', staff, ok((req) => live.listLiveClasses({ scope: req.query.scope, sectionId: req.query.sectionId })));
+router.get('/live-classes/options', staff, ok(() => live.meetingOptions()));
+router.post('/live-classes', staff, ok((req) => live.createLiveClass(req.user, req.body), 201));
+router.put('/live-classes/:id', staff, ok((req) => live.updateLiveClass(req.user, req.params.id, req.body)));
+router.post('/live-classes/:id/cancel', staff, ok((req) => live.cancelLiveClass(req.user, req.params.id, req.body?.reason)));
+router.get('/my/live-classes', requireRole('TEACHER'), ok((req) => live.myLiveClasses(req.user)));
+router.get('/student/live-classes', requireRole('STUDENT'), ok((req) => live.studentLiveClasses(req.user)));
+router.get('/parent/children/:studentId/live-classes', requireRole('PARENT'), ok((req) => live.parentLiveClasses(req.user, req.params.studentId)));
 
 // ---- Parent (read-only, linked children)
 router.get('/parent/children', requireRole('PARENT'), ok((req) => rec.parentChildren(req.user)));
