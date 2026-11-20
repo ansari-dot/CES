@@ -5,6 +5,7 @@ import { RootState, AppDispatch } from '../store';
 import { fetchTimetable, fetchStudentZoomSession } from '../store/slices/classesSlice';
 import StatusChip from '../components/common/StatusChip';
 import ZoomMeetingModal from '../components/dialogs/ZoomMeetingModal';
+import MontessoriLiveClasses from '../components/montessori/MontessoriLiveClasses';
 import { useSocketEvent, useClassRoomSubscription } from '../hooks/useSocket';
 import { RealtimeEvents } from '../services/socketService';
 
@@ -67,6 +68,9 @@ export default function LiveClasses() {
           <span>{nextClass.isLiveNow ? 'Join Now' : 'Class Details'}</span>
         </button>
       </div>
+
+      {/* Montessori live classes (only rendered for students allocated to a KG section) */}
+      <MontessoriLiveClasses />
 
       {/* Today's Upcoming Section */}
       <div className="font-headings font-bold text-base text-foreground">
