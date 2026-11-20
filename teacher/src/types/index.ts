@@ -20,7 +20,8 @@ export type NavTab =
   | 'montessori-class'
   | 'montessori-attendance'
   | 'montessori-activities'
-  | 'montessori-progress';
+  | 'montessori-progress'
+  | 'montessori-live';
 
 export interface AssignedClass {
   id: string;

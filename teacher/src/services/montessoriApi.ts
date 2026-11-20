@@ -83,8 +83,27 @@ export const montessoriApi = {
   progress: (params: Record<string, string | number | undefined>) => requestApi<Page<MProgress>>(`${M}/progress${qs(params)}`),
   recordProgress: (body: { activityId: number; observedOn?: string; records: Record<string, unknown>[] }) => requestApi<MProgress[]>(`${M}/progress`, json('POST', body)),
   correctProgress: (id: number, body: Record<string, unknown>) => requestApi<MProgress>(`${M}/progress/${id}`, json('PUT', body)),
-  studentReport: (studentId: number) => requestApi<any>(`${M}/reports/students/${studentId}`)
+  studentReport: (studentId: number) => requestApi<any>(`${M}/reports/students/${studentId}`),
+  myLiveClasses: () => requestApi<{ upcoming: MLiveClass[]; previous: MLiveClass[] }>(`${M}/my/live-classes`)
 };
+
+export interface MLiveClass {
+  id: number;
+  sectionId: number;
+  sectionName: string;
+  teacherName: string;
+  title: string;
+  description: string | null;
+  date: string;
+  startTime: string;
+  endTime: string;
+  timezone: string;
+  state: 'UPCOMING' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
+  canJoin: boolean;
+  joinUrl: string | null;
+  passcode: string | null;
+  cancelReason: string | null;
+}
 
 export const ATTENDANCE_LABELS: Record<MAttendance, string> = { PRESENT: 'Present', ABSENT: 'Absent', LATE: 'Late', LEAVE: 'Leave' };
 export const PROGRESS_LABELS: Record<MProgressStatus, string> = {

@@ -183,6 +183,7 @@ export const Sidebar: React.FC = () => {
               { id: 'montessori-attendance' as NavTab, label: 'Attendance', icon: CheckCircle2 },
               { id: 'montessori-activities' as NavTab, label: 'Daily Activities', icon: BookOpen },
               { id: 'montessori-progress' as NavTab, label: 'Progress & History', icon: BarChart3 },
+              { id: 'montessori-live' as NavTab, label: 'Montessori Live Classes', icon: Video },
             ],
           } as NavItemConfig,
         ]

@@ -20,6 +20,7 @@ import { StudentPerformancePage } from './pages/StudentPerformancePage';
 import { ExamResultsPage } from './pages/ExamResultsPage';
 import { AchievementsFeedbackPage } from './pages/AchievementsFeedbackPage';
 import { MontessoriWorkspacePage } from './pages/MontessoriWorkspacePage';
+import { MontessoriLiveClassesPage } from './pages/MontessoriLiveClassesPage';
 import { NoticesPage } from './pages/NoticesPage';
 import { DutySalaryPage } from './pages/DutySalaryPage';
 import { ProfileSettingsPage } from './pages/ProfileSettingsPage';
@@ -153,6 +154,8 @@ export default function App() {
         return <MontessoriWorkspacePage view="activities" />;
       case 'montessori-progress':
         return <MontessoriWorkspacePage view="progress" />;
+      case 'montessori-live':
+        return <MontessoriLiveClassesPage />;
       case 'student-chat':
         return <StudentChatPage />;
       default:
