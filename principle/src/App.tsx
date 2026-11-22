@@ -16,6 +16,7 @@ import { AcademicCalendarModule } from './modules/calendar/AcademicCalendarModul
 import { TimetableModule } from './modules/timetable/TimetableModule';
 import { DateSheetsModule } from './modules/datesheets/DateSheetsModule';
 import { LiveClassesHub } from './modules/zoom/LiveClassesHub';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { AttendanceModule } from './modules/attendance/AttendanceModule';
 import { FeeStructureModule } from './modules/fees/FeeStructureModule';
 import { ChallansModule } from './modules/challans/ChallansModule';
@@ -215,7 +216,7 @@ function PrincipalPortalApp() {
         {/* Scrollable Content Container */}
         <main className="flex-1 overflow-y-auto p-6 print:overflow-visible print:p-0">
           <div className="max-w-7xl mx-auto print:max-w-none">
-            {renderModuleContent()}
+            <ErrorBoundary resetKey={activeModule}>{renderModuleContent()}</ErrorBoundary>
           </div>
         </main>
       </div>

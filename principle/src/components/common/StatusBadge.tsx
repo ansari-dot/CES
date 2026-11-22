@@ -22,7 +22,7 @@ interface StatusBadgeProps {
 }
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({
-  status,
+  status: rawStatus,
   variant,
   className = '',
   showIcon = true,
@@ -30,6 +30,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   minimal = false
 }) => {
   let inferredVariant = variant;
+  // A missing status from the API must never crash the page that shows the badge
+  const status = rawStatus == null || rawStatus === '' ? '—' : String(rawStatus);
   const lower = status.toLowerCase();
 
   if (!inferredVariant) {

@@ -632,7 +632,7 @@ const FacultyDirectory: React.FC = () => {
                 <BookOpen className="w-3.5 h-3.5 text-amber-600" />
                 <span>Classroom Assignments (Classes 1–8)</span>
               </h4>
-              {selectedTeacher.assignments.length === 0 ? (
+              {(selectedTeacher.assignments || []).length === 0 ? (
                 <p className="text-slate-500 italic p-3 bg-slate-50 rounded-xl border border-slate-200">
                   No classroom subject assignments currently registered.
                 </p>
@@ -647,7 +647,8 @@ const FacultyDirectory: React.FC = () => {
                         <span className="font-semibold text-slate-900">Class {asg.classNumber}</span>
                         <div className="text-slate-500 text-[11px]">{asg.subjectName}</div>
                       </div>
-                      <StatusBadge status={asg.status} />
+                      {/* The teachers API returns active assignments without a status field */}
+                      <StatusBadge status={asg.status || 'Active'} />
                     </div>
                   ))}
                 </div>
