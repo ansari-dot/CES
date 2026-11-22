@@ -30,6 +30,7 @@ const sec = {};
 const lc = {};
 let app;
 let cls;
+let montClass;
 const originalZoom = {};
 const zoomCalls = { created: [], updated: [], deleted: [] };
 
@@ -69,7 +70,7 @@ async function createStudent(label, name) {
     admission_no: `LADM-${label}-${SUFFIX}`.slice(0, 50),
     roll_no: String(80 + userIds.length),
     admission_date: '2026-04-01',
-    current_class_id: cls.id,
+    current_class_id: montClass.id,
     status: 'ACTIVE'
   });
   return { id, username: u.username };
@@ -92,6 +93,7 @@ const payload = (over = {}) => ({
 beforeAll(async () => {
   app = createApp();
   cls = await db('classes').orderBy('id').first();
+  montClass = await db('classes').where({ grade_level: 0 }).first();
 
   const principal = await createUser(2, 'lprin', 'Fixture Live Principal');
   for (const key of ['a', 'b', 'x']) {
@@ -413,7 +415,7 @@ describe('Regression: regular Zoom live classes are untouched', () => {
   test('regular student and teacher live-class endpoints still respond', async () => {
     const student = await as(actors.ali).get('/api/v1/zoom/student-class-session');
     expect(student.status).toBe(200);
-    expect(student.body.data.classId).toBe(Number(cls.id));
+    expect(student.body.data.classId).toBe(Number(montClass.id));
     expect((await as(actors.teacherA).get('/api/v1/zoom/my-class-session')).status).toBe(200);
     expect((await as(actors.ali).get('/api/v1/zoom/class-meetings')).status).toBe(403);
   });

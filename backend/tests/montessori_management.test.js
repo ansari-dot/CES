@@ -22,6 +22,7 @@ const userIds = [];
 const sectionIds = [];
 let app;
 let cls;
+let montClass;
 let regularSubject;
 const actors = {};
 const st = {};
@@ -58,14 +59,14 @@ const as = (a) => ({
 });
 const M = '/api/v1/montessori';
 
-async function createStudent(label, name) {
+async function createStudent(label, name, classId = null) {
   const u = await createUser(4, label, name);
   const [id] = await db('students').insert({
     user_id: u.id,
     admission_no: `MADM-${label}-${SUFFIX}`.slice(0, 50),
     roll_no: String(70 + userIds.length),
     admission_date: '2026-04-01',
-    current_class_id: cls.id,
+    current_class_id: classId || montClass.id,
     status: 'ACTIVE'
   });
   return { id, userId: u.id, username: u.username, name };
@@ -74,6 +75,7 @@ async function createStudent(label, name) {
 beforeAll(async () => {
   app = createApp();
   cls = await db('classes').orderBy('id').first();
+  montClass = await db('classes').where({ grade_level: 0 }).first();
   const session = (await db('academic_sessions').where({ is_current: 1 }).first()) || (await db('academic_sessions').first());
   const [subjectId] = await db('subjects').insert({ code: `MX${SUFFIX}`.slice(0, 30), name: `Mont Regular ${SUFFIX}`.slice(0, 60) });
   regularSubject = subjectId;
@@ -90,6 +92,8 @@ beforeAll(async () => {
   st.ali = await createStudent('mali', 'Fixture Mont Ali');
   st.sara = await createStudent('msara', 'Fixture Mont Sara');
   st.omar = await createStudent('momar', 'Fixture Mont Omar');
+  // Admitted to a regular class (Class 1–8): must never be offered for Montessori allocation
+  st.regular = await createStudent('mreg', 'Fixture Mont Regular', cls.id);
 
   const pa = await createUser(5, 'mpa', 'Fixture Mont Parent A');
   const pb = await createUser(5, 'mpb', 'Fixture Mont Parent B');
@@ -133,6 +137,7 @@ afterAll(async () => {
   await safe(() => db('teacher_assignments').where({ subject_id: regularSubject }).del());
   await safe(() => db('parents').whereIn('user_id', userIds).del());
   await safe(() => db('teachers').whereIn('user_id', userIds).del());
+  await safe(async () => db('enrollments').whereIn('student_id', await db('students').whereIn('user_id', userIds).pluck('id')).del());
   await safe(() => db('students').whereIn('user_id', userIds).del());
   await safe(() => db('user_sessions').whereIn('user_id', userIds).del());
   await safe(() => db('refresh_tokens').whereIn('user_id', userIds).del());
@@ -227,6 +232,41 @@ describe('Principal: teachers and students', () => {
     expect(conflict.body.error.details.problems[0].reason).toMatch(/Already allocated/);
     const byStudentAccounts = await db('users').whereIn('id', [st.ali.userId]).count('id as n').first();
     expect(Number(byStudentAccounts.n)).toBe(1); // no duplicate accounts
+  });
+
+  test('only students admitted to the Montessori class level can be allocated', async () => {
+    const search = await as(actors.principal).get(`${M}/students/available?search=${encodeURIComponent('Fixture Mont')}&limit=200`);
+    const ids = search.body.data.items.map((s) => s.id);
+    expect(ids).toEqual(expect.arrayContaining([st.ali.id, st.sara.id, st.omar.id]));
+    expect(ids).not.toContain(st.regular.id);
+    const res = await as(actors.principal).post(`${M}/sections/${sec.kg1}/allocations`).send({ studentIds: [st.regular.id] });
+    expect(res.status).toBe(422);
+    expect(res.body.error.details.problems[0].reason).toMatch(/not Montessori/);
+    expect(await db('montessori_student_allocations').where({ student_id: st.regular.id }).first()).toBeUndefined();
+  });
+
+  test('principal admits a student to Montessori; regular admission is unchanged', async () => {
+    const adm = `MNEW-${SUFFIX}`;
+    const res = await as(actors.principal).post('/api/v1/students').send({ name: 'Fixture Mont Newkid', admissionNo: adm, rollNo: '1', gradeLevel: 0 });
+    expect(res.status).toBe(201);
+    userIds.push(res.body.data.userId);
+    const row = await db('students').where({ id: res.body.data.id }).first();
+    expect(Number(row.current_class_id)).toBe(Number(montClass.id));
+    const search = await as(actors.principal).get(`${M}/students/available?search=${encodeURIComponent('Fixture Mont Newkid')}`);
+    expect(search.body.data.items.map((s) => s.id)).toContain(res.body.data.id);
+
+    const reg = await as(actors.principal).post('/api/v1/students').send({ name: 'Fixture Mont Regkid', admissionNo: `MREG-${SUFFIX}`, rollNo: '2', currentClassId: cls.id });
+    expect(reg.status).toBe(201);
+    userIds.push(reg.body.data.userId);
+    expect(Number((await db('students').where({ id: reg.body.data.id }).first()).current_class_id)).toBe(Number(cls.id));
+    expect((await as(actors.principal).post('/api/v1/students').send({ name: 'Fixture Bad', admissionNo: `MBAD-${SUFFIX}`, gradeLevel: 42 })).status).toBe(422);
+    expect((await as(actors.teacherA).post('/api/v1/students').send({ name: 'Hack', admissionNo: `MHK-${SUFFIX}`, gradeLevel: 0 })).status).toBe(403);
+  });
+
+  test('the Montessori level gets no regular Zoom classroom', async () => {
+    const meetings = await as(actors.principal).get('/api/v1/zoom/class-meetings');
+    expect(meetings.status).toBe(200);
+    expect(JSON.stringify(meetings.body.data)).not.toContain('Montessori');
   });
 
   test('transfers a student and keeps allocation history', async () => {
@@ -363,7 +403,7 @@ describe('Principal: oversight and reports', () => {
     expect(student.body.data.currentSection.id).toBe(sec.kg1);
     expect(student.body.data.completedActivities).toHaveLength(1);
     expect(student.body.data.history).toHaveLength(2);
-    expect(student.body.data.student.regularClassName).toBe(cls.name);
+    expect(student.body.data.student.regularClassName).toBe(montClass.name);
   });
 
   test('dashboard shows real totals', async () => {
