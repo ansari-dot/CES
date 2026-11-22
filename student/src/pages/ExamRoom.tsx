@@ -17,6 +17,35 @@ import {
   Video
 } from 'lucide-react';
 
+/**
+ * Makes one question safe to render whatever shape the stored data has:
+ * options always become [{ key, text }] and the prompt is always text.
+ */
+function normalizeQuestion(q: any): ExamQuestion {
+  let options: any = q?.options;
+  if (typeof options === 'string') {
+    try {
+      options = JSON.parse(options);
+    } catch {
+      options = [];
+    }
+  }
+  if (options && !Array.isArray(options) && typeof options === 'object') {
+    options = Object.entries(options).map(([key, text]) => ({ key, text }));
+  }
+  const list = (Array.isArray(options) ? options : []).map((o: any, i: number) => {
+    const fallbackKey = String.fromCharCode(65 + i);
+    if (o && typeof o === 'object') return { key: String(o.key ?? fallbackKey), text: String(o.text ?? o.label ?? o.value ?? '') };
+    return { key: fallbackKey, text: String(o ?? '') };
+  });
+  return {
+    ...q,
+    prompt: typeof q?.prompt === 'string' ? q.prompt : String(q?.prompt ?? q?.question_text ?? ''),
+    marks: Number(q?.marks) || 0,
+    options: list
+  };
+}
+
 export default function ExamRoom() {
   const { testId } = useParams<{ testId: string }>();
   const navigate = useNavigate();
@@ -80,6 +109,12 @@ export default function ExamRoom() {
           return;
         }
         setWaitInfo(null);
+        // Guard against an unexpected / outdated server response so the room shows a
+        // clear message instead of crashing while rendering.
+        if (!data || !data.test || !data.attempt) {
+          throw new Error('The test room could not be opened. Please go back and try again.');
+        }
+        data.questions = (Array.isArray(data.questions) ? data.questions : []).map(normalizeQuestion);
         setExamData(data);
 
         // Attempt already submitted / expired: show the submitted screen
@@ -91,10 +126,13 @@ export default function ExamRoom() {
         }
 
         // Calculate authoritative remaining seconds
+        // Prefer the server's remaining time: a wrong clock on the student's device must
+        // not end (or extend) the countdown. Fall back to the expiry timestamp.
+        const serverSecs = Number(data.remaining_seconds);
         const expiresAt = new Date(data.attempt.expires_at).getTime();
-        const now = Date.now();
-        const secs = Math.max(0, Math.floor((expiresAt - now) / 1000));
-        setRemainingSeconds(secs);
+        const clockSecs = Math.floor((expiresAt - Date.now()) / 1000);
+        const secs = Number.isFinite(serverSecs) ? serverSecs : Number.isFinite(clockSecs) ? clockSecs : 0;
+        setRemainingSeconds(Math.max(0, secs));
 
         // Pre-populate saved answers
         const initialAnswers: Record<number, { selectedOption: string | null; answerText: string }> = {};

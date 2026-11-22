@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from './store';
 import { fetchMe } from './store/slices/studentSlice';
 import { BrandLoader } from './components/common/BrandLoader';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 import Login from './pages/Login';
 import PortalLayout from './components/layout/PortalLayout';
@@ -38,6 +39,7 @@ export default function App() {
   const dispatch = useDispatch<AppDispatch>();
   const { isAuthenticated } = useSelector((state: RootState) => state.student);
   const [bootChecking, setBootChecking] = useState(true);
+  const location = useLocation();
 
   useEffect(() => {
     let active = true;
@@ -71,6 +73,7 @@ export default function App() {
   }
 
   return (
+    <ErrorBoundary resetKey={location.pathname}>
     <Routes>
       <Route
         path="/login"
@@ -112,5 +115,6 @@ export default function App() {
       </Route>
       <Route path="*" element={<Navigate to="/student/dashboard" replace />} />
     </Routes>
+    </ErrorBoundary>
   );
 }
