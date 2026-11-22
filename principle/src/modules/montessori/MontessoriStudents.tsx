@@ -11,13 +11,11 @@ import { MPageHeader, SectionSelect, selectCls, inputCls, primaryBtn, ghostBtn, 
 export const MontessoriStudents: React.FC = () => {
   const toast = useToast();
   const [sections, setSections] = useState<MSection[]>([]);
-  const [classes, setClasses] = useState<{ id: number; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewSection, setViewSection] = useState<number | ''>('');
   const [roster, setRoster] = useState<MRosterStudent[]>([]);
   const [search, setSearch] = useState('');
-  const [classId, setClassId] = useState<number | ''>('');
   const [unallocatedOnly, setUnallocatedOnly] = useState(true);
   const [students, setStudents] = useState<MStudent[]>([]);
   const [total, setTotal] = useState(0);
@@ -35,7 +33,6 @@ export const MontessoriStudents: React.FC = () => {
       const s = await montessoriApi.sections();
       setSections(s);
       if (!viewSection && s.length) setViewSection(s[0].id);
-      requestApi<any[]>('/api/v1/classes').then((c) => setClasses(Array.isArray(c) ? c : [])).catch(() => {});
     } catch (err: any) {
       setError(err?.message || 'Failed to load sections');
     } finally {
@@ -55,13 +52,13 @@ export const MontessoriStudents: React.FC = () => {
 
   const searchStudents = useCallback(async () => {
     try {
-      const res = await montessoriApi.availableStudents({ search: search.trim(), classId, unallocatedOnly, limit: 100 });
+      const res = await montessoriApi.availableStudents({ search: search.trim(), unallocatedOnly, limit: 100 });
       setStudents(res.items);
       setTotal(res.total);
     } catch (err: any) {
       toast.error(errorText(err, 'Failed to search students'));
     }
-  }, [search, classId, unallocatedOnly, toast]);
+  }, [search, unallocatedOnly, toast]);
 
   useEffect(() => {
     loadSections();
@@ -73,7 +70,7 @@ export const MontessoriStudents: React.FC = () => {
     searchStudents();
     // search runs on submit / filter change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classId, unallocatedOnly]);
+  }, [unallocatedOnly]);
 
   const refresh = () => {
     setSelected([]);
@@ -138,7 +135,7 @@ export const MontessoriStudents: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <MPageHeader title="Student Allocation" description="Allocate existing CES students to Montessori sections. No new student accounts are created; parent links are unchanged." />
+      <MPageHeader title="Student Allocation" description="Allocate students admitted to the Montessori class to a KG section. Students of Classes 1–8 are not listed; admit a child with Target Class “Montessori” in Students to see them here." />
 
       <div className="p-3 rounded-xl bg-sky-50 border border-sky-200 text-sky-900 text-[11px] flex gap-2">
         <Info className="w-4 h-4 shrink-0" />
@@ -192,10 +189,6 @@ export const MontessoriStudents: React.FC = () => {
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name or admission no ⏎" className={`${selectCls} pl-8 w-56`} />
           </form>
-          <select value={classId} onChange={(e) => setClassId(e.target.value ? Number(e.target.value) : '')} className={selectCls}>
-            <option value="">All regular classes</option>
-            {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
           <label className="text-xs text-slate-600 flex items-center gap-1.5">
             <input type="checkbox" checked={unallocatedOnly} onChange={(e) => setUnallocatedOnly(e.target.checked)} /> Not yet allocated only
           </label>
@@ -203,7 +196,7 @@ export const MontessoriStudents: React.FC = () => {
         </div>
         <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
           {students.length === 0 ? (
-            <p className="px-4 py-6 text-center text-xs text-slate-400">No students match.</p>
+            <p className="px-4 py-6 text-center text-xs text-slate-400">No Montessori students match. Admit a child with Target Class “Montessori” to list them here.</p>
           ) : (
             students.map((s) => (
               <label key={s.id} className="px-4 py-2 flex items-center gap-3 text-xs cursor-pointer hover:bg-slate-50">

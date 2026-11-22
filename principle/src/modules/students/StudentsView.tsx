@@ -24,6 +24,10 @@ import {
   X
 } from 'lucide-react';
 
+/** Class levels offered at admission: 0 is the Montessori level, 1–8 are the regular classes. */
+const CLASS_LEVELS = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+const classLabel = (n: number) => (Number(n) === 0 ? 'Montessori' : `Class ${n}`);
+
 export const StudentsView: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
@@ -229,7 +233,7 @@ export const StudentsView: React.FC = () => {
         enrolmentStatus: 'Active',
         accountStatus: 'Active'
       });
-      toast.success(`Student ${addForm.name} admitted to Class ${addForm.classNumber}.`);
+      toast.success(`Student ${addForm.name} admitted to ${classLabel(addForm.classNumber)}.`);
       setIsAddModalOpen(false);
       setAddForm({
         name: '',
@@ -261,7 +265,7 @@ export const StudentsView: React.FC = () => {
         activeSession,
         transferReason
       );
-      toast.success(`Student ${selectedStudent.name} successfully transferred to Class ${destClass}.`);
+      toast.success(`Student ${selectedStudent.name} successfully transferred to ${classLabel(destClass)}.`);
       setIsTransferModalOpen(false);
       setTransferReason('');
       loadStudents();
@@ -346,7 +350,7 @@ export const StudentsView: React.FC = () => {
       align: 'center',
       render: (s) => (
         <span className="font-semibold text-slate-900 text-xs font-mono">
-          Class {s.classNumber}
+          {classLabel(s.classNumber)}
         </span>
       )
     },
@@ -471,10 +475,10 @@ export const StudentsView: React.FC = () => {
               onChange={(e) => setClassFilter(e.target.value)}
               className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:bg-white"
             >
-              <option value="All">All Classes (1 to 8)</option>
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((c) => (
-                <option key={c} value={c}>Class {c}</option>
-              ))}
+              <option value="All">All Classes</option>
+              {CLASS_LEVELS.map((c) => (
+                  <option key={c} value={c}>{classLabel(c)}</option>
+                ))}
             </select>
 
             <select
@@ -520,8 +524,8 @@ export const StudentsView: React.FC = () => {
                 onChange={(e) => setAddForm({ ...addForm, classNumber: Number(e.target.value) })}
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 font-semibold focus:bg-white"
               >
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((c) => (
-                  <option key={c} value={c}>Class {c}</option>
+                {CLASS_LEVELS.map((c) => (
+                  <option key={c} value={c}>{classLabel(c)}</option>
                 ))}
               </select>
             </div>
@@ -597,14 +601,14 @@ export const StudentsView: React.FC = () => {
           isOpen={isTransferModalOpen}
           onClose={() => setIsTransferModalOpen(false)}
           title={`Class Promotion / Transfer · ${selectedStudent.name}`}
-          description={`Current Enrolment: Class ${selectedStudent.classNumber} (Roll: ${selectedStudent.rollNumber})`}
+          description={`Current Enrolment: ${classLabel(selectedStudent.classNumber)} (Roll: ${selectedStudent.rollNumber})`}
           maxWidth="md"
         >
           <div className="space-y-4 text-xs">
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
               <div>
                 <span className="text-slate-500 block text-[10px]">Current Class</span>
-                <span className="text-sm font-semibold text-slate-900">Class {selectedStudent.classNumber}</span>
+                <span className="text-sm font-semibold text-slate-900">{classLabel(selectedStudent.classNumber)}</span>
               </div>
               <ArrowRightLeft className="w-4 h-4 text-amber-600" />
               <div>
@@ -614,9 +618,9 @@ export const StudentsView: React.FC = () => {
                   onChange={(e) => setDestClass(Number(e.target.value))}
                   className="bg-white border border-slate-300 rounded p-1 text-sm font-semibold text-amber-800"
                 >
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((c) => (
-                    <option key={c} value={c}>Class {c}</option>
-                  ))}
+                  {CLASS_LEVELS.map((c) => (
+                  <option key={c} value={c}>{classLabel(c)}</option>
+                ))}
                 </select>
               </div>
             </div>
@@ -665,7 +669,7 @@ export const StudentsView: React.FC = () => {
           isOpen={isStatusModalOpen}
           onClose={() => setIsStatusModalOpen(false)}
           title={`Student Portal Access Control · ${selectedStudent.name}`}
-          description={`Admission: ${selectedStudent.admissionNumber} · Class: ${selectedStudent.classNumber}`}
+          description={`Admission: ${selectedStudent.admissionNumber} · Class: ${classLabel(selectedStudent.classNumber)}`}
           maxWidth="md"
         >
           <div className="space-y-4 text-xs">
@@ -737,7 +741,7 @@ export const StudentsView: React.FC = () => {
           isOpen={isDetailsModalOpen}
           onClose={() => setIsDetailsModalOpen(false)}
           title={`Student Record · ${selectedStudent.name}`}
-          description={`Class ${selectedStudent.classNumber} · Roll: ${selectedStudent.rollNumber}`}
+          description={`${classLabel(selectedStudent.classNumber)} · Roll: ${selectedStudent.rollNumber}`}
           maxWidth="lg"
         >
           <div className="space-y-4 text-xs">
@@ -836,7 +840,7 @@ export const StudentsView: React.FC = () => {
               </h4>
               {selectedStudent.transferHistory.length === 0 ? (
                 <p className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-500 italic">
-                  No historical class transfers on record. Admitted directly into Class {selectedStudent.classNumber}.
+                  No historical class transfers on record. Admitted directly into {classLabel(selectedStudent.classNumber)}.
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -847,7 +851,7 @@ export const StudentsView: React.FC = () => {
                     >
                       <div className="flex items-center justify-between text-slate-500 text-[11px]">
                         <span className="font-semibold text-amber-800">
-                          Class {trf.previousClass} → Class {trf.newClass}
+                          {classLabel(trf.previousClass)} → {classLabel(trf.newClass)}
                         </span>
                         <span className="font-mono text-[10px]">
                           {new Date(trf.effectiveDate).toLocaleDateString()}
@@ -870,7 +874,7 @@ export const StudentsView: React.FC = () => {
           isOpen={isHistoryModalOpen}
           onClose={() => setIsHistoryModalOpen(false)}
           title={`Official Academic Transcript · ${selectedStudent.name}`}
-          description={`Admission No: ${selectedStudent.admissionNumber} · Class ${selectedStudent.classNumber} · Complete Surviving Record`}
+          description={`Admission No: ${selectedStudent.admissionNumber} · ${classLabel(selectedStudent.classNumber)} · Complete Surviving Record`}
           maxWidth="2xl"
         >
           <div className="space-y-5 text-xs">

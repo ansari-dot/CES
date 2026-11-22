@@ -573,7 +573,8 @@ export const api = {
           admissionNumber: s.admissionNo || `ADM-${s.id}`,
           rollNumber: s.rollNo || '',
           name: s.name,
-          classNumber: Number(s.classNumber) || 1,
+          // 0 = Montessori class level (must not be coerced to Class 1)
+          classNumber: s.classNumber === null || s.classNumber === undefined || Number.isNaN(Number(s.classNumber)) ? 1 : Number(s.classNumber),
           academicSession: '2026-2027',
           admissionDate: s.admissionDate ? String(s.admissionDate).split('T')[0] : '2026-08-01',
           enrolmentStatus: 'Active',
@@ -606,6 +607,8 @@ export const api = {
         admissionNo: studentData.admissionNumber,
         rollNo: studentData.rollNumber,
         currentClassId: studentData.classNumber,
+        // Montessori admission: the server resolves the Montessori class from its level
+        ...(Number(studentData.classNumber) === 0 ? { gradeLevel: 0 } : {}),
         email: studentData.contactEmail,
         phone: studentData.contactPhone
       })
