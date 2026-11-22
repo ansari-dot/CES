@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { db } from '../../shared/db/knex.js';
 import { getCurrentSessionId } from '../../shared/services/accessScope.js';
 import { auditRepository } from '../audit/audit.repository.js';
-import { invalid, conflict, notFound, parseZod, schoolToday } from './montessori.access.js';
+import { invalid, conflict, notFound, parseZod, schoolToday, MONTESSORI_GRADE_LEVEL } from './montessori.access.js';
 
 const dupError = (err) => err?.code === 'ER_DUP_ENTRY' || err?.errno === 1062;
 
@@ -344,8 +344,12 @@ export async function endAssignment(user, assignmentId, reason) {
 // ---------------------------------------------------------------------------
 // Student allocations
 // ---------------------------------------------------------------------------
-/** Existing CES students with their current Montessori allocation (search by name / admission no). */
-export async function availableStudents({ search = '', classId = null, unallocatedOnly = false, page = 1, limit = 50 } = {}) {
+/**
+ * Students admitted to the Montessori class level, with their current section allocation
+ * (search by name / admission no). Students of Classes 1–8 are not offered; a regular-class
+ * student who was allocated before this rule existed stays listed so they can still be managed.
+ */
+export async function availableStudents({ search = '', unallocatedOnly = false, page = 1, limit = 50 } = {}) {
   let q = db('students as s')
     .join('users as u', 's.user_id', 'u.id')
     .leftJoin('classes as c', 's.current_class_id', 'c.id')
@@ -353,12 +357,12 @@ export async function availableStudents({ search = '', classId = null, unallocat
       this.on('al.student_id', '=', 's.id').andOnNull('al.ended_at');
     })
     .leftJoin('montessori_sections as ms', 'al.section_id', 'ms.id')
-    .where('s.status', 'ACTIVE');
+    .where('s.status', 'ACTIVE')
+    .where((w) => w.where('c.grade_level', MONTESSORI_GRADE_LEVEL).orWhereNotNull('al.id'));
   if (search) {
     const term = `%${String(search).trim().slice(0, 100)}%`;
     q = q.where((w) => w.where('u.full_name', 'like', term).orWhere('s.admission_no', 'like', term));
   }
-  if (classId) q = q.where('s.current_class_id', Number(classId));
   if (unallocatedOnly) q = q.whereNull('al.id');
   const lim = Math.min(Math.max(Number(limit) || 50, 1), 200);
   const pg = Math.max(Number(page) || 1, 1);
@@ -385,14 +389,21 @@ export async function availableStudents({ search = '', classId = null, unallocat
 
 const idsSchema = z.array(z.coerce.number().int().positive()).min(1, 'Select at least one student.').max(200);
 
-async function loadActiveStudents(trx, ids) {
-  const rows = await trx('students as s').join('users as u', 's.user_id', 'u.id').whereIn('s.id', ids).select('s.id', 's.status', 'u.full_name');
+async function loadActiveStudents(trx, ids, { montessoriOnly = false } = {}) {
+  const rows = await trx('students as s')
+    .join('users as u', 's.user_id', 'u.id')
+    .leftJoin('classes as c', 's.current_class_id', 'c.id')
+    .whereIn('s.id', ids)
+    .select('s.id', 's.status', 'u.full_name', 'c.grade_level', 'c.name as class_name');
   const byId = new Map(rows.map((r) => [Number(r.id), r]));
   const problems = [];
   for (const id of ids) {
     const r = byId.get(id);
     if (!r) problems.push({ studentId: id, reason: 'Student not found' });
     else if (r.status !== 'ACTIVE') problems.push({ studentId: id, studentName: r.full_name, reason: `Student status is ${r.status}` });
+    else if (montessoriOnly && Number(r.grade_level) !== MONTESSORI_GRADE_LEVEL) {
+      problems.push({ studentId: id, studentName: r.full_name, reason: `Admitted to ${r.class_name || 'a regular class'}, not Montessori` });
+    }
   }
   return { byId, problems };
 }
@@ -406,7 +417,7 @@ export async function allocateStudents(user, sectionId, body) {
   const today = schoolToday();
   try {
     return await db.transaction(async (trx) => {
-      const { byId, problems } = await loadActiveStudents(trx, ids);
+      const { byId, problems } = await loadActiveStudents(trx, ids, { montessoriOnly: true });
       const active = await trx('montessori_student_allocations as al')
         .join('montessori_sections as s', 'al.section_id', 's.id')
         .whereIn('al.student_id', ids)

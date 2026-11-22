@@ -2,6 +2,9 @@ import { studentsService } from './students.service.js';
 import { sendSuccess } from '../../shared/http/response.js';
 import { db } from '../../shared/db/knex.js';
 import { timetableRepository } from '../timetable/timetable.repository.js';
+import { academicRepository } from '../academic/academic.repository.js';
+import { AppError } from '../../shared/errors/AppError.js';
+import { ErrorCodes } from '../../shared/errors/errorCodes.js';
 import { assertCanViewStudent, getTeacherScope, isStaff, forbidden } from '../../shared/services/accessScope.js';
 
 export const studentsController = {
@@ -53,10 +56,22 @@ export const studentsController = {
         dateOfBirth,
         gender,
         currentClassId,
+        gradeLevel,
         email,
         phone,
         sessionId
       } = req.body;
+
+      // Admission by class level (0 = Montessori): the class is resolved on the server.
+      let resolvedClassId = Number(currentClassId);
+      let className = null;
+      if (gradeLevel !== undefined && gradeLevel !== null && gradeLevel !== '') {
+        const level = Number(gradeLevel);
+        const cls = Number.isInteger(level) ? (await academicRepository.getAllClasses()).find((c) => Number(c.grade_level) === level) : null;
+        if (!cls) throw new AppError('The selected class is not configured.', 422, ErrorCodes.VALIDATION_ERROR);
+        resolvedClassId = Number(cls.id);
+        className = level === 0 ? cls.name : null;
+      }
 
       const student = await studentsService.createStudent({
         name,
@@ -64,7 +79,8 @@ export const studentsController = {
         rollNo,
         dateOfBirth,
         gender,
-        currentClassId: Number(currentClassId),
+        currentClassId: resolvedClassId,
+        className,
         email,
         phone,
         sessionId: sessionId ? Number(sessionId) : null

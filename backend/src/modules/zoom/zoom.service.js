@@ -22,7 +22,8 @@ export const zoomService = {
    * Class 1 -> Host 1, Class 2 -> Host 2, ... Class 8 -> Host 8.
    */
   async setupClassMeetings({ createdBy }) {
-    const classes = await academicRepository.getAllClasses();
+    // Regular classes only: the Montessori level (grade 0) uses scheduled Montessori live classes
+    const classes = (await academicRepository.getAllClasses()).filter((c) => Number(c.grade_level) >= 1);
     const createdMeetings = [];
 
     let licensedUsers = [];
@@ -344,7 +345,7 @@ export const zoomService = {
       );
     }
 
-    const classes = await academicRepository.getAllClasses();
+    const classes = (await academicRepository.getAllClasses()).filter((c) => Number(c.grade_level) >= 1);
     const results = [];
 
     for (const cls of classes) {

@@ -31,6 +31,7 @@ export const studentsService = {
     dateOfBirth,
     gender,
     currentClassId,
+    className = null,
     email,
     phone,
     sessionId = null
@@ -86,7 +87,7 @@ export const studentsService = {
         name,
         admissionNo,
         rollNo,
-        className: `Class ${currentClassId}`,
+        className: className || `Class ${currentClassId}`,
         username,
         temporaryPassword
       }).catch((err) => {

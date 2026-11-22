@@ -17,6 +17,9 @@ export const notFound = (m = 'Record not found.') => new AppError(m, 404, ErrorC
 export const invalid = (m, details = null) => new AppError(m, 422, ErrorCodes.VALIDATION_ERROR, details);
 export const conflict = (m, details = null) => new AppError(m, 409, ErrorCodes.CONFLICT, details);
 
+/** classes.grade_level of the "Montessori" admission level (Classes 1–8 are regular). */
+export const MONTESSORI_GRADE_LEVEL = 0;
+
 /** YYYY-MM-DD in the school's timezone. */
 export function schoolToday() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: config.SCHOOL_TIMEZONE || 'Asia/Karachi' }).format(new Date());
